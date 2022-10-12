@@ -30,8 +30,10 @@ impl DevicesBuilder {
     pub fn with<T: Device + Send + Sync + 'static>(mut self, device: T) -> Self {
         let index_ref = self.counters.entry(device.ty()).or_insert(0);
         let index = *index_ref;
-        self.devices
-            .insert((device.ty(), index), Box::new(Mutex::new(device)));
+        assert!(self
+            .devices
+            .insert((device.ty(), index), Box::new(Mutex::new(device)))
+            .is_none());
         *index_ref += 1;
         self
     }
@@ -61,7 +63,7 @@ impl Devices {
             .get(&(device_type, device_number))
             .ok_or(ASCOMError::NOT_CONNECTED)?
             .lock()
-            .unwrap()
+            .expect("Device lock is poisoned")
             .handle_action(is_mut, action, params)
     }
 }

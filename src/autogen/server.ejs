@@ -4,11 +4,12 @@
 <%= api.info.description %>
 */
 
-#![allow(rustdoc::broken_intra_doc_links)]
+#![allow(
+  rustdoc::broken_intra_doc_links,
+  clippy::doc_markdown,
+)]
 
-use crate::rpc;
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use crate::rpc::rpc;
 
 <%
 function doc(description) {
@@ -79,15 +80,18 @@ function getTypeDescription(schema) {
 %>
 
 <% inSchemas = true; %>
+#[allow(clippy::as_conversions)]
 mod schemas {
-  use super::*;
+  use serde::{Deserialize, Serialize};
+  use serde_repr::{Deserialize_repr, Serialize_repr};
 
   <% for (let [schemaName, schema] of Object.entries(api.components.schemas)) { %>
     <% if (schema['x-kind'] === 'Empty' || schema['x-kind'] === 'ValueResponse') continue; %>
     <% schemaName = toTypeName(schemaName); %>
     <%= doc(schema.description) %>
-    #[derive(<%= ['Serialize', 'Deserialize'].map(trait => `${trait}${schema.enum ? '_repr' : ''}`).join(', ') %>)]
     <% if (schema.type === 'object') { %>
+      #[allow(missing_copy_implementations)]
+      #[derive(Debug, Clone, Serialize, Deserialize)]
       pub struct <%= schemaName %> {
         <% for (let [propName, prop] of Object.entries(schema.properties)) { %>
           <%= doc(getTypeDescription(prop)) %>
@@ -97,6 +101,7 @@ mod schemas {
       }
     <% } else if (schema.enum) { %>
       <% assert.equal(schema.type, 'integer'); %>
+      #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
       #[repr(i8)]
       pub enum <%= schemaName %> {
         <% for (let [i, value] of schema.enum.entries()) { %>

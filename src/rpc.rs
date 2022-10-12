@@ -4,7 +4,7 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 pub struct OpaqueResponse(serde_json::Map<String, serde_json::Value>);
 
-pub fn to_response<T: Serialize>(value: T) -> ASCOMResult<OpaqueResponse> {
+pub(crate) fn to_response<T: Serialize>(value: T) -> ASCOMResult<OpaqueResponse> {
     let json = serde_json::to_value(value)
         .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
     Ok(OpaqueResponse(match json {
@@ -12,14 +12,11 @@ pub fn to_response<T: Serialize>(value: T) -> ASCOMResult<OpaqueResponse> {
         serde_json::Value::Null => serde_json::Map::new(),
         value => {
             // Wrap into IntResponse / BoolResponse / ..., aka {"value": ...}
-            let mut map = serde_json::Map::with_capacity(1);
-            map.insert("Value".to_owned(), value);
-            map
+            std::iter::once(("Value".to_owned(), value)).collect()
         }
     }))
 }
 
-#[macro_export]
 macro_rules! rpc {
     (@if_parent $parent_trait_name:ident { $($then:tt)* } { $($else:tt)* }) => {
         $($then)*
@@ -64,7 +61,7 @@ macro_rules! rpc {
                 )*
 
                 fn handle_action_impl(&mut self, is_mut: bool, action: &str, params: &str) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
-                    use rpc::to_response;
+                    use $crate::rpc::to_response;
 
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
@@ -89,3 +86,5 @@ macro_rules! rpc {
         )*
     };
 }
+
+pub(crate) use rpc;

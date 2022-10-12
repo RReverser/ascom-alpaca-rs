@@ -46,7 +46,7 @@ impl ASCOMRequest {
     /// breaks all deserialization because it collects data into an internal representation
     /// first and then can't recover other types from string values stored from the query string.
     ///
-    /// See [nox/serde_urlencoded#33](https://github.com/nox/serde_urlencoded/issues/33).
+    /// See [`nox/serde_urlencoded#33`](https://github.com/nox/serde_urlencoded/issues/33).
     fn from_encoded_params(encoded_params: &str) -> Result<Self, serde_urlencoded::de::Error> {
         let mut transaction_params = form_urlencoded::Serializer::new(String::new());
         let mut request_params = form_urlencoded::Serializer::new(String::new());
@@ -54,15 +54,15 @@ impl ASCOMRequest {
         for (key, value) in form_urlencoded::parse(encoded_params.as_bytes()) {
             match key.as_ref() {
                 "ClientID" | "ClientTransactionID" => {
-                    transaction_params.append_pair(&key, &value);
+                    let _ = transaction_params.append_pair(&key, &value);
                 }
                 _ => {
-                    request_params.append_pair(&key, &value);
+                    let _ = request_params.append_pair(&key, &value);
                 }
             }
         }
 
-        Ok(ASCOMRequest {
+        Ok(Self {
             transaction: serde_urlencoded::from_str(&transaction_params.finish())?,
             encoded_params: request_params.finish(),
         })
