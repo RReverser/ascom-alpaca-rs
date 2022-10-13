@@ -749,6 +749,90 @@ mod schemas {
         Unknown = -1,
     }
 
+    /// Returned side of pier
+
+    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+    #[repr(i8)]
+    pub enum CalibratorStatusResponseValue {
+        /// This device does not have a calibration capability.
+        NotPresent = 0,
+
+        /// The calibrator is off.
+        Off = 1,
+
+        /// The calibrator is stabilising or is not yet in the commanded state.
+        NotReady = 2,
+
+        /// The calibrator is ready for use.
+        Ready = 3,
+
+        /// The calibrator state is unknown.
+        Unknown = 4,
+
+        /// The calibrator encountered an error when changing state.
+        Error = 5,
+    }
+
+    /// Returned side of pier
+
+    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+    #[repr(i8)]
+    pub enum CoverStatusResponseValue {
+        /// This device does not have a cover that can be closed independently.
+        NotPresent = 0,
+
+        /// The cover is closed.
+        Closed = 1,
+
+        /// The cover is moving to a new position.
+        Moving = 2,
+
+        /// The cover is open.
+        Open = 3,
+
+        /// The state of the cover is unknown.
+        Unknown = 4,
+
+        /// The device encountered an error when changing state.
+        Error = 5,
+    }
+
+    /// Returned side of pier
+
+    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+    #[repr(i8)]
+    pub enum AlignmentModeResponseValue {
+        /// Altitude-Azimuth alignment.
+        AltAz = 0,
+
+        /// Polar (equatorial) mount other than German equatorial.
+        Polar = 1,
+
+        /// German equatorial mount.
+        GermanPolar = 2,
+    }
+
+    /// Returned side of pier
+
+    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+    #[repr(i8)]
+    pub enum EquatorialSystemResponseValue {
+        /// Custom or unknown equinox and/or reference frame.
+        Other = 0,
+
+        /// Topocentric coordinates. Coordinates of the object at the current date having allowed for annual aberration, precession and nutation. This is the most common coordinate type for amateur telescopes.
+        Topocentric = 1,
+
+        /// J2000 equator/equinox. Coordinates of the object at mid-day on 1st January 2000, ICRS reference frame.
+        J2000 = 2,
+
+        /// J2050 equator/equinox, ICRS reference frame.
+        J2050 = 3,
+
+        /// B1950 equinox, FK4 reference frame.
+        B1950 = 4,
+    }
+
     /// The direction in which the guide-rate motion is to be made.
 
     #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
@@ -1262,11 +1346,11 @@ rpc! {
 
         /// Returns the state of the calibration device, if present, otherwise returns "NotPresent".  The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
         #[http("calibratorstate")]
-        fn calibrator_state(&self) -> i32;
+        fn calibrator_state(&self) -> schemas::CalibratorStatusResponseValue;
 
         /// Returns the state of the device cover, if present, otherwise returns "NotPresent".  The cover state mode is specified as an integer value from the CoverStatus Enum.
         #[http("coverstate")]
-        fn cover_state(&self) -> i32;
+        fn cover_state(&self) -> schemas::CoverStatusResponseValue;
 
         /// The Brightness value that makes the calibrator deliver its maximum illumination.
         #[http("maxbrightness")]
@@ -1682,7 +1766,7 @@ rpc! {
     pub trait Telescope: Device {
         /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar).  The alignment mode is specified as an integer value from the AlignmentModes Enum.
         #[http("alignmentmode")]
-        fn alignment_mode(&self) -> i32;
+        fn alignment_mode(&self) -> schemas::AlignmentModeResponseValue;
 
         /// The altitude above the local horizon of the mount's current position (degrees, positive up)
         #[http("altitude")]
@@ -1794,7 +1878,7 @@ rpc! {
 
         /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
         #[http("equatorialsystem")]
-        fn equatorial_system(&self) -> i32;
+        fn equatorial_system(&self) -> schemas::EquatorialSystemResponseValue;
 
         /// The telescope's focal length in meters
         #[http("focallength")]

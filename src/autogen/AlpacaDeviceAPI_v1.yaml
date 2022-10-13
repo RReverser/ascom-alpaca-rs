@@ -3316,7 +3316,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IntResponse'
+                $ref: '#/components/schemas/CalibratorStatusResponse'
         '400':
           description: 'Method or parameter value error, check error message'
           content:
@@ -3350,7 +3350,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IntResponse'
+                $ref: '#/components/schemas/CoverStatusResponse'
         '400':
           description: 'Method or parameter value error, check error message'
           content:
@@ -6609,7 +6609,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IntResponse'
+                $ref: '#/components/schemas/AlignmentModeResponse'
         '400':
           description: 'Method or parameter value error, check error message'
           content:
@@ -7567,7 +7567,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IntResponse'
+                $ref: '#/components/schemas/EquatorialSystemResponse'
         '400':
           description: 'Method or parameter value error, check error message'
           content:
@@ -10046,6 +10046,194 @@ components:
             - Normal pointing state - Mount on the East side of pier (looking West).
             - Through the pole pointing state - Mount on the West side of pier (looking East).
             - Unknown or indeterminate.
+        ClientTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Client's transaction ID (0 to 4294967295), as supplied by the client in the command request.
+        ServerTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Server's transaction ID (0 to 4294967295), should be unique for each client transaction so that log messages on the client can be associated with logs on the device.
+        ErrorNumber:
+          type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+          description: >- 
+            Zero for a successful transaction, or a non-zero integer (-2147483648 to 2147483647) if the device encountered an issue. Devices must use ASCOM reserved error numbers whenever appropriate so that clients can take informed actions. E.g. returning 0x401 (1025) to indicate that an invalid value was received (see Alpaca API definition and developer documentation for further information).
+        ErrorMessage:
+          type: string
+          description: Empty string for a successful transaction, or a message describing the issue that was encountered. If an error message is returned, a non zero error number must also be returned.
+    CalibratorStatusResponse:
+      type: object
+      properties:
+        Value:
+          type: integer
+          format: int32
+          description: Returned side of pier
+          enum:
+            - 0
+            - 1
+            - 2
+            - 3
+            - 4
+            - 5
+          x-enum-varnames:
+            - NotPresent
+            - 'Off'
+            - NotReady
+            - Ready
+            - Unknown
+            - Error
+          x-enum-descriptions:
+            - This device does not have a calibration capability.
+            - The calibrator is off.
+            - The calibrator is stabilising or is not yet in the commanded state.
+            - The calibrator is ready for use.
+            - The calibrator state is unknown.
+            - The calibrator encountered an error when changing state.
+        ClientTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Client's transaction ID (0 to 4294967295), as supplied by the client in the command request.
+        ServerTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Server's transaction ID (0 to 4294967295), should be unique for each client transaction so that log messages on the client can be associated with logs on the device.
+        ErrorNumber:
+          type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+          description: >- 
+            Zero for a successful transaction, or a non-zero integer (-2147483648 to 2147483647) if the device encountered an issue. Devices must use ASCOM reserved error numbers whenever appropriate so that clients can take informed actions. E.g. returning 0x401 (1025) to indicate that an invalid value was received (see Alpaca API definition and developer documentation for further information).
+        ErrorMessage:
+          type: string
+          description: Empty string for a successful transaction, or a message describing the issue that was encountered. If an error message is returned, a non zero error number must also be returned.
+    CoverStatusResponse:
+      type: object
+      properties:
+        Value:
+          type: integer
+          format: int32
+          description: Returned side of pier
+          enum:
+            - 0
+            - 1
+            - 2
+            - 3
+            - 4
+            - 5
+          x-enum-varnames:
+            - NotPresent
+            - Closed
+            - Moving
+            - Open
+            - Unknown
+            - Error
+          x-enum-descriptions:
+            - This device does not have a cover that can be closed independently.
+            - The cover is closed.
+            - The cover is moving to a new position.
+            - The cover is open.
+            - The state of the cover is unknown.
+            - The device encountered an error when changing state.
+        ClientTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Client's transaction ID (0 to 4294967295), as supplied by the client in the command request.
+        ServerTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Server's transaction ID (0 to 4294967295), should be unique for each client transaction so that log messages on the client can be associated with logs on the device.
+        ErrorNumber:
+          type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+          description: >- 
+            Zero for a successful transaction, or a non-zero integer (-2147483648 to 2147483647) if the device encountered an issue. Devices must use ASCOM reserved error numbers whenever appropriate so that clients can take informed actions. E.g. returning 0x401 (1025) to indicate that an invalid value was received (see Alpaca API definition and developer documentation for further information).
+        ErrorMessage:
+          type: string
+          description: Empty string for a successful transaction, or a message describing the issue that was encountered. If an error message is returned, a non zero error number must also be returned.
+    AlignmentModeResponse:
+      type: object
+      properties:
+        Value:
+          type: integer
+          format: int32
+          description: Returned side of pier
+          enum:
+            - 0
+            - 1
+            - 2
+          x-enum-varnames:
+            - AltAz
+            - Polar
+            - GermanPolar
+          x-enum-descriptions:
+            - Altitude-Azimuth alignment.
+            - Polar (equatorial) mount other than German equatorial.
+            - German equatorial mount.
+        ClientTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Client's transaction ID (0 to 4294967295), as supplied by the client in the command request.
+        ServerTransactionID:
+          type: integer
+          format: uint32
+          minimum: 0
+          maximum: 4294967295
+          description: Server's transaction ID (0 to 4294967295), should be unique for each client transaction so that log messages on the client can be associated with logs on the device.
+        ErrorNumber:
+          type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+          description: >- 
+            Zero for a successful transaction, or a non-zero integer (-2147483648 to 2147483647) if the device encountered an issue. Devices must use ASCOM reserved error numbers whenever appropriate so that clients can take informed actions. E.g. returning 0x401 (1025) to indicate that an invalid value was received (see Alpaca API definition and developer documentation for further information).
+        ErrorMessage:
+          type: string
+          description: Empty string for a successful transaction, or a message describing the issue that was encountered. If an error message is returned, a non zero error number must also be returned.
+    EquatorialSystemResponse:
+      type: object
+      properties:
+        Value:
+          type: integer
+          format: int32
+          description: Returned side of pier
+          enum:
+            - 0
+            - 1
+            - 2
+            - 3
+            - 4
+          x-enum-varnames:
+            - Other
+            - Topocentric
+            - J2000
+            - J2050
+            - B1950
+          x-enum-descriptions:
+            - Custom or unknown equinox and/or reference frame.
+            - Topocentric coordinates. Coordinates of the object at the current date having allowed for annual aberration, precession and nutation. This is the most common coordinate type for amateur telescopes.
+            - J2000 equator/equinox. Coordinates of the object at mid-day on 1st January 2000, ICRS reference frame.
+            - J2050 equator/equinox, ICRS reference frame.
+            - B1950 equinox, FK4 reference frame.
         ClientTransactionID:
           type: integer
           format: uint32
