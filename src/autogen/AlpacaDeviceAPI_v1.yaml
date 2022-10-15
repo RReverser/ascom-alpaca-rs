@@ -3779,7 +3779,7 @@ paths:
                     Id:
                       description: The device number (0 to MaxSwitch - 1)
                       type: integer
-                      format: int32
+                      format: uint32
                     State:
                       description: The required control state (True or False)
                       type: boolean
@@ -3811,6 +3811,7 @@ paths:
                     Id:
                       description: The device number (0 to MaxSwitch - 1)
                       type: integer
+                      format: uint32
                     Name:
                       description: The name of the device
                       type: string
@@ -3842,7 +3843,7 @@ paths:
                     Id:
                       description: The device number (0 to MaxSwitch - 1)
                       type: integer
-                      format: int32
+                      format: uint32
                     Value:
                       description: 'The value to be set, between MinSwitchValue and MaxSwitchValue'
                       type: number
