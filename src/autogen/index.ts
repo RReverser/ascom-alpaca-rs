@@ -1,558 +1,612 @@
 import openapi from '@readme/openapi-parser';
-import { readFile, writeFile } from 'fs/promises';
-import { render } from 'ejs';
+import { writeFile } from 'fs/promises';
 import { spawnSync } from 'child_process';
-import { toSnakeCase, toPascalCase } from 'js-convert-case';
+import { toSnakeCase, toPascalCase as toTypeName } from 'js-convert-case';
 import { OpenAPIV3 } from 'openapi-types';
 import * as assert from 'assert/strict';
 import { getCanonicalNames } from './xml-names.js';
+import { rustKeywords } from './rust-keywords.js';
+import { isDeepStrictEqual } from 'util';
 
 let api = (await openapi.parse(
   './AlpacaDeviceAPI_v1.yaml'
 )) as OpenAPIV3.Document;
-let refs = await openapi.resolve(api);
-let template = await readFile('./server.ejs', 'utf-8');
+let _refs = await openapi.resolve(api);
+let canonicalNames = await getCanonicalNames();
 
-let path2id = Object.fromEntries(
-  Object.keys(api.paths || {}).map(path => [
-    path,
-    path
-      .split('/')
-      .slice(1)
-      .filter(x => !/^\{.*\}$/.test(x))
-      .join('_')
-  ])
-);
+function err(msg: string): never {
+  throw new Error(msg);
+}
 
-function* ops() {
-  for (let [path, methods = {}] of Object.entries(api.paths)) {
-    let pathId = path2id[path];
-    for (let method of Object.values(OpenAPIV3.HttpMethods)) {
-      let operation = methods[method];
-      if (operation) {
-        yield { path, method, id: `${method}_${pathId}`, operation };
-      }
-    }
+function getOrSet<K, V>(
+  map: Map<K, V> | (K extends object ? WeakMap<K, V> : never),
+  key: K,
+  createValue: (key: K) => V
+): V {
+  let value = map.get(key);
+  if (value === undefined) {
+    map.set(key, (value = createValue(key)));
   }
+  return value;
+}
+
+function set<K, V>(map: Map<K, V>, key: K, value: V) {
+  if (map.has(key)) {
+    throw new Error(`Duplicate key: ${key}`);
+  }
+  map.set(key, value);
+}
+
+function assertEmpty(obj: object, msg: string) {
+  assert.deepEqual(obj, {}, msg);
+}
+
+function toPropName(name: string) {
+  name = toSnakeCase(name);
+  if (rustKeywords.has(name)) name += '_';
+  return name;
 }
 
 function isRef(maybeRef: any): maybeRef is OpenAPIV3.ReferenceObject {
   return maybeRef != null && '$ref' in maybeRef;
 }
 
-function resolveMaybeRef<T>(ref: T | OpenAPIV3.ReferenceObject): T {
+function getRef(ref: OpenAPIV3.ReferenceObject): unknown {
+  return _refs.get(ref.$ref);
+}
+
+function resolveMaybeRef<T>(maybeRef: T | OpenAPIV3.ReferenceObject): T {
+  return isRef(maybeRef) ? (getRef(maybeRef) as T) : maybeRef;
+}
+
+function nameAndTarget<T>(ref: T | OpenAPIV3.ReferenceObject) {
   if (isRef(ref)) {
-    return refs.get(ref.$ref);
-  }
-  return ref;
-}
-
-function getContent(
-  owner: OpenAPIV3.RequestBodyObject | OpenAPIV3.ResponseObject,
-  contentType: string
-) {
-  let { content = {} } = owner;
-  let keys = Object.keys(content);
-  assert.deepEqual(keys, [contentType], `Unexpected content types: ${keys}`);
-  let { schema } = content[contentType];
-  schema = resolveMaybeRef(schema);
-  assert.equal(schema?.type, 'object', 'Content is not an object');
-  return { schema: schema, content: content[contentType] };
-}
-
-function cleanupSchema(obj: OpenAPIV3.SchemaObject) {
-  switch (obj.type) {
-    case 'array': {
-      if (!isRef(obj.items)) {
-        cleanupSchema(obj.items);
-      }
-      return;
-    }
-    case 'object': {
-      for (let v of Object.values(obj.properties!)) {
-        if (!isRef(v)) {
-          cleanupSchema(v);
-        }
-      }
-      return;
-    }
-    case 'string': {
-      if (obj.default === '') {
-        delete obj.default;
-      }
-      return;
-    }
-    case 'boolean': {
-      if (obj.default === false) {
-        delete obj.default;
-      }
-      return;
-    }
-    case 'integer': {
-      obj.format ??= 'int32';
-      let range = {
-        int32: { min: -2147483648, max: 2147483647 },
-        uint32: { min: 0, max: 4294967295 }
-      }[obj.format];
-      if (range) {
-        if (obj.minimum === range.min) {
-          delete obj.minimum;
-        }
-        if (obj.maximum === range.max) {
-          delete obj.maximum;
-        }
-      }
-      // fallthrough
-    }
-    case 'number': {
-      if (obj.default === 0) {
-        delete obj.default;
-      }
-      return;
-    }
-  }
-}
-
-function jsonWithoutOptFields(obj: any): string {
-  return JSON.stringify(obj, (k, v) => (k === 'description' ? undefined : v));
-}
-
-function withoutOptFields<T>(obj: T): T {
-  return JSON.parse(jsonWithoutOptFields(obj));
-}
-
-function setXKind(schema: OpenAPIV3.SchemaObject, kind: string) {
-  let prev = (schema as any)['x-kind'];
-  if (prev) {
-    assert.equal(prev, kind, `Conflicting x-kind: ${prev} vs ${kind}`);
-  }
-  (schema as any)['x-kind'] = kind;
-}
-
-function registerSchema(
-  name: string,
-  schema: OpenAPIV3.SchemaObject
-): OpenAPIV3.ReferenceObject {
-  api.components!.schemas![name] = schema;
-  return { $ref: `#/components/schemas/${name}` };
-}
-
-const rustKeywords = new Set([
-  'as',
-  'use',
-  'extern crate',
-  'break',
-  'const',
-  'continue',
-  'crate',
-  'else',
-  'if',
-  'enum',
-  'extern',
-  'false',
-  'fn',
-  'for',
-  'if',
-  'impl',
-  'in',
-  'for',
-  'let',
-  'loop',
-  'match',
-  'mod',
-  'move',
-  'mut',
-  'pub',
-  'impl',
-  'ref',
-  'return',
-  'Self',
-  'self',
-  'static',
-  'struct',
-  'super',
-  'trait',
-  'true',
-  'type',
-  'unsafe',
-  'use',
-  'where',
-  'while',
-  'abstract',
-  'alignof',
-  'become',
-  'box',
-  'do',
-  'final',
-  'macro',
-  'offsetof',
-  'override',
-  'priv',
-  'proc',
-  'pure',
-  'sizeof',
-  'typeof',
-  'unsized',
-  'virtual',
-  'yield'
-]);
-
-function toPropName(name: string) {
-  name = toSnakeCase(name);
-  if (rustKeywords.has(name)) {
-    name = `r#${name}`;
-  }
-  return name;
-}
-
-let canonicalNames = await getCanonicalNames();
-
-// for (let [groupPath, group] of Object.entries(groupedOps)) {
-//   let canonicalGroup = canonicalNames[groupPath];
-//   if (!canonicalGroup) {
-//     console.warn(`Couldn't find canonical name for ${groupPath}`);
-//     continue;
-//   }
-//   group.typeName = canonicalGroup.name;
-//   for (let path of group.paths) {
-//     let canonicalMethodName = canonicalGroup.methods[path.subPath];
-//     if (!canonicalMethodName) {
-//       console.warn(
-//         `Couldn't find canonical name for ${group.typeName}::${path.subPath}`
-//       );
-//       continue;
-//     }
-
-//     if (path.method === 'get') {
-//       if (canonicalMethodName.startsWith('Get')) {
-//         canonicalMethodName = canonicalMethodName.slice(3);
-//       }
-//     } else if (
-//       api.paths[`/${groupPath}/{device_number}/${path.subPath}`]?.get
-//     ) {
-//       canonicalMethodName = `Set${canonicalMethodName}`;
-//     }
-
-//     path.fnName = toPropName(canonicalMethodName);
-//   }
-// }
-
-let groupedOps: Record<
-  string,
-  {
-    typeName: string;
-    description: string;
-    paths: Array<{
-      subPath: string;
-      method: OpenAPIV3.HttpMethods;
-      fnName: string;
-      operation: OpenAPIV3.OperationObject;
-      request: OpenAPIV3.ReferenceObject;
-      response: OpenAPIV3.ReferenceObject;
-    }>;
-  }
-> = {};
-
-// Extract path parameters, query parameters and bodies that are not in api.components yet.
-// Add all of them to api.components, and replace the originals with $ref references.
-for (let { method, path, id, operation } of ops()) {
-  assert.equal(operation.tags?.length, 1, 'Unexpected number of tags');
-  let groupDescription = operation.tags[0];
-
-  let pathMatch = path.match(
-    /^\/(\{device_type\}|\w+)\/\{device_number\}\/(\w+)$/
-  );
-  assert.ok(pathMatch, `Path in unexpected format: ${path}`);
-  let [, groupPath, subPath] = pathMatch;
-
-  let groupedParams: Record<string, OpenAPIV3.ParameterObject[]> = {};
-  for (let param of operation.parameters || []) {
-    param = resolveMaybeRef(param);
-    (groupedParams[param.in] ??= []).push(param);
-  }
-
-  let typeId = toPascalCase(id);
-
-  let { path: pathParams, query: queryParams, ...other } = groupedParams;
-  assert.deepEqual(other, {}, 'Unexpected parameters');
-
-  assert.deepEqual(
-    Object.fromEntries(
-      pathParams.map(({ name, required, schema }) => [
-        name,
-        { type: resolveMaybeRef(schema)?.type, required }
-      ])
-    ),
-    {
-      ...(groupPath === '{device_type}'
-        ? { device_type: { type: 'string', required: true } }
-        : {}),
-      device_number: { type: 'integer', required: true }
-    },
-    `Unexpected path parameters for ${method} ${path}`
-  );
-
-  let requestBody = resolveMaybeRef(operation.requestBody);
-
-  let requestParams: OpenAPIV3.SchemaObject;
-  let requestParamsRef: OpenAPIV3.ReferenceObject;
-
-  if (method === 'get') {
-    assert.ok(queryParams, `Missing query parameters for ${method} ${path}`);
-    assert.ok(!requestBody, `Unexpected request body for ${method} ${path}`);
-
-    requestParams = {
-      type: 'object',
-      properties: {}
+    return {
+      name: toTypeName(ref.$ref.match(/([^/]+)$/)![1]),
+      target: getRef(ref) as T
     };
-    for (let param of queryParams) {
-      requestParams.properties![param.name] = {
-        description: param.description,
-        ...param.schema
-      };
-      if (param.required) {
-        (requestParams.required ??= []).push(param.name);
-      }
-    }
-
-    requestParamsRef = registerSchema(`${typeId}Request`, requestParams);
   } else {
-    assert.ok(
-      !queryParams,
-      `Unexpected query parameters for ${method} ${path}`
-    );
-    assert.ok(requestBody, `Missing request body for ${method} ${path}`);
+    return { target: ref };
+  }
+}
 
-    let { content, schema } = getContent(
-      requestBody,
-      'application/x-www-form-urlencoded'
-    );
+function getDoc({
+  summary,
+  description
+}: {
+  summary?: string;
+  description?: string;
+}): string | undefined {
+  return description ?? summary;
+  // Many descriptions duplicate summary too. Uncomment this below if they're ever improved.
+  // return summary && summary + (description ? `\n\n${description}` : '');
+}
 
-    if (!isRef(content.schema)) {
-      content.schema = registerSchema(`${typeId}Request`, schema);
+let types = new Map<string, RegisteredType>();
+let typeBySchema = new WeakMap<OpenAPIV3.SchemaObject, RustType>();
+
+function registerType<T extends RegisteredType>(
+  schema: OpenAPIV3.SchemaObject,
+  createType: (schema: OpenAPIV3.SchemaObject) => T | RustType
+): RustType {
+  return getOrSet(typeBySchema, schema, schema => {
+    let type = createType(schema);
+    if (type instanceof RustType) {
+      return type;
+    } else {
+      set(types, type.name, type);
+      return rusty(type.name);
     }
+  });
+}
 
-    requestParams = schema;
-    requestParamsRef = content.schema;
+class RustType {
+  constructor(private rusty: string) {}
+
+  ifNotVoid(cb: (type: string) => string) {
+    return this.rusty === '()' ? '' : cb(this.rusty);
   }
 
-  setXKind(requestParams, 'Request');
+  toString() {
+    return this.rusty;
+  }
+}
 
-  let { 200: successfulResponse, ...errorResponses } = operation.responses;
+function rusty(rusty: string) {
+  return new RustType(rusty);
+}
 
-  assert.ok(
-    successfulResponse,
-    `Missing successful response for ${method} ${path}`
+interface RegisteredTypeBase {
+  name: string;
+  doc: string | undefined;
+}
+
+type RegisteredType = ObjectType | EnumType;
+
+interface Property {
+  name: string;
+  originalName: string;
+  type: RustType;
+  doc: string | undefined;
+}
+
+interface ObjectType extends RegisteredTypeBase {
+  kind: 'Object' | 'Request' | 'Response';
+  properties: Map<string, Property>;
+}
+
+interface EnumVariant {
+  doc: string | undefined;
+  name: string;
+  value: number;
+}
+
+interface EnumType extends RegisteredTypeBase {
+  kind: 'Enum';
+  baseType: RustType;
+  variants: Map<string, EnumVariant>;
+}
+
+interface DeviceMethod {
+  name: string;
+  mutable: boolean;
+  path: string;
+  doc: string | undefined;
+  argsType: RustType;
+  returnType: RustType;
+}
+
+interface Device {
+  name: string;
+  path: string;
+  doc: string | undefined;
+  methods: Map<string, DeviceMethod>;
+}
+
+let devices: Map<string, Device> = new Map();
+
+function withContext<T>(context: string, fn: () => T) {
+  try {
+    return fn();
+  } catch (e) {
+    (e as Error).message = `in ${context}:\n${(e as Error).message}`;
+    throw e;
+  }
+}
+
+function handleIntFormat(format: string | undefined): RustType {
+  switch (format) {
+    case 'uint32':
+      return rusty('u32');
+    case 'int32':
+      return rusty('i32');
+    default:
+      throw new Error(`Unknown integer format ${format}`);
+  }
+}
+
+function assertString(value: any): asserts value is string {
+  assert.equal(
+    typeof value,
+    'string',
+    `${JSON.stringify(value)} is not a string`
   );
+}
 
-  let errorResponseShape: Partial<OpenAPIV3.ResponseObject> = {
-    content: {
-      'text/plain': {
-        schema: {
-          type: 'string'
+function handleObjectProps(
+  objName: string,
+  {
+    properties = err('Missing properties'),
+    required = []
+  }: Pick<OpenAPIV3.SchemaObject, 'properties' | 'required'>
+) {
+  let objProperties: ObjectType['properties'] = new Map();
+  for (let [propName, propSchema] of Object.entries(properties)) {
+    set(objProperties, propName, {
+      name: toPropName(propName),
+      originalName: propName,
+      type: handleOptType(
+        `${objName}${propName}`,
+        propSchema,
+        required.includes(propName)
+      ),
+      doc: getDoc(resolveMaybeRef(propSchema))
+    });
+  }
+  return objProperties;
+}
+
+function handleType(
+  name: string,
+  schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject = err(
+    'Missing schema'
+  )
+): RustType {
+  return withContext(name, () => {
+    ({ name = name, target: schema } = nameAndTarget(schema));
+    if (schema.enum) {
+      return registerType(schema, schema => {
+        assert.equal(schema.type, 'integer');
+        let enumType: EnumType = {
+          kind: 'Enum',
+          name,
+          doc: getDoc(schema),
+          baseType: handleIntFormat(schema.format),
+          variants: new Map()
+        };
+        let {
+          'x-enum-varnames': names = err('Missing x-enum-varnames'),
+          'x-enum-descriptions': descriptions = []
+        } = schema as any;
+        assert.ok(Array.isArray(names));
+        assert.ok(Array.isArray(descriptions));
+        for (let [i, value] of schema.enum!.entries()) {
+          let name = names[i];
+          assertString(name);
+          let doc = descriptions[i];
+          if (doc === null) {
+            doc = undefined;
+          }
+          if (doc !== undefined) {
+            assertString(doc);
+          }
+          set(enumType.variants, name, {
+            name,
+            doc,
+            value
+          });
         }
+        return enumType;
+      });
+    }
+    switch (schema.type) {
+      case 'integer':
+        return handleIntFormat(schema.format);
+      case 'array':
+        return rusty(`Vec<${handleType(`${name}Item`, schema.items)}>`);
+      case 'number':
+        return rusty('f64');
+      case 'string':
+        return rusty('String');
+      case 'boolean':
+        return rusty('bool');
+      case 'object': {
+        return registerType(schema, schema => ({
+          kind: 'Object',
+          name,
+          doc: getDoc(schema),
+          properties: handleObjectProps(name, schema)
+        }));
       }
     }
-  };
-  assert.deepEqual(withoutOptFields(errorResponses), {
-    400: errorResponseShape,
-    500: errorResponseShape
-  });
-
-  successfulResponse = resolveMaybeRef(successfulResponse);
-
-  let { content: responseContent, schema: responseSchema } = getContent(
-    successfulResponse,
-    'application/json'
-  );
-
-  if (!isRef(responseContent.schema)) {
-    responseContent.schema = registerSchema(
-      `${typeId}Response`,
-      responseSchema
-    );
-  }
-
-  setXKind(responseSchema, 'Response');
-
-  let canonicalDevice = canonicalNames.getDevice(groupPath);
-
-  let fnName = canonicalDevice.getMethod(subPath);
-  if (method === 'get') {
-    if (fnName.startsWith('Get')) {
-      fnName = fnName.slice(3);
-    }
-  } else if (api.paths[path]?.get) {
-    fnName = `Set${fnName}`;
-  }
-  fnName = toPropName(fnName);
-
-  (groupedOps[groupPath] ??= {
-    typeName: canonicalDevice.name,
-    description: groupDescription,
-    paths: []
-  }).paths.push({
-    subPath,
-    method,
-    fnName,
-    operation,
-    request: requestParamsRef,
-    response: responseContent.schema
+    throw new Error(`Unknown type ${schema.type}`);
   });
 }
 
-let refReplacements: Record<
-  string,
-  OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject
-> = {};
-let groupCounts: Record<string, number> = {};
-
-// Extract enums from properties.
-for (let [schemaName, schema] of Object.entries(api.components!.schemas!)) {
-  schema = resolveMaybeRef(schema);
-  if (schema.type === 'object') {
-    for (let [propName, prop] of Object.entries(schema.properties!)) {
-      if (isRef(prop)) continue;
-      if (prop.enum) {
-        assert.equal(prop.type, 'integer');
-        schema.properties![propName] = registerSchema(
-          schemaName + propName,
-          prop
-        );
-      }
-    }
-  }
+function handleOptType(
+  name: string,
+  schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | undefined,
+  required: boolean
+): RustType {
+  let type = handleType(name, schema);
+  return required ? type : rusty(`Option<${type}>`);
 }
 
-for (let [schemaName, schema] of Object.entries(api.components!.schemas!)) {
-  schema = resolveMaybeRef(schema);
-  cleanupSchema(schema);
-
-  if (schema.type !== 'object') {
-    continue;
-  }
-
-  let kind = (schema as any)['x-kind'];
-  switch (kind) {
-    case 'Response': {
+function handleContent(
+  prefixName: string,
+  baseKind: 'Request' | 'Response',
+  contentType: string,
+  body:
+    | OpenAPIV3.RequestBodyObject
+    | OpenAPIV3.ResponseObject
+    | OpenAPIV3.ReferenceObject = err('Missing content')
+): RustType {
+  let name = `${prefixName}${baseKind}`;
+  return withContext(name, () => {
+    ({ name = name, target: body } = nameAndTarget(body));
+    let doc = getDoc(body);
+    let {
+      [contentType]: { schema = err('Missing schema') } = err(
+        `Missing ${contentType}`
+      ),
+      ...otherContentTypes
+    } = body.content ?? err('Missing content');
+    assertEmpty(otherContentTypes, 'Unexpected types');
+    let baseRef = `#/components/schemas/Alpaca${baseKind}`;
+    if (isRef(schema) && schema.$ref === baseRef) {
+      return rusty('()');
+    }
+    ({ name = name, target: schema } = nameAndTarget(schema));
+    return registerType(schema, schema => {
+      doc = getDoc(schema) ?? doc;
       let {
-        ClientTransactionID,
-        ServerTransactionID,
-        ErrorNumber,
-        ErrorMessage,
-        ...otherProperties
-      } = schema.properties!;
-
-      assert.deepEqual(
-        withoutOptFields({
-          ClientTransactionID,
-          ServerTransactionID,
-          ErrorNumber,
-          ErrorMessage
-        }),
-        {
-          ClientTransactionID: {
-            type: 'integer',
-            format: 'uint32'
-          },
-          ServerTransactionID: {
-            type: 'integer',
-            format: 'uint32'
-          },
-          ErrorNumber: {
-            type: 'integer',
-            format: 'int32'
-          },
-          ErrorMessage: {
-            type: 'string'
-          }
-        },
-        `Missing response properties in ${schemaName}`
+        allOf: [base, extension, ...otherItemsInAllOf] = err('Missing allOf'),
+        ...otherPropsInSchema
+      } = schema;
+      assert.deepEqual(otherItemsInAllOf, [], 'Unexpected items in allOf');
+      assertEmpty(
+        otherPropsInSchema,
+        'Unexpected properties in content schema'
       );
-
-      schema.properties = otherProperties;
-
-      if (Object.keys(otherProperties).join(',') === 'Value') {
-        // Not using setXKind as I want to explicitly override it.
-        (schema as any)['x-kind'] = 'ValueResponse';
-
-        refReplacements[`#/components/schemas/${schemaName}`] =
-          schema.properties.Value;
-
-        continue;
+      assert.ok(isRef(base));
+      assert.equal(base.$ref, baseRef);
+      assert.ok(extension && !isRef(extension));
+      let { properties, required, ...otherPropsInExtension } = extension;
+      assertEmpty(otherPropsInExtension, 'Unexpected properties in extension');
+      // Special-case value responses.
+      if (
+        baseKind === 'Response' &&
+        properties !== undefined &&
+        isDeepStrictEqual(Object.keys(properties), ['Value'])
+      ) {
+        return handleType(name, properties.Value);
       }
 
-      break;
-    }
-    case 'Request': {
-      let { ClientID, ClientTransactionID, ...otherProperties } =
-        schema.properties!;
-
-      // These defaults are missing in some definitions.
-      // Ignore them for comparison purposes.
-      delete (ClientID as OpenAPIV3.SchemaObject).default;
-      delete (ClientTransactionID as OpenAPIV3.SchemaObject).default;
-
-      assert.deepEqual(
-        withoutOptFields({ ClientID, ClientTransactionID }),
-        {
-          ClientID: {
-            type: 'integer',
-            format: 'uint32'
-          },
-          ClientTransactionID: {
-            type: 'integer',
-            format: 'uint32'
-          }
-        },
-        `Missing request properties in ${schemaName}`
-      );
-
-      schema.properties = otherProperties;
-      break;
-    }
-  }
-
-  if (Object.keys(schema.properties!).length === 0) {
-    // Explicit override.
-    (schema as any)['x-kind'] = 'Empty';
-    refReplacements[`#/components/schemas/${schemaName}`] = {
-      $ref: 'void'
-    };
-    continue;
-  }
-
-  let key = jsonWithoutOptFields(schema);
-  groupCounts[key] ??= 0;
-  groupCounts[key]++;
+      return {
+        kind: baseKind,
+        name,
+        doc,
+        properties: handleObjectProps(name, { properties, required })
+      };
+    });
+  });
 }
 
-Object.entries(groupCounts)
-  .filter(([_, count]) => count > 1)
-  .sort(([_, count1], [__, count2]) => count2 - count1)
-  .forEach(([json, count]) => {
-    console.warn(
-      `Found ${count} schemas with the same shape:`,
-      JSON.parse(json)
-    );
-  });
+function handleResponse(
+  prefixName: string,
+  {
+    responses: { 200: success, 400: error400, 500: error500, ...otherResponses }
+  }: OpenAPIV3.OperationObject
+) {
+  assertEmpty(otherResponses, 'Unexpected response status codes');
+  return handleContent(prefixName, 'Response', 'application/json', success);
+}
 
-let rendered = render(
-  template,
-  {
-    api,
-    refs,
-    refReplacements,
-    groupedOps,
-    assert,
-    getContent,
-    toTypeName: toPascalCase,
-    toPropName
-  },
-  {
-    escape: x => x
+for (let [path, methods = err('Missing methods')] of Object.entries(
+  api.paths
+)) {
+  withContext(`path ${path}`, () => {
+    let [, devicePath = err('unreachable'), methodPath = err('unreachable')] =
+      path.match(/^\/([^/]*)\/\{device_number\}\/([^/]*)$/) ??
+      err('Invalid path');
+
+    let canonicalDevice = canonicalNames.getDevice(devicePath);
+
+    let device = getOrSet<string, Device>(devices, devicePath, () => ({
+      name: canonicalDevice.name,
+      path: devicePath,
+      doc: undefined,
+      methods: new Map()
+    }));
+
+    let { get, put, ...other } = methods;
+    assert.deepEqual(Object.keys(other), [], 'Unexpected methods');
+
+    for (let method of [get, put]) {
+      if (!method) continue;
+      let [tag, ...otherTags] = method.tags ?? err('Missing tags');
+      assert.deepEqual(otherTags, [], 'Unexpected tags');
+      if (device.doc !== undefined) {
+        assert.equal(device.doc, tag);
+      } else {
+        device.doc = tag;
+      }
+    }
+
+    withContext('GET', () => {
+      if (!get) return;
+
+      let params = (get.parameters ?? err('Missing parameters')).slice();
+
+      let expectedParams = [
+        'device_number',
+        'ClientIDQuery',
+        'ClientTransactionIDQuery'
+      ];
+      if (devicePath === '{device_type}') {
+        expectedParams.push('device_type');
+      }
+      for (let expectedParam of expectedParams) {
+        let param = params.findIndex(
+          param =>
+            isRef(param) &&
+            param.$ref === `#/components/parameters/${expectedParam}`
+        );
+        assert.ok(param !== -1, `Missing parameter ${expectedParam}`);
+        params.splice(param, 1);
+      }
+
+      assert.ok(!get.requestBody);
+
+      let canonicalMethodName = canonicalDevice.getMethod(methodPath);
+
+      let argsType =
+        params.length === 0
+          ? rusty('()')
+          : registerType({}, () => {
+              let argsType: ObjectType = {
+                kind: 'Request',
+                properties: new Map(),
+                name: `${device.name}${canonicalMethodName}Request`,
+                doc: undefined
+              };
+
+              for (let param of params.map(resolveMaybeRef)) {
+                assert.equal(
+                  param?.in,
+                  'query',
+                  'Parameter is not a query parameter'
+                );
+                let name = toPropName(param.name);
+                set(argsType.properties, name, {
+                  name,
+                  originalName: param.name,
+                  doc: getDoc(param),
+                  type: handleOptType(
+                    `${argsType.name}${param.name}`,
+                    param.schema,
+                    param.required ?? false
+                  )
+                });
+              }
+
+              return argsType;
+            });
+
+      set(device.methods, canonicalMethodName, {
+        name: toPropName(canonicalMethodName),
+        mutable: false,
+        path: methodPath,
+        doc: getDoc(get),
+        argsType,
+        returnType: handleResponse(`${device.name}${canonicalMethodName}`, get)
+      });
+    });
+
+    withContext('PUT', () => {
+      if (!put) return;
+
+      let params = (put.parameters ?? err('Missing parameters')).slice();
+
+      let expectedParams = ['device_number'];
+      if (devicePath === '{device_type}') {
+        expectedParams.push('device_type');
+      }
+      for (let expectedParam of expectedParams) {
+        let param = params.findIndex(
+          param =>
+            isRef(param) &&
+            param.$ref === `#/components/parameters/${expectedParam}`
+        );
+        assert.ok(
+          param !== -1,
+          `Missing parameter ${expectedParam} in ${JSON.stringify(params)}`
+        );
+        params.splice(param, 1);
+      }
+      assert.deepEqual(params, []);
+
+      // If there's a getter, then this is a setter and needs to be prefixed with `Set`.
+      let canonicalMethodName =
+        (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
+
+      set(device.methods, canonicalMethodName, {
+        name: toPropName(canonicalMethodName),
+        mutable: true,
+        path: methodPath,
+        doc: getDoc(put),
+        argsType: handleContent(
+          `${device.name}${canonicalMethodName}`,
+          'Request',
+          'application/x-www-form-urlencoded',
+          put.requestBody
+        ),
+        returnType: handleResponse(`${device.name}${canonicalMethodName}`, put)
+      });
+    });
+  });
+}
+
+function stringifyIter<T>(
+  iter: { values(): Iterable<T> },
+  stringify: (t: T) => string
+) {
+  return Array.from(iter.values()).map(stringify).join('');
+}
+
+function stringifyDoc(doc: string | undefined = '') {
+  doc = doc.trim();
+  if (!doc) return '';
+  return doc.includes('\n') ? `/**\n${doc}\n*/` : `/// ${doc}`;
+}
+
+let rendered = `
+// This file is auto-generated. Do not edit it directly.
+
+/*!
+${api.info.title} ${api.info.version}
+
+${api.info.description}
+*/
+
+#![allow(
+  rustdoc::broken_intra_doc_links,
+  clippy::doc_markdown,
+  clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
+)]
+
+use crate::rpc::rpc;
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+
+${stringifyIter(types, type => {
+  switch (type.kind) {
+    case 'Object':
+    case 'Request':
+    case 'Response': {
+      return `
+        ${stringifyDoc(type.doc)}
+        #[allow(missing_copy_implementations)]
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        pub struct ${type.name} {
+          ${stringifyIter(
+            type.properties,
+            prop => `
+              ${stringifyDoc(prop.doc)}
+              #[serde(rename = "${prop.originalName}")]
+              pub ${prop.name}: ${prop.type},
+            `
+          )}
+        }
+
+      `;
+    }
+    case 'Enum': {
+      return `
+        ${stringifyDoc(type.doc)}
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+        #[repr(${type.baseType})]
+        #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+        pub enum ${type.name} {
+          ${stringifyIter(
+            type.variants,
+            variant => `
+              ${stringifyDoc(variant.doc)}
+              ${variant.name} = ${variant.value},
+            `
+          )}
+        }
+      `;
+    }
   }
-);
+})}
+
+rpc! {
+  ${stringifyIter(
+    devices,
+    device => `
+      ${stringifyDoc(device.doc)}
+      #[http("${device.path}")]
+      pub trait ${device.name}${
+      device.path !== '{device_type}' ? ` : Device` : ''
+    } {
+        ${stringifyIter(
+          device.methods,
+          method => `
+            ${stringifyDoc(method.doc)}
+            #[http("${method.path}")]
+            fn ${method.name}(
+              &${method.mutable ? 'mut ' : ''}self,
+              ${method.argsType.ifNotVoid(type => `request: ${type}`)}
+            )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
+
+          `
+        )}
+      }
+    `
+  )}
+}
+`;
 
 // Help rustfmt format contents of the `rpc!` macro.
 rendered = rendered.replaceAll('rpc!', 'mod __rpc__');
@@ -572,4 +626,4 @@ rendered = rustfmt.stdout;
 // Revert the helper changes.
 rendered = rendered.replaceAll('mod __rpc__', 'rpc!');
 
-await writeFile('./mod.rs', rendered);
+await writeFile('mod.rs', rendered);

@@ -1,16 +1,16 @@
+// This file is auto-generated. Do not edit it directly.
+
 /*!
-# ASCOM Alpaca Device API v1
+ASCOM Alpaca Device API v1
 
 The Alpaca API uses RESTful techniques and TCP/IP to enable ASCOM applications and devices to communicate across modern network environments.
 
 ## Interface Behaviour
-The ASCOM Interface behavioural requirements for Alpaca drivers are the same as for COM based drivers and are documented in the <a href="https://ascom-standards.org/Help/Developer/html/N_ASCOM_DeviceInterface.htm">API Interface Definitions</a> e.g. the <a href="https://ascom-standards.org/Help/Developer/html/M_ASCOM_DeviceInterface_ITelescopeV3_SlewToCoordinates.htm">Telescope.SlewToCoordinates</a> method.       This document focuses on how to use the ASCOM Interface standards in their RESTful Alpaca form.
+The ASCOM Interface behavioural requirements for Alpaca drivers are the same as for COM based drivers and are documented in the <a href="https://ascom-standards.org/Help/Developer/html/N_ASCOM_DeviceInterface.htm">API Interface Definitions</a> e.g. the <a href="https://ascom-standards.org/Help/Developer/html/M_ASCOM_DeviceInterface_ITelescopeV3_SlewToCoordinates.htm">Telescope.SlewToCoordinates</a> method. This document focuses on how to use the ASCOM Interface standards in their RESTful Alpaca form.
 ## Alpaca URLs, Case Sensitivity, Parameters and Returned values
 **Alpaca Device API URLs** are of the form **http(s)://host:port/path** where path comprises **"/api/v1/"** followed by one of the method names below. e.g. for an Alpaca interface running on port 7843 of a device with IP address 192.168.1.89:
 * A telescope "Interface Version" method URL would be **http://192.168.1.89:7843/api/v1/telescope/0/interfaceversion**
-
 * A first focuser "Position" method URL would be  **http://192.168.1.89:7843/api/v1/focuser/0/position**
-
 * A second focuser "StepSize" method URL would be  **http://192.168.1.89:7843/api/v1/focuser/1/stepsize**
 * A rotator "Halt" method URL would be  **http://192.168.1.89:7843/api/v1/rotator/0/halt**
 
@@ -19,7 +19,7 @@ URLs are case sensitive and all elements must be in lower case. This means that 
 
 For GET operations, parameters should be placed in the URL query string and for PUT operations they should be placed in the body of the message.
 
-Responses, as described below, are returned in JSON format and always include a common set of values including the client's transaction number,  the server's transaction number together with any error message and error number.
+Responses, as described below, are returned in JSON format and always include a common set of values including the client's transaction number, the server's transaction number together with any error message and error number.
 If the transaction completes successfully, the ErrorMessage field will be an empty string and the ErrorNumber field will be zero.
 
 ## HTTP Status Codes and ASCOM Error codes
@@ -35,829 +35,833 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
 
 */
 
-#![allow(rustdoc::broken_intra_doc_links, clippy::doc_markdown)]
+#![allow(
+  rustdoc::broken_intra_doc_links,
+  clippy::doc_markdown,
+  clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
+)]
 
 use crate::rpc::rpc;
-
-#[allow(clippy::as_conversions)]
-mod schemas {
-    use serde::{Deserialize, Serialize};
-    use serde_repr::{Deserialize_repr, Serialize_repr};
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct ImageArrayResponse {
-        #[serde(rename = "Type")]
-        pub r#type: Option<ImageArrayResponseType>,
-
-        /// The array's rank, will be 2 (single plane image (monochrome)) or 3 (multi-plane image).
-        #[serde(rename = "Rank")]
-        pub rank: Option<i32>,
-
-        /// Returned integer or double value
-        #[serde(rename = "Value")]
-        pub value: Option<Vec<Vec<f64>>>,
-    }
-
-    /// Axis rate object
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct AxisRate {
-        /// The maximum rate (degrees per second) This must always be a positive number. It indicates the maximum rate in either direction about the axis.
-        #[serde(rename = "Maximum")]
-        pub maximum: f64,
-
-        /// The minimum rate (degrees per second) This must always be a positive number. It indicates the maximum rate in either direction about the axis.
-        #[serde(rename = "Minimum")]
-        pub minimum: f64,
-    }
-
-    /// DriveRate enum corresponding to one of the standard drive rates.
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum DriveRate {
-        /// 15.041 arcseconds per second
-        Sidereal = 0,
-
-        /// 14.685 arcseconds per second
-        Lunar = 1,
-
-        /// 15.0 arcseconds per second
-        Solar = 2,
-
-        /// 15.0369 arcseconds per second
-        King = 3,
-    }
-
-    /// The axis of mount rotation.
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum Axis {
-        Primary = 0,
-
-        Secondary = 1,
-
-        Tertiary = 2,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutActionRequest {
-        /// A well known name that represents the action to be carried out.
-        #[serde(rename = "Action")]
-        pub action: String,
-
-        /// List of required parameters or an Empty String if none are required
-        #[serde(rename = "Parameters")]
-        pub parameters: String,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCommandblindRequest {
-        /// The literal command string to be transmitted.
-        #[serde(rename = "Command")]
-        pub command: String,
-
-        /// If set to true the string is transmitted 'as-is', if set to false then protocol framing characters may be added prior to transmission
-        #[serde(rename = "Raw")]
-        pub raw: String,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutConnectedRequest {
-        /// Set True to connect to the device hardware, set False to disconnect from the device hardware
-        #[serde(rename = "Connected")]
-        pub connected: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraBinxRequest {
-        /// The X binning value
-        #[serde(rename = "BinX")]
-        pub bin_x: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraBinyRequest {
-        /// The Y binning value
-        #[serde(rename = "BinY")]
-        pub bin_y: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraCooleronRequest {
-        /// Cooler state
-        #[serde(rename = "CoolerOn")]
-        pub cooler_on: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraFastreadoutRequest {
-        /// True to enable fast readout mode
-        #[serde(rename = "FastReadout")]
-        pub fast_readout: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraGainRequest {
-        /// Index of the current camera gain in the Gains string array.
-        #[serde(rename = "Gain")]
-        pub gain: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraNumxRequest {
-        /// Sets the subframe width, if binning is active, value is in binned pixels.
-        #[serde(rename = "NumX")]
-        pub num_x: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraNumyRequest {
-        /// Sets the subframe height, if binning is active, value is in binned pixels.
-        #[serde(rename = "NumY")]
-        pub num_y: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraOffsetRequest {
-        /// Index of the current camera offset in the offsets string array.
-        #[serde(rename = "offset")]
-        pub offset: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraReadoutmodeRequest {
-        /// Index into the ReadoutModes array of string readout mode names indicating the camera's current readout mode.
-        #[serde(rename = "ReadoutMode")]
-        pub readout_mode: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraSetccdtemperatureRequest {
-        /// Temperature set point (degrees Celsius).
-        #[serde(rename = "SetCCDTemperature")]
-        pub set_ccdtemperature: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraStartxRequest {
-        /// The subframe X axis start position in binned pixels.
-        #[serde(rename = "StartX")]
-        pub start_x: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraStartyRequest {
-        /// The subframe Y axis start position in binned pixels.
-        #[serde(rename = "StartY")]
-        pub start_y: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraSubexposuredurationRequest {
-        /// The request sub exposure duration in seconds
-        #[serde(rename = "SubExposureDuration")]
-        pub sub_exposure_duration: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraPulseguideRequest {
-        #[serde(rename = "Direction")]
-        pub direction: PutCameraPulseguideRequestDirection,
-
-        /// The duration of the guide-rate motion (milliseconds)
-        #[serde(rename = "Duration")]
-        pub duration: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCameraStartexposureRequest {
-        /// Duration of exposure in seconds
-        #[serde(rename = "Duration")]
-        pub duration: f64,
-
-        /// True if light frame, false if dark frame.
-        #[serde(rename = "Light")]
-        pub light: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutCovercalibratorCalibratoronRequest {
-        /// The required brightness in the range 0 to MaxBrightness
-        #[serde(rename = "Brightness")]
-        pub brightness: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutDomeSlavedRequest {
-        /// True if telescope is slaved to dome, otherwise false
-        #[serde(rename = "Slaved")]
-        pub slaved: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutDomeSlewtoaltitudeRequest {
-        /// Target dome altitude (degrees, horizon zero and increasing positive to 90 zenith)
-        #[serde(rename = "Altitude")]
-        pub altitude: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutDomeSlewtoazimuthRequest {
-        /// Target dome azimuth (degrees, North zero and increasing clockwise. i.e., 90 East, 180 South, 270 West)
-        #[serde(rename = "Azimuth")]
-        pub azimuth: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutFilterwheelPositionRequest {
-        /// The number of the filter wheel position to select
-        #[serde(rename = "Position")]
-        pub position: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutFocuserTempcompRequest {
-        /// Set true to enable the focuser's temperature compensation mode, otherwise false for normal operation.
-        #[serde(rename = "TempComp")]
-        pub temp_comp: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutFocuserMoveRequest {
-        /// Step distance or absolute position, depending on the value of the Absolute property
-        #[serde(rename = "Position")]
-        pub position: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutObservingconditionsAverageperiodRequest {
-        /// Time period (hours) over which to average sensor readings
-        #[serde(rename = "AveragePeriod")]
-        pub average_period: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetObservingconditionsSensordescriptionRequest {
-        /// Name of the sensor whose description is required
-        #[serde(rename = "SensorName")]
-        pub sensor_name: String,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetObservingconditionsTimesincelastupdateRequest {
-        /// Name of the sensor whose last update time is required
-        #[serde(rename = "SensorName")]
-        pub sensor_name: String,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutRotatorReverseRequest {
-        /// True if the rotation and angular direction must be reversed to match the optical characteristcs
-        #[serde(rename = "Reverse")]
-        pub reverse: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutRotatorMoveRequest {
-        /// Relative position to move in degrees from current Position.
-        #[serde(rename = "Position")]
-        pub position: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutRotatorMoveabsoluteRequest {
-        /// Absolute position in degrees.
-        #[serde(rename = "Position")]
-        pub position: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutRotatorMovemechanicalRequest {
-        /// Absolute position in degrees.
-        #[serde(rename = "Position")]
-        pub position: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutRotatorSyncRequest {
-        /// Absolute position in degrees.
-        #[serde(rename = "Position")]
-        pub position: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchCanwriteRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchGetswitchRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchGetswitchdescriptionRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchGetswitchnameRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchGetswitchvalueRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchMinswitchvalueRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchMaxswitchvalueRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutSwitchSetswitchRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-
-        /// The required control state (True or False)
-        #[serde(rename = "State")]
-        pub state: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutSwitchSetswitchnameRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-
-        /// The name of the device
-        #[serde(rename = "Name")]
-        pub name: String,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutSwitchSetswitchvalueRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-
-        /// The value to be set, between MinSwitchValue and MaxSwitchValue
-        #[serde(rename = "Value")]
-        pub value: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetSwitchSwitchstepRequest {
-        /// The device number (0 to MaxSwitch - 1)
-        #[serde(rename = "Id")]
-        pub id: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeDeclinationrateRequest {
-        /// Declination tracking rate (arcseconds per second)
-        #[serde(rename = "DeclinationRate")]
-        pub declination_rate: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeDoesrefractionRequest {
-        /// Set True to make the telescope or driver applie atmospheric refraction to coordinates.
-        #[serde(rename = "DoesRefraction")]
-        pub does_refraction: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeGuideratedeclinationRequest {
-        /// Declination movement rate offset degrees/sec).
-        #[serde(rename = "GuideRateDeclination")]
-        pub guide_rate_declination: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeGuideraterightascensionRequest {
-        /// RightAscension movement rate offset degrees/sec).
-        #[serde(rename = "GuideRateRightAscension")]
-        pub guide_rate_right_ascension: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeRightascensionrateRequest {
-        /// Right ascension tracking rate (arcseconds per second)
-        #[serde(rename = "RightAscensionRate")]
-        pub right_ascension_rate: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeSideofpierRequest {
-        #[serde(rename = "SideOfPier")]
-        pub side_of_pier: PutTelescopeSideofpierRequestSideOfPier,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeSiteelevationRequest {
-        /// Elevation above mean sea level (metres).
-        #[serde(rename = "SiteElevation")]
-        pub site_elevation: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeSitelatitudeRequest {
-        /// Site latitude (degrees)
-        #[serde(rename = "SiteLatitude")]
-        pub site_latitude: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeSitelongitudeRequest {
-        /// Site longitude (degrees, positive East, WGS84)
-        #[serde(rename = "SiteLongitude")]
-        pub site_longitude: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeSlewsettletimeRequest {
-        /// Settling time (integer sec.).
-        #[serde(rename = "SlewSettleTime")]
-        pub slew_settle_time: i32,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeTargetdeclinationRequest {
-        /// Target declination(degrees)
-        #[serde(rename = "TargetDeclination")]
-        pub target_declination: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeTargetrightascensionRequest {
-        /// Target right ascension(hours)
-        #[serde(rename = "TargetRightAscension")]
-        pub target_right_ascension: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeTrackingRequest {
-        /// Tracking enabled / disabled
-        #[serde(rename = "Tracking")]
-        pub tracking: bool,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeTrackingrateRequest {
-        #[serde(rename = "TrackingRate")]
-        pub tracking_rate: DriveRate,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeUtcdateRequest {
-        /// UTC date/time in ISO 8601 format.
-        #[serde(rename = "UTCDate")]
-        pub utcdate: String,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetTelescopeAxisratesRequest {
-        #[serde(rename = "Axis")]
-        pub axis: Axis,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetTelescopeCanmoveaxisRequest {
-        #[serde(rename = "Axis")]
-        pub axis: Axis,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetTelescopeDestinationsideofpierRequest {
-        /// Right Ascension coordinate (0.0 to 23.99999999 hours)
-        #[serde(rename = "RightAscension")]
-        pub right_ascension: f64,
-
-        /// Declination coordinate (-90.0 to +90.0 degrees)
-        #[serde(rename = "Declination")]
-        pub declination: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeMoveaxisRequest {
-        #[serde(rename = "Axis")]
-        pub axis: Axis,
-
-        /// The rate of motion (deg/sec) about the specified axis
-        #[serde(rename = "Rate")]
-        pub rate: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeSlewtoaltazRequest {
-        /// Azimuth coordinate (degrees, North-referenced, positive East/clockwise)
-        #[serde(rename = "Azimuth")]
-        pub azimuth: f64,
-
-        /// Altitude coordinate (degrees, positive up)
-        #[serde(rename = "Altitude")]
-        pub altitude: f64,
-    }
-
-    #[allow(missing_copy_implementations)]
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct PutTelescopeSlewtocoordinatesRequest {
-        /// Right Ascension coordinate (hours)
-        #[serde(rename = "RightAscension")]
-        pub right_ascension: f64,
-
-        /// Declination coordinate (degrees)
-        #[serde(rename = "Declination")]
-        pub declination: f64,
-    }
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum ImageArrayResponseType {
-        Unknown = 0,
-
-        /// int16
-        Short = 1,
-
-        /// int32
-        Integer = 2,
-
-        /// Double precision real number
-        Double = 3,
-    }
-
-    /// Returned camera state
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum CameraStateResponseValue {
-        Idle = 0,
-
-        Waiting = 1,
-
-        Exposing = 2,
-
-        Reading = 3,
-
-        Download = 4,
-
-        Error = 5,
-    }
-
-    /// Returned sensor type
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum SensorTypeResponseValue {
-        /// Camera produces monochrome array with no Bayer encoding
-        Monochrome = 0,
-
-        /// Camera produces color image directly, not requiring Bayer decoding
-        Color = 1,
-
-        /// Camera produces RGGB encoded Bayer array images
-        Rggb = 2,
-
-        /// Camera produces CMYG encoded Bayer array images
-        Cmyg = 3,
-
-        /// Camera produces CMYG2 encoded Bayer array images
-        Cmyg2 = 4,
-
-        /// Camera produces Kodak TRUESENSE LRGB encoded Bayer array images
-        Lrgb = 5,
-    }
-
-    /// Returned dome shutter status
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum DomeShutterStatusResponseValue {
-        Open = 0,
-
-        Closed = 1,
-
-        Opening = 2,
-
-        Closing = 3,
-
-        Error = 4,
-    }
-
-    /// Returned side of pier
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum SideOfPierResponseValue {
-        /// Normal pointing state - Mount on the East side of pier (looking West).
-        East = 0,
-
-        /// Through the pole pointing state - Mount on the West side of pier (looking East).
-        West = 1,
-
-        /// Unknown or indeterminate.
-        Unknown = -1,
-    }
-
-    /// Returned side of pier
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum CalibratorStatusResponseValue {
-        /// This device does not have a calibration capability.
-        NotPresent = 0,
-
-        /// The calibrator is off.
-        Off = 1,
-
-        /// The calibrator is stabilising or is not yet in the commanded state.
-        NotReady = 2,
-
-        /// The calibrator is ready for use.
-        Ready = 3,
-
-        /// The calibrator state is unknown.
-        Unknown = 4,
-
-        /// The calibrator encountered an error when changing state.
-        Error = 5,
-    }
-
-    /// Returned side of pier
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum CoverStatusResponseValue {
-        /// This device does not have a cover that can be closed independently.
-        NotPresent = 0,
-
-        /// The cover is closed.
-        Closed = 1,
-
-        /// The cover is moving to a new position.
-        Moving = 2,
-
-        /// The cover is open.
-        Open = 3,
-
-        /// The state of the cover is unknown.
-        Unknown = 4,
-
-        /// The device encountered an error when changing state.
-        Error = 5,
-    }
-
-    /// Returned side of pier
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum AlignmentModeResponseValue {
-        /// Altitude-Azimuth alignment.
-        AltAz = 0,
-
-        /// Polar (equatorial) mount other than German equatorial.
-        Polar = 1,
-
-        /// German equatorial mount.
-        GermanPolar = 2,
-    }
-
-    /// Returned side of pier
-
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum EquatorialSystemResponseValue {
-        /// Custom or unknown equinox and/or reference frame.
-        Other = 0,
-
-        /// Topocentric coordinates. Coordinates of the object at the current date having allowed for annual aberration, precession and nutation. This is the most common coordinate type for amateur telescopes.
-        Topocentric = 1,
-
-        /// J2000 equator/equinox. Coordinates of the object at mid-day on 1st January 2000, ICRS reference frame.
-        J2000 = 2,
-
-        /// J2050 equator/equinox, ICRS reference frame.
-        J2050 = 3,
-
-        /// B1950 equinox, FK4 reference frame.
-        B1950 = 4,
-    }
-
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceActionRequest {
+    /// A well known name that represents the action to be carried out.
+    #[serde(rename = "Action")]
+    pub action: String,
+
+    /// List of required parameters or an Empty String if none are required
+    #[serde(rename = "Parameters")]
+    pub parameters: String,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PutDevicetypeDevicenumberCommandblind {
+    /// The literal command string to be transmitted.
+    #[serde(rename = "Command")]
+    pub command: String,
+
+    /// If set to true the string is transmitted 'as-is', if set to false then protocol framing characters may be added prior to transmission
+    #[serde(rename = "Raw")]
+    pub raw: String,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceSetConnectedRequest {
+    /// Set True to connect to the device hardware, set False to disconnect from the device hardware
+    #[serde(rename = "Connected")]
+    pub connected: bool,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetBinXRequest {
+    /// The X binning value
+    #[serde(rename = "BinX")]
+    pub bin_x: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetBinYRequest {
+    /// The Y binning value
+    #[serde(rename = "BinY")]
+    pub bin_y: i32,
+}
+
+/// Returned camera state
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum CameraStateResponse {
+    Idle = 0,
+
+    Waiting = 1,
+
+    Exposing = 2,
+
+    Reading = 3,
+
+    Download = 4,
+
+    Error = 5,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetCoolerOnRequest {
+    /// Cooler state
+    #[serde(rename = "CoolerOn")]
+    pub cooler_on: bool,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetFastReadoutRequest {
+    /// True to enable fast readout mode
+    #[serde(rename = "FastReadout")]
+    pub fast_readout: bool,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetGainRequest {
+    /// Index of the current camera gain in the Gains string array.
+    #[serde(rename = "Gain")]
+    pub gain: i32,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum ImageArrayResponseType {
+    Unknown = 0,
+
+    /// int16
+    Short = 1,
+
+    /// int32
+    Integer = 2,
+
+    /// Double precision real number
+    Double = 3,
+}
+
+/// Transaction complete or exception.
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageArrayResponse {
+    #[serde(rename = "Type")]
+    pub type_: Option<ImageArrayResponseType>,
+
+    /// The array's rank, will be 2 (single plane image (monochrome)) or 3 (multi-plane image).
+    #[serde(rename = "Rank")]
+    pub rank: Option<i32>,
+
+    #[serde(rename = "Value")]
+    pub value: Option<Vec<Vec<f64>>>,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetNumXRequest {
+    /// Sets the subframe width, if binning is active, value is in binned pixels.
+    #[serde(rename = "NumX")]
+    pub num_x: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetNumYRequest {
+    /// Sets the subframe height, if binning is active, value is in binned pixels.
+    #[serde(rename = "NumY")]
+    pub num_y: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetOffsetRequest {
+    /// Index of the current camera offset in the offsets string array.
+    #[serde(rename = "offset")]
+    pub offset: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetReadoutModeRequest {
+    /// Index into the ReadoutModes array of string readout mode names indicating the camera's current readout mode.
+    #[serde(rename = "ReadoutMode")]
+    pub readout_mode: i32,
+}
+
+/// Returned sensor type
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum SensorTypeResponse {
+    /// Camera produces monochrome array with no Bayer encoding
+    Monochrome = 0,
+
+    /// Camera produces color image directly, not requiring Bayer decoding
+    Color = 1,
+
+    /// Camera produces RGGB encoded Bayer array images
+    RGGB = 2,
+
+    /// Camera produces CMYG encoded Bayer array images
+    CMYG = 3,
+
+    /// Camera produces CMYG2 encoded Bayer array images
+    CMYG2 = 4,
+
+    /// Camera produces Kodak TRUESENSE LRGB encoded Bayer array images
+    LRGB = 5,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetSetCCDTemperatureRequest {
+    /// Temperature set point (degrees Celsius).
+    #[serde(rename = "SetCCDTemperature")]
+    pub set_ccdtemperature: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetStartXRequest {
+    /// The subframe X axis start position in binned pixels.
+    #[serde(rename = "StartX")]
+    pub start_x: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetStartYRequest {
+    /// The subframe Y axis start position in binned pixels.
+    #[serde(rename = "StartY")]
+    pub start_y: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSetSubExposureDurationRequest {
+    /// The request sub exposure duration in seconds
+    #[serde(rename = "SubExposureDuration")]
+    pub sub_exposure_duration: f64,
+}
+
+/// The direction in which the guide-rate motion is to be made.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum PutPulseGuideDirection {
+    North = 0,
+
+    South = 1,
+
+    East = 2,
+
+    West = 3,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PutPulseGuide {
     /// The direction in which the guide-rate motion is to be made.
+    #[serde(rename = "Direction")]
+    pub direction: PutPulseGuideDirection,
 
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum PutCameraPulseguideRequestDirection {
-        North = 0,
+    /// The duration of the guide-rate motion (milliseconds)
+    #[serde(rename = "Duration")]
+    pub duration: i32,
+}
 
-        South = 1,
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraStartExposureRequest {
+    /// Duration of exposure in seconds
+    #[serde(rename = "Duration")]
+    pub duration: f64,
 
-        East = 2,
+    /// True if light frame, false if dark frame.
+    #[serde(rename = "Light")]
+    pub light: bool,
+}
 
-        West = 3,
-    }
+/// Returned side of pier
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum CalibratorStatusResponse {
+    /// This device does not have a calibration capability.
+    NotPresent = 0,
 
+    /// The calibrator is off.
+    Off = 1,
+
+    /// The calibrator is stabilising or is not yet in the commanded state.
+    NotReady = 2,
+
+    /// The calibrator is ready for use.
+    Ready = 3,
+
+    /// The calibrator state is unknown.
+    Unknown = 4,
+
+    /// The calibrator encountered an error when changing state.
+    Error = 5,
+}
+
+/// Returned side of pier
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum CoverStatusResponse {
+    /// This device does not have a cover that can be closed independently.
+    NotPresent = 0,
+
+    /// The cover is closed.
+    Closed = 1,
+
+    /// The cover is moving to a new position.
+    Moving = 2,
+
+    /// The cover is open.
+    Open = 3,
+
+    /// The state of the cover is unknown.
+    Unknown = 4,
+
+    /// The device encountered an error when changing state.
+    Error = 5,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoverCalibratorCalibratorOnRequest {
+    /// The required brightness in the range 0 to MaxBrightness
+    #[serde(rename = "Brightness")]
+    pub brightness: i32,
+}
+
+/// Returned dome shutter status
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum DomeShutterStatusResponse {
+    Open = 0,
+
+    Closed = 1,
+
+    Opening = 2,
+
+    Closing = 3,
+
+    Error = 4,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DomeSetSlavedRequest {
+    /// True if telescope is slaved to dome, otherwise false
+    #[serde(rename = "Slaved")]
+    pub slaved: bool,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DomeSlewToAltitudeRequest {
+    /// Target dome altitude (degrees, horizon zero and increasing positive to 90 zenith)
+    #[serde(rename = "Altitude")]
+    pub altitude: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PutDomeDevicenumberSlewtoazimuth {
+    /// Target dome azimuth (degrees, North zero and increasing clockwise. i.e., 90 East, 180 South, 270 West)
+    #[serde(rename = "Azimuth")]
+    pub azimuth: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilterWheelSetPositionRequest {
+    /// The number of the filter wheel position to select
+    #[serde(rename = "Position")]
+    pub position: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FocuserSetTempCompRequest {
+    /// Set true to enable the focuser's temperature compensation mode, otherwise false for normal operation.
+    #[serde(rename = "TempComp")]
+    pub temp_comp: bool,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FocuserMoveRequest {
+    /// Step distance or absolute position, depending on the value of the Absolute property
+    #[serde(rename = "Position")]
+    pub position: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservingConditionsSetAveragePeriodRequest {
+    /// Time period (hours) over which to average sensor readings
+    #[serde(rename = "AveragePeriod")]
+    pub average_period: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservingConditionsSensorDescriptionRequest {
+    /// Name of the sensor whose description is required
+    #[serde(rename = "SensorName")]
+    pub sensor_name: String,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservingConditionsTimeSinceLastUpdateRequest {
+    /// Name of the sensor whose last update time is required
+    #[serde(rename = "SensorName")]
+    pub sensor_name: String,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RotatorSetReverseRequest {
+    /// True if the rotation and angular direction must be reversed to match the optical characteristcs
+    #[serde(rename = "Reverse")]
+    pub reverse: bool,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RotatorMoveRequest {
+    /// Relative position to move in degrees from current Position.
+    #[serde(rename = "Position")]
+    pub position: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RotatorMoveAbsoluteRequest {
+    /// Absolute position in degrees.
+    #[serde(rename = "Position")]
+    pub position: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RotatorMoveMechanicalRequest {
+    /// Absolute position in degrees.
+    #[serde(rename = "Position")]
+    pub position: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RotatorSyncRequest {
+    /// Absolute position in degrees.
+    #[serde(rename = "Position")]
+    pub position: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchCanWriteRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchGetSwitchRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchGetSwitchDescriptionRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchGetSwitchNameRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchGetSwitchValueRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchMinSwitchValueRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchMaxSwitchValueRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchSetSwitchRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+
+    /// The required control state (True or False)
+    #[serde(rename = "State")]
+    pub state: bool,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchSetSwitchNameRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+
+    /// The name of the device
+    #[serde(rename = "Name")]
+    pub name: String,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchSetSwitchValueRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+
+    /// The value to be set, between MinSwitchValue and MaxSwitchValue
+    #[serde(rename = "Value")]
+    pub value: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwitchSwitchStepRequest {
+    /// The device number (0 to MaxSwitch - 1)
+    #[serde(rename = "Id")]
+    pub id: u32,
+}
+
+/// Returned side of pier
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum AlignmentModeResponse {
+    /// Altitude-Azimuth alignment.
+    AltAz = 0,
+
+    /// Polar (equatorial) mount other than German equatorial.
+    Polar = 1,
+
+    /// German equatorial mount.
+    GermanPolar = 2,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetDeclinationRateRequest {
+    /// Declination tracking rate (arcseconds per second)
+    #[serde(rename = "DeclinationRate")]
+    pub declination_rate: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetDoesRefractionRequest {
+    /// Set True to make the telescope or driver applie atmospheric refraction to coordinates.
+    #[serde(rename = "DoesRefraction")]
+    pub does_refraction: bool,
+}
+
+/// Returned side of pier
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum EquatorialSystemResponse {
+    /// Custom or unknown equinox and/or reference frame.
+    Other = 0,
+
+    /// Topocentric coordinates. Coordinates of the object at the current date having allowed for annual aberration, precession and nutation. This is the most common coordinate type for amateur telescopes.
+    Topocentric = 1,
+
+    /// J2000 equator/equinox. Coordinates of the object at mid-day on 1st January 2000, ICRS reference frame.
+    J2000 = 2,
+
+    /// J2050 equator/equinox, ICRS reference frame.
+    J2050 = 3,
+
+    /// B1950 equinox, FK4 reference frame.
+    B1950 = 4,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetGuideRateDeclinationRequest {
+    /// Declination movement rate offset degrees/sec).
+    #[serde(rename = "GuideRateDeclination")]
+    pub guide_rate_declination: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetGuideRateRightAscensionRequest {
+    /// RightAscension movement rate offset degrees/sec).
+    #[serde(rename = "GuideRateRightAscension")]
+    pub guide_rate_right_ascension: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetRightAscensionRateRequest {
+    /// Right ascension tracking rate (arcseconds per second)
+    #[serde(rename = "RightAscensionRate")]
+    pub right_ascension_rate: f64,
+}
+
+/// Returned side of pier
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum SideOfPierResponse {
+    /// Normal pointing state - Mount on the East side of pier (looking West).
+    East = 0,
+
+    /// Through the pole pointing state - Mount on the West side of pier (looking East).
+    West = 1,
+
+    /// Unknown or indeterminate.
+    Unknown = -1,
+}
+
+/// New pointing state.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum TelescopeSetSideOfPierRequestSideOfPier {
+    /// Normal pointing state - Mount on the East side of pier (looking West).
+    East = 0,
+
+    /// Through the pole pointing state - Mount on the West side of pier (looking East).
+    West = 1,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetSideOfPierRequest {
     /// New pointing state.
+    #[serde(rename = "SideOfPier")]
+    pub side_of_pier: TelescopeSetSideOfPierRequestSideOfPier,
+}
 
-    #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-    #[repr(i8)]
-    pub enum PutTelescopeSideofpierRequestSideOfPier {
-        /// Normal pointing state - Mount on the East side of pier (looking West).
-        East = 0,
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetSiteElevationRequest {
+    /// Elevation above mean sea level (metres).
+    #[serde(rename = "SiteElevation")]
+    pub site_elevation: f64,
+}
 
-        /// Through the pole pointing state - Mount on the West side of pier (looking East).
-        West = 1,
-    }
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetSiteLatitudeRequest {
+    /// Site latitude (degrees)
+    #[serde(rename = "SiteLatitude")]
+    pub site_latitude: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetSiteLongitudeRequest {
+    /// Site longitude (degrees, positive East, WGS84)
+    #[serde(rename = "SiteLongitude")]
+    pub site_longitude: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetSlewSettleTimeRequest {
+    /// Settling time (integer sec.).
+    #[serde(rename = "SlewSettleTime")]
+    pub slew_settle_time: i32,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetTargetDeclinationRequest {
+    /// Target declination(degrees)
+    #[serde(rename = "TargetDeclination")]
+    pub target_declination: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetTargetRightAscensionRequest {
+    /// Target right ascension(hours)
+    #[serde(rename = "TargetRightAscension")]
+    pub target_right_ascension: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetTrackingRequest {
+    /// Tracking enabled / disabled
+    #[serde(rename = "Tracking")]
+    pub tracking: bool,
+}
+
+/// DriveRate enum corresponding to one of the standard drive rates.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum DriveRate {
+    /// 15.041 arcseconds per second
+    Sidereal = 0,
+
+    /// 14.685 arcseconds per second
+    Lunar = 1,
+
+    /// 15.0 arcseconds per second
+    Solar = 2,
+
+    /// 15.0369 arcseconds per second
+    King = 3,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetTrackingRateRequest {
+    /// DriveRate enum corresponding to one of the standard drive rates.
+    #[serde(rename = "TrackingRate")]
+    pub tracking_rate: DriveRate,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeSetUTCDateRequest {
+    /// UTC date/time in ISO 8601 format.
+    #[serde(rename = "UTCDate")]
+    pub utcdate: String,
+}
+
+/// The axis of mount rotation.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub enum Axis {
+    Primary = 0,
+
+    Secondary = 1,
+
+    Tertiary = 2,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeAxisRatesRequest {
+    #[serde(rename = "Axis")]
+    pub axis: Axis,
+}
+
+/// Axis rate object
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AxisRate {
+    /// The maximum rate (degrees per second) This must always be a positive number. It indicates the maximum rate in either direction about the axis.
+    #[serde(rename = "Maximum")]
+    pub maximum: f64,
+
+    /// The minimum rate (degrees per second) This must always be a positive number. It indicates the maximum rate in either direction about the axis.
+    #[serde(rename = "Minimum")]
+    pub minimum: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeCanMoveAxisRequest {
+    #[serde(rename = "Axis")]
+    pub axis: Axis,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeDestinationSideOfPierRequest {
+    /// Right Ascension coordinate (0.0 to 23.99999999 hours)
+    #[serde(rename = "RightAscension")]
+    pub right_ascension: f64,
+
+    /// Declination coordinate (-90.0 to +90.0 degrees)
+    #[serde(rename = "Declination")]
+    pub declination: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelescopeMoveAxisRequest {
+    /// The axis of mount rotation.
+    #[serde(rename = "Axis")]
+    pub axis: Axis,
+
+    /// The rate of motion (deg/sec) about the specified axis.
+    #[serde(rename = "Rate")]
+    pub rate: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PutTelescopeDevicenumberSlewtoaltaz {
+    /// Azimuth coordinate (degrees, North-referenced, positive East/clockwise)
+    #[serde(rename = "Azimuth")]
+    pub azimuth: f64,
+
+    /// Altitude coordinate (degrees, positive up)
+    #[serde(rename = "Altitude")]
+    pub altitude: f64,
+}
+
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PutTelescopeDevicenumberSlewtocoordinates {
+    /// Right Ascension coordinate (hours)
+    #[serde(rename = "RightAscension")]
+    pub right_ascension: f64,
+
+    /// Declination coordinate (degrees)
+    #[serde(rename = "Declination")]
+    pub declination: f64,
 }
 
 rpc! {
@@ -882,19 +886,19 @@ rpc! {
         This method should return an error message and NotImplementedException error number (0x400) if the driver just implements the standard ASCOM device methods and has no bespoke, unique, functionality.
         */
         #[http("action")]
-        fn action(&mut self, request: schemas::PutActionRequest) -> String;
+        fn action(&mut self, request: DeviceActionRequest) -> String;
 
         /// Transmits an arbitrary string to the device and does not wait for a response. Optionally, protocol framing characters may be added to the string before transmission.
         #[http("commandblind")]
-        fn command_blind(&mut self, request: schemas::PutCommandblindRequest);
+        fn command_blind(&mut self, request: PutDevicetypeDevicenumberCommandblind);
 
         /// Transmits an arbitrary string to the device and waits for a boolean response. Optionally, protocol framing characters may be added to the string before transmission.
         #[http("commandbool")]
-        fn command_bool(&mut self, request: schemas::PutCommandblindRequest) -> bool;
+        fn command_bool(&mut self, request: PutDevicetypeDevicenumberCommandblind) -> bool;
 
         /// Transmits an arbitrary string to the device and waits for a string response. Optionally, protocol framing characters may be added to the string before transmission.
         #[http("commandstring")]
-        fn command_string(&mut self, request: schemas::PutCommandblindRequest) -> String;
+        fn command_string(&mut self, request: PutDevicetypeDevicenumberCommandblind) -> String;
 
         /// Retrieves the connected state of the device
         #[http("connected")]
@@ -902,7 +906,7 @@ rpc! {
 
         /// Sets the connected state of the device
         #[http("connected")]
-        fn set_connected(&mut self, request: schemas::PutConnectedRequest);
+        fn set_connected(&mut self, request: DeviceSetConnectedRequest);
 
         /// The description of the device
         #[http("description")]
@@ -916,7 +920,7 @@ rpc! {
         #[http("driverversion")]
         fn driver_version(&self) -> String;
 
-        /// This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+        /// This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support previous versions as well as the current version to ensure thay can use the largest number of devices.
         #[http("interfaceversion")]
         fn interface_version(&self) -> i32;
 
@@ -946,7 +950,7 @@ rpc! {
 
         /// Sets the binning factor for the X axis.
         #[http("binx")]
-        fn set_bin_x(&mut self, request: schemas::PutCameraBinxRequest);
+        fn set_bin_x(&mut self, request: CameraSetBinXRequest);
 
         /// Returns the binning factor for the Y axis.
         #[http("biny")]
@@ -954,11 +958,11 @@ rpc! {
 
         /// Sets the binning factor for the Y axis.
         #[http("biny")]
-        fn set_bin_y(&mut self, request: schemas::PutCameraBinyRequest);
+        fn set_bin_y(&mut self, request: CameraSetBinYRequest);
 
         /// Returns the current camera operational state.
         #[http("camerastate")]
-        fn camera_state(&self) -> schemas::CameraStateResponseValue;
+        fn camera_state(&self) -> CameraStateResponse;
 
         /// Returns the width of the CCD camera chip in unbinned pixels.
         #[http("cameraxsize")]
@@ -1006,7 +1010,7 @@ rpc! {
 
         /// Turns on and off the camera cooler. True = cooler on, False = cooler off
         #[http("cooleron")]
-        fn set_cooler_on(&mut self, request: schemas::PutCameraCooleronRequest);
+        fn set_cooler_on(&mut self, request: CameraSetCoolerOnRequest);
 
         /// Returns the present cooler power level, in percent.
         #[http("coolerpower")]
@@ -1034,7 +1038,7 @@ rpc! {
 
         /// Sets whether Fast Readout Mode is enabled.
         #[http("fastreadout")]
-        fn set_fast_readout(&mut self, request: schemas::PutCameraFastreadoutRequest);
+        fn set_fast_readout(&mut self, request: CameraSetFastReadoutRequest);
 
         /// Reports the full well capacity of the camera in electrons, at the current camera settings (binning, SetupDialog settings, etc.).
         #[http("fullwellcapacity")]
@@ -1046,7 +1050,7 @@ rpc! {
 
         /// The camera's gain (GAIN VALUE MODE) OR the index of the selected camera gain description in the Gains array (GAINS INDEX MODE).
         #[http("gain")]
-        fn set_gain(&mut self, request: schemas::PutCameraGainRequest);
+        fn set_gain(&mut self, request: CameraSetGainRequest);
 
         /// Returns the maximum value of Gain.
         #[http("gainmax")]
@@ -1079,9 +1083,9 @@ rpc! {
 
         __`^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`__
 
-        When the SensorType is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5  and Pxy represents the pixel value at the zero based position x across and y down the image with the origin in the top left corner of the image.
+        When the SensorType is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5 and Pxy represents the pixel value at the zero based position x across and y down the image with the origin in the top left corner of the image.
 
-        Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly).  This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
+        Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly). This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
 
         [
 
@@ -1101,7 +1105,7 @@ rpc! {
 
         ]
 
-        When the SensorType is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5  and Rxy, Gxy and Bxy represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
+        When the SensorType is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5 and Rxy, Gxy and Bxy represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
 
         [
 
@@ -1123,10 +1127,10 @@ rpc! {
 
         __`Performance`__
 
-        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network.  A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time.  It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
+        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
         */
         #[http("imagearray")]
-        fn image_array(&self) -> schemas::ImageArrayResponse;
+        fn image_array(&self) -> ImageArrayResponse;
 
         /**
         Returns an array containing the pixel values from the last exposure. This call can return either a 2 dimension (monochrome images) or 3 dimension (colour or multi-plane images) array of size NumX \* NumY  or NumX \* NumY \* NumPlanes. Where applicable, the size of NumPlanes has to be determined by inspection of the returned Array.
@@ -1139,9 +1143,9 @@ rpc! {
 
         __`^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`__
 
-        When the SensorType is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5  and Pxy represents the pixel value at the zero based position x across and y down the image with the origin in the top left corner of the image.
+        When the SensorType is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5 and Pxy represents the pixel value at the zero based position x across and y down the image with the origin in the top left corner of the image.
 
-        Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly).  This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
+        Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly). This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
 
         [
 
@@ -1161,7 +1165,7 @@ rpc! {
 
         ]
 
-        When the SensorType is Color, the serialised JSON array should have 3 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5  and Rxy, Gxy and Bxy represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
+        When the SensorType is Color, the serialised JSON array should have 3 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5 and Rxy, Gxy and Bxy represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
 
         [
 
@@ -1183,10 +1187,10 @@ rpc! {
 
         __`Performance`__
 
-        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network.  A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time.  It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
+        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
         */
         #[http("imagearrayvariant")]
-        fn image_array_variant(&self) -> schemas::ImageArrayResponse;
+        fn image_array_variant(&self) -> ImageArrayResponse;
 
         /// Returns a flag indicating whether the image is ready to be downloaded from the camera.
         #[http("imageready")]
@@ -1222,7 +1226,7 @@ rpc! {
 
         /// Sets the current subframe width.
         #[http("numx")]
-        fn set_num_x(&mut self, request: schemas::PutCameraNumxRequest);
+        fn set_num_x(&mut self, request: CameraSetNumXRequest);
 
         /// Returns the current subframe height, if binning is active, value is in binned pixels.
         #[http("numy")]
@@ -1230,7 +1234,7 @@ rpc! {
 
         /// Sets the current subframe height.
         #[http("numy")]
-        fn set_num_y(&mut self, request: schemas::PutCameraNumyRequest);
+        fn set_num_y(&mut self, request: CameraSetNumYRequest);
 
         /// Returns the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
         #[http("offset")]
@@ -1238,7 +1242,7 @@ rpc! {
 
         /// Sets the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
         #[http("offset")]
-        fn set_offset(&mut self, request: schemas::PutCameraOffsetRequest);
+        fn set_offset(&mut self, request: CameraSetOffsetRequest);
 
         /// Returns the maximum value of offset.
         #[http("offsetmax")]
@@ -1270,7 +1274,7 @@ rpc! {
 
         /// Sets the ReadoutMode as an index into the array ReadoutModes.
         #[http("readoutmode")]
-        fn set_readout_mode(&mut self, request: schemas::PutCameraReadoutmodeRequest);
+        fn set_readout_mode(&mut self, request: CameraSetReadoutModeRequest);
 
         /// This property provides an array of strings, each of which describes an available readout mode of the camera. At least one string must be present in the list.
         #[http("readoutmodes")]
@@ -1282,7 +1286,7 @@ rpc! {
 
         /// Returns a value indicating whether the sensor is monochrome, or what Bayer matrix it encodes.
         #[http("sensortype")]
-        fn sensor_type(&self) -> schemas::SensorTypeResponseValue;
+        fn sensor_type(&self) -> SensorTypeResponse;
 
         /// Returns the current camera cooler setpoint in degrees Celsius.
         #[http("setccdtemperature")]
@@ -1290,7 +1294,7 @@ rpc! {
 
         /// Set's the camera's cooler setpoint in degrees Celsius.
         #[http("setccdtemperature")]
-        fn set_set_ccdtemperature(&mut self, request: schemas::PutCameraSetccdtemperatureRequest);
+        fn set_set_ccdtemperature(&mut self, request: CameraSetSetCCDTemperatureRequest);
 
         /// Sets the subframe start position for the X axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
         #[http("startx")]
@@ -1298,7 +1302,7 @@ rpc! {
 
         /// Sets the current subframe X axis start position in binned pixels.
         #[http("startx")]
-        fn set_start_x(&mut self, request: schemas::PutCameraStartxRequest);
+        fn set_start_x(&mut self, request: CameraSetStartXRequest);
 
         /// Sets the subframe start position for the Y axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
         #[http("starty")]
@@ -1306,7 +1310,7 @@ rpc! {
 
         /// Sets the current subframe Y axis start position in binned pixels.
         #[http("starty")]
-        fn set_start_y(&mut self, request: schemas::PutCameraStartyRequest);
+        fn set_start_y(&mut self, request: CameraSetStartYRequest);
 
         /// The Camera's sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
         #[http("subexposureduration")]
@@ -1314,11 +1318,7 @@ rpc! {
 
         /// Sets image sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
         #[http("subexposureduration")]
-        fn set_sub_exposure_duration(
-            &mut self,
-
-            request: schemas::PutCameraSubexposuredurationRequest,
-        );
+        fn set_sub_exposure_duration(&mut self, request: CameraSetSubExposureDurationRequest);
 
         /// Aborts the current exposure, if any, and returns the camera to Idle state.
         #[http("abortexposure")]
@@ -1326,11 +1326,11 @@ rpc! {
 
         /// Activates the Camera's mount control sytem to instruct the mount to move in a particular direction for a given period of time
         #[http("pulseguide")]
-        fn pulse_guide(&mut self, request: schemas::PutCameraPulseguideRequest);
+        fn pulse_guide(&mut self, request: PutPulseGuide);
 
         /// Starts an exposure. Use ImageReady to check when the exposure is complete.
         #[http("startexposure")]
-        fn start_exposure(&mut self, request: schemas::PutCameraStartexposureRequest);
+        fn start_exposure(&mut self, request: CameraStartExposureRequest);
 
         /// Stops the current exposure, if any. If an exposure is in progress, the readout process is initiated. Ignored if readout is already in process.
         #[http("stopexposure")]
@@ -1344,13 +1344,13 @@ rpc! {
         #[http("brightness")]
         fn brightness(&self) -> i32;
 
-        /// Returns the state of the calibration device, if present, otherwise returns "NotPresent".  The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
+        /// Returns the state of the calibration device, if present, otherwise returns "NotPresent". The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
         #[http("calibratorstate")]
-        fn calibrator_state(&self) -> schemas::CalibratorStatusResponseValue;
+        fn calibrator_state(&self) -> CalibratorStatusResponse;
 
-        /// Returns the state of the device cover, if present, otherwise returns "NotPresent".  The cover state mode is specified as an integer value from the CoverStatus Enum.
+        /// Returns the state of the device cover, if present, otherwise returns "NotPresent". The cover state mode is specified as an integer value from the CoverStatus Enum.
         #[http("coverstate")]
-        fn cover_state(&self) -> schemas::CoverStatusResponseValue;
+        fn cover_state(&self) -> CoverStatusResponse;
 
         /// The Brightness value that makes the calibrator deliver its maximum illumination.
         #[http("maxbrightness")]
@@ -1362,7 +1362,7 @@ rpc! {
 
         /// Turns the calibrator on at the specified brightness if the device has calibration capability.
         #[http("calibratoron")]
-        fn calibrator_on(&mut self, request: schemas::PutCovercalibratorCalibratoronRequest);
+        fn calibrator_on(&mut self, request: CoverCalibratorCalibratorOnRequest);
 
         /// Initiates cover closing if a cover is present.
         #[http("closecover")]
@@ -1430,7 +1430,7 @@ rpc! {
 
         /// Returns the status of the dome shutter or roll-off roof.
         #[http("shutterstatus")]
-        fn shutter_status(&self) -> schemas::DomeShutterStatusResponseValue;
+        fn shutter_status(&self) -> DomeShutterStatusResponse;
 
         /// True if the dome is slaved to the telescope in its hardware, else False.
         #[http("slaved")]
@@ -1438,7 +1438,7 @@ rpc! {
 
         /// Sets the current subframe height.
         #[http("slaved")]
-        fn set_slaved(&mut self, request: schemas::PutDomeSlavedRequest);
+        fn set_slaved(&mut self, request: DomeSetSlavedRequest);
 
         /// True if any part of the dome is currently moving, False if all dome components are steady.
         #[http("slewing")]
@@ -1470,15 +1470,15 @@ rpc! {
 
         /// Slew the dome to the given altitude position.
         #[http("slewtoaltitude")]
-        fn slew_to_altitude(&mut self, request: schemas::PutDomeSlewtoaltitudeRequest);
+        fn slew_to_altitude(&mut self, request: DomeSlewToAltitudeRequest);
 
         /// Slew the dome to the given azimuth position.
         #[http("slewtoazimuth")]
-        fn slew_to_azimuth(&mut self, request: schemas::PutDomeSlewtoazimuthRequest);
+        fn slew_to_azimuth(&mut self, request: PutDomeDevicenumberSlewtoazimuth);
 
         /// Synchronize the current position of the dome to the given azimuth.
         #[http("synctoazimuth")]
-        fn sync_to_azimuth(&mut self, request: schemas::PutDomeSlewtoazimuthRequest);
+        fn sync_to_azimuth(&mut self, request: PutDomeDevicenumberSlewtoazimuth);
     }
 
     /// FilterWheel Specific Methods
@@ -1498,7 +1498,7 @@ rpc! {
 
         /// Sets the filter wheel position
         #[http("position")]
-        fn set_position(&mut self, request: schemas::PutFilterwheelPositionRequest);
+        fn set_position(&mut self, request: FilterWheelSetPositionRequest);
     }
 
     /// Focuser Specific Methods
@@ -1534,7 +1534,7 @@ rpc! {
 
         /// Sets the state of temperature compensation mode.
         #[http("tempcomp")]
-        fn set_temp_comp(&mut self, request: schemas::PutFocuserTempcompRequest);
+        fn set_temp_comp(&mut self, request: FocuserSetTempCompRequest);
 
         /// True if focuser has temperature compensation available.
         #[http("tempcompavailable")]
@@ -1550,7 +1550,7 @@ rpc! {
 
         /// Moves the focuser by the specified amount or to the specified position depending on the value of the Absolute property.
         #[http("move")]
-        fn r#move(&mut self, request: schemas::PutFocuserMoveRequest);
+        fn move_(&mut self, request: FocuserMoveRequest);
     }
 
     /// ObservingConditions Specific Methods
@@ -1562,11 +1562,7 @@ rpc! {
 
         /// Sets the time period over which observations will be averaged
         #[http("averageperiod")]
-        fn set_average_period(
-            &mut self,
-
-            request: schemas::PutObservingconditionsAverageperiodRequest,
-        );
+        fn set_average_period(&mut self, request: ObservingConditionsSetAveragePeriodRequest);
 
         /// Gets the percentage of the sky obscured by cloud
         #[http("cloudcover")]
@@ -1628,16 +1624,14 @@ rpc! {
         #[http("sensordescription")]
         fn sensor_description(
             &self,
-
-            request: schemas::GetObservingconditionsSensordescriptionRequest,
+            request: ObservingConditionsSensorDescriptionRequest,
         ) -> String;
 
         /// Gets the time since the sensor specified in the SensorName parameter was last updated
         #[http("timesincelastupdate")]
         fn time_since_last_update(
             &self,
-
-            request: schemas::GetObservingconditionsTimesincelastupdateRequest,
+            request: ObservingConditionsTimeSinceLastUpdateRequest,
         ) -> f64;
     }
 
@@ -1666,7 +1660,7 @@ rpc! {
 
         /// Sets the rotator’s Reverse state.
         #[http("reverse")]
-        fn set_reverse(&mut self, request: schemas::PutRotatorReverseRequest);
+        fn set_reverse(&mut self, request: RotatorSetReverseRequest);
 
         /// The minimum StepSize, in degrees.
         #[http("stepsize")]
@@ -1682,19 +1676,19 @@ rpc! {
 
         /// Causes the rotator to move Position degrees relative to the current Position value.
         #[http("move")]
-        fn r#move(&mut self, request: schemas::PutRotatorMoveRequest);
+        fn move_(&mut self, request: RotatorMoveRequest);
 
         /// Causes the rotator to move the absolute position of Position degrees.
         #[http("moveabsolute")]
-        fn move_absolute(&mut self, request: schemas::PutRotatorMoveabsoluteRequest);
+        fn move_absolute(&mut self, request: RotatorMoveAbsoluteRequest);
 
         /// Causes the rotator to move the mechanical position of Position degrees.
         #[http("movemechanical")]
-        fn move_mechanical(&mut self, request: schemas::PutRotatorMovemechanicalRequest);
+        fn move_mechanical(&mut self, request: RotatorMoveMechanicalRequest);
 
         /// Causes the rotator to sync to the position of Position degrees.
         #[http("sync")]
-        fn sync(&mut self, request: schemas::PutRotatorSyncRequest);
+        fn sync(&mut self, request: RotatorSyncRequest);
     }
 
     /// SafetyMonitor Specific Methods
@@ -1714,59 +1708,55 @@ rpc! {
 
         /// Reports if the specified switch device can be written to, default true. This is false if the device cannot be written to, for example a limit switch or a sensor.  Devices are numbered from 0 to MaxSwitch - 1
         #[http("canwrite")]
-        fn can_write(&self, request: schemas::GetSwitchCanwriteRequest) -> bool;
+        fn can_write(&self, request: SwitchCanWriteRequest) -> bool;
 
         /// Return the state of switch device id as a boolean.  Devices are numbered from 0 to MaxSwitch - 1
         #[http("getswitch")]
-        fn switch(&self, request: schemas::GetSwitchGetswitchRequest) -> bool;
+        fn get_switch(&self, request: SwitchGetSwitchRequest) -> bool;
 
         /// Gets the description of the specified switch device. This is to allow a fuller description of the device to be returned, for example for a tool tip. Devices are numbered from 0 to MaxSwitch - 1
         #[http("getswitchdescription")]
-        fn switch_description(
-            &self,
-
-            request: schemas::GetSwitchGetswitchdescriptionRequest,
-        ) -> String;
+        fn get_switch_description(&self, request: SwitchGetSwitchDescriptionRequest) -> String;
 
         /// Gets the name of the specified switch device. Devices are numbered from 0 to MaxSwitch - 1
         #[http("getswitchname")]
-        fn switch_name(&self, request: schemas::GetSwitchGetswitchnameRequest) -> String;
+        fn get_switch_name(&self, request: SwitchGetSwitchNameRequest) -> String;
 
         /// Gets the value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1, The value of this switch is expected to be between MinSwitchValue and MaxSwitchValue.
         #[http("getswitchvalue")]
-        fn switch_value(&self, request: schemas::GetSwitchGetswitchvalueRequest) -> f64;
+        fn get_switch_value(&self, request: SwitchGetSwitchValueRequest) -> f64;
 
         /// Gets the minimum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
         #[http("minswitchvalue")]
-        fn min_switch_value(&self, request: schemas::GetSwitchMinswitchvalueRequest) -> f64;
+        fn min_switch_value(&self, request: SwitchMinSwitchValueRequest) -> f64;
 
         /// Gets the maximum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
         #[http("maxswitchvalue")]
-        fn max_switch_value(&self, request: schemas::GetSwitchMaxswitchvalueRequest) -> f64;
+        fn max_switch_value(&self, request: SwitchMaxSwitchValueRequest) -> f64;
 
         /// Sets a switch controller device to the specified state, true or false.
         #[http("setswitch")]
-        fn set_switch(&mut self, request: schemas::PutSwitchSetswitchRequest);
+        fn set_switch(&mut self, request: SwitchSetSwitchRequest);
 
         /// Sets a switch device name to the specified value.
         #[http("setswitchname")]
-        fn set_switch_name(&mut self, request: schemas::PutSwitchSetswitchnameRequest);
+        fn set_switch_name(&mut self, request: SwitchSetSwitchNameRequest);
 
         /// Sets a switch device value to the specified value.
         #[http("setswitchvalue")]
-        fn set_switch_value(&mut self, request: schemas::PutSwitchSetswitchvalueRequest);
+        fn set_switch_value(&mut self, request: SwitchSetSwitchValueRequest);
 
         /// Returns the step size that this device supports (the difference between successive values of the device). Devices are numbered from 0 to MaxSwitch - 1.
         #[http("switchstep")]
-        fn switch_step(&self, request: schemas::GetSwitchSwitchstepRequest) -> f64;
+        fn switch_step(&self, request: SwitchSwitchStepRequest) -> f64;
     }
 
     /// Telescope Specific Methods
     #[http("telescope")]
     pub trait Telescope: Device {
-        /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar).  The alignment mode is specified as an integer value from the AlignmentModes Enum.
+        /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
         #[http("alignmentmode")]
-        fn alignment_mode(&self) -> schemas::AlignmentModeResponseValue;
+        fn alignment_mode(&self) -> AlignmentModeResponse;
 
         /// The altitude above the local horizon of the mount's current position (degrees, positive up)
         #[http("altitude")]
@@ -1866,7 +1856,7 @@ rpc! {
 
         /// Sets the declination tracking rate (arcseconds per second)
         #[http("declinationrate")]
-        fn set_declination_rate(&mut self, request: schemas::PutTelescopeDeclinationrateRequest);
+        fn set_declination_rate(&mut self, request: TelescopeSetDeclinationRateRequest);
 
         /// True if the telescope or driver applies atmospheric refraction to coordinates.
         #[http("doesrefraction")]
@@ -1874,11 +1864,11 @@ rpc! {
 
         /// Causes the rotator to move Position degrees relative to the current Position value.
         #[http("doesrefraction")]
-        fn set_does_refraction(&mut self, request: schemas::PutTelescopeDoesrefractionRequest);
+        fn set_does_refraction(&mut self, request: TelescopeSetDoesRefractionRequest);
 
         /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
         #[http("equatorialsystem")]
-        fn equatorial_system(&self) -> schemas::EquatorialSystemResponseValue;
+        fn equatorial_system(&self) -> EquatorialSystemResponse;
 
         /// The telescope's focal length in meters
         #[http("focallength")]
@@ -1890,11 +1880,7 @@ rpc! {
 
         /// Sets the current Declination movement rate offset for telescope guiding (degrees/sec).
         #[http("guideratedeclination")]
-        fn set_guide_rate_declination(
-            &mut self,
-
-            request: schemas::PutTelescopeGuideratedeclinationRequest,
-        );
+        fn set_guide_rate_declination(&mut self, request: TelescopeSetGuideRateDeclinationRequest);
 
         /// The current RightAscension movement rate offset for telescope guiding (degrees/sec)
         #[http("guideraterightascension")]
@@ -1904,8 +1890,7 @@ rpc! {
         #[http("guideraterightascension")]
         fn set_guide_rate_right_ascension(
             &mut self,
-
-            request: schemas::PutTelescopeGuideraterightascensionRequest,
+            request: TelescopeSetGuideRateRightAscensionRequest,
         );
 
         /// True if a PulseGuide(GuideDirections, Int32) command is in progress, False otherwise
@@ -1922,19 +1907,15 @@ rpc! {
 
         /// Sets the right ascension tracking rate (arcseconds per second)
         #[http("rightascensionrate")]
-        fn set_right_ascension_rate(
-            &mut self,
-
-            request: schemas::PutTelescopeRightascensionrateRequest,
-        );
+        fn set_right_ascension_rate(&mut self, request: TelescopeSetRightAscensionRateRequest);
 
         /// Indicates the pointing state of the mount.
         #[http("sideofpier")]
-        fn side_of_pier(&self) -> schemas::SideOfPierResponseValue;
+        fn side_of_pier(&self) -> SideOfPierResponse;
 
         /// Sets the pointing state of the mount.
         #[http("sideofpier")]
-        fn set_side_of_pier(&mut self, request: schemas::PutTelescopeSideofpierRequest);
+        fn set_side_of_pier(&mut self, request: TelescopeSetSideOfPierRequest);
 
         /// The local apparent sidereal time from the telescope's internal clock (hours, sidereal).
         #[http("siderealtime")]
@@ -1946,7 +1927,7 @@ rpc! {
 
         /// Sets the elevation above mean sea level (metres) of the site at which the telescope is located.
         #[http("siteelevation")]
-        fn set_site_elevation(&mut self, request: schemas::PutTelescopeSiteelevationRequest);
+        fn set_site_elevation(&mut self, request: TelescopeSetSiteElevationRequest);
 
         /// The geodetic(map) latitude (degrees, positive North, WGS84) of the site at which the telescope is located.
         #[http("sitelatitude")]
@@ -1954,7 +1935,7 @@ rpc! {
 
         /// Sets the observing site's latitude (degrees).
         #[http("sitelatitude")]
-        fn set_site_latitude(&mut self, request: schemas::PutTelescopeSitelatitudeRequest);
+        fn set_site_latitude(&mut self, request: TelescopeSetSiteLatitudeRequest);
 
         /// The longitude (degrees, positive East, WGS84) of the site at which the telescope is located.
         #[http("sitelongitude")]
@@ -1962,7 +1943,7 @@ rpc! {
 
         /// Sets the observing site's longitude (degrees, positive East, WGS84).
         #[http("sitelongitude")]
-        fn set_site_longitude(&mut self, request: schemas::PutTelescopeSitelongitudeRequest);
+        fn set_site_longitude(&mut self, request: TelescopeSetSiteLongitudeRequest);
 
         /// True if telescope is currently moving in response to one of the Slew methods or the MoveAxis(TelescopeAxes, Double) method, False at all other times.
         #[http("slewing")]
@@ -1974,7 +1955,7 @@ rpc! {
 
         /// Sets the  post-slew settling time (integer sec.).
         #[http("slewsettletime")]
-        fn set_slew_settle_time(&mut self, request: schemas::PutTelescopeSlewsettletimeRequest);
+        fn set_slew_settle_time(&mut self, request: TelescopeSetSlewSettleTimeRequest);
 
         /// The declination (degrees, positive North) for the target of an equatorial slew or sync operation
         #[http("targetdeclination")]
@@ -1982,11 +1963,7 @@ rpc! {
 
         /// Sets the declination (degrees, positive North) for the target of an equatorial slew or sync operation
         #[http("targetdeclination")]
-        fn set_target_declination(
-            &mut self,
-
-            request: schemas::PutTelescopeTargetdeclinationRequest,
-        );
+        fn set_target_declination(&mut self, request: TelescopeSetTargetDeclinationRequest);
 
         /// The right ascension (hours) for the target of an equatorial slew or sync operation
         #[http("targetrightascension")]
@@ -1994,11 +1971,7 @@ rpc! {
 
         /// Sets the right ascension (hours) for the target of an equatorial slew or sync operation
         #[http("targetrightascension")]
-        fn set_target_right_ascension(
-            &mut self,
-
-            request: schemas::PutTelescopeTargetrightascensionRequest,
-        );
+        fn set_target_right_ascension(&mut self, request: TelescopeSetTargetRightAscensionRequest);
 
         /// Returns the state of the telescope's sidereal tracking drive.
         #[http("tracking")]
@@ -2006,7 +1979,7 @@ rpc! {
 
         /// Sets the state of the telescope's sidereal tracking drive.
         #[http("tracking")]
-        fn set_tracking(&mut self, request: schemas::PutTelescopeTrackingRequest);
+        fn set_tracking(&mut self, request: TelescopeSetTrackingRequest);
 
         /// The current tracking rate of the telescope's sidereal drive.
         #[http("trackingrate")]
@@ -2014,11 +1987,11 @@ rpc! {
 
         /// Sets the tracking rate of the telescope's sidereal drive.
         #[http("trackingrate")]
-        fn set_tracking_rate(&mut self, request: schemas::PutTelescopeTrackingrateRequest);
+        fn set_tracking_rate(&mut self, request: TelescopeSetTrackingRateRequest);
 
         /// Returns an array of supported DriveRates values that describe the permissible values of the TrackingRate property for this telescope type.
         #[http("trackingrates")]
-        fn tracking_rates(&self) -> Vec<schemas::DriveRate>;
+        fn tracking_rates(&self) -> Vec<DriveRate>;
 
         /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
         #[http("utcdate")]
@@ -2026,7 +1999,7 @@ rpc! {
 
         /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
         #[http("utcdate")]
-        fn set_utcdate(&mut self, request: schemas::PutTelescopeUtcdateRequest);
+        fn set_utcdate(&mut self, request: TelescopeSetUTCDateRequest);
 
         /// Immediately Stops a slew in progress.
         #[http("abortslew")]
@@ -2034,23 +2007,18 @@ rpc! {
 
         /// The rates at which the telescope may be moved about the specified axis by the MoveAxis(TelescopeAxes, Double) method.
         #[http("axisrates")]
-        fn axis_rates(
-            &self,
-
-            request: schemas::GetTelescopeAxisratesRequest,
-        ) -> Vec<schemas::AxisRate>;
+        fn axis_rates(&self, request: TelescopeAxisRatesRequest) -> Vec<AxisRate>;
 
         /// True if this telescope can move the requested axis.
         #[http("canmoveaxis")]
-        fn can_move_axis(&self, request: schemas::GetTelescopeCanmoveaxisRequest) -> bool;
+        fn can_move_axis(&self, request: TelescopeCanMoveAxisRequest) -> bool;
 
         /// Predicts the pointing state that a German equatorial mount will be in if it slews to the given coordinates.
         #[http("destinationsideofpier")]
         fn destination_side_of_pier(
             &self,
-
-            request: schemas::GetTelescopeDestinationsideofpierRequest,
-        ) -> schemas::SideOfPierResponseValue;
+            request: TelescopeDestinationSideOfPierRequest,
+        ) -> SideOfPierResponse;
 
         /// Locates the telescope's "home" position (synchronous)
         #[http("findhome")]
@@ -2058,7 +2026,7 @@ rpc! {
 
         /// Move the telescope in one axis at the given rate.
         #[http("moveaxis")]
-        fn move_axis(&mut self, request: schemas::PutTelescopeMoveaxisRequest);
+        fn move_axis(&mut self, request: TelescopeMoveAxisRequest);
 
         /// Move the telescope to its park position, stop all motion (or restrict to a small safe range), and set AtPark to True. )
         #[http("park")]
@@ -2066,7 +2034,7 @@ rpc! {
 
         /// Moves the scope in the given direction for the given interval or time at the rate given by the corresponding guide rate property
         #[http("pulseguide")]
-        fn pulse_guide(&mut self, request: schemas::PutCameraPulseguideRequest);
+        fn pulse_guide(&mut self, request: PutPulseGuide);
 
         /// Sets the telescope's park position to be its current position.
         #[http("setpark")]
@@ -2074,23 +2042,19 @@ rpc! {
 
         /// Move the telescope to the given local horizontal coordinates, return when slew is complete
         #[http("slewtoaltaz")]
-        fn slew_to_alt_az(&mut self, request: schemas::PutTelescopeSlewtoaltazRequest);
+        fn slew_to_alt_az(&mut self, request: PutTelescopeDevicenumberSlewtoaltaz);
 
         /// Move the telescope to the given local horizontal coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
         #[http("slewtoaltazasync")]
-        fn slew_to_alt_az_async(&mut self, request: schemas::PutTelescopeSlewtoaltazRequest);
+        fn slew_to_alt_az_async(&mut self, request: PutTelescopeDevicenumberSlewtoaltaz);
 
         /// Move the telescope to the given equatorial coordinates, return when slew is complete
         #[http("slewtocoordinates")]
-        fn slew_to_coordinates(&mut self, request: schemas::PutTelescopeSlewtocoordinatesRequest);
+        fn slew_to_coordinates(&mut self, request: PutTelescopeDevicenumberSlewtocoordinates);
 
         /// Move the telescope to the given equatorial coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
         #[http("slewtocoordinatesasync")]
-        fn slew_to_coordinates_async(
-            &mut self,
-
-            request: schemas::PutTelescopeSlewtocoordinatesRequest,
-        );
+        fn slew_to_coordinates_async(&mut self, request: PutTelescopeDevicenumberSlewtocoordinates);
 
         /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete
         #[http("slewtotarget")]
@@ -2102,11 +2066,11 @@ rpc! {
 
         /// Matches the scope's local horizontal coordinates to the given local horizontal coordinates.
         #[http("synctoaltaz")]
-        fn sync_to_alt_az(&mut self, request: schemas::PutTelescopeSlewtoaltazRequest);
+        fn sync_to_alt_az(&mut self, request: PutTelescopeDevicenumberSlewtoaltaz);
 
         /// Matches the scope's equatorial coordinates to the given equatorial coordinates.
         #[http("synctocoordinates")]
-        fn sync_to_coordinates(&mut self, request: schemas::PutTelescopeSlewtocoordinatesRequest);
+        fn sync_to_coordinates(&mut self, request: PutTelescopeDevicenumberSlewtocoordinates);
 
         /// Matches the scope's equatorial coordinates to the TargetRightAscension and TargetDeclination equatorial coordinates.
         #[http("synctotarget")]
@@ -2114,6 +2078,6 @@ rpc! {
 
         /// Takes telescope out of the Parked state. )
         #[http("unpark")]
-        fn un_park(&mut self);
+        fn unpark(&mut self);
     }
 }

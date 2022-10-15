@@ -1,6 +1,10 @@
 import { readFile } from 'fs/promises';
 import * as assert from 'assert/strict';
 
+function unreachable(): never {
+  throw new Error('unreachable');
+}
+
 class CanonicalDevice {
   private _methods: Record<string, string> = {};
 
@@ -39,14 +43,16 @@ export async function getCanonicalNames() {
 
   let canonical = new CanonicalDevices();
 
-  for (let [, device, method] of xml.matchAll(
+  for (let [, device = unreachable(), method = unreachable()] of xml.matchAll(
     /M:ASCOM\.Alpaca\.Simulators\.(\w+?)(?:Controller)?\.(\w+)\(/g
   )) {
     canonical.registerDevice(device).registerMethod(method);
   }
 
   let generic = canonical.registerDevice('Device', '{device_type}');
-  for (let [, method] of xml.matchAll(/M:Alpaca\.AlpacaController\.(\w+)\(/g)) {
+  for (let [, method = unreachable()] of xml.matchAll(
+    /M:Alpaca\.AlpacaController\.(\w+)\(/g
+  )) {
     generic.registerMethod(method);
   }
 
