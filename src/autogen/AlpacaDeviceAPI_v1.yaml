@@ -2833,13 +2833,7 @@ paths:
       tags:
         - Focuser Specific Methods
       parameters:
-        - name: device_number
-          description: Zero based device number as set on the server
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int32
+        - $ref: '#/components/parameters/device_number'
       responses:
         '200':
           $ref: '#/components/responses/MethodResponse'
