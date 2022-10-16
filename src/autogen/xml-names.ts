@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises';
 import * as assert from 'assert/strict';
+import { parseStringPromise as parseXML } from 'xml2js';
 
 function unreachable(): never {
   throw new Error('unreachable');
@@ -39,17 +40,17 @@ class CanonicalDevices {
 }
 
 export async function getCanonicalNames(defaultPath: string) {
-  let xml = await readFile('./ASCOM.DriverAccess.xml', 'utf-8');
+  let xmlSrc = await readFile('./ASCOM.DriverAccess.xml', 'utf-8');
+  let xml = await parseXML(xmlSrc);
 
   let canonical = new CanonicalDevices();
 
-  for (let [
-    ,
-    deviceName = unreachable(),
-    methodName = unreachable()
-  ] of xml.matchAll(
-    /<member name="[MP]:ASCOM\.DriverAccess\.(\w+?)(?:V\d+)?\.(\w+)[("]/g
-  )) {
+  for (let member of xml.doc.members.flatMap((m: any) => m.member)) {
+    let nameParts = member.$.name.match(
+      /^[MP]:ASCOM\.DriverAccess\.(\w+?)(?:V\d+)?\.(\w+)(?:\(|$)/
+    );
+    if (!nameParts) continue;
+    let [, deviceName, methodName] = nameParts;
     let devicePath;
     if (deviceName === 'AscomDriver') {
       deviceName = 'Device';
