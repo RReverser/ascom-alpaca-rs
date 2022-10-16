@@ -12,7 +12,7 @@ let api = (await openapi.parse(
   './AlpacaDeviceAPI_v1.yaml'
 )) as OpenAPIV3.Document;
 let _refs = await openapi.resolve(api);
-let canonicalNames = await getCanonicalNames();
+let canonicalNames = await getCanonicalNames('{device_type}');
 
 function err(msg: string): never {
   throw new Error(msg);

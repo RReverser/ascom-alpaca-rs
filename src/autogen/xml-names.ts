@@ -38,22 +38,24 @@ class CanonicalDevices {
   }
 }
 
-export async function getCanonicalNames() {
-  let xml = await readFile('./ascom.alpaca.simulators.xml', 'utf-8');
+export async function getCanonicalNames(defaultPath: string) {
+  let xml = await readFile('./ASCOM.DriverAccess.xml', 'utf-8');
 
   let canonical = new CanonicalDevices();
 
-  for (let [, device = unreachable(), method = unreachable()] of xml.matchAll(
-    /M:ASCOM\.Alpaca\.Simulators\.(\w+?)(?:Controller)?\.(\w+)\(/g
+  for (let [
+    ,
+    deviceName = unreachable(),
+    methodName = unreachable()
+  ] of xml.matchAll(
+    /<member name="[MP]:ASCOM\.DriverAccess\.(\w+?)(?:V\d+)?\.(\w+)[("]/g
   )) {
-    canonical.registerDevice(device).registerMethod(method);
-  }
-
-  let generic = canonical.registerDevice('Device', '{device_type}');
-  for (let [, method = unreachable()] of xml.matchAll(
-    /M:Alpaca\.AlpacaController\.(\w+)\(/g
-  )) {
-    generic.registerMethod(method);
+    let devicePath;
+    if (deviceName === 'AscomDriver') {
+      deviceName = 'Device';
+      devicePath = defaultPath;
+    }
+    canonical.registerDevice(deviceName, devicePath).registerMethod(methodName);
   }
 
   return canonical;
