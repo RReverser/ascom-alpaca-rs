@@ -30,7 +30,11 @@ function getOrSet<K, V>(
   return value;
 }
 
-function set<K, V>(map: Map<K, V>, key: K, value: V) {
+function set<K, V, K2 extends K, V2 extends V>(
+  map: Map<K, V>,
+  key: K2,
+  value: V2
+) {
   if (map.has(key)) {
     throw new Error(`Duplicate key: ${key}`);
   }
@@ -103,8 +107,12 @@ function registerType<T extends RegisteredType>(
 class RustType {
   constructor(private rusty: string) {}
 
+  isVoid() {
+    return this.rusty === '()';
+  }
+
   ifNotVoid(cb: (type: string) => string) {
-    return this.rusty === '()' ? '' : cb(this.rusty);
+    return this.isVoid() ? '' : cb(this.rusty);
   }
 
   toString() {
@@ -153,6 +161,7 @@ interface DeviceMethod {
   path: string;
   doc: string | undefined;
   argsType: RustType;
+  resolvedArgs: ObjectType['properties'];
   returnType: RustType;
 }
 
@@ -420,13 +429,15 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let canonicalMethodName = canonicalDevice.getMethod(methodPath);
 
+      let resolvedArgs = new Map<string, Property>();
+
       let argsType =
         params.length === 0
           ? rusty('()')
           : registerType({}, () => {
               let argsType: ObjectType = {
                 kind: 'Request',
-                properties: new Map(),
+                properties: resolvedArgs,
                 name: `${device.name}${canonicalMethodName}Request`,
                 doc: undefined
               };
@@ -438,7 +449,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
                   'Parameter is not a query parameter'
                 );
                 let name = toPropName(param.name);
-                set(argsType.properties, name, {
+                set(resolvedArgs, name, {
                   name,
                   originalName: param.name,
                   doc: getDoc(param),
@@ -459,6 +470,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(get),
         argsType,
+        resolvedArgs,
         returnType: handleResponse(`${device.name}${canonicalMethodName}`, get)
       });
     });
@@ -490,17 +502,35 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       let canonicalMethodName =
         (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
 
+      let argsType = handleContent(
+        `${device.name}${canonicalMethodName}`,
+        'Request',
+        'application/x-www-form-urlencoded',
+        put.requestBody
+      );
+
+      let resolvedArgs;
+
+      if (!argsType.isVoid()) {
+        let resolvedType = types.get(argsType.toString());
+        assert.ok(resolvedType, 'Could not find registered type');
+        assert.equal(
+          resolvedType.kind,
+          'Request' as const,
+          'Registered type is not a request'
+        );
+        resolvedArgs = resolvedType.properties;
+      } else {
+        resolvedArgs = new Map();
+      }
+
       set(device.methods, canonicalMethodName, {
         name: toPropName(canonicalMethodName),
         mutable: true,
         path: methodPath,
         doc: getDoc(put),
-        argsType: handleContent(
-          `${device.name}${canonicalMethodName}`,
-          'Request',
-          'application/x-www-form-urlencoded',
-          put.requestBody
-        ),
+        argsType,
+        resolvedArgs,
         returnType: handleResponse(`${device.name}${canonicalMethodName}`, put)
       });
     });
@@ -548,7 +578,7 @@ ${stringifyIter(types, type => {
         ${stringifyDoc(type.doc)}
         #[allow(missing_copy_implementations)]
         #[derive(Debug, Clone, Serialize, Deserialize)]
-        pub struct ${type.name} {
+        ${type.kind !== 'Request' ? 'pub ' : ''}struct ${type.name} {
           ${stringifyIter(
             type.properties,
             prop => `
@@ -594,10 +624,15 @@ rpc! {
           device.methods,
           method => `
             ${stringifyDoc(method.doc)}
-            #[http("${method.path}")]
+            #[http("${method.path}")] ${method.argsType.ifNotVoid(
+            argsType => `#[params(${argsType})]`
+          )}
             fn ${method.name}(
               &${method.mutable ? 'mut ' : ''}self,
-              ${method.argsType.ifNotVoid(type => `request: ${type}`)}
+              ${stringifyIter(
+                method.resolvedArgs,
+                arg => `${arg.name}: ${arg.type},`
+              )}
             )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
 
           `
