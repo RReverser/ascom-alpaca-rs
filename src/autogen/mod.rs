@@ -50,11 +50,11 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 struct DeviceActionRequest {
     /// A well known name that represents the action to be carried out.
     #[serde(rename = "Action")]
-    pub action: String,
+    action: String,
 
     /// List of required parameters or an Empty String if none are required
     #[serde(rename = "Parameters")]
-    pub parameters: String,
+    parameters: String,
 }
 
 #[allow(missing_copy_implementations)]
@@ -62,11 +62,11 @@ struct DeviceActionRequest {
 struct PutDevicetypeDevicenumberCommandblind {
     /// The literal command string to be transmitted.
     #[serde(rename = "Command")]
-    pub command: String,
+    command: String,
 
     /// If set to true the string is transmitted 'as-is', if set to false then protocol framing characters may be added prior to transmission
     #[serde(rename = "Raw")]
-    pub raw: String,
+    raw: String,
 }
 
 #[allow(missing_copy_implementations)]
@@ -74,7 +74,7 @@ struct PutDevicetypeDevicenumberCommandblind {
 struct DeviceSetConnectedRequest {
     /// Set True to connect to the device hardware, set False to disconnect from the device hardware
     #[serde(rename = "Connected")]
-    pub connected: bool,
+    connected: bool,
 }
 
 #[allow(missing_copy_implementations)]
@@ -82,7 +82,7 @@ struct DeviceSetConnectedRequest {
 struct CameraSetBinXRequest {
     /// The X binning value
     #[serde(rename = "BinX")]
-    pub bin_x: i32,
+    bin_x: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -90,7 +90,7 @@ struct CameraSetBinXRequest {
 struct CameraSetBinYRequest {
     /// The Y binning value
     #[serde(rename = "BinY")]
-    pub bin_y: i32,
+    bin_y: i32,
 }
 
 /// Returned camera state
@@ -116,7 +116,7 @@ pub enum CameraStateResponse {
 struct CameraSetCoolerOnRequest {
     /// Cooler state
     #[serde(rename = "CoolerOn")]
-    pub cooler_on: bool,
+    cooler_on: bool,
 }
 
 #[allow(missing_copy_implementations)]
@@ -124,7 +124,7 @@ struct CameraSetCoolerOnRequest {
 struct CameraSetFastReadoutRequest {
     /// True to enable fast readout mode
     #[serde(rename = "FastReadout")]
-    pub fast_readout: bool,
+    fast_readout: bool,
 }
 
 #[allow(missing_copy_implementations)]
@@ -132,7 +132,7 @@ struct CameraSetFastReadoutRequest {
 struct CameraSetGainRequest {
     /// Index of the current camera gain in the Gains string array.
     #[serde(rename = "Gain")]
-    pub gain: i32,
+    gain: i32,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
@@ -171,7 +171,7 @@ pub struct ImageArrayResponse {
 struct CameraSetNumXRequest {
     /// Sets the subframe width, if binning is active, value is in binned pixels.
     #[serde(rename = "NumX")]
-    pub num_x: i32,
+    num_x: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -179,7 +179,7 @@ struct CameraSetNumXRequest {
 struct CameraSetNumYRequest {
     /// Sets the subframe height, if binning is active, value is in binned pixels.
     #[serde(rename = "NumY")]
-    pub num_y: i32,
+    num_y: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -187,7 +187,7 @@ struct CameraSetNumYRequest {
 struct CameraSetOffsetRequest {
     /// Index of the current camera offset in the offsets string array.
     #[serde(rename = "offset")]
-    pub offset: i32,
+    offset: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -195,7 +195,7 @@ struct CameraSetOffsetRequest {
 struct CameraSetReadoutModeRequest {
     /// Index into the ReadoutModes array of string readout mode names indicating the camera's current readout mode.
     #[serde(rename = "ReadoutMode")]
-    pub readout_mode: i32,
+    readout_mode: i32,
 }
 
 /// Returned sensor type
@@ -227,7 +227,7 @@ pub enum SensorTypeResponse {
 struct CameraSetSetCCDTemperatureRequest {
     /// Temperature set point (degrees Celsius).
     #[serde(rename = "SetCCDTemperature")]
-    pub set_ccdtemperature: f64,
+    set_ccdtemperature: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -235,7 +235,7 @@ struct CameraSetSetCCDTemperatureRequest {
 struct CameraSetStartXRequest {
     /// The subframe X axis start position in binned pixels.
     #[serde(rename = "StartX")]
-    pub start_x: i32,
+    start_x: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -243,7 +243,7 @@ struct CameraSetStartXRequest {
 struct CameraSetStartYRequest {
     /// The subframe Y axis start position in binned pixels.
     #[serde(rename = "StartY")]
-    pub start_y: i32,
+    start_y: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -251,7 +251,7 @@ struct CameraSetStartYRequest {
 struct CameraSetSubExposureDurationRequest {
     /// The request sub exposure duration in seconds
     #[serde(rename = "SubExposureDuration")]
-    pub sub_exposure_duration: f64,
+    sub_exposure_duration: f64,
 }
 
 /// The direction in which the guide-rate motion is to be made.
@@ -273,11 +273,11 @@ pub enum PutPulseGuideDirection {
 struct PutPulseGuide {
     /// The direction in which the guide-rate motion is to be made.
     #[serde(rename = "Direction")]
-    pub direction: PutPulseGuideDirection,
+    direction: PutPulseGuideDirection,
 
     /// The duration of the guide-rate motion (milliseconds)
     #[serde(rename = "Duration")]
-    pub duration: i32,
+    duration: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -285,11 +285,11 @@ struct PutPulseGuide {
 struct CameraStartExposureRequest {
     /// Duration of exposure in seconds
     #[serde(rename = "Duration")]
-    pub duration: f64,
+    duration: f64,
 
     /// True if light frame, false if dark frame.
     #[serde(rename = "Light")]
-    pub light: bool,
+    light: bool,
 }
 
 /// Returned side of pier
@@ -345,7 +345,7 @@ pub enum CoverStatusResponse {
 struct CoverCalibratorCalibratorOnRequest {
     /// The required brightness in the range 0 to MaxBrightness
     #[serde(rename = "Brightness")]
-    pub brightness: i32,
+    brightness: i32,
 }
 
 /// Returned dome shutter status
@@ -369,7 +369,7 @@ pub enum DomeShutterStatusResponse {
 struct DomeSetSlavedRequest {
     /// True if telescope is slaved to dome, otherwise false
     #[serde(rename = "Slaved")]
-    pub slaved: bool,
+    slaved: bool,
 }
 
 #[allow(missing_copy_implementations)]
@@ -377,7 +377,7 @@ struct DomeSetSlavedRequest {
 struct DomeSlewToAltitudeRequest {
     /// Target dome altitude (degrees, horizon zero and increasing positive to 90 zenith)
     #[serde(rename = "Altitude")]
-    pub altitude: f64,
+    altitude: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -385,7 +385,7 @@ struct DomeSlewToAltitudeRequest {
 struct PutDomeDevicenumberSlewtoazimuth {
     /// Target dome azimuth (degrees, North zero and increasing clockwise. i.e., 90 East, 180 South, 270 West)
     #[serde(rename = "Azimuth")]
-    pub azimuth: f64,
+    azimuth: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -393,7 +393,7 @@ struct PutDomeDevicenumberSlewtoazimuth {
 struct FilterWheelSetPositionRequest {
     /// The number of the filter wheel position to select
     #[serde(rename = "Position")]
-    pub position: i32,
+    position: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -401,7 +401,7 @@ struct FilterWheelSetPositionRequest {
 struct FocuserSetTempCompRequest {
     /// Set true to enable the focuser's temperature compensation mode, otherwise false for normal operation.
     #[serde(rename = "TempComp")]
-    pub temp_comp: bool,
+    temp_comp: bool,
 }
 
 #[allow(missing_copy_implementations)]
@@ -409,7 +409,7 @@ struct FocuserSetTempCompRequest {
 struct FocuserMoveRequest {
     /// Step distance or absolute position, depending on the value of the Absolute property
     #[serde(rename = "Position")]
-    pub position: i32,
+    position: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -417,7 +417,7 @@ struct FocuserMoveRequest {
 struct ObservingConditionsSetAveragePeriodRequest {
     /// Time period (hours) over which to average sensor readings
     #[serde(rename = "AveragePeriod")]
-    pub average_period: f64,
+    average_period: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -425,7 +425,7 @@ struct ObservingConditionsSetAveragePeriodRequest {
 struct ObservingConditionsSensorDescriptionRequest {
     /// Name of the sensor whose description is required
     #[serde(rename = "SensorName")]
-    pub sensor_name: String,
+    sensor_name: String,
 }
 
 #[allow(missing_copy_implementations)]
@@ -433,7 +433,7 @@ struct ObservingConditionsSensorDescriptionRequest {
 struct ObservingConditionsTimeSinceLastUpdateRequest {
     /// Name of the sensor whose last update time is required
     #[serde(rename = "SensorName")]
-    pub sensor_name: String,
+    sensor_name: String,
 }
 
 #[allow(missing_copy_implementations)]
@@ -441,7 +441,7 @@ struct ObservingConditionsTimeSinceLastUpdateRequest {
 struct RotatorSetReverseRequest {
     /// True if the rotation and angular direction must be reversed to match the optical characteristcs
     #[serde(rename = "Reverse")]
-    pub reverse: bool,
+    reverse: bool,
 }
 
 #[allow(missing_copy_implementations)]
@@ -449,7 +449,7 @@ struct RotatorSetReverseRequest {
 struct RotatorMoveRequest {
     /// Relative position to move in degrees from current Position.
     #[serde(rename = "Position")]
-    pub position: f64,
+    position: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -457,7 +457,7 @@ struct RotatorMoveRequest {
 struct RotatorMoveAbsoluteRequest {
     /// Absolute position in degrees.
     #[serde(rename = "Position")]
-    pub position: f64,
+    position: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -465,7 +465,7 @@ struct RotatorMoveAbsoluteRequest {
 struct RotatorMoveMechanicalRequest {
     /// Absolute position in degrees.
     #[serde(rename = "Position")]
-    pub position: f64,
+    position: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -473,7 +473,7 @@ struct RotatorMoveMechanicalRequest {
 struct RotatorSyncRequest {
     /// Absolute position in degrees.
     #[serde(rename = "Position")]
-    pub position: f64,
+    position: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -481,7 +481,7 @@ struct RotatorSyncRequest {
 struct SwitchCanWriteRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -489,7 +489,7 @@ struct SwitchCanWriteRequest {
 struct SwitchGetSwitchRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -497,7 +497,7 @@ struct SwitchGetSwitchRequest {
 struct SwitchGetSwitchDescriptionRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -505,7 +505,7 @@ struct SwitchGetSwitchDescriptionRequest {
 struct SwitchGetSwitchNameRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -513,7 +513,7 @@ struct SwitchGetSwitchNameRequest {
 struct SwitchGetSwitchValueRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -521,7 +521,7 @@ struct SwitchGetSwitchValueRequest {
 struct SwitchMinSwitchValueRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -529,7 +529,7 @@ struct SwitchMinSwitchValueRequest {
 struct SwitchMaxSwitchValueRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -537,11 +537,11 @@ struct SwitchMaxSwitchValueRequest {
 struct SwitchSetSwitchRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 
     /// The required control state (True or False)
     #[serde(rename = "State")]
-    pub state: bool,
+    state: bool,
 }
 
 #[allow(missing_copy_implementations)]
@@ -549,11 +549,11 @@ struct SwitchSetSwitchRequest {
 struct SwitchSetSwitchNameRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 
     /// The name of the device
     #[serde(rename = "Name")]
-    pub name: String,
+    name: String,
 }
 
 #[allow(missing_copy_implementations)]
@@ -561,11 +561,11 @@ struct SwitchSetSwitchNameRequest {
 struct SwitchSetSwitchValueRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 
     /// The value to be set, between MinSwitchValue and MaxSwitchValue
     #[serde(rename = "Value")]
-    pub value: f64,
+    value: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -573,7 +573,7 @@ struct SwitchSetSwitchValueRequest {
 struct SwitchSwitchStepRequest {
     /// The device number (0 to MaxSwitch - 1)
     #[serde(rename = "Id")]
-    pub id: u32,
+    id: u32,
 }
 
 /// Returned side of pier
@@ -596,7 +596,7 @@ pub enum AlignmentModeResponse {
 struct TelescopeSetDeclinationRateRequest {
     /// Declination tracking rate (arcseconds per second)
     #[serde(rename = "DeclinationRate")]
-    pub declination_rate: f64,
+    declination_rate: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -604,7 +604,7 @@ struct TelescopeSetDeclinationRateRequest {
 struct TelescopeSetDoesRefractionRequest {
     /// Set True to make the telescope or driver applie atmospheric refraction to coordinates.
     #[serde(rename = "DoesRefraction")]
-    pub does_refraction: bool,
+    does_refraction: bool,
 }
 
 /// Returned side of pier
@@ -633,7 +633,7 @@ pub enum EquatorialSystemResponse {
 struct TelescopeSetGuideRateDeclinationRequest {
     /// Declination movement rate offset degrees/sec).
     #[serde(rename = "GuideRateDeclination")]
-    pub guide_rate_declination: f64,
+    guide_rate_declination: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -641,7 +641,7 @@ struct TelescopeSetGuideRateDeclinationRequest {
 struct TelescopeSetGuideRateRightAscensionRequest {
     /// RightAscension movement rate offset degrees/sec).
     #[serde(rename = "GuideRateRightAscension")]
-    pub guide_rate_right_ascension: f64,
+    guide_rate_right_ascension: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -649,7 +649,7 @@ struct TelescopeSetGuideRateRightAscensionRequest {
 struct TelescopeSetRightAscensionRateRequest {
     /// Right ascension tracking rate (arcseconds per second)
     #[serde(rename = "RightAscensionRate")]
-    pub right_ascension_rate: f64,
+    right_ascension_rate: f64,
 }
 
 /// Returned side of pier
@@ -684,7 +684,7 @@ pub enum TelescopeSetSideOfPierRequestSideOfPier {
 struct TelescopeSetSideOfPierRequest {
     /// New pointing state.
     #[serde(rename = "SideOfPier")]
-    pub side_of_pier: TelescopeSetSideOfPierRequestSideOfPier,
+    side_of_pier: TelescopeSetSideOfPierRequestSideOfPier,
 }
 
 #[allow(missing_copy_implementations)]
@@ -692,7 +692,7 @@ struct TelescopeSetSideOfPierRequest {
 struct TelescopeSetSiteElevationRequest {
     /// Elevation above mean sea level (metres).
     #[serde(rename = "SiteElevation")]
-    pub site_elevation: f64,
+    site_elevation: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -700,7 +700,7 @@ struct TelescopeSetSiteElevationRequest {
 struct TelescopeSetSiteLatitudeRequest {
     /// Site latitude (degrees)
     #[serde(rename = "SiteLatitude")]
-    pub site_latitude: f64,
+    site_latitude: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -708,7 +708,7 @@ struct TelescopeSetSiteLatitudeRequest {
 struct TelescopeSetSiteLongitudeRequest {
     /// Site longitude (degrees, positive East, WGS84)
     #[serde(rename = "SiteLongitude")]
-    pub site_longitude: f64,
+    site_longitude: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -716,7 +716,7 @@ struct TelescopeSetSiteLongitudeRequest {
 struct TelescopeSetSlewSettleTimeRequest {
     /// Settling time (integer sec.).
     #[serde(rename = "SlewSettleTime")]
-    pub slew_settle_time: i32,
+    slew_settle_time: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -724,7 +724,7 @@ struct TelescopeSetSlewSettleTimeRequest {
 struct TelescopeSetTargetDeclinationRequest {
     /// Target declination(degrees)
     #[serde(rename = "TargetDeclination")]
-    pub target_declination: f64,
+    target_declination: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -732,7 +732,7 @@ struct TelescopeSetTargetDeclinationRequest {
 struct TelescopeSetTargetRightAscensionRequest {
     /// Target right ascension(hours)
     #[serde(rename = "TargetRightAscension")]
-    pub target_right_ascension: f64,
+    target_right_ascension: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -740,7 +740,7 @@ struct TelescopeSetTargetRightAscensionRequest {
 struct TelescopeSetTrackingRequest {
     /// Tracking enabled / disabled
     #[serde(rename = "Tracking")]
-    pub tracking: bool,
+    tracking: bool,
 }
 
 /// DriveRate enum corresponding to one of the standard drive rates.
@@ -766,7 +766,7 @@ pub enum DriveRate {
 struct TelescopeSetTrackingRateRequest {
     /// DriveRate enum corresponding to one of the standard drive rates.
     #[serde(rename = "TrackingRate")]
-    pub tracking_rate: DriveRate,
+    tracking_rate: DriveRate,
 }
 
 #[allow(missing_copy_implementations)]
@@ -774,7 +774,7 @@ struct TelescopeSetTrackingRateRequest {
 struct TelescopeSetUTCDateRequest {
     /// UTC date/time in ISO 8601 format.
     #[serde(rename = "UTCDate")]
-    pub utcdate: String,
+    utcdate: String,
 }
 
 /// The axis of mount rotation.
@@ -793,7 +793,7 @@ pub enum Axis {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TelescopeAxisRatesRequest {
     #[serde(rename = "Axis")]
-    pub axis: Axis,
+    axis: Axis,
 }
 
 /// Axis rate object
@@ -813,7 +813,7 @@ pub struct AxisRate {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TelescopeCanMoveAxisRequest {
     #[serde(rename = "Axis")]
-    pub axis: Axis,
+    axis: Axis,
 }
 
 #[allow(missing_copy_implementations)]
@@ -821,11 +821,11 @@ struct TelescopeCanMoveAxisRequest {
 struct TelescopeDestinationSideOfPierRequest {
     /// Right Ascension coordinate (0.0 to 23.99999999 hours)
     #[serde(rename = "RightAscension")]
-    pub right_ascension: f64,
+    right_ascension: f64,
 
     /// Declination coordinate (-90.0 to +90.0 degrees)
     #[serde(rename = "Declination")]
-    pub declination: f64,
+    declination: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -833,11 +833,11 @@ struct TelescopeDestinationSideOfPierRequest {
 struct TelescopeMoveAxisRequest {
     /// The axis of mount rotation.
     #[serde(rename = "Axis")]
-    pub axis: Axis,
+    axis: Axis,
 
     /// The rate of motion (deg/sec) about the specified axis.
     #[serde(rename = "Rate")]
-    pub rate: f64,
+    rate: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -845,11 +845,11 @@ struct TelescopeMoveAxisRequest {
 struct PutTelescopeDevicenumberSlewtoaltaz {
     /// Azimuth coordinate (degrees, North-referenced, positive East/clockwise)
     #[serde(rename = "Azimuth")]
-    pub azimuth: f64,
+    azimuth: f64,
 
     /// Altitude coordinate (degrees, positive up)
     #[serde(rename = "Altitude")]
-    pub altitude: f64,
+    altitude: f64,
 }
 
 #[allow(missing_copy_implementations)]
@@ -857,11 +857,11 @@ struct PutTelescopeDevicenumberSlewtoaltaz {
 struct PutTelescopeDevicenumberSlewtocoordinates {
     /// Right Ascension coordinate (hours)
     #[serde(rename = "RightAscension")]
-    pub right_ascension: f64,
+    right_ascension: f64,
 
     /// Declination coordinate (degrees)
     #[serde(rename = "Declination")]
-    pub declination: f64,
+    declination: f64,
 }
 
 rpc! {

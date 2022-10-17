@@ -574,17 +574,19 @@ ${stringifyIter(types, type => {
     case 'Object':
     case 'Request':
     case 'Response': {
+      let vis = type.kind !== 'Request' ? 'pub' : '';
+
       return `
         ${stringifyDoc(type.doc)}
         #[allow(missing_copy_implementations)]
         #[derive(Debug, Clone, Serialize, Deserialize)]
-        ${type.kind !== 'Request' ? 'pub ' : ''}struct ${type.name} {
+        ${vis} struct ${type.name} {
           ${stringifyIter(
             type.properties,
             prop => `
               ${stringifyDoc(prop.doc)}
               #[serde(rename = "${prop.originalName}")]
-              pub ${prop.name}: ${prop.type},
+              ${vis} ${prop.name}: ${prop.type},
             `
           )}
         }
