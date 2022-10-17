@@ -7,6 +7,7 @@ use serde::Serialize;
 impl actix_web::dev::HttpServiceFactory for Devices {
     fn register(self, config: &mut actix_web::dev::AppService) {
         fn handler(
+            is_mut: bool,
             request: &HttpRequest,
             path: Path<(String, usize, String)>,
             params: &str,
@@ -18,7 +19,7 @@ impl actix_web::dev::HttpServiceFactory for Devices {
 
             let res = respond_with(params, move |params| {
                 let (device_type, device_number, action) = path.into_inner();
-                devices.handle_action(false, &device_type, device_number, &action, params)
+                devices.handle_action(is_mut, &device_type, device_number, &action, params)
             });
 
             actix_utils::future::ready(match res {
@@ -31,12 +32,12 @@ impl actix_web::dev::HttpServiceFactory for Devices {
             .app_data(self)
             .route(actix_web::web::get().to(
                 move |request: HttpRequest, path: Path<(String, usize, String)>| {
-                    handler(&request, path, request.query_string())
+                    handler(false, &request, path, request.query_string())
                 },
             ))
             .route(actix_web::web::post().to(
                 move |request: HttpRequest, path: Path<(String, usize, String)>, body: String| {
-                    handler(&request, path, &body)
+                    handler(true, &request, path, &body)
                 },
             ));
 
