@@ -1,6 +1,9 @@
 use super::rpc::OpaqueResponse;
-use crate::{ASCOMError, ASCOMResult};
-use serde::{Deserialize, Serialize};
+use crate::ASCOMResult;
+use serde::de::value::MapDeserializer;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashMap;
 use std::sync::atomic::AtomicU32;
 
 #[derive(Serialize, Deserialize)]
@@ -19,11 +22,11 @@ struct TransactionIds {
 
 impl TransactionIds {
     fn span(&self) -> tracing::Span {
-        tracing::info_span!(
-            "Alpaca transaction",
+        tracing::debug_span!(
+            "alpaca_transaction",
             client_id = self.client_id,
             client_transaction_id = self.client_transaction_id,
-            server_transaction_id = self.server_transaction_id
+            server_transaction_id = self.server_transaction_id,
         )
     }
 }
@@ -33,44 +36,67 @@ fn generate_server_transaction_id() -> u32 {
     SERVER_TRANSACTION_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
-// #[derive(Deserialize)]
-struct ASCOMRequest {
-    // #[serde(flatten)]
-    transaction: TransactionIds,
-    // #[serde(flatten)]
-    encoded_params: String,
-}
+#[derive(Debug, Deserialize)]
+#[serde(transparent)]
+pub struct ASCOMParams(HashMap<String, String>);
 
-impl ASCOMRequest {
-    /// This awkward machinery is to accomodate for the fact that the serde(flatten)
-    /// breaks all deserialization because it collects data into an internal representation
-    /// first and then can't recover other types from string values stored from the query string.
-    ///
-    /// See [`nox/serde_urlencoded#33`](https://github.com/nox/serde_urlencoded/issues/33).
-    fn from_encoded_params(encoded_params: &str) -> Result<Self, serde_urlencoded::de::Error> {
-        let mut transaction_params = form_urlencoded::Serializer::new(String::new());
-        let mut request_params = form_urlencoded::Serializer::new(String::new());
+impl ASCOMParams {
+    pub fn try_as<T: DeserializeOwned>(&self) -> Result<T, serde_plain::Error> {
+        struct Plain<'de>(&'de str);
 
-        for (key, value) in form_urlencoded::parse(encoded_params.as_bytes()) {
-            match key.as_ref() {
-                "ClientID" | "ClientTransactionID" => {
-                    let _ = transaction_params.append_pair(&key, &value);
-                }
-                _ => {
-                    let _ = request_params.append_pair(&key, &value);
-                }
+        impl<'de> serde::de::IntoDeserializer<'de, serde_plain::Error> for Plain<'de> {
+            type Deserializer = serde_plain::Deserializer<'de>;
+
+            fn into_deserializer(self) -> Self::Deserializer {
+                serde_plain::Deserializer::new(self.0)
             }
         }
 
+        let deserializer = MapDeserializer::new(self.0.iter().map(|(k, v)| (k.as_str(), Plain(v))));
+
+        T::deserialize(deserializer)
+    }
+}
+
+// #[derive(Deserialize)]
+pub(crate) struct ASCOMRequest {
+    // #[serde(flatten)]
+    transaction: TransactionIds,
+    // #[serde(flatten)]
+    encoded_params: ASCOMParams,
+}
+
+// Work around infamous serde(flatten) deserialization issues by manually
+// buffering all theparams in a HashMap<String, String> and then using
+// serde_plain + serde::de::value::MapDeserializer to decode specific
+// subtypes in ASCOMParams::try_as.
+impl<'de> Deserialize<'de> for ASCOMRequest {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let encoded_params = ASCOMParams::deserialize(deserializer)?;
         Ok(Self {
-            transaction: serde_urlencoded::from_str(&transaction_params.finish())?,
-            encoded_params: request_params.finish(),
+            transaction: encoded_params.try_as().map_err(serde::de::Error::custom)?,
+            encoded_params,
         })
     }
 }
 
+impl ASCOMRequest {
+    pub(crate) fn respond_with<F: FnOnce(ASCOMParams) -> ASCOMResult<OpaqueResponse>>(
+        self,
+        f: F,
+    ) -> ASCOMResponse {
+        let span = self.transaction.span();
+        let _span_enter = span.enter();
+
+        ASCOMResponse {
+            transaction: self.transaction,
+            result: f(self.encoded_params),
+        }
+    }
+}
+
 #[derive(Serialize)]
-struct ASCOMResponse {
+pub(crate) struct ASCOMResponse {
     #[serde(flatten)]
     transaction: TransactionIds,
     #[serde(flatten, serialize_with = "serialize_result")]
@@ -85,18 +111,4 @@ fn serialize_result<R: Serialize, S: serde::Serializer>(
         Ok(value) => value.serialize(serializer),
         Err(error) => error.serialize(serializer),
     }
-}
-
-pub fn respond_with(
-    params: &str,
-    handler: impl FnOnce(&str) -> Result<OpaqueResponse, ASCOMError>,
-) -> Result<impl Serialize, impl serde::de::Error> {
-    ASCOMRequest::from_encoded_params(params).map(move |request| {
-        let _span = request.transaction.span();
-
-        ASCOMResponse {
-            transaction: request.transaction,
-            result: handler(&request.encoded_params),
-        }
-    })
 }

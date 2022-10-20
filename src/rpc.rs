@@ -51,7 +51,7 @@ macro_rules! rpc {
                 } {
                     fn ty(&self) -> &'static str;
 
-                    fn handle_action(&mut self, is_mut: bool, action: &str, params_str: &str) -> $crate::ASCOMResult<$crate::OpaqueResponse>;
+                    fn handle_action(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse>;
                 });
 
                 $(
@@ -61,22 +61,28 @@ macro_rules! rpc {
                     }
                 )*
 
-                fn handle_action_impl(&mut self, is_mut: bool, action: &str, params_str: &str) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
+                fn handle_action_impl(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
                     use $crate::rpc::to_response;
 
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
                             $(
                                 let params: $params_ty =
-                                    serde_urlencoded::from_str(params_str)
+                                    params.try_as()
                                     .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
                             )?
+                            tracing::info!(
+                                trait_name = stringify!($trait_name),
+                                method_name = stringify!($method_name),
+                                params = ?($(&params.$param,)*),
+                                "Invoking Alpaca handler"
+                            );
                             let result = self.$method_name($(params.$param),*)?;
                             to_response(result)
                         })*
                         _ => {
                             rpc!(@if_parent $($parent_trait_name)? {
-                                $($parent_trait_name)?::handle_action_impl(self, is_mut, action, params_str)
+                                $($parent_trait_name)?::handle_action_impl(self, is_mut, action, params)
                             } {
                                 Err($crate::ASCOMError::ACTION_NOT_IMPLEMENTED)
                             })

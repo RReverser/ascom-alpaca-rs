@@ -1,4 +1,5 @@
 use crate::api::Device;
+use crate::transaction::ASCOMParams;
 use crate::{ASCOMError, ASCOMResult, OpaqueResponse};
 use std::collections::HashMap;
 use std::fmt;
@@ -57,7 +58,7 @@ impl Devices {
         device_type: &str,
         device_number: usize,
         action: &str,
-        params: &str,
+        params: ASCOMParams,
     ) -> ASCOMResult<OpaqueResponse> {
         self.devices
             .get(&(device_type, device_number))
