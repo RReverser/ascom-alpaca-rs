@@ -46,9 +46,7 @@ macro_rules! rpc {
             #[allow(unused_variables)]
             $(#[doc = $doc])*
             pub trait $trait_name $(: $parent_trait_name)? {
-                rpc!(@if_parent $($parent_trait_name)? {
-                    const TYPE: &'static str = $path;
-                } {
+                rpc!(@if_parent $($parent_trait_name)? {} {
                     fn ty(&self) -> &'static str;
 
                     fn handle_action(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse>;
@@ -60,8 +58,14 @@ macro_rules! rpc {
                         Err($crate::ASCOMError::ACTION_NOT_IMPLEMENTED)
                     }
                 )*
+            }
 
-                fn handle_action_impl(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
+            // Split this out from the trait because it's not meant to be overridden,
+            // or, for that matter, used outside of ascom-alpaca-dslr itself.
+            impl dyn $trait_name {
+                pub const TYPE: &'static str = $path;
+
+                pub fn handle_action_impl<T: $trait_name>(device: &mut T, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
                     use $crate::rpc::to_response;
 
                     match (is_mut, action) {
@@ -77,12 +81,12 @@ macro_rules! rpc {
                                 params = ?($(&params.$param,)*),
                                 "Invoking Alpaca handler"
                             );
-                            let result = self.$method_name($(params.$param),*)?;
+                            let result = device.$method_name($(params.$param),*)?;
                             to_response(result)
                         })*
                         _ => {
                             rpc!(@if_parent $($parent_trait_name)? {
-                                $($parent_trait_name)?::handle_action_impl(self, is_mut, action, params)
+                                <dyn $($parent_trait_name)?>::handle_action_impl(device, is_mut, action, params)
                             } {
                                 Err($crate::ASCOMError::ACTION_NOT_IMPLEMENTED)
                             })
