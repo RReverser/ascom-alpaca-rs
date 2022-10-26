@@ -1,18 +1,19 @@
 use serde::Serialize;
 use std::borrow::Cow;
+use thiserror::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[repr(transparent)]
 pub struct ASCOMErrorCode(u16);
 
+/// The starting value for driver-specific error numbers.
+const DRIVER_BASE: u16 = 0x500;
+/// The maximum value for driver-specific error numbers.
+const DRIVER_MAX: u16 = 0xFFF;
+
 impl ASCOMErrorCode {
     /// Generate a driver-specific error code.
     pub const fn new_for_driver(code: u16) -> Self {
-        /// The starting value for driver-specific error numbers.
-        const DRIVER_BASE: u16 = 0x500;
-        /// The maximum value for driver-specific error numbers.
-        const DRIVER_MAX: u16 = 0xFFF;
-
         assert!(
             code <= DRIVER_MAX - DRIVER_BASE,
             "Driver error code out of range"
@@ -21,7 +22,8 @@ impl ASCOMErrorCode {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Error)]
+#[error("ASCOM error {code}: {message}")]
 pub struct ASCOMError {
     #[serde(rename = "ErrorNumber")]
     pub code: ASCOMErrorCode,
@@ -47,6 +49,18 @@ macro_rules! ascom_error_codes {
         #[doc = $doc]
         pub const $name: Self = Self($value);
       )*
+    }
+
+    impl std::fmt::Display for ASCOMErrorCode {
+      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+          $(
+            Self::$name => write!(f, "{}", stringify!($name)),
+          )*
+          Self(code @ DRIVER_BASE..=DRIVER_MAX) => write!(f, "DRIVER_ERROR[{}]", code - DRIVER_BASE),
+          Self(code) => write!(f, "{:#X}", code),
+        }
+      }
     }
 
     impl ASCOMError {
