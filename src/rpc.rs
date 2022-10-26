@@ -70,20 +70,20 @@ macro_rules! rpc {
 
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
-                            $(
-                                tracing::debug!(?params, target_type = %stringify!($params_ty), "Decoding params");
+                            let span = tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)));
+                            let _enter = span.enter();
 
+                            $(
                                 let params: $params_ty =
                                     params.try_as()
-                                    .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
+                                    .map_err(|err| {
+                                        tracing::error!(raw_params = ?params, ?err, "Could not decode params");
+                                        $crate::ASCOMError::new($crate::ASCOMErrorCode::INVALID_VALUE, err.to_string())
+                                    })?;
                             )?
-                            tracing::info!(
-                                trait_name = stringify!($trait_name),
-                                method_name = stringify!($method_name),
-                                params = ?($(&params.$param,)*),
-                                "Invoking Alpaca handler"
-                            );
+                            tracing::info!($($param = ?&params.$param,)* "Calling Alpaca handler");
                             let result = device.$method_name($(params.$param),*)?;
+                            tracing::debug!(?result, "Alpaca handler returned");
                             to_response(result)
                         })*
                         _ => {
