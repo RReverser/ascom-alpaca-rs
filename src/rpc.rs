@@ -71,6 +71,8 @@ macro_rules! rpc {
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
                             $(
+                                tracing::debug!(?params, target_type = %stringify!($params_ty), "Decoding params");
+
                                 let params: $params_ty =
                                     params.try_as()
                                     .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;

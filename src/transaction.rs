@@ -40,19 +40,94 @@ fn generate_server_transaction_id() -> u32 {
 #[serde(transparent)]
 pub struct ASCOMParams(HashMap<String, String>);
 
+struct PlainDeserializerWithSpecialBool<'de> {
+    inner: serde_plain::Deserializer<'de>,
+}
+
+impl<'de> PlainDeserializerWithSpecialBool<'de> {
+    fn new(s: &'de str) -> Self {
+        Self {
+            inner: serde_plain::Deserializer::new(s),
+        }
+    }
+}
+
+impl<'de> serde::de::IntoDeserializer<'de, serde_plain::Error>
+    for PlainDeserializerWithSpecialBool<'de>
+{
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        self
+    }
+}
+
+macro_rules! forward_to_inner_deserializer {
+    ($(fn $method:ident ($($arg:ident: $arg_ty:ty),*);)*) => {$(
+        fn $method<V: serde::de::Visitor<'de>>(self  $(, $arg: $arg_ty)*, visitor: V) -> Result<V::Value, Self::Error> {
+            self.inner.$method($($arg,)* visitor)
+        }
+    )*};
+}
+
+impl<'de> Deserializer<'de> for PlainDeserializerWithSpecialBool<'de> {
+    type Error = serde_plain::Error;
+
+    fn deserialize_bool<V: serde::de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        match <&str>::deserialize(self.inner)? {
+            "True" | "true" => visitor.visit_bool(true),
+            "False" | "false" => visitor.visit_bool(false),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["True", "False", "true", "false"],
+            )),
+        }
+    }
+
+    forward_to_inner_deserializer! {
+        fn deserialize_any();
+        fn deserialize_option();
+        fn deserialize_seq();
+        fn deserialize_map();
+        fn deserialize_struct(name: &'static str, fields: &'static [&'static str]);
+        fn deserialize_identifier();
+        fn deserialize_ignored_any();
+        fn deserialize_u8();
+        fn deserialize_u16();
+        fn deserialize_u32();
+        fn deserialize_u64();
+        fn deserialize_u128();
+        fn deserialize_i8();
+        fn deserialize_i16();
+        fn deserialize_i32();
+        fn deserialize_i64();
+        fn deserialize_i128();
+        fn deserialize_f32();
+        fn deserialize_f64();
+        fn deserialize_char();
+        fn deserialize_str();
+        fn deserialize_string();
+        fn deserialize_bytes();
+        fn deserialize_byte_buf();
+        fn deserialize_unit();
+        fn deserialize_unit_struct(name: &'static str);
+        fn deserialize_newtype_struct(name: &'static str);
+        fn deserialize_tuple(len: usize);
+        fn deserialize_tuple_struct(name: &'static str, len: usize);
+        fn deserialize_enum(name: &'static str, variants: &'static [&'static str]);
+    }
+}
+
 impl ASCOMParams {
     pub fn try_as<T: DeserializeOwned>(&self) -> Result<T, serde_plain::Error> {
-        struct Plain<'de>(&'de str);
-
-        impl<'de> serde::de::IntoDeserializer<'de, serde_plain::Error> for Plain<'de> {
-            type Deserializer = serde_plain::Deserializer<'de>;
-
-            fn into_deserializer(self) -> Self::Deserializer {
-                serde_plain::Deserializer::new(self.0)
-            }
-        }
-
-        let deserializer = MapDeserializer::new(self.0.iter().map(|(k, v)| (k.as_str(), Plain(v))));
+        let deserializer = MapDeserializer::new(
+            self.0
+                .iter()
+                .map(|(k, v)| (k.as_str(), PlainDeserializerWithSpecialBool::new(v))),
+        );
 
         T::deserialize(deserializer)
     }
