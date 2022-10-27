@@ -4,9 +4,11 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 pub struct OpaqueResponse(serde_json::Map<String, serde_json::Value>);
 
-pub(crate) fn to_response<T: Serialize>(value: T) -> ASCOMResult<OpaqueResponse> {
+impl OpaqueResponse {
+    pub(crate) fn try_from<T: Serialize>(value: T) -> ASCOMResult<Self> {
     let json = serde_json::to_value(value)
         .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
+
     Ok(OpaqueResponse(match json {
         serde_json::Value::Object(map) => map,
         serde_json::Value::Null => serde_json::Map::new(),
@@ -15,6 +17,7 @@ pub(crate) fn to_response<T: Serialize>(value: T) -> ASCOMResult<OpaqueResponse>
             std::iter::once(("Value".to_owned(), value)).collect()
         }
     }))
+}
 }
 
 macro_rules! rpc {
@@ -66,8 +69,6 @@ macro_rules! rpc {
                 pub const TYPE: &'static str = $path;
 
                 pub fn handle_action_impl<T: $trait_name>(device: &mut T, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
-                    use $crate::rpc::to_response;
-
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
                             let span = tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)));
@@ -84,7 +85,7 @@ macro_rules! rpc {
                             tracing::info!($($param = ?&params.$param,)* "Calling Alpaca handler");
                             let result = device.$method_name($(params.$param),*)?;
                             tracing::debug!(?result, "Alpaca handler returned");
-                            to_response(result)
+                            $crate::OpaqueResponse::try_from(result)
                         })*
                         _ => {
                             rpc!(@if_parent $($parent_trait_name)? {
