@@ -6,18 +6,18 @@ pub struct OpaqueResponse(serde_json::Map<String, serde_json::Value>);
 
 impl OpaqueResponse {
     pub(crate) fn try_from<T: Serialize>(value: T) -> ASCOMResult<Self> {
-    let json = serde_json::to_value(value)
-        .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
+        let json = serde_json::to_value(value)
+            .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
 
-    Ok(OpaqueResponse(match json {
-        serde_json::Value::Object(map) => map,
-        serde_json::Value::Null => serde_json::Map::new(),
-        value => {
-            // Wrap into IntResponse / BoolResponse / ..., aka {"value": ...}
-            std::iter::once(("Value".to_owned(), value)).collect()
-        }
-    }))
-}
+        Ok(OpaqueResponse(match json {
+            serde_json::Value::Object(map) => map,
+            serde_json::Value::Null => serde_json::Map::new(),
+            value => {
+                // Wrap into IntResponse / BoolResponse / ..., aka {"value": ...}
+                std::iter::once(("Value".to_owned(), value)).collect()
+            }
+        }))
+    }
 }
 
 macro_rules! rpc {
@@ -39,8 +39,7 @@ macro_rules! rpc {
         pub trait $trait_name:ident $(: $parent_trait_name:ident)? {
             $(
                 $(#[doc = $method_doc:literal])*
-                #[http($method_path:literal)]
-                $(#[params($params_ty:ty)])?
+                #[http($method_path:literal $(, $params_ty:ty)?)]
                 fn $method_name:ident(& $($mut_self:ident)* $(, $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
             )*
         }

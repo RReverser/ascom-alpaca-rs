@@ -1,7 +1,7 @@
 import openapi from '@readme/openapi-parser';
 import { writeFile } from 'fs/promises';
 import { spawnSync } from 'child_process';
-import { toSnakeCase, toPascalCase as toTypeName } from 'js-convert-case';
+import { toSnakeCase, toPascalCase as toTypeName, toPascalCase } from 'js-convert-case';
 import { OpenAPIV3 } from 'openapi-types';
 import * as assert from 'assert/strict';
 import { getCanonicalNames } from './xml-names.js';
@@ -580,12 +580,13 @@ ${stringifyIter(types, type => {
         ${stringifyDoc(type.doc)}
         #[allow(missing_copy_implementations)]
         #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[serde(rename_all = "PascalCase")]
         ${vis} struct ${type.name} {
           ${stringifyIter(
             type.properties,
             prop => `
               ${stringifyDoc(prop.doc)}
-              #[serde(rename = "${prop.originalName}")]
+              ${toPascalCase(prop.name) === prop.originalName ? '' : `#[serde(rename = "${prop.originalName}")]`}
               ${vis} ${prop.name}: ${prop.type},
             `
           )}
@@ -626,9 +627,7 @@ rpc! {
           device.methods,
           method => `
             ${stringifyDoc(method.doc)}
-            #[http("${method.path}")] ${method.argsType.ifNotVoid(
-            argsType => `#[params(${argsType})]`
-          )}
+            #[http("${method.path}"${method.argsType.ifNotVoid(argsType => `, ${argsType}`)})]
             fn ${method.name}(
               &${method.mutable ? 'mut ' : ''}self,
               ${stringifyIter(
