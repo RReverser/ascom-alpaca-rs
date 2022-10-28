@@ -149,8 +149,8 @@ impl<'de> Deserialize<'de> for ASCOMRequest {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut encoded_params = ASCOMParams::deserialize(deserializer)?;
         let transaction = encoded_params.try_as().map_err(serde::de::Error::custom)?;
-        encoded_params.0.remove("ClientID");
-        encoded_params.0.remove("ClientTransactionID");
+        drop(encoded_params.0.remove("ClientID"));
+        drop(encoded_params.0.remove("ClientTransactionID"));
         Ok(Self {
             transaction,
             encoded_params,

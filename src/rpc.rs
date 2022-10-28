@@ -9,7 +9,7 @@ impl OpaqueResponse {
         let json = serde_json::to_value(value)
             .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
 
-        Ok(OpaqueResponse(match json {
+        Ok(Self(match json {
             serde_json::Value::Object(map) => map,
             serde_json::Value::Null => serde_json::Map::new(),
             value => {
