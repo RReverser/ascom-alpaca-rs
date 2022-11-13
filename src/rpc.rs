@@ -57,7 +57,7 @@ macro_rules! rpc {
                 $(
                     $(#[doc = $method_doc])*
                     fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
-                        Err($crate::ASCOMError::ACTION_NOT_IMPLEMENTED)
+                        Err($crate::ASCOMError::NOT_IMPLEMENTED)
                     }
                 )*
             }
@@ -90,7 +90,7 @@ macro_rules! rpc {
                             rpc!(@if_parent $($parent_trait_name)? {
                                 <dyn $($parent_trait_name)?>::handle_action_impl(device, is_mut, action, params)
                             } {
-                                Err($crate::ASCOMError::ACTION_NOT_IMPLEMENTED)
+                                Err($crate::ASCOMError::NOT_IMPLEMENTED)
                             })
                         }
                     }
