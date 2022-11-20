@@ -1481,7 +1481,7 @@ paths:
               allOf:
                 - $ref: '#/components/schemas/AlpacaRequest'
                 - properties:
-                    offset:
+                    Offset:
                       description: Index of the current camera offset in the offsets string array.
                       type: integer
                       format: int32
@@ -5754,7 +5754,7 @@ components:
                       - Integer
                       - Double
                     x-enum-descriptions:
-                      - 
+                      -
                       - int16
                       - int32
                       - Double precision real number
