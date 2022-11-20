@@ -1487,7 +1487,7 @@ paths:
                       format: int32
                       default: 0
                   required:
-                    - offset
+                    - Offset
   '/camera/{device_number}/offsetmax':
     get:
       summary: Maximum offset value of that this camera supports

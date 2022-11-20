@@ -183,7 +183,7 @@ struct CameraSetNumYRequest {
 #[serde(rename_all = "PascalCase")]
 struct CameraSetOffsetRequest {
     /// Index of the current camera offset in the offsets string array.
-    offset: Option<i32>,
+    offset: i32,
 }
 
 #[allow(missing_copy_implementations)]
@@ -1230,7 +1230,7 @@ rpc! {
 
         /// Sets the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
         #[http("offset", CameraSetOffsetRequest)]
-        fn set_offset(&mut self, offset: Option<i32>);
+        fn set_offset(&mut self, offset: i32);
 
         /// Returns the maximum value of offset.
         #[http("offsetmax")]
