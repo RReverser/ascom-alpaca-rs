@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::borrow::Cow;
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
 #[repr(transparent)]
 pub struct ASCOMErrorCode(u16);
 
@@ -51,7 +51,7 @@ macro_rules! ascom_error_codes {
       )*
     }
 
-    impl std::fmt::Display for ASCOMErrorCode {
+    impl std::fmt::Debug for ASCOMErrorCode {
       fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
           $(
@@ -63,12 +63,18 @@ macro_rules! ascom_error_codes {
       }
     }
 
+    impl std::fmt::Display for ASCOMErrorCode {
+      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+      }
+    }
+
     impl ASCOMError {
       $(
         #[doc = $doc]
         pub const $name: Self = Self {
           code: ASCOMErrorCode::$name,
-          message: Cow::Borrowed(stringify!($name)),
+          message: Cow::Borrowed(stringify!($doc)),
         };
       )*
     }

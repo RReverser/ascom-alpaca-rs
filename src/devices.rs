@@ -1,6 +1,4 @@
 use crate::api::Device;
-use crate::transaction::ASCOMParams;
-use crate::{ASCOMError, ASCOMResult, OpaqueResponse};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex};
@@ -52,19 +50,17 @@ pub struct Devices {
 }
 
 impl Devices {
-    pub fn handle_action(
-        &self,
-        is_mut: bool,
-        device_type: &str,
+    pub fn get<'inputs>(
+        &'inputs self,
+        device_type: &'inputs str,
         device_number: usize,
-        action: &str,
-        params: ASCOMParams,
-    ) -> ASCOMResult<OpaqueResponse> {
-        self.devices
-            .get(&(device_type, device_number))
-            .ok_or(ASCOMError::NOT_CONNECTED)?
-            .lock()
-            .expect("Device lock is poisoned")
-            .handle_action(is_mut, action, params)
+    ) -> Option<&'inputs Mutex<dyn Device + Send + Sync + 'static>> {
+        match self.devices.get(&(device_type, device_number)) {
+            Some(device) => Some(device),
+            None => {
+                tracing::error!(device_type, device_number, "Device not found");
+                None
+            }
+        }
     }
 }
