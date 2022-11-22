@@ -148,20 +148,7 @@ pub enum ImageArrayResponseType {
     /// Double precision real number
     Double = 3,
 }
-
-/// Transaction complete or exception.
-#[allow(missing_copy_implementations)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct ImageArrayResponse {
-    #[serde(rename = "Type")]
-    pub type_: Option<ImageArrayResponseType>,
-
-    /// The array's rank, will be 2 (single plane image (monochrome)) or 3 (multi-plane image).
-    pub rank: Option<i32>,
-
-    pub value: Option<Vec<Vec<f64>>>,
-}
+include!("image_array_response.rs");
 
 #[allow(missing_copy_implementations)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1179,7 +1166,7 @@ rpc! {
         Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
         */
         #[http("imagearrayvariant")]
-        fn image_array_variant(&self) -> ImageArrayResponse;
+        fn image_array_variant(&self) -> ImageArrayVariantResponse;
 
         /// Returns a flag indicating whether the image is ready to be downloaded from the camera.
         #[http("imageready")]

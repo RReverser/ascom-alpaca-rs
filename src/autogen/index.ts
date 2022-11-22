@@ -1,7 +1,11 @@
 import openapi from '@readme/openapi-parser';
 import { writeFile } from 'fs/promises';
 import { spawnSync } from 'child_process';
-import { toSnakeCase, toPascalCase as toTypeName, toPascalCase } from 'js-convert-case';
+import {
+  toSnakeCase,
+  toPascalCase as toTypeName,
+  toPascalCase
+} from 'js-convert-case';
 import { OpenAPIV3 } from 'openapi-types';
 import * as assert from 'assert/strict';
 import { getCanonicalNames } from './xml-names.js';
@@ -570,6 +574,11 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 ${stringifyIter(types, type => {
+  if (type.name === 'ImageArrayResponse') {
+    // Override with a better implementation.
+    return 'include!("image_array_response.rs");';
+  }
+
   switch (type.kind) {
     case 'Object':
     case 'Request':
@@ -586,7 +595,12 @@ ${stringifyIter(types, type => {
             type.properties,
             prop => `
               ${stringifyDoc(prop.doc)}
-              ${toPascalCase(prop.name) === prop.originalName && toSnakeCase(prop.originalName) === prop.name ? '' : `#[serde(rename = "${prop.originalName}")]`}
+              ${
+                toPascalCase(prop.name) === prop.originalName &&
+                toSnakeCase(prop.originalName) === prop.name
+                  ? ''
+                  : `#[serde(rename = "${prop.originalName}")]`
+              }
               ${vis} ${prop.name}: ${prop.type},
             `
           )}
@@ -627,14 +641,21 @@ rpc! {
           device.methods,
           method => `
             ${stringifyDoc(method.doc)}
-            #[http("${method.path}"${method.argsType.ifNotVoid(argsType => `, ${argsType}`)})]
+            #[http("${method.path}"${method.argsType.ifNotVoid(
+            argsType => `, ${argsType}`
+          )})]
             fn ${method.name}(
               &${method.mutable ? 'mut ' : ''}self,
               ${stringifyIter(
                 method.resolvedArgs,
                 arg => `${arg.name}: ${arg.type},`
               )}
-            )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
+            )${method.returnType.ifNotVoid(type => {
+              if (method.name === 'image_array_variant') {
+                type = 'ImageArrayVariantResponse';
+              }
+              return ` -> ${type}`;
+            })};
 
           `
         )}
