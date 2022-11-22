@@ -154,6 +154,7 @@ pub enum ImageArrayResponseType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ImageArrayResponse {
+    #[serde(rename = "Type")]
     pub type_: Option<ImageArrayResponseType>,
 
     /// The array's rank, will be 2 (single plane image (monochrome)) or 3 (multi-plane image).

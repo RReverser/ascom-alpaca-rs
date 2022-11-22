@@ -586,7 +586,7 @@ ${stringifyIter(types, type => {
             type.properties,
             prop => `
               ${stringifyDoc(prop.doc)}
-              ${toPascalCase(prop.name) === prop.originalName ? '' : `#[serde(rename = "${prop.originalName}")]`}
+              ${toPascalCase(prop.name) === prop.originalName && toSnakeCase(prop.originalName) === prop.name ? '' : `#[serde(rename = "${prop.originalName}")]`}
               ${vis} ${prop.name}: ${prop.type},
             `
           )}
