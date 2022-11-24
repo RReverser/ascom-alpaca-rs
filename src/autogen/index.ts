@@ -576,7 +576,12 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 ${stringifyIter(types, type => {
   if (type.name === 'ImageArrayResponse') {
     // Override with a better implementation.
-    return 'include!("image_array_response.rs");';
+    return `
+      #[path = "image_array_response.rs"]
+      mod image_array_response;
+
+      pub use image_array_response::*;
+    `;
   }
 
   switch (type.kind) {

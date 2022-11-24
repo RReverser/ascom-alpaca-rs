@@ -148,7 +148,11 @@ pub enum ImageArrayResponseType {
     /// Double precision real number
     Double = 3,
 }
-include!("image_array_response.rs");
+
+#[path = "image_array_response.rs"]
+mod image_array_response;
+
+pub use image_array_response::*;
 
 #[allow(missing_copy_implementations)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
