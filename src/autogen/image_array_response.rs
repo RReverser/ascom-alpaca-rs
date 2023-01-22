@@ -1,8 +1,7 @@
 use super::ImageArrayResponseType;
-use serde::de::{DeserializeOwned, DeserializeSeed, Visitor};
+use serde::de::{DeserializeSeed, Visitor};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::marker::PhantomData;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
@@ -11,29 +10,13 @@ pub enum ImageArrayResponseRank {
     Rank3 = 3,
 }
 
-pub trait ImageArrayResponseNumber: Serialize + DeserializeOwned {
-    const TYPE: ImageArrayResponseType;
-}
-
-impl ImageArrayResponseNumber for i16 {
-    const TYPE: ImageArrayResponseType = ImageArrayResponseType::Short;
-}
-
-impl ImageArrayResponseNumber for i32 {
-    const TYPE: ImageArrayResponseType = ImageArrayResponseType::Integer;
-}
-
-impl ImageArrayResponseNumber for f64 {
-    const TYPE: ImageArrayResponseType = ImageArrayResponseType::Double;
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct ImageArrayTypedResponse<T: ImageArrayResponseNumber> {
-    pub data: ndarray::Array3<T>,
+pub struct ImageArrayResponse {
+    pub data: ndarray::Array3<i32>,
 }
 
-impl<T: ImageArrayResponseNumber> ImageArrayTypedResponse<T> {
-    fn rank(&self) -> ImageArrayResponseRank {
+impl ImageArrayResponse {
+    pub fn rank(&self) -> ImageArrayResponseRank {
         match self.data.len_of(ndarray::Axis(2)) {
             1 => ImageArrayResponseRank::Rank2,
             _ => ImageArrayResponseRank::Rank3,
@@ -68,7 +51,7 @@ impl<T: ImageArrayResponseNumber> ImageArrayTypedResponse<T> {
     }
 }
 
-impl<T: ImageArrayResponseNumber> Serialize for ImageArrayTypedResponse<T> {
+impl Serialize for ImageArrayResponse {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         #[derive(Serialize)]
         #[serde(rename_all = "PascalCase")]
@@ -80,7 +63,7 @@ impl<T: ImageArrayResponseNumber> Serialize for ImageArrayTypedResponse<T> {
         }
 
         Repr {
-            type_: T::TYPE,
+            type_: ImageArrayResponseType::Integer,
             rank: self.rank(),
             value: self.value_as_serialize(),
         }
@@ -88,12 +71,12 @@ impl<T: ImageArrayResponseNumber> Serialize for ImageArrayTypedResponse<T> {
     }
 }
 
-struct ValueVisitorCtx<T> {
-    dest: Vec<T>,
+struct ValueVisitorCtx {
+    dest: Vec<i32>,
     first_pass: bool,
 }
 
-impl<T> ValueVisitorCtx<T> {
+impl ValueVisitorCtx {
     const fn new() -> Self {
         Self {
             dest: Vec::new(),
@@ -102,12 +85,12 @@ impl<T> ValueVisitorCtx<T> {
     }
 }
 
-struct ValueVisitor<'data, T> {
-    ctx: &'data mut ValueVisitorCtx<T>,
+struct ValueVisitor<'data> {
+    ctx: &'data mut ValueVisitorCtx,
     shape: &'data mut [usize],
 }
 
-impl<'de, T: ImageArrayResponseNumber> Visitor<'de> for ValueVisitor<'_, T> {
+impl<'de> Visitor<'de> for ValueVisitor<'_> {
     type Value = ();
 
     fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -125,7 +108,7 @@ impl<'de, T: ImageArrayResponseNumber> Visitor<'de> for ValueVisitor<'_, T> {
             // Reached the innermost dimension, unmark the first pass.
             self.ctx.first_pass = false;
             let len_before = self.ctx.dest.len();
-            while let Some(value) = seq.next_element::<T>()? {
+            while let Some(value) = seq.next_element()? {
                 self.ctx.dest.push(value);
             }
             self.ctx.dest.len() - len_before
@@ -156,7 +139,7 @@ impl<'de, T: ImageArrayResponseNumber> Visitor<'de> for ValueVisitor<'_, T> {
     }
 }
 
-impl<'de, T: ImageArrayResponseNumber> DeserializeSeed<'de> for ValueVisitor<'_, T> {
+impl<'de> DeserializeSeed<'de> for ValueVisitor<'_> {
     type Value = ();
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
@@ -167,10 +150,7 @@ impl<'de, T: ImageArrayResponseNumber> DeserializeSeed<'de> for ValueVisitor<'_,
     }
 }
 
-struct ResponseVisitor<T> {
-    expect_type: bool,
-    _phantom: PhantomData<T>,
-}
+struct ResponseVisitor;
 
 fn expect_key<'de, A: serde::de::MapAccess<'de>>(
     map: &mut A,
@@ -186,26 +166,20 @@ fn expect_key<'de, A: serde::de::MapAccess<'de>>(
     }
 }
 
-impl<'de, T: ImageArrayResponseNumber> Visitor<'de> for ResponseVisitor<T> {
-    type Value = ImageArrayTypedResponse<T>;
+impl<'de> Visitor<'de> for ResponseVisitor {
+    type Value = ImageArrayResponse;
 
     fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.write_str("a map")
     }
 
     fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        // If `expect_type` is `false`, it means the `Type` field was already parsed by `ImageArrayVariantResponse`.
-        // If there is one, check that it matches the expectation.
-        if self.expect_type {
-            expect_key(&mut map, "Type")?;
-            let type_ = map.next_value::<ImageArrayResponseType>()?;
-            if type_ != T::TYPE {
-                return Err(serde::de::Error::custom(format!(
-                    "expected type {:?}, got {:?}",
-                    T::TYPE,
-                    type_
-                )));
-            }
+        expect_key(&mut map, "Type")?;
+        let type_ = map.next_value::<ImageArrayResponseType>()?;
+        if type_ != ImageArrayResponseType::Integer {
+            return Err(serde::de::Error::custom(format!(
+                r"expected Type == Integer, got {type_:?}",
+            )));
         }
 
         expect_key(&mut map, "Rank")?;
@@ -219,7 +193,7 @@ impl<'de, T: ImageArrayResponseNumber> Visitor<'de> for ResponseVisitor<T> {
             shape: &mut shape[..rank as usize],
         })?;
 
-        Ok(ImageArrayTypedResponse {
+        Ok(ImageArrayResponse {
             data: ndarray::Array::from_shape_vec(
                 ndarray::Ix3(shape[0], shape[1], shape[2]),
                 ctx.dest,
@@ -229,69 +203,8 @@ impl<'de, T: ImageArrayResponseNumber> Visitor<'de> for ResponseVisitor<T> {
     }
 }
 
-impl<'de, T: ImageArrayResponseNumber> Deserialize<'de> for ImageArrayTypedResponse<T> {
+impl<'de> Deserialize<'de> for ImageArrayResponse {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(ResponseVisitor {
-            expect_type: true,
-            _phantom: PhantomData,
-        })
-    }
-}
-
-pub type ImageArrayResponse = ImageArrayTypedResponse<i32>;
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
-#[serde(untagged)]
-pub enum ImageArrayVariantResponse {
-    Short(ImageArrayTypedResponse<i16>),
-    Integer(ImageArrayTypedResponse<i32>),
-    Double(ImageArrayTypedResponse<f64>),
-}
-
-struct VariantResponseVisitor;
-
-fn visit_image_variant<'de, T: ImageArrayResponseNumber, A: serde::de::MapAccess<'de>>(
-    map: A,
-    to_variant: fn(ImageArrayTypedResponse<T>) -> ImageArrayVariantResponse,
-) -> Result<ImageArrayVariantResponse, A::Error> {
-    ResponseVisitor {
-        expect_type: false,
-        _phantom: PhantomData,
-    }
-    .visit_map(map)
-    .map(to_variant)
-}
-
-impl<'de> Visitor<'de> for VariantResponseVisitor {
-    type Value = ImageArrayVariantResponse;
-
-    fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.write_str("a map")
-    }
-
-    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        expect_key(&mut map, "Type")?;
-        let type_ = map.next_value::<ImageArrayResponseType>()?;
-
-        match type_ {
-            ImageArrayResponseType::Unknown => {
-                Err(serde::de::Error::custom("received unknown image data type"))
-            }
-            ImageArrayResponseType::Short => {
-                visit_image_variant(map, ImageArrayVariantResponse::Short)
-            }
-            ImageArrayResponseType::Integer => {
-                visit_image_variant(map, ImageArrayVariantResponse::Integer)
-            }
-            ImageArrayResponseType::Double => {
-                visit_image_variant(map, ImageArrayVariantResponse::Double)
-            }
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for ImageArrayVariantResponse {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(VariantResponseVisitor)
+        deserializer.deserialize_map(ResponseVisitor)
     }
 }

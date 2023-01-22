@@ -378,6 +378,12 @@ function handleResponse(
 for (let [path, methods = err('Missing methods')] of Object.entries(
   api.paths
 )) {
+  // ImageArrayVariant is a semi-deprecated endpoint. Its handling is somewhat
+  // complicated, so just skip it until someone requests to implement it.
+  if (path === '/camera/{device_number}/imagearrayvariant') {
+    continue;
+  }
+
   withContext(`path ${path}`, () => {
     let [, devicePath = err('unreachable'), methodPath = err('unreachable')] =
       path.match(/^\/([^/]*)\/\{device_number\}\/([^/]*)$/) ??
@@ -655,12 +661,7 @@ rpc! {
                 method.resolvedArgs,
                 arg => `${arg.name}: ${arg.type},`
               )}
-            )${method.returnType.ifNotVoid(type => {
-              if (method.name === 'image_array_variant') {
-                type = 'ImageArrayVariantResponse';
-              }
-              return ` -> ${type}`;
-            })};
+            )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
 
           `
         )}
