@@ -51,6 +51,130 @@ impl ImageArrayResponse {
     }
 }
 
+// For now only implementing where endianness matches the expected little one
+// to avoid dealing with order conversions.
+#[cfg(target_endian = "little")]
+mod image_bytes {
+    use super::ImageArrayResponse;
+    use crate::api::ImageArrayResponseType;
+    use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+    use bytemuck::{Pod, Zeroable};
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Zeroable, Pod)]
+    struct ImageBytesMetadata {
+        metadata_version: i32,
+        error_number: i32,
+        client_transaction_id: u32,
+        server_transaction_id: u32,
+        data_start: i32,
+        image_element_type: i32,
+        transmission_element_type: i32,
+        rank: i32,
+        dimension_1: i32,
+        dimension_2: i32,
+        dimension_3: i32,
+    }
+
+    impl ImageArrayResponse {
+        pub fn from_image_bytes(bytes: &[u8]) -> anyhow::Result<ASCOMResult<Self>> {
+            let metadata = bytes
+                .get(..std::mem::size_of::<ImageBytesMetadata>())
+                .ok_or_else(|| anyhow::anyhow!("not enough bytes to read image metadata"))?;
+            let metadata = bytemuck::pod_read_unaligned::<ImageBytesMetadata>(metadata);
+            anyhow::ensure!(
+                metadata.metadata_version == 1,
+                "unsupported metadata version {}",
+                metadata.metadata_version
+            );
+            let data_start = usize::try_from(metadata.data_start)?;
+            anyhow::ensure!(
+                data_start >= std::mem::size_of::<ImageBytesMetadata>(),
+                "image data start offset is within metadata"
+            );
+            let data = bytes
+                .get(data_start..)
+                .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
+            if metadata.error_number != 0 {
+                return Ok(Err(ASCOMError::new(
+                    ASCOMErrorCode(u16::try_from(metadata.error_number)?),
+                    std::str::from_utf8(data)?.to_owned(),
+                )));
+            }
+            anyhow::ensure!(
+                metadata.image_element_type == ImageArrayResponseType::Integer as i32,
+                "only Integer image element type is supported, got {}",
+                metadata.image_element_type
+            );
+            anyhow::ensure!(
+                metadata.transmission_element_type == ImageArrayResponseType::Integer as i32,
+                "only Integer transmission element type is supported for now, got {}",
+                metadata.transmission_element_type
+            );
+            let shape = ndarray::Ix3(
+                usize::try_from(metadata.dimension_1)?,
+                usize::try_from(metadata.dimension_2)?,
+                match metadata.rank {
+                    2 => {
+                        anyhow::ensure!(
+                            metadata.dimension_3 == 0,
+                            "dimension 3 must be 0 for rank 2, got {}",
+                            metadata.dimension_3
+                        );
+                        1
+                    }
+                    3 => usize::try_from(metadata.dimension_3)?,
+                    rank => anyhow::bail!("unsupported rank {}, expected 2 or 3", rank),
+                },
+            );
+            Ok(Ok(ImageArrayResponse {
+                data: ndarray::Array::from_shape_vec(shape, bytemuck::cast_vec(data.to_owned()))
+                    .expect("internal error: couldn't match the parsed shape to the data"),
+            }))
+        }
+
+        pub fn to_image_bytes(this: ASCOMResult<&Self>) -> Vec<u8> {
+            let mut metadata = ImageBytesMetadata {
+                metadata_version: 1,
+                data_start: std::mem::size_of::<ImageBytesMetadata>() as i32,
+                ..Zeroable::zeroed()
+            };
+            let data = match this {
+                Ok(this) => {
+                    metadata.image_element_type = ImageArrayResponseType::Integer as i32;
+                    metadata.transmission_element_type = ImageArrayResponseType::Integer as i32;
+                    let dims = <[usize; 3]>::try_from(this.data.shape())
+                        .expect("dimension count mismatch")
+                        .map(|dim| i32::try_from(dim).expect("dimension is too large"));
+                    metadata.dimension_1 = dims[0];
+                    metadata.dimension_2 = dims[1];
+                    metadata.rank = match dims[2] {
+                        1 => 2,
+                        n => {
+                            metadata.dimension_3 = n;
+                            3
+                        }
+                    };
+                    bytemuck::cast_slice(
+                        this.data
+                            .as_slice()
+                            .expect("internal arrays should always be in standard layout"),
+                    )
+                }
+                Err(ref err) => {
+                    metadata.error_number = err.code.0.into();
+                    err.message.as_bytes()
+                }
+            };
+            let mut bytes =
+                Vec::with_capacity(std::mem::size_of::<ImageBytesMetadata>() + data.len());
+            bytes.extend_from_slice(bytemuck::bytes_of(&metadata));
+            bytes.extend_from_slice(data);
+            bytes
+        }
+    }
+}
+
 impl Serialize for ImageArrayResponse {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         #[derive(Serialize)]

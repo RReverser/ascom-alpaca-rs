@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize)]
 #[repr(transparent)]
-pub struct ASCOMErrorCode(u16);
+pub struct ASCOMErrorCode(pub u16);
 
 /// The starting value for driver-specific error numbers.
 const DRIVER_BASE: u16 = 0x500;

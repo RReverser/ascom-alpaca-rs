@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.68"
 auto_enums = { version = "0.7.12", features = ["serde"] }
 axum = { version = "0.5.16", features = ["headers"] }
+bytemuck = { version = "1.13.0", features = ["derive", "extern_crate_std"] }
 form_urlencoded = "1.1.0"
 mime = "0.3.16"
 ndarray = "0.15.6"
