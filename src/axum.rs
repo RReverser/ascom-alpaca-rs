@@ -17,10 +17,10 @@ impl axum::headers::Header for AcceptsImageBytes {
         &ACCEPT
     }
 
-    fn decode<'i, I>(values: &mut I) -> Result<Self, axum::headers::Error>
+    fn decode<'value, I>(values: &mut I) -> Result<Self, axum::headers::Error>
     where
         Self: Sized,
-        I: Iterator<Item = &'i axum::http::HeaderValue>,
+        I: Iterator<Item = &'value axum::http::HeaderValue>,
     {
         let mut accepts = false;
         for value in values {
@@ -39,7 +39,7 @@ impl axum::headers::Header for AcceptsImageBytes {
                 }
             }
         }
-        Ok(AcceptsImageBytes { accepts })
+        Ok(Self { accepts })
     }
 
     fn encode<E: Extend<axum::http::HeaderValue>>(&self, values: &mut E) {

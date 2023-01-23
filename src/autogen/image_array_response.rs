@@ -83,7 +83,7 @@ mod image_bytes {
                 .ok_or_else(|| anyhow::anyhow!("not enough bytes to read image metadata"))?;
             let metadata = bytemuck::pod_read_unaligned::<ImageBytesMetadata>(metadata);
             anyhow::ensure!(
-                metadata.metadata_version == 1,
+                metadata.metadata_version == 1_i32,
                 "unsupported metadata version {}",
                 metadata.metadata_version
             );
@@ -95,7 +95,7 @@ mod image_bytes {
             let data = bytes
                 .get(data_start..)
                 .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
-            if metadata.error_number != 0 {
+            if metadata.error_number != 0_i32 {
                 return Ok(Err(ASCOMError::new(
                     ASCOMErrorCode(u16::try_from(metadata.error_number)?),
                     std::str::from_utf8(data)?.to_owned(),
@@ -117,7 +117,7 @@ mod image_bytes {
                 match metadata.rank {
                     2 => {
                         anyhow::ensure!(
-                            metadata.dimension_3 == 0,
+                            metadata.dimension_3 == 0_i32,
                             "dimension 3 must be 0 for rank 2, got {}",
                             metadata.dimension_3
                         );
@@ -127,15 +127,16 @@ mod image_bytes {
                     rank => anyhow::bail!("unsupported rank {}, expected 2 or 3", rank),
                 },
             );
-            Ok(Ok(ImageArrayResponse {
+            Ok(Ok(Self {
                 data: ndarray::Array::from_shape_vec(shape, bytemuck::cast_vec(data.to_owned()))
-                    .expect("internal error: couldn't match the parsed shape to the data"),
+                    .expect("couldn't match the parsed shape to the data"),
             }))
         }
 
-        pub fn to_image_bytes(this: ASCOMResult<&Self>) -> Vec<u8> {
+        pub fn to_image_bytes(this: &ASCOMResult<&Self>) -> Vec<u8> {
             let mut metadata = ImageBytesMetadata {
                 metadata_version: 1,
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
                 data_start: std::mem::size_of::<ImageBytesMetadata>() as i32,
                 ..Zeroable::zeroed()
             };
@@ -149,10 +150,10 @@ mod image_bytes {
                     metadata.dimension_1 = dims[0];
                     metadata.dimension_2 = dims[1];
                     metadata.rank = match dims[2] {
-                        1 => 2,
+                        1_i32 => 2_i32,
                         n => {
                             metadata.dimension_3 = n;
-                            3
+                            3_i32
                         }
                     };
                     bytemuck::cast_slice(
@@ -161,7 +162,7 @@ mod image_bytes {
                             .expect("internal arrays should always be in standard layout"),
                     )
                 }
-                Err(ref err) => {
+                Err(err) => {
                     metadata.error_number = err.code.0.into();
                     err.message.as_bytes()
                 }
@@ -255,7 +256,7 @@ impl<'de> Visitor<'de> for ValueVisitor<'_> {
         } else if *current_shape_len != actual_len {
             // Otherwise, we check that the shape is consistent with the first one.
             return Err(serde::de::Error::invalid_length(
-                actual_len as usize,
+                actual_len,
                 &current_shape_len.to_string().as_str(),
             ));
         }
@@ -322,7 +323,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
                 ndarray::Ix3(shape[0], shape[1], shape[2]),
                 ctx.dest,
             )
-            .expect("internal error: couldn't match the parsed shape to the data"),
+            .expect("couldn't match the parsed shape to the data"),
         })
     }
 }

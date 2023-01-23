@@ -55,6 +55,7 @@ impl Devices {
         device_type: &'inputs str,
         device_number: usize,
     ) -> Option<&'inputs Mutex<dyn Device + Send + Sync + 'static>> {
+        #[allow(clippy::option_if_let_else)]
         match self.devices.get(&(device_type, device_number)) {
             Some(device) => Some(device),
             None => {
