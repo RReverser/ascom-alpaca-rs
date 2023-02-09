@@ -45,11 +45,10 @@ pub(crate) mod rpc;
 pub mod api;
 
 mod axum;
-mod devices;
 mod errors;
 mod transaction;
 
-pub use devices::{Devices, DevicesBuilder};
+pub use api::DevicesStorage;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 pub use rpc::OpaqueResponse;
 pub use transaction::ASCOMParams;

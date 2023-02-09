@@ -33,6 +33,50 @@ macro_rules! rpc {
 
     (@is_mut self) => (false);
 
+    (@storage $device:ident $($specific_device:ident)*) => {
+        #[allow(non_snake_case)]
+        pub struct DevicesStorage {
+            $(
+                $specific_device: Vec<Box<std::sync::Mutex<dyn $specific_device + Send + Sync + 'static>>>,
+            )*
+        }
+
+        impl Default for DevicesStorage {
+            fn default() -> Self {
+                Self {
+                    $(
+                        $specific_device: Vec::new(),
+                    )*
+                }
+            }
+        }
+
+        $(
+            impl std::fmt::Debug for dyn $specific_device + Send + Sync {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.debug_struct(stringify!($specific_device))
+                        .field("name", &self.name())
+                        .field("description", &self.description())
+                        .field("driver_info", &self.driver_info())
+                        .field("driver_version", &self.driver_version())
+                        .finish()
+                }
+            }
+        )*
+
+        impl std::fmt::Debug for DevicesStorage {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let mut f = f.debug_struct("DevicesStorage");
+                $(
+                    if !self.$specific_device.is_empty() {
+                        let _ = f.field(stringify!($specific_device), &self.$specific_device);
+                    }
+                )*
+                f.finish()
+            }
+        }
+    };
+
     ($(
         $(#[doc = $doc:literal])*
         #[http($path:literal)]
@@ -44,30 +88,20 @@ macro_rules! rpc {
             )*
         }
     )*) => {
+        rpc!(@storage $($trait_name)*);
+
         $(
             #[allow(unused_variables)]
             $(#[doc = $doc])*
             pub trait $trait_name $(: $parent_trait_name)? {
-                rpc!(@if_parent $($parent_trait_name)? {} {
-                    fn ty(&self) -> &'static str;
-
-                    fn handle_action(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse>;
-                });
-
                 $(
                     $(#[doc = $method_doc])*
                     fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
                         Err($crate::ASCOMError::NOT_IMPLEMENTED)
                     }
                 )*
-            }
 
-            // Split this out from the trait because it's not meant to be overridden,
-            // or, for that matter, used outside of ascom-alpaca-dslr itself.
-            impl dyn $trait_name {
-                pub const TYPE: &'static str = $path;
-
-                pub fn handle_action_impl<T: $trait_name>(device: &mut T, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
+                fn handle_action(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
                             let span = tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)));
@@ -82,21 +116,46 @@ macro_rules! rpc {
                                     })?;
                             )?
                             tracing::info!($($param = ?&params.$param,)* "Calling Alpaca handler");
-                            let result = device.$method_name($(params.$param),*)?;
+                            let result = self.$method_name($(params.$param),*)?;
                             tracing::debug!(?result, "Alpaca handler returned");
                             $crate::OpaqueResponse::try_from(result)
                         })*
                         _ => {
                             rpc!(@if_parent $($parent_trait_name)? {
-                                <dyn $($parent_trait_name)?>::handle_action_impl(device, is_mut, action, params)
+                                <Self as $($parent_trait_name)?>::handle_action(self, is_mut, action, params)
                             } {
                                 Err($crate::ASCOMError::NOT_IMPLEMENTED)
                             })
                         }
                     }
                 }
+
+                rpc!(@if_parent $($parent_trait_name)? {
+                    fn add_to(self, storage: &mut DevicesStorage) where Self: Sized + Send + Sync + 'static {
+                        storage.$trait_name.push(Box::new(std::sync::Mutex::new(self)));
+                    }
+                } {});
             }
         )*
+
+        impl DevicesStorage {
+            pub fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> Result<$crate::ASCOMResult<$crate::OpaqueResponse>, (axum::http::StatusCode, &'static str)> {
+                $(
+                    rpc!(@if_parent $($parent_trait_name)? {
+                        if device_type == $path {
+                            let mut device =
+                                self.$trait_name.get(device_number)
+                                .ok_or((axum::http::StatusCode::NOT_FOUND, "Device not found"))?
+                                .lock()
+                                .map_err(|_err| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "This device can't be accessed anymore due to a previous fatal error"))?;
+
+                            return Ok($trait_name::handle_action(&mut *device, is_mut, action, params));
+                        }
+                    } {});
+                )*
+                Err((axum::http::StatusCode::NOT_FOUND, "Unknown device type"))
+            }
+        }
     };
 }
 

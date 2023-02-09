@@ -1,10 +1,11 @@
 use crate::transaction::ASCOMRequest;
-use crate::Devices;
+use crate::DevicesStorage;
 use axum::extract::Path;
-use axum::http::{Method, StatusCode};
+use axum::http::Method;
 use axum::routing::{on, MethodFilter};
 use axum::{Form, Json, Router, TypedHeader};
 use mediatype::MediaTypeList;
+use std::sync::Arc;
 
 // A hack until TypedHeader supports Accept natively.
 struct AcceptsImageBytes {
@@ -53,8 +54,10 @@ impl axum::headers::Header for AcceptsImageBytes {
     }
 }
 
-impl Devices {
+impl DevicesStorage {
     pub fn into_router(self) -> Router {
+        let this = Arc::new(self);
+
         Router::new().route(
             "/api/v1/:device_type/:device_number/:action",
             on(
@@ -63,15 +66,17 @@ impl Devices {
                       Path((device_type, device_number, action)): Path<(String, usize, String)>,
                       TypedHeader(accepts_image_bytes): TypedHeader<AcceptsImageBytes>,
                       Form(request): Form<ASCOMRequest>| async move {
-                        let mut device =
-                            self.get(&device_type, device_number)
-                            .ok_or((StatusCode::NOT_FOUND, "Device not found"))?
-                            .lock()
-                            .map_err(|_err| (StatusCode::INTERNAL_SERVER_ERROR, "This device can't be accessed anymore due to a previous fatal error"))?;
-
-                        Ok::<_, axum::response::ErrorResponse>(Json(request.respond_with(move |params| {
-                            device.handle_action(method == Method::PUT, &action, params)
-                        })))
+                    request
+                        .respond_with(move |params| {
+                            this.handle_action(
+                                &device_type,
+                                device_number,
+                                method == Method::PUT,
+                                &action,
+                                params,
+                            )
+                        })
+                        .map(Json)
                 },
             ),
         )

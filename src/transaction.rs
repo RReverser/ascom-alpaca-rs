@@ -159,17 +159,20 @@ impl<'de> Deserialize<'de> for ASCOMRequest {
 }
 
 impl ASCOMRequest {
-    pub(crate) fn respond_with<F: FnOnce(ASCOMParams) -> ASCOMResult<OpaqueResponse>>(
+    pub(crate) fn respond_with<
+        E,
+        F: FnOnce(ASCOMParams) -> Result<ASCOMResult<OpaqueResponse>, E>,
+    >(
         self,
         f: F,
-    ) -> ASCOMResponse {
+    ) -> Result<ASCOMResponse, E> {
         let span = self.transaction.span();
         let _span_enter = span.enter();
 
-        ASCOMResponse {
+        f(self.encoded_params).map(|result| ASCOMResponse {
             transaction: self.transaction,
-            result: f(self.encoded_params),
-        }
+            result,
+        })
     }
 }
 
