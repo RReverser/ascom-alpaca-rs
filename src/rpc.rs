@@ -101,6 +101,7 @@ macro_rules! rpc {
                     }
                 )*
 
+                #[doc(hidden)]
                 fn handle_action(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
