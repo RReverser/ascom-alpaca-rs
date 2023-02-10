@@ -94,20 +94,23 @@ macro_rules! rpc {
             #[allow(unused_variables)]
             $(#[doc = $doc])*
             pub trait $trait_name $(: $parent_trait_name)? {
-                $(
-                    $(#[doc = $method_doc])*
-                    fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
-                        Err($crate::ASCOMError::NOT_IMPLEMENTED)
-                    }
-                )*
-
                 rpc!(@if_specific $trait_name {
                     /// Register this device in the storage.
                     /// This method should not be overridden by implementors.
                     fn add_to(self, storage: &mut Devices) where Self: Sized + Send + Sync + 'static {
                         storage.$trait_name.push(Box::new(std::sync::Mutex::new(self)));
                     }
+                } {
+                    /// Unique ID of this device, ideally a UUID.
+                    fn unique_id(&self) -> &str;
                 });
+
+                $(
+                    $(#[doc = $method_doc])*
+                    fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
+                        Err($crate::ASCOMError::NOT_IMPLEMENTED)
+                    }
+                )*
             }
 
             impl dyn $trait_name {
@@ -158,7 +161,35 @@ macro_rules! rpc {
             });
         )*
 
+        #[derive(Debug, Serialize, Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        pub struct ConfiguredDevice {
+            pub device_name: String,
+            pub device_type: String,
+            pub device_number: usize,
+            #[serde(rename = "UniqueID")]
+            pub unique_id: String,
+        }
+
         impl Devices {
+            pub fn iter(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> + Clone {
+                let iter = std::iter::empty();
+                $(
+                    rpc!(@if_specific $trait_name {
+                        let iter = iter.chain(self.$trait_name.iter().enumerate().filter_map(|(device_number, device)| {
+                            let device = device.lock().ok()?;
+                            Some(ConfiguredDevice {
+                                device_name: device.name().unwrap_or_default(),
+                                device_type: stringify!($trait_name).into(),
+                                device_number,
+                                unique_id: device.unique_id().to_owned(),
+                            })
+                        }));
+                    });
+                )*
+                iter
+            }
+
             pub fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> Result<$crate::ASCOMResult<$crate::OpaqueResponse>, (axum::http::StatusCode, &'static str)> {
                 $(
                     rpc!(@if_specific $trait_name {
