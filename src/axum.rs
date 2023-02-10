@@ -1,7 +1,9 @@
+use crate::api::{Camera, ImageArrayResponse};
 use crate::transaction::ASCOMRequest;
 use crate::DevicesStorage;
 use axum::extract::Path;
 use axum::http::Method;
+use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter};
 use axum::{Form, Json, Router, TypedHeader};
 use mediatype::MediaTypeList;
@@ -66,6 +68,17 @@ impl DevicesStorage {
                       Path((device_type, device_number, action)): Path<(String, usize, String)>,
                       TypedHeader(accepts_image_bytes): TypedHeader<AcceptsImageBytes>,
                       Form(request): Form<ASCOMRequest>| async move {
+                    if accepts_image_bytes.accepts
+                        && method == Method::GET
+                        && device_type == "camera"
+                        && action == "imagearray"
+                    {
+                        return <dyn Camera>::with(&this, device_number, |device| {
+                            ImageArrayResponse::to_image_bytes(&device.image_array())
+                        })
+                        .into_response();
+                    }
+
                     request
                         .respond_with(move |params| {
                             this.handle_action(
@@ -77,6 +90,7 @@ impl DevicesStorage {
                             )
                         })
                         .map(Json)
+                        .into_response()
                 },
             ),
         )

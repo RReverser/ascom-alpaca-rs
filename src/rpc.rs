@@ -136,6 +136,20 @@ macro_rules! rpc {
                     }
                 } {});
             }
+
+            rpc!(@if_parent $($parent_trait_name)? {
+                impl dyn $trait_name {
+                    pub fn with<T>(storage: &DevicesStorage, device_number: usize, f: impl FnOnce(&mut dyn $trait_name) -> T) -> Result<T, (axum::http::StatusCode, &'static str)> {
+                        let mut device =
+                            storage.$trait_name.get(device_number)
+                            .ok_or((axum::http::StatusCode::NOT_FOUND, "Device not found"))?
+                            .lock()
+                            .map_err(|_err| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "This device can't be accessed anymore due to a previous fatal error"))?;
+
+                        Ok(f(&mut *device))
+                    }
+                }
+            } {});
         )*
 
         impl DevicesStorage {
@@ -143,13 +157,9 @@ macro_rules! rpc {
                 $(
                     rpc!(@if_parent $($parent_trait_name)? {
                         if device_type == $path {
-                            let mut device =
-                                self.$trait_name.get(device_number)
-                                .ok_or((axum::http::StatusCode::NOT_FOUND, "Device not found"))?
-                                .lock()
-                                .map_err(|_err| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "This device can't be accessed anymore due to a previous fatal error"))?;
-
-                            return Ok($trait_name::handle_action(&mut *device, is_mut, action, params));
+                            return <dyn $trait_name>::with(self, device_number, |device| {
+                                $trait_name::handle_action(device, is_mut, action, params)
+                            });
                         }
                     } {});
                 )*

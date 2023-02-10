@@ -133,7 +133,7 @@ mod image_bytes {
             }))
         }
 
-        pub fn to_image_bytes(this: &ASCOMResult<&Self>) -> Vec<u8> {
+        pub fn to_image_bytes(this: &ASCOMResult<Self>) -> Vec<u8> {
             let mut metadata = ImageBytesMetadata {
                 metadata_version: 1,
                 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
