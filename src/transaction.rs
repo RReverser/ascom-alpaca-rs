@@ -1,5 +1,7 @@
 use super::rpc::OpaqueResponse;
 use crate::ASCOMResult;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde::de::value::MapDeserializer;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -7,27 +9,34 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicU32;
 
 #[derive(Serialize, Deserialize)]
-struct TransactionIds {
+pub(crate) struct TransactionIds {
     #[serde(rename = "ClientID")]
     #[serde(skip_serializing)]
     #[allow(dead_code)]
-    client_id: Option<u32>,
+    pub(crate) client_id: Option<u32>,
     #[serde(rename = "ClientTransactionID")]
-    client_transaction_id: Option<u32>,
+    pub(crate) client_transaction_id: Option<u32>,
     #[serde(rename = "ServerTransactionID")]
     #[serde(skip_deserializing)]
     #[serde(default = "generate_server_transaction_id")]
-    server_transaction_id: u32,
+    pub(crate) server_transaction_id: u32,
 }
 
 impl TransactionIds {
-    fn span(&self) -> tracing::Span {
+    pub(crate) fn span(&self) -> tracing::Span {
         tracing::debug_span!(
             "alpaca_transaction",
             client_id = self.client_id,
             client_transaction_id = self.client_transaction_id,
             server_transaction_id = self.server_transaction_id,
         )
+    }
+
+    pub(crate) const fn make_response(self, result: ASCOMResult<OpaqueResponse>) -> ASCOMResponse {
+        ASCOMResponse {
+            transaction: self,
+            result,
+        }
     }
 }
 
@@ -136,9 +145,9 @@ impl ASCOMParams {
 // #[derive(Deserialize)]
 pub(crate) struct ASCOMRequest {
     // #[serde(flatten)]
-    transaction: TransactionIds,
+    pub(crate) transaction: TransactionIds,
     // #[serde(flatten)]
-    encoded_params: ASCOMParams,
+    pub(crate) encoded_params: ASCOMParams,
 }
 
 // Work around infamous serde(flatten) deserialization issues by manually
@@ -158,30 +167,18 @@ impl<'de> Deserialize<'de> for ASCOMRequest {
     }
 }
 
-impl ASCOMRequest {
-    pub(crate) fn respond_with<
-        E,
-        F: FnOnce(ASCOMParams) -> Result<ASCOMResult<OpaqueResponse>, E>,
-    >(
-        self,
-        f: F,
-    ) -> Result<ASCOMResponse, E> {
-        let span = self.transaction.span();
-        let _span_enter = span.enter();
-
-        f(self.encoded_params).map(|result| ASCOMResponse {
-            transaction: self.transaction,
-            result,
-        })
-    }
-}
-
 #[derive(Serialize)]
 pub(crate) struct ASCOMResponse {
     #[serde(flatten)]
     transaction: TransactionIds,
     #[serde(flatten, serialize_with = "serialize_result")]
     result: ASCOMResult<OpaqueResponse>,
+}
+
+impl IntoResponse for ASCOMResponse {
+    fn into_response(self) -> Response {
+        Json(self).into_response()
+    }
 }
 
 fn serialize_result<R: Serialize, S: serde::Serializer>(

@@ -57,6 +57,7 @@ impl ImageArrayResponse {
 mod image_bytes {
     use super::ImageArrayResponse;
     use crate::api::ImageArrayResponseType;
+    use crate::transaction::TransactionIds;
     use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
     use bytemuck::{Pod, Zeroable};
 
@@ -77,7 +78,7 @@ mod image_bytes {
     }
 
     impl ImageArrayResponse {
-        pub fn from_image_bytes(bytes: &[u8]) -> anyhow::Result<ASCOMResult<Self>> {
+        pub(crate) fn from_image_bytes(bytes: &[u8]) -> anyhow::Result<ASCOMResult<Self>> {
             let metadata = bytes
                 .get(..std::mem::size_of::<ImageBytesMetadata>())
                 .ok_or_else(|| anyhow::anyhow!("not enough bytes to read image metadata"))?;
@@ -95,6 +96,15 @@ mod image_bytes {
             let data = bytes
                 .get(data_start..)
                 .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
+            // let transaction_ids = TransactionIds {
+            //     client_id: None,
+            //     client_transaction_id: if metadata.client_transaction_id == 0 {
+            //         None
+            //     } else {
+            //         Some(metadata.client_transaction_id)
+            //     },
+            //     server_transaction_id: metadata.server_transaction_id,
+            // };
             if metadata.error_number != 0_i32 {
                 return Ok(Err(ASCOMError::new(
                     ASCOMErrorCode(u16::try_from(metadata.error_number)?),
@@ -133,11 +143,16 @@ mod image_bytes {
             }))
         }
 
-        pub fn to_image_bytes(this: &ASCOMResult<Self>) -> Vec<u8> {
+        pub(crate) fn to_image_bytes(
+            this: &ASCOMResult<Self>,
+            transaction: &TransactionIds,
+        ) -> Vec<u8> {
             let mut metadata = ImageBytesMetadata {
                 metadata_version: 1,
                 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
                 data_start: std::mem::size_of::<ImageBytesMetadata>() as i32,
+                client_transaction_id: transaction.client_transaction_id.unwrap_or(0),
+                server_transaction_id: transaction.server_transaction_id,
                 ..Zeroable::zeroed()
             };
             let data = match this {

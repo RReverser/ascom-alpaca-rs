@@ -6,10 +6,11 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::Method;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter};
-use axum::{Form, Json, Router, TypedHeader};
+use axum::{Form, Router, TypedHeader};
 use mediatype::MediaTypeList;
 use serde::Serialize;
 use std::sync::Arc;
+use tracing::Instrument;
 
 // A hack until TypedHeader supports Accept natively.
 struct AcceptsImageBytes {
@@ -65,32 +66,36 @@ impl Devices {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|Form(request): Form<ASCOMRequest>| async {
-                    request
-                        .respond_with(|_| {
-                            Ok::<_, std::convert::Infallible>(OpaqueResponse::try_from([1_u32]))
-                        })
-                        .map(Json)
-                        .into_response()
+                axum::routing::get(|Form(request): Form<ASCOMRequest>| {
+                    let span = request.transaction.span();
+
+                    async move {
+                        request
+                            .transaction
+                            .make_response(OpaqueResponse::try_from([1_u32]))
+                    }
+                    .instrument(span)
                 }),
             )
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&this);
 
-                axum::routing::get(|Form(request): Form<ASCOMRequest>| async move {
-                    #[derive(Serialize)]
-                    struct IterSerialize<I: Iterator + Clone>(#[serde(with = "serde_iter::seq")] I)
-                    where
-                        I::Item: Serialize;
+                axum::routing::get(|Form(request): Form<ASCOMRequest>| {
+                    let span = request.transaction.span();
 
-                    request
-                        .respond_with(|_| {
-                            Ok::<_, std::convert::Infallible>(OpaqueResponse::try_from(
-                                IterSerialize(this.iter()),
-                            ))
-                        })
-                        .map(Json)
-                        .into_response()
+                    async move {
+                        #[derive(Serialize)]
+                        struct IterSerialize<I: Iterator + Clone>(
+                            #[serde(with = "serde_iter::seq")] I,
+                        )
+                        where
+                            I::Item: Serialize;
+
+                        request
+                            .transaction
+                            .make_response(OpaqueResponse::try_from(IterSerialize(this.iter())))
+                    }
+                    .instrument(span)
                 })
             })
             .route(
@@ -104,33 +109,38 @@ impl Devices {
                         String,
                     )>,
                           TypedHeader(accepts_image_bytes): TypedHeader<AcceptsImageBytes>,
-                          Form(request): Form<ASCOMRequest>| async move {
-                        if accepts_image_bytes.accepts
-                            && method == Method::GET
-                            && device_type == "camera"
-                            && action == "imagearray"
-                        {
-                            return <dyn Camera>::with(&this, device_number, |device| {
-                                (
-                                    [(CONTENT_TYPE, "application/imagebytes")],
-                                    ImageArrayResponse::to_image_bytes(&device.image_array()),
-                                )
-                            })
-                            .into_response();
-                        }
+                          Form(request): Form<ASCOMRequest>| {
+                        let span = request.transaction.span();
 
-                        request
-                            .respond_with(move |params| {
-                                this.handle_action(
-                                    &device_type,
-                                    device_number,
-                                    method == Method::PUT,
-                                    &action,
-                                    params,
-                                )
-                            })
-                            .map(Json)
+                        async move {
+                            if accepts_image_bytes.accepts
+                                && method == Method::GET
+                                && device_type == "camera"
+                                && action == "imagearray"
+                            {
+                                return <dyn Camera>::with(&this, device_number, |device| {
+                                    (
+                                        [(CONTENT_TYPE, "application/imagebytes")],
+                                        ImageArrayResponse::to_image_bytes(
+                                            &device.image_array(),
+                                            &request.transaction,
+                                        ),
+                                    )
+                                })
+                                .into_response();
+                            }
+
+                            this.handle_action(
+                                &device_type,
+                                device_number,
+                                method == Method::PUT,
+                                &action,
+                                request.encoded_params,
+                            )
+                            .map(|result| request.transaction.make_response(result))
                             .into_response()
+                        }
+                        .instrument(span)
                     },
                 ),
             )
