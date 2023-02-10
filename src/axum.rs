@@ -1,6 +1,6 @@
 use crate::api::{Camera, ImageArrayResponse};
 use crate::transaction::ASCOMRequest;
-use crate::DevicesStorage;
+use crate::Devices;
 use axum::extract::Path;
 use axum::http::Method;
 use axum::response::IntoResponse;
@@ -56,7 +56,7 @@ impl axum::headers::Header for AcceptsImageBytes {
     }
 }
 
-impl DevicesStorage {
+impl Devices {
     pub fn into_router(self) -> Router {
         let this = Arc::new(self);
 

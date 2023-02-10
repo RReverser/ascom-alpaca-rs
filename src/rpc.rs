@@ -35,13 +35,13 @@ macro_rules! rpc {
 
     (@storage $device:ident $($specific_device:ident)*) => {
         #[allow(non_snake_case)]
-        pub struct DevicesStorage {
+        pub struct Devices {
             $(
                 $specific_device: Vec<Box<std::sync::Mutex<dyn $specific_device + Send + Sync>>>,
             )*
         }
 
-        impl Default for DevicesStorage {
+        impl Default for Devices {
             fn default() -> Self {
                 Self {
                     $(
@@ -51,9 +51,9 @@ macro_rules! rpc {
             }
         }
 
-        impl std::fmt::Debug for DevicesStorage {
+        impl std::fmt::Debug for Devices {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                let mut f = f.debug_struct("DevicesStorage");
+                let mut f = f.debug_struct("Devices");
                 $(
                     if !self.$specific_device.is_empty() {
                         let _ = f.field(stringify!($specific_device), &self.$specific_device);
@@ -101,8 +101,19 @@ macro_rules! rpc {
                     }
                 )*
 
-                #[doc(hidden)]
-                fn handle_action(&mut self, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
+                rpc!(@if_specific $trait_name {
+                    /// Register this device in the storage.
+                    /// This method should not be overridden by implementors.
+                    fn add_to(self, storage: &mut Devices) where Self: Sized + Send + Sync + 'static {
+                        storage.$trait_name.push(Box::new(std::sync::Mutex::new(self)));
+                    }
+                });
+            }
+
+            impl dyn $trait_name {
+                /// Private inherent method for handling actions.
+                /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
+                fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
                     match (is_mut, action) {
                         $((rpc!(@is_mut $($mut_self)*), $method_path) => {
                             let span = tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)));
@@ -117,30 +128,24 @@ macro_rules! rpc {
                                     })?;
                             )?
                             tracing::info!($($param = ?&params.$param,)* "Calling Alpaca handler");
-                            let result = self.$method_name($(params.$param),*)?;
+                            let result = device.$method_name($(params.$param),*)?;
                             tracing::debug!(?result, "Alpaca handler returned");
                             $crate::OpaqueResponse::try_from(result)
                         })*
                         _ => {
                             rpc!(@if_specific $trait_name {
-                                <Self as Device>::handle_action(self, is_mut, action, params)
+                                <dyn Device>::handle_action(device, is_mut, action, params)
                             } {
                                 Err($crate::ASCOMError::NOT_IMPLEMENTED)
                             })
                         }
                     }
                 }
-
-                rpc!(@if_specific $trait_name {
-                    fn add_to(self, storage: &mut DevicesStorage) where Self: Sized + Send + Sync + 'static {
-                        storage.$trait_name.push(Box::new(std::sync::Mutex::new(self)));
-                    }
-                });
             }
 
             rpc!(@if_specific $trait_name {
                 impl dyn $trait_name {
-                    pub fn with<T>(storage: &DevicesStorage, device_number: usize, f: impl FnOnce(&mut dyn $trait_name) -> T) -> Result<T, (axum::http::StatusCode, &'static str)> {
+                    pub fn with<T>(storage: &Devices, device_number: usize, f: impl FnOnce(&mut dyn $trait_name) -> T) -> Result<T, (axum::http::StatusCode, &'static str)> {
                         let mut device =
                             storage.$trait_name.get(device_number)
                             .ok_or((axum::http::StatusCode::NOT_FOUND, "Device not found"))?
@@ -153,13 +158,13 @@ macro_rules! rpc {
             });
         )*
 
-        impl DevicesStorage {
+        impl Devices {
             pub fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> Result<$crate::ASCOMResult<$crate::OpaqueResponse>, (axum::http::StatusCode, &'static str)> {
                 $(
                     rpc!(@if_specific $trait_name {
                         if device_type == $path {
                             return <dyn $trait_name>::with(self, device_number, |device| {
-                                $trait_name::handle_action(device, is_mut, action, params)
+                                <dyn $trait_name>::handle_action(device, is_mut, action, params)
                             });
                         }
                     });

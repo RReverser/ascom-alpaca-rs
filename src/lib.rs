@@ -48,7 +48,7 @@ mod axum;
 mod errors;
 mod transaction;
 
-pub use api::DevicesStorage;
+pub use api::Devices;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 pub use rpc::OpaqueResponse;
 pub use transaction::ASCOMParams;
