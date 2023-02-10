@@ -148,7 +148,7 @@ macro_rules! rpc {
 
             rpc!(@if_specific $trait_name {
                 impl dyn $trait_name {
-                    pub fn with<T>(storage: &Devices, device_number: usize, f: impl FnOnce(&mut dyn $trait_name) -> T) -> Result<T, (axum::http::StatusCode, &'static str)> {
+                    pub(crate) fn with<T>(storage: &Devices, device_number: usize, f: impl FnOnce(&mut dyn $trait_name) -> T) -> Result<T, (axum::http::StatusCode, &'static str)> {
                         let mut device =
                             storage.$trait_name.get(device_number)
                             .ok_or((axum::http::StatusCode::NOT_FOUND, "Device not found"))?
@@ -172,7 +172,7 @@ macro_rules! rpc {
         }
 
         impl Devices {
-            pub fn iter(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> + Clone {
+            pub(crate) fn iter(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> + Clone {
                 let iter = std::iter::empty();
                 $(
                     rpc!(@if_specific $trait_name {
@@ -190,7 +190,7 @@ macro_rules! rpc {
                 iter
             }
 
-            pub fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> Result<$crate::ASCOMResult<$crate::OpaqueResponse>, (axum::http::StatusCode, &'static str)> {
+            pub(crate) fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> Result<$crate::ASCOMResult<$crate::OpaqueResponse>, (axum::http::StatusCode, &'static str)> {
                 $(
                     rpc!(@if_specific $trait_name {
                         if device_type == $path {
