@@ -21,12 +21,12 @@ impl OpaqueResponse {
 }
 
 macro_rules! rpc {
-    (@if_parent $parent_trait_name:ident { $($then:tt)* } { $($else:tt)* }) => {
-        $($then)*
+    (@if_specific Device $then:tt $({ $($else:tt)* })?) => {
+        $($($else)*)?
     };
 
-    (@if_parent { $($then:tt)* } { $($else:tt)* }) => {
-        $($else)*
+    (@if_specific $trait_name:ident { $($then:tt)* } $($else:tt)?) => {
+        $($then)*
     };
 
     (@is_mut mut self) => (true);
@@ -37,7 +37,7 @@ macro_rules! rpc {
         #[allow(non_snake_case)]
         pub struct DevicesStorage {
             $(
-                $specific_device: Vec<Box<std::sync::Mutex<dyn $specific_device + Send + Sync + 'static>>>,
+                $specific_device: Vec<Box<std::sync::Mutex<dyn $specific_device + Send + Sync>>>,
             )*
         }
 
@@ -50,19 +50,6 @@ macro_rules! rpc {
                 }
             }
         }
-
-        $(
-            impl std::fmt::Debug for dyn $specific_device + Send + Sync {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    f.debug_struct(stringify!($specific_device))
-                        .field("name", &self.name())
-                        .field("description", &self.description())
-                        .field("driver_info", &self.driver_info())
-                        .field("driver_version", &self.driver_version())
-                        .finish()
-                }
-            }
-        )*
 
         impl std::fmt::Debug for DevicesStorage {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -89,6 +76,19 @@ macro_rules! rpc {
         }
     )*) => {
         rpc!(@storage $($trait_name)*);
+
+        $(
+            impl std::fmt::Debug for dyn $trait_name + Send + Sync {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.debug_struct(stringify!($trait_name))
+                    .field("name", &self.name())
+                    .field("description", &self.description())
+                    .field("driver_info", &self.driver_info())
+                    .field("driver_version", &self.driver_version())
+                    .finish()
+                }
+            }
+        )*
 
         $(
             #[allow(unused_variables)]
@@ -121,8 +121,8 @@ macro_rules! rpc {
                             $crate::OpaqueResponse::try_from(result)
                         })*
                         _ => {
-                            rpc!(@if_parent $($parent_trait_name)? {
-                                <Self as $($parent_trait_name)?>::handle_action(self, is_mut, action, params)
+                            rpc!(@if_specific $trait_name {
+                                <Self as Device>::handle_action(self, is_mut, action, params)
                             } {
                                 Err($crate::ASCOMError::NOT_IMPLEMENTED)
                             })
@@ -130,14 +130,14 @@ macro_rules! rpc {
                     }
                 }
 
-                rpc!(@if_parent $($parent_trait_name)? {
+                rpc!(@if_specific $trait_name {
                     fn add_to(self, storage: &mut DevicesStorage) where Self: Sized + Send + Sync + 'static {
                         storage.$trait_name.push(Box::new(std::sync::Mutex::new(self)));
                     }
-                } {});
+                });
             }
 
-            rpc!(@if_parent $($parent_trait_name)? {
+            rpc!(@if_specific $trait_name {
                 impl dyn $trait_name {
                     pub fn with<T>(storage: &DevicesStorage, device_number: usize, f: impl FnOnce(&mut dyn $trait_name) -> T) -> Result<T, (axum::http::StatusCode, &'static str)> {
                         let mut device =
@@ -149,19 +149,19 @@ macro_rules! rpc {
                         Ok(f(&mut *device))
                     }
                 }
-            } {});
+            });
         )*
 
         impl DevicesStorage {
             pub fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> Result<$crate::ASCOMResult<$crate::OpaqueResponse>, (axum::http::StatusCode, &'static str)> {
                 $(
-                    rpc!(@if_parent $($parent_trait_name)? {
+                    rpc!(@if_specific $trait_name {
                         if device_type == $path {
                             return <dyn $trait_name>::with(self, device_number, |device| {
                                 $trait_name::handle_action(device, is_mut, action, params)
                             });
                         }
-                    } {});
+                    });
                 )*
                 Err((axum::http::StatusCode::NOT_FOUND, "Unknown device type"))
             }
