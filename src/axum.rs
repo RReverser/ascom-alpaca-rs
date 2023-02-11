@@ -1,4 +1,4 @@
-use crate::api::{Camera, ImageArrayResponse};
+use crate::api::{Camera, ConfiguredDevice, ImageArrayResponse};
 use crate::transaction::ASCOMRequest;
 use crate::{Devices, OpaqueResponse};
 use axum::extract::Path;
@@ -7,8 +7,8 @@ use axum::http::Method;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter};
 use axum::{Form, Router, TypedHeader};
+use futures::StreamExt;
 use mediatype::MediaTypeList;
-use serde::Serialize;
 use std::sync::Arc;
 use tracing::Instrument;
 
@@ -84,16 +84,11 @@ impl Devices {
                     let span = request.transaction.span();
 
                     async move {
-                        #[derive(Serialize)]
-                        struct IterSerialize<I: Iterator + Clone>(
-                            #[serde(with = "serde_iter::seq")] I,
-                        )
-                        where
-                            I::Item: Serialize;
+                        let devices = this.iter().collect::<Vec<ConfiguredDevice>>().await;
 
                         request
                             .transaction
-                            .make_response(OpaqueResponse::try_from(IterSerialize(this.iter())))
+                            .make_response(OpaqueResponse::try_from(devices))
                     }
                     .instrument(span)
                 })
@@ -113,32 +108,38 @@ impl Devices {
                         let span = request.transaction.span();
 
                         async move {
-                            if accepts_image_bytes.accepts
+                            (if accepts_image_bytes.accepts
                                 && method == Method::GET
                                 && device_type == "camera"
                                 && action == "imagearray"
                             {
-                                return <dyn Camera>::with(&this, device_number, |device| {
-                                    (
-                                        [(CONTENT_TYPE, "application/imagebytes")],
-                                        ImageArrayResponse::to_image_bytes(
-                                            &device.image_array(),
-                                            &request.transaction,
-                                        ),
-                                    )
+                                match <dyn Camera>::get_in(&this, device_number).await {
+                                    Some(device) => Some(
+                                        (
+                                            [(CONTENT_TYPE, "application/imagebytes")],
+                                            ImageArrayResponse::to_image_bytes(
+                                                &device.image_array().await,
+                                                &request.transaction,
+                                            ),
+                                        )
+                                            .into_response(),
+                                    ),
+                                    None => None,
+                                }
+                            } else {
+                                this.handle_action(
+                                    &device_type,
+                                    device_number,
+                                    method == Method::PUT,
+                                    &action,
+                                    request.encoded_params,
+                                )
+                                .await
+                                .map(|result| {
+                                    request.transaction.make_response(result).into_response()
                                 })
-                                .into_response();
-                            }
-
-                            this.handle_action(
-                                &device_type,
-                                device_number,
-                                method == Method::PUT,
-                                &action,
-                                request.encoded_params,
-                            )
-                            .map(|result| request.transaction.make_response(result))
-                            .into_response()
+                            })
+                            .ok_or((axum::http::StatusCode::NOT_FOUND, "Device not found"))
                         }
                         .instrument(span)
                     },

@@ -915,7 +915,7 @@ rpc! {
 
     /// Camera Specific Methods
     #[http("camera")]
-    pub trait Camera: Device {
+    pub trait Camera {
         /// Returns the X offset of the Bayer matrix, as defined in SensorType.
         #[http("bayeroffsetx")]
         fn bayer_offset_x(&self) -> i32;
@@ -1259,7 +1259,7 @@ rpc! {
 
     /// CoverCalibrator Specific Methods
     #[http("covercalibrator")]
-    pub trait CoverCalibrator: Device {
+    pub trait CoverCalibrator {
         /// Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on)
         #[http("brightness")]
         fn brightness(&self) -> i32;
@@ -1299,7 +1299,7 @@ rpc! {
 
     /// Dome Specific Methods
     #[http("dome")]
-    pub trait Dome: Device {
+    pub trait Dome {
         /// The dome altitude (degrees, horizon zero and increasing positive to 90 zenith).
         #[http("altitude")]
         fn altitude(&self) -> f64;
@@ -1403,7 +1403,7 @@ rpc! {
 
     /// FilterWheel Specific Methods
     #[http("filterwheel")]
-    pub trait FilterWheel: Device {
+    pub trait FilterWheel {
         /// An integer array of filter focus offsets.
         #[http("focusoffsets")]
         fn focus_offsets(&self) -> Vec<i32>;
@@ -1423,7 +1423,7 @@ rpc! {
 
     /// Focuser Specific Methods
     #[http("focuser")]
-    pub trait Focuser: Device {
+    pub trait Focuser {
         /// True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
         #[http("absolute")]
         fn absolute(&self) -> bool;
@@ -1475,7 +1475,7 @@ rpc! {
 
     /// ObservingConditions Specific Methods
     #[http("observingconditions")]
-    pub trait ObservingConditions: Device {
+    pub trait ObservingConditions {
         /// Gets the time period over which observations will be averaged
         #[http("averageperiod")]
         fn average_period(&self) -> f64;
@@ -1551,7 +1551,7 @@ rpc! {
 
     /// Rotator Specific Methods
     #[http("rotator")]
-    pub trait Rotator: Device {
+    pub trait Rotator {
         /// True if the Rotator supports the Reverse method.
         #[http("canreverse")]
         fn can_reverse(&self) -> bool;
@@ -1607,7 +1607,7 @@ rpc! {
 
     /// SafetyMonitor Specific Methods
     #[http("safetymonitor")]
-    pub trait SafetyMonitor: Device {
+    pub trait SafetyMonitor {
         /// Indicates whether the monitored state is safe for use. True if the state is safe, False if it is unsafe.
         #[http("issafe")]
         fn is_safe(&self) -> bool;
@@ -1615,7 +1615,7 @@ rpc! {
 
     /// Switch Specific Methods
     #[http("switch")]
-    pub trait Switch: Device {
+    pub trait Switch {
         /// Returns the number of switch devices managed by this driver. Devices are numbered from 0 to MaxSwitch - 1
         #[http("maxswitch")]
         fn max_switch(&self) -> i32;
@@ -1667,7 +1667,7 @@ rpc! {
 
     /// Telescope Specific Methods
     #[http("telescope")]
-    pub trait Telescope: Device {
+    pub trait Telescope {
         /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
         #[http("alignmentmode")]
         fn alignment_mode(&self) -> AlignmentModeResponse;

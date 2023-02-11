@@ -645,9 +645,7 @@ rpc! {
     device => `
       ${stringifyDoc(device.doc)}
       #[http("${device.path}")]
-      pub trait ${device.name}${
-      device.path !== '{device_type}' ? ` : Device` : ''
-    } {
+      pub trait ${device.name} {
         ${stringifyIter(
           device.methods,
           method => `
