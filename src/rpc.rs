@@ -91,11 +91,10 @@ macro_rules! rpc {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
             async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> $crate::ASCOMResult<$crate::OpaqueResponse> {
-                match (is_mut, action) {
-                    $((rpc!(@is_mut $($mut_self)*), $method_path) => {
-                        let span = tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)));
-                        let _enter = span.enter();
+                use tracing::Instrument;
 
+                match (is_mut, action) {
+                    $((rpc!(@is_mut $($mut_self)*), $method_path) => async move {
                         $(
                             let params: $params_ty =
                                 params.try_as()
@@ -108,7 +107,7 @@ macro_rules! rpc {
                         let result = device.$method_name($(params.$param),*).await?;
                         tracing::debug!(?result, "Alpaca handler returned");
                         $crate::OpaqueResponse::try_from(result)
-                    })*
+                    }.instrument(tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)))).await,)*
                     _ => {
                         rpc!(@if_specific $trait_name {
                             <dyn Device>::handle_action(device, is_mut, action, params).await
