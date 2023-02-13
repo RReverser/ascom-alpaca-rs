@@ -21,6 +21,7 @@ pub(crate) struct TransactionIds {
     #[allow(dead_code)]
     pub(crate) client_id: Option<u32>,
     #[serde(rename = "ClientTransactionID")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub(crate) client_transaction_id: Option<u32>,
     #[serde(rename = "ServerTransactionID")]
