@@ -1,25 +1,31 @@
+use crate::{ASCOMError, ASCOMErrorCode};
 use serde::Serialize;
+use std::fmt::Debug;
 
 #[derive(Debug, Serialize)]
 pub struct OpaqueResponse(serde_json::Map<String, serde_json::Value>);
 
 impl OpaqueResponse {
-    pub(crate) fn try_from<T: Serialize>(value: T) -> axum::response::Result<Self> {
-        let json = serde_json::to_value(value).map_err(|err| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                err.to_string(),
-            )
-        })?;
+    pub(crate) fn new<T: Debug + Serialize>(value: T) -> Self {
+        let json = serde_json::to_value(&value).unwrap_or_else(|err| {
+            // This should never happen, but if it does, log and return the error.
+            // This simplifies error handling for this rare case without having to panic!.
+            tracing::error!(?value, %err, "Serialization failure");
+            serde_json::to_value(ASCOMError {
+                code: ASCOMErrorCode::UNSPECIFIED,
+                message: format!("Failed to serialize {value:#?}: {err}").into(),
+            })
+            .expect("ASCOMError can never fail to serialize")
+        });
 
-        Ok(Self(match json {
+        Self(match json {
             serde_json::Value::Object(map) => map,
             serde_json::Value::Null => serde_json::Map::new(),
             value => {
                 // Wrap into IntResponse / BoolResponse / ..., aka {"value": ...}
                 std::iter::once(("Value".to_owned(), value)).collect()
             }
-        }))
+        })
     }
 }
 
@@ -93,7 +99,7 @@ macro_rules! rpc {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::ASCOMResult<$crate::OpaqueResponse>> {
+            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::OpaqueResponse> {
                 use tracing::Instrument;
 
                 match (is_mut, action) {
@@ -108,11 +114,17 @@ macro_rules! rpc {
                         )?
                         tracing::info!($($param = ?&params.$param,)* "Calling Alpaca handler");
                         Ok(match device.$method_name($(params.$param),*).await {
-                            Ok(value) => Ok($crate::OpaqueResponse::try_from(value)?),
-                            Err(err) => Err(err),
+                            Ok(value) => {
+                                tracing::debug!(?value, "Alpaca handler returned");
+                                $crate::OpaqueResponse::new(value)
+                            },
+                            Err(err) => {
+                                tracing::error!(%err, "Alpaca handler returned an error");
+                                $crate::OpaqueResponse::new(err)
+                            },
                         })
                     }.instrument(tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)))).await,)*
-                    _ => return rpc!(@if_specific $trait_name {
+                    _ => rpc!(@if_specific $trait_name {
                         <dyn Device>::handle_action(device, is_mut, action, params).await
                     } {
                         Err((axum::http::StatusCode::NOT_FOUND, "Unknown action").into())
@@ -185,7 +197,7 @@ macro_rules! rpc {
                 }
             }
 
-            pub(crate) async fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::ASCOMResult<$crate::OpaqueResponse>> {
+            pub(crate) async fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::OpaqueResponse> {
                 $(
                     rpc!(@if_specific $trait_name {
                         if device_type == $path {

@@ -73,7 +73,7 @@ impl Devices {
                         Ok::<_, ErrorResponse>(
                             request
                                 .transaction
-                                .make_response(Ok(OpaqueResponse::try_from([1_u32])?)),
+                                .make_response(OpaqueResponse::new([1_u32])),
                         )
                     }
                     .instrument(span)
@@ -91,7 +91,7 @@ impl Devices {
                         Ok::<_, ErrorResponse>(
                             request
                                 .transaction
-                                .make_response(Ok(OpaqueResponse::try_from(devices)?)),
+                                .make_response(OpaqueResponse::new(devices)),
                         )
                     }
                     .instrument(span)

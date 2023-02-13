@@ -1,5 +1,4 @@
 use super::rpc::OpaqueResponse;
-use crate::ASCOMResult;
 use async_trait::async_trait;
 use axum::body::HttpBody;
 use axum::extract::{FromRequest, RequestParts};
@@ -40,7 +39,7 @@ impl TransactionIds {
         )
     }
 
-    pub(crate) const fn make_response(self, result: ASCOMResult<OpaqueResponse>) -> ASCOMResponse {
+    pub(crate) const fn make_response(self, result: OpaqueResponse) -> ASCOMResponse {
         ASCOMResponse {
             transaction: self,
             result,
@@ -309,22 +308,11 @@ where
 pub(crate) struct ASCOMResponse {
     #[serde(flatten)]
     transaction: TransactionIds,
-    #[serde(flatten, serialize_with = "serialize_result")]
-    result: ASCOMResult<OpaqueResponse>,
+    result: OpaqueResponse,
 }
 
 impl IntoResponse for ASCOMResponse {
     fn into_response(self) -> Response {
         Json(self).into_response()
-    }
-}
-
-fn serialize_result<R: Serialize, S: serde::Serializer>(
-    value: &ASCOMResult<R>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    match value {
-        Ok(value) => value.serialize(serializer),
-        Err(error) => error.serialize(serializer),
     }
 }
