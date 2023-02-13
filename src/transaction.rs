@@ -1,7 +1,11 @@
 use super::rpc::OpaqueResponse;
 use crate::ASCOMResult;
+use async_trait::async_trait;
+use axum::body::HttpBody;
+use axum::extract::{FromRequest, RequestParts};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{BoxError, Form, Json};
 use indexmap::IndexMap;
 use serde::de::value::{BorrowedStrDeserializer, UnitDeserializer};
 use serde::de::DeserializeOwned;
@@ -276,6 +280,27 @@ impl<'de> Deserialize<'de> for ASCOMRequest {
             transaction,
             encoded_params,
         })
+    }
+}
+
+#[async_trait]
+impl<B> FromRequest<B> for ASCOMRequest
+where
+    B: HttpBody + Send,
+    B::Data: Send,
+    B::Error: Into<BoxError>,
+{
+    type Rejection = Response;
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        match Form::<Self>::from_request(req).await {
+            Ok(Form(request)) => Ok(request),
+            Err(err) => {
+                let mut err = err.into_response();
+                *err.status_mut() = StatusCode::BAD_REQUEST;
+                Err(err)
+            }
+        }
     }
 }
 

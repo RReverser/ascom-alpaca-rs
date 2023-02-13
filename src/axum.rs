@@ -6,7 +6,7 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::Method;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter};
-use axum::{Form, Router, TypedHeader};
+use axum::{Router, TypedHeader};
 use futures::StreamExt;
 use mediatype::MediaTypeList;
 use std::sync::Arc;
@@ -66,7 +66,7 @@ impl Devices {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|Form(request): Form<ASCOMRequest>| {
+                axum::routing::get(|request: ASCOMRequest| {
                     let span = request.transaction.span();
 
                     async move {
@@ -80,7 +80,7 @@ impl Devices {
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&this);
 
-                axum::routing::get(|Form(request): Form<ASCOMRequest>| {
+                axum::routing::get(|request: ASCOMRequest| {
                     let span = request.transaction.span();
 
                     async move {
@@ -104,7 +104,7 @@ impl Devices {
                         String,
                     )>,
                           TypedHeader(accepts_image_bytes): TypedHeader<AcceptsImageBytes>,
-                          Form(request): Form<ASCOMRequest>| {
+                          request: ASCOMRequest| {
                         let span = request.transaction.span();
 
                         async move {
