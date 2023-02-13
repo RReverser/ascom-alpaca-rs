@@ -99,7 +99,7 @@ macro_rules! rpc {
                             let params: $params_ty =
                                 params.try_as()
                                 .map_err(|err| {
-                                    tracing::error!(raw_params = ?params, ?err, "Could not decode params");
+                                    tracing::error!(?err, "Could not decode params");
                                     $crate::ASCOMError::new($crate::ASCOMErrorCode::INVALID_VALUE, err.to_string())
                                 })?;
                         )?
@@ -169,12 +169,14 @@ macro_rules! rpc {
                         rpc!(@if_specific $trait_name {
                             for (device_number, device) in self.$trait_name.iter().enumerate() {
                                 let device = device.lock().await;
-                                yield ConfiguredDevice {
+                                let device = ConfiguredDevice {
                                     device_name: device.name().await.unwrap_or_default(),
                                     device_type: stringify!($trait_name).to_owned(),
                                     device_number,
                                     unique_id: device.unique_id().await.to_owned(),
                                 };
+                                tracing::debug!(?device, "Reporting device");
+                                yield device;
                             }
                         });
                     )*

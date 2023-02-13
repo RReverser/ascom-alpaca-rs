@@ -22,7 +22,7 @@
     noop_method_call,
     single_use_lifetimes,
     unreachable_pub,
-    unsafe_code,
+    // unsafe_code,
     unused_lifetimes,
     unused_macro_rules,
     unused_qualifications,
