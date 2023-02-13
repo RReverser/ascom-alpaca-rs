@@ -112,7 +112,7 @@ macro_rules! rpc {
                                     (axum::http::StatusCode::BAD_REQUEST, err.to_string())
                                 })?;
                         )?
-                        tracing::info!($($param = ?&params.$param,)* "Calling Alpaca handler");
+                        tracing::debug!($($param = ?&params.$param,)* "Calling Alpaca handler");
                         Ok(match device.$method_name($(params.$param),*).await {
                             Ok(value) => {
                                 tracing::debug!(?value, "Alpaca handler returned");
