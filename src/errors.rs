@@ -1,8 +1,8 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use thiserror::Error;
 
-#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct ASCOMErrorCode(pub u16);
 
@@ -22,7 +22,7 @@ impl ASCOMErrorCode {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Error)]
+#[derive(Debug, Clone, Serialize, Deserialize, Error)]
 #[error("ASCOM error {code}: {message}")]
 pub struct ASCOMError {
     #[serde(rename = "ErrorNumber")]

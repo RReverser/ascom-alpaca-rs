@@ -1,9 +1,9 @@
-use crate::{ASCOMError, ASCOMErrorCode};
-use serde::Serialize;
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMParams, ASCOMResult};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-#[derive(Debug, Serialize)]
-pub struct OpaqueResponse(serde_json::Map<String, serde_json::Value>);
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct OpaqueResponse(pub(crate) serde_json::Map<String, serde_json::Value>);
 
 impl OpaqueResponse {
     pub(crate) fn new<T: Debug + Serialize>(value: T) -> Self {
@@ -29,6 +29,69 @@ impl OpaqueResponse {
     }
 }
 
+#[derive(Debug)]
+pub struct Sender {
+    client: reqwest::Client,
+    pub(crate) unique_id: String,
+    base: reqwest::Url,
+    device_number: usize,
+}
+
+impl Sender {
+    pub(crate) async fn exec_action(
+        &self,
+        device_type: &str,
+        is_mut: bool,
+        action: &str,
+        params: &ASCOMParams,
+    ) -> ASCOMResult<OpaqueResponse> {
+        let device_number = self.device_number;
+        let request = self.client.request(
+            if is_mut {
+                reqwest::Method::PUT
+            } else {
+                reqwest::Method::GET
+            },
+            self.base
+                .join(&format!("{device_type}/{device_number}/{action}"))
+                .map_err(|err| {
+                    tracing::error!("Could not construct an action URL: {}", err);
+                    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
+                })?,
+        );
+        // TODO: add transaction IDs.
+        let request = if is_mut {
+            request.form(params)
+        } else {
+            request.query(params)
+        };
+        let res: OpaqueResponse = request
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|err| {
+                tracing::error!("HTTP error: {}", err);
+                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
+            })?
+            .json()
+            .await
+            .map_err(|err| {
+                tracing::error!("Could not parse response: {}", err);
+                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
+            })?;
+        match res.0.get("ErrorNumber") {
+            None => Ok(res),
+            Some(value) if value == 0_i32 => Ok(res),
+            _ => Err(
+                ASCOMError::deserialize(serde_json::Value::from(res.0)).map_err(|err| {
+                    tracing::error!("Could not deserialize error: {}", err);
+                    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
+                })?,
+            ),
+        }
+    }
+}
+
 macro_rules! rpc {
     (@if_specific Device $then:tt $({ $($else:tt)* })?) => {
         $($($else)*)?
@@ -38,9 +101,13 @@ macro_rules! rpc {
         $($then)*
     };
 
-    (@is_mut mut self) => (true);
+    (@is_mut mut $self:ident) => (true);
 
-    (@is_mut self) => (false);
+    (@is_mut $self:ident) => (false);
+
+    (@get_self mut $self:ident) => ($self);
+
+    (@get_self $self:ident) => ($self);
 
     (@storage $device:ident $($specific_device:ident)*) => {
         #[allow(non_snake_case)]
@@ -73,14 +140,16 @@ macro_rules! rpc {
         }
     };
 
-    (@trait $(#[doc = $doc:literal])* $trait_name:ident: $($parent:path),* {
+    (@trait $(#[doc = $doc:literal])* #[http($path:literal)] $trait_name:ident: $($parent:path),* {
         $(
             $(#[doc = $method_doc:literal])*
             #[http($method_path:literal $(, $params_ty:ty)?)]
             fn $method_name:ident(& $($mut_self:ident)* $(, $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
         )*
     } {
-        $($extra_trait_body:tt)*
+        $($extra_trait_body:item)*
+    } {
+        $($extra_impl_body:item)*
     }) => {
         #[allow(unused_variables)]
         $(#[doc = $doc])*
@@ -132,6 +201,33 @@ macro_rules! rpc {
                 }
             }
         }
+
+        #[async_trait::async_trait]
+        impl $trait_name for $crate::rpc::Sender {
+            $($extra_impl_body)*
+
+            $(
+                async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
+                    use tracing::Instrument;
+
+                    async move {
+                        #[allow(unused_mut)]
+                        let mut opaque_params = $crate::transaction::ASCOMParams::default();
+                        $(
+                            drop(opaque_params.0.insert(Box::<str>::from(stringify!($param)).into(), serde_urlencoded::to_string($param).map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?));
+                        )*
+                        #[allow(unused_variables)]
+                        let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, &opaque_params).await?;
+                        Ok({
+                            $(
+                                <$return_type as serde::Deserialize>::deserialize(serde_json::Value::from(opaque_response.0))
+                                .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?
+                            )?
+                        })
+                    }.instrument(tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)))).await
+                }
+            )*
+        }
     };
 
     ($(
@@ -143,17 +239,21 @@ macro_rules! rpc {
 
         $(
             rpc!(@if_specific $trait_name {
-                rpc!(@trait $(#[doc = $doc])* $trait_name: Device, Send, Sync $trait_body {
+                rpc!(@trait $(#[doc = $doc])* #[http($path)] $trait_name: Device, Send, Sync $trait_body {
                     /// Register this device in the storage.
                     /// This method should not be overridden by implementors.
                     fn add_to(self, storage: &mut Devices) where Self: Sized + 'static {
                         storage.$trait_name.push(std::sync::Arc::new(tokio::sync::Mutex::new(self)));
                     }
-                });
+                } {});
             } {
-                rpc!(@trait $(#[doc = $doc])* $trait_name: std::fmt::Debug, Send, Sync $trait_body {
+                rpc!(@trait $(#[doc = $doc])* #[http($path)] $trait_name: std::fmt::Debug, Send, Sync $trait_body {
                     /// Unique ID of this device, ideally UUID.
                     async fn unique_id(&self) -> String;
+                } {
+                    async fn unique_id(&self) -> String {
+                        self.unique_id.clone()
+                    }
                 });
             });
 

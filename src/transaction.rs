@@ -54,7 +54,7 @@ fn generate_server_transaction_id() -> u32 {
 
 #[derive(Serialize)]
 #[repr(transparent)]
-struct CaseInsensitiveStr(str);
+pub(crate) struct CaseInsensitiveStr(str);
 
 impl AsRef<CaseInsensitiveStr> for str {
     fn as_ref(&self) -> &CaseInsensitiveStr {
@@ -104,9 +104,9 @@ impl std::hash::Hash for CaseInsensitiveStr {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(transparent)]
-pub struct ASCOMParams(IndexMap<Box<CaseInsensitiveStr>, String>);
+pub struct ASCOMParams(pub(crate) IndexMap<Box<CaseInsensitiveStr>, String>);
 
 struct ParamDeserializer<E> {
     str: String,
