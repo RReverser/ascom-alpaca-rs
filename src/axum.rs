@@ -1,6 +1,7 @@
 use crate::api::{Camera, ConfiguredDevice, ImageArrayResponse};
+use crate::rpc::Sender;
 use crate::transaction::ASCOMRequest;
-use crate::{Devices, OpaqueResponse, Sender};
+use crate::{Devices, OpaqueResponse};
 use axum::extract::Path;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::Method;

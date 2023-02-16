@@ -99,7 +99,7 @@ macro_rules! ascom_enum {
 pub(crate) use ascom_enum;
 
 #[derive(Debug)]
-pub struct Sender {
+pub(crate) struct Sender {
     pub(crate) client: reqwest::Client,
     pub(crate) base: Arc<reqwest::Url>,
     pub(crate) unique_id: String,
@@ -310,10 +310,10 @@ macro_rules! rpc {
             } {
                 rpc!(@trait $(#[doc = $doc])* #[http($path)] $trait_name: std::fmt::Debug, Send, Sync $trait_body {
                     /// Unique ID of this device, ideally UUID.
-                    async fn unique_id(&self) -> String;
+                    fn unique_id(&self) -> &str;
                 } {
-                    async fn unique_id(&self) -> String {
-                        self.unique_id.clone()
+                    fn unique_id(&self) -> &str {
+                        &self.unique_id
                     }
                 });
             });
@@ -338,7 +338,7 @@ macro_rules! rpc {
         }
 
         impl $crate::rpc::Sender {
-            pub fn add_as(self, device_type: &str, storage: &mut Devices) -> anyhow::Result<()> {
+            pub(crate) fn add_as(self, device_type: &str, storage: &mut Devices) -> anyhow::Result<()> {
                 $(
                     rpc!(@if_specific $trait_name {
                         if device_type == stringify!($trait_name) {
@@ -361,7 +361,7 @@ macro_rules! rpc {
                                     device_name: device.name().await.unwrap_or_default(),
                                     device_type: stringify!($trait_name).to_owned(),
                                     device_number,
-                                    unique_id: device.unique_id().await.to_owned(),
+                                    unique_id: device.unique_id().to_owned(),
                                 };
                                 tracing::debug!(?device, "Reporting device");
                                 yield device;
