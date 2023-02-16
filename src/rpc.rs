@@ -101,7 +101,7 @@ pub(crate) use ascom_enum;
 #[derive(Debug)]
 pub(crate) struct Sender {
     pub(crate) client: reqwest::Client,
-    pub(crate) base: Arc<reqwest::Url>,
+    pub(crate) base_url: Arc<reqwest::Url>,
     pub(crate) unique_id: String,
     pub(crate) device_number: usize,
 }
@@ -121,8 +121,8 @@ impl Sender {
             } else {
                 reqwest::Method::GET
             },
-            self.base
-                .join(&format!("{device_type}/{device_number}/{action}"))
+            self.base_url
+                .join(&format!("api/v1/{device_type}/{device_number}/{action}"))
                 .map_err(|err| {
                     tracing::error!("Could not construct an action URL: {}", err);
                     ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())

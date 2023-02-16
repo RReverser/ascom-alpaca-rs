@@ -76,7 +76,7 @@ impl Devices {
             .try_for_each(|device| {
                 let sender = Sender {
                     client: client.clone(),
-                    base: url.clone(),
+                    base_url: url.clone(),
                     unique_id: device.unique_id,
                     device_number: device.device_number,
                 };
