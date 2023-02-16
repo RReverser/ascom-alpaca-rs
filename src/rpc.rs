@@ -100,10 +100,10 @@ pub(crate) use ascom_enum;
 
 #[derive(Debug)]
 pub struct Sender {
-    client: reqwest::Client,
+    pub(crate) client: reqwest::Client,
+    pub(crate) base: Arc<reqwest::Url>,
     pub(crate) unique_id: String,
-    base: reqwest::Url,
-    device_number: usize,
+    pub(crate) device_number: usize,
 }
 
 impl Sender {
@@ -180,20 +180,11 @@ macro_rules! rpc {
 
     (@storage $device:ident $($specific_device:ident)*) => {
         #[allow(non_snake_case)]
+        #[derive(Default)]
         pub struct Devices {
             $(
                 $specific_device: Vec<std::sync::Arc<tokio::sync::Mutex<dyn $specific_device>>>,
             )*
-        }
-
-        impl Default for Devices {
-            fn default() -> Self {
-                Self {
-                    $(
-                        $specific_device: Vec::new(),
-                    )*
-                }
-            }
         }
 
         impl std::fmt::Debug for Devices {
@@ -289,6 +280,7 @@ macro_rules! rpc {
                         let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, &opaque_params).await?;
                         Ok({
                             $(
+                                // TODO: handle $.Value
                                 <$return_type as serde::Deserialize>::deserialize(serde_json::Value::from(opaque_response.0))
                                 .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?
                             )?
@@ -345,6 +337,19 @@ macro_rules! rpc {
             pub unique_id: String,
         }
 
+        impl $crate::rpc::Sender {
+            pub fn add_as(self, device_type: &str, storage: &mut Devices) -> anyhow::Result<()> {
+                $(
+                    rpc!(@if_specific $trait_name {
+                        if device_type == stringify!($trait_name) {
+                            return Ok(<Self as $trait_name>::add_to(self, storage));
+                        }
+                    });
+                )*
+                anyhow::bail!("Unknown device type {device_type}")
+            }
+        }
+
         impl Devices {
             pub(crate) fn iter(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
                 async_stream::stream! {
@@ -382,3 +387,4 @@ macro_rules! rpc {
 }
 
 pub(crate) use rpc;
+use std::sync::Arc;
