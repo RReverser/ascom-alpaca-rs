@@ -1,4 +1,4 @@
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMParams, ASCOMResult, Devices};
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices, OpaqueParams};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::future::Future;
@@ -126,7 +126,7 @@ impl Client {
         &self,
         is_mut: bool,
         path: &str,
-        mut params: ASCOMParams,
+        mut params: OpaqueParams,
         convert_response: impl FnOnce(reqwest::Response) -> F,
     ) -> anyhow::Result<T> {
         let client_transaction_id = self
@@ -181,7 +181,7 @@ impl Client {
         &self,
         is_mut: bool,
         path: &str,
-        params: ASCOMParams,
+        params: OpaqueParams,
     ) -> anyhow::Result<OpaqueResponse> {
         self.raw_request(is_mut, path, params, |response| async move {
             let mut opaque_response: OpaqueResponse = response.json().await.map_err(|err| {
@@ -206,7 +206,7 @@ impl Client {
         self.request(
             false,
             "management/v1/configureddevices",
-            ASCOMParams::default(),
+            OpaqueParams::default(),
         )
         .await?
         .try_as::<Vec<ConfiguredDevice>>()
@@ -241,7 +241,7 @@ impl Sender {
         device_type: &str,
         is_mut: bool,
         action: &str,
-        params: ASCOMParams,
+        params: OpaqueParams,
     ) -> ASCOMResult<OpaqueResponse> {
         let device_number = self.device_number;
         let opaque_response = self
@@ -337,7 +337,7 @@ macro_rules! rpc {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, #[allow(unused_mut)] mut params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::OpaqueResponse> {
+            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, #[allow(unused_mut)] mut params: $crate::transaction::OpaqueParams) -> axum::response::Result<$crate::OpaqueResponse> {
                 use tracing::Instrument;
 
                 match (is_mut, action) {
@@ -381,7 +381,7 @@ macro_rules! rpc {
 
                     async move {
                         #[allow(unused_mut)]
-                        let mut opaque_params = $crate::transaction::ASCOMParams::default();
+                        let mut opaque_params = $crate::transaction::OpaqueParams::default();
                         $(
                             opaque_params.insert($param_query, $param);
                         )*
@@ -480,7 +480,7 @@ macro_rules! rpc {
                 }
             }
 
-            pub(crate) async fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::OpaqueResponse> {
+            pub(crate) async fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::OpaqueParams) -> axum::response::Result<$crate::OpaqueResponse> {
                 $(
                     rpc!(@if_specific $trait_name {
                         if device_type == $path {

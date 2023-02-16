@@ -106,9 +106,9 @@ impl std::hash::Hash for CaseInsensitiveStr {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(transparent)]
-pub(crate) struct ASCOMParams(IndexMap<Box<CaseInsensitiveStr>, String>);
+pub(crate) struct OpaqueParams(IndexMap<Box<CaseInsensitiveStr>, String>);
 
-impl ASCOMParams {
+impl OpaqueParams {
     pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {
         self.0
             .remove::<CaseInsensitiveStr>(name.as_ref())
@@ -137,16 +137,16 @@ pub(crate) struct ASCOMRequest {
     // #[serde(flatten)]
     pub(crate) transaction: TransactionIds,
     // #[serde(flatten)]
-    pub(crate) encoded_params: ASCOMParams,
+    pub(crate) encoded_params: OpaqueParams,
 }
 
 // Work around infamous serde(flatten) deserialization issues by manually
 // buffering all the params in a HashMap<String, String> and then using
 // serde_plain + serde::de::value::MapDeserializer to decode specific
-// subtypes in ASCOMParams::try_as.
+// subtypes in OpaqueParams::try_as.
 impl<'de> Deserialize<'de> for ASCOMRequest {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let mut encoded_params = ASCOMParams::deserialize(deserializer)?;
+        let mut encoded_params = OpaqueParams::deserialize(deserializer)?;
         let transaction = TransactionIds {
             client_id: encoded_params
                 .maybe_extract("ClientID")
