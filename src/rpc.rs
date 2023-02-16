@@ -29,6 +29,75 @@ impl OpaqueResponse {
     }
 }
 
+pub(crate) trait ASCOMParam: Sized {
+    fn from_string(s: String) -> anyhow::Result<Self>;
+    fn to_string(self) -> String;
+}
+
+impl ASCOMParam for String {
+    fn from_string(s: String) -> anyhow::Result<Self> {
+        Ok(s)
+    }
+
+    fn to_string(self) -> String {
+        self
+    }
+}
+
+impl ASCOMParam for bool {
+    fn from_string(s: String) -> anyhow::Result<Self> {
+        Ok(match s.as_str() {
+            "True" => true,
+            "False" => false,
+            _ => anyhow::bail!(r#"Invalid bool value {s:?}, expected "True" or "False""#),
+        })
+    }
+
+    fn to_string(self) -> String {
+        match self {
+            true => "True",
+            false => "False",
+        }
+        .to_owned()
+    }
+}
+
+macro_rules! simple_ascom_param {
+    ($($ty:ty),*) => {
+        $(
+            impl ASCOMParam for $ty {
+                fn from_string(s: String) -> anyhow::Result<Self> {
+                    Ok(s.parse()?)
+                }
+
+                fn to_string(self) -> String {
+                    ToString::to_string(&self)
+                }
+            }
+        )*
+    };
+}
+
+simple_ascom_param!(i32, u32, f64);
+
+macro_rules! ascom_enum {
+    ($name:ty) => {
+        impl $crate::rpc::ASCOMParam for $name {
+            fn from_string(s: String) -> anyhow::Result<Self> {
+                Ok(<Self as num_enum::TryFromPrimitive>::try_from_primitive(
+                    $crate::rpc::ASCOMParam::from_string(s)?,
+                )?)
+            }
+
+            fn to_string(self) -> String {
+                let primitive: <Self as num_enum::TryFromPrimitive>::Primitive = self.into();
+                $crate::rpc::ASCOMParam::to_string(primitive)
+            }
+        }
+    };
+}
+pub(crate) use ascom_enum;
+
 #[derive(Debug)]
 pub struct Sender {
     client: reqwest::Client,
@@ -143,8 +212,8 @@ macro_rules! rpc {
     (@trait $(#[doc = $doc:literal])* #[http($path:literal)] $trait_name:ident: $($parent:path),* {
         $(
             $(#[doc = $method_doc:literal])*
-            #[http($method_path:literal $(, $params_ty:ty)?)]
-            fn $method_name:ident(& $($mut_self:ident)* $(, $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
+            #[http($method_path:literal)]
+            fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
         )*
     } {
         $($extra_trait_body:item)*
@@ -168,31 +237,31 @@ macro_rules! rpc {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::OpaqueResponse> {
+            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, #[allow(unused_mut)] mut params: $crate::transaction::ASCOMParams) -> axum::response::Result<$crate::OpaqueResponse> {
                 use tracing::Instrument;
 
                 match (is_mut, action) {
-                    $((rpc!(@is_mut $($mut_self)*), $method_path) => async move {
-                        $(
-                            let params: $params_ty =
-                                params.try_as()
-                                .map_err(|err| {
-                                    tracing::error!(%err, "Could not decode params");
-                                    (axum::http::StatusCode::BAD_REQUEST, err.to_string())
-                                })?;
-                        )?
-                        tracing::debug!($($param = ?&params.$param,)* "Calling Alpaca handler");
-                        Ok(match device.$method_name($(params.$param),*).await {
-                            Ok(value) => {
-                                tracing::debug!(?value, "Alpaca handler returned");
-                                $crate::OpaqueResponse::new(value)
-                            },
-                            Err(err) => {
-                                tracing::error!(%err, "Alpaca handler returned an error");
-                                $crate::OpaqueResponse::new(err)
-                            },
-                        })
-                    }.instrument(tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)))).await,)*
+                    $(
+                        (rpc!(@is_mut $($mut_self)*), $method_path) => async move {
+                            $(
+                                let $param = params.extract($param_query)?;
+                            )*
+                            tracing::debug!($(?$param,)* "Calling Alpaca handler");
+                            Ok(match device.$method_name($($param),*).await {
+                                Ok(value) => {
+                                    tracing::debug!(?value, "Alpaca handler returned");
+                                    $crate::OpaqueResponse::new(value)
+                                },
+                                Err(err) => {
+                                    tracing::error!(%err, "Alpaca handler returned an error");
+                                    $crate::OpaqueResponse::new(err)
+                                },
+                            })
+                        }
+                        .instrument(tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name))))
+                        .await
+                        .map_err(|err: anyhow::Error| (axum::http::StatusCode::BAD_REQUEST, format!("{:#}", err)).into()),
+                    )*
                     _ => rpc!(@if_specific $trait_name {
                         <dyn Device>::handle_action(device, is_mut, action, params).await
                     } {
@@ -214,7 +283,7 @@ macro_rules! rpc {
                         #[allow(unused_mut)]
                         let mut opaque_params = $crate::transaction::ASCOMParams::default();
                         $(
-                            drop(opaque_params.0.insert(Box::<str>::from(stringify!($param)).into(), serde_urlencoded::to_string($param).map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?));
+                            opaque_params.insert($param_query, $param);
                         )*
                         #[allow(unused_variables)]
                         let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, &opaque_params).await?;

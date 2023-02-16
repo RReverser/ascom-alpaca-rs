@@ -1,4 +1,6 @@
 use super::rpc::OpaqueResponse;
+use crate::rpc::ASCOMParam;
+use anyhow::Context;
 use async_trait::async_trait;
 use axum::body::HttpBody;
 use axum::extract::{FromRequest, RequestParts};
@@ -6,9 +8,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{BoxError, Form, Json};
 use indexmap::IndexMap;
-use serde::de::value::{BorrowedStrDeserializer, UnitDeserializer};
-use serde::de::DeserializeOwned;
-use serde::{forward_to_deserialize_any, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
 use std::sync::atomic::AtomicU32;
 
@@ -106,156 +106,26 @@ impl std::hash::Hash for CaseInsensitiveStr {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(transparent)]
-pub struct ASCOMParams(pub(crate) IndexMap<Box<CaseInsensitiveStr>, String>);
-
-struct ParamDeserializer<E> {
-    str: String,
-    phantom: std::marker::PhantomData<fn() -> E>,
-}
-
-impl<E> ParamDeserializer<E> {
-    fn new(str: String) -> Self {
-        Self {
-            str,
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-macro_rules! forward_to_deserialize_from_str {
-    ($($func:ident => $visit_func:ident,)*) => {
-        $(
-            fn $func<V: serde::de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-                visitor.$visit_func(self.str.parse().map_err(serde::de::Error::custom)?)
-            }
-        )*
-    };
-}
-
-impl<'de, E: serde::de::Error> Deserializer<'de> for ParamDeserializer<E> {
-    type Error = E;
-
-    fn deserialize_bool<V: serde::de::Visitor<'de>>(
-        mut self,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        self.str.make_ascii_lowercase();
-        visitor.visit_bool(self.str.parse().map_err(serde::de::Error::custom)?)
-    }
-
-    fn deserialize_option<V: serde::de::Visitor<'de>>(
-        self,
-        visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        visitor.visit_some(self)
-    }
-
-    forward_to_deserialize_from_str! {
-        deserialize_i8 => visit_i8,
-        deserialize_i16 => visit_i16,
-        deserialize_i32 => visit_i32,
-        deserialize_i64 => visit_i64,
-        deserialize_i128 => visit_i128,
-        deserialize_u8 => visit_u8,
-        deserialize_u16 => visit_u16,
-        deserialize_u32 => visit_u32,
-        deserialize_u64 => visit_u64,
-        deserialize_u128 => visit_u128,
-        deserialize_f32 => visit_f32,
-        deserialize_f64 => visit_f64,
-    }
-
-    forward_to_deserialize_any! {
-        char str string seq map struct identifier ignored_any bytes byte_buf unit unit_struct newtype_struct tuple tuple_struct enum
-    }
-
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        visitor.visit_string(self.str)
-    }
-}
-
-impl<'de> Deserializer<'de> for &'de mut ASCOMParams {
-    type Error = serde::de::value::Error;
-
-    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        Err(serde::de::Error::custom(
-            "ASCOMParams can be deserialized only into a struct",
-        ))
-    }
-
-    serde::forward_to_deserialize_any! {
-        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string bytes byte_buf option unit unit_struct newtype_struct seq tuple tuple_struct map enum identifier ignored_any
-    }
-
-    fn deserialize_struct<V>(
-        self,
-        _name: &'static str,
-        fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: serde::de::Visitor<'de>,
-    {
-        struct MapAccess<'de> {
-            fields: &'static [&'static str],
-            params: &'de mut ASCOMParams,
-        }
-
-        impl<'de> serde::de::MapAccess<'de> for MapAccess<'de> {
-            type Error = serde::de::value::Error;
-
-            fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
-            where
-                K: serde::de::DeserializeSeed<'de>,
-            {
-                if let Some(&field) = self.fields.first() {
-                    seed.deserialize(BorrowedStrDeserializer::new(field))
-                        .map(Some)
-                } else {
-                    Ok(None)
-                }
-            }
-
-            fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
-            where
-                V: serde::de::DeserializeSeed<'de>,
-            {
-                let (&field, fields) = self
-                    .fields
-                    .split_first()
-                    .expect("field name must be available if we reached this state");
-                self.fields = fields;
-                let field: &CaseInsensitiveStr = field.as_ref();
-                match self.params.0.remove(field) {
-                    Some(value) => seed.deserialize(ParamDeserializer::new(value)),
-                    None => seed.deserialize(UnitDeserializer::new()),
-                }
-            }
-        }
-
-        visitor.visit_map(MapAccess {
-            fields,
-            params: self,
-        })
-    }
-}
+pub(crate) struct ASCOMParams(IndexMap<Box<CaseInsensitiveStr>, String>);
 
 impl ASCOMParams {
-    pub fn try_as<T: DeserializeOwned>(mut self) -> Result<T, serde::de::value::Error> {
-        let value = T::deserialize(&mut self)?;
-        if !self.0.is_empty() {
-            return Err(serde::de::Error::custom(format!(
-                "Unexpected fields: {:?}",
-                self.0.keys()
-            )));
-        }
-        Ok(value)
+    pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {
+        self.0
+            .remove::<CaseInsensitiveStr>(name.as_ref())
+            .map(|value| {
+                T::from_string(value).with_context(|| format!("Invalid value for parameter {name}"))
+            })
+            .transpose()
+    }
+
+    pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<T> {
+        self.maybe_extract(name)?
+            .ok_or_else(|| anyhow::anyhow!("Missing parameter {name}"))
+    }
+
+    pub(crate) fn insert<T: ASCOMParam>(&mut self, name: &str, value: T) {
+        let prev_value = self.0.insert(Box::<str>::from(name).into(), value.to_string());
+        debug_assert!(prev_value.is_none());
     }
 }
 
@@ -274,8 +144,15 @@ pub(crate) struct ASCOMRequest {
 impl<'de> Deserialize<'de> for ASCOMRequest {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut encoded_params = ASCOMParams::deserialize(deserializer)?;
-        let transaction =
-            TransactionIds::deserialize(&mut encoded_params).map_err(serde::de::Error::custom)?;
+        let transaction = TransactionIds {
+            client_id: encoded_params
+                .maybe_extract("ClientID")
+                .map_err(serde::de::Error::custom)?,
+            client_transaction_id: encoded_params
+                .maybe_extract("ClientTransactionID")
+                .map_err(serde::de::Error::custom)?,
+            server_transaction_id: generate_server_transaction_id(),
+        };
         Ok(Self {
             transaction,
             encoded_params,

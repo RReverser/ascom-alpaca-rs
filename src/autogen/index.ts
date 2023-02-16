@@ -34,10 +34,10 @@ function getOrSet<K, V>(
   return value;
 }
 
-function set<K, V, K2 extends K, V2 extends V>(
+function set<K, V>(
   map: Map<K, V>,
-  key: K2,
-  value: V2
+  key: K,
+  value: V
 ) {
   if (map.has(key)) {
     throw new Error(`Duplicate key: ${key}`);
@@ -164,7 +164,6 @@ interface DeviceMethod {
   mutable: boolean;
   path: string;
   doc: string | undefined;
-  argsType: RustType;
   resolvedArgs: ObjectType['properties'];
   returnType: RustType;
 }
@@ -441,17 +440,6 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let resolvedArgs = new Map<string, Property>();
 
-      let argsType =
-        params.length === 0
-          ? rusty('()')
-          : registerType({}, () => {
-              let argsType: ObjectType = {
-                kind: 'Request',
-                properties: resolvedArgs,
-                name: `${device.name}${canonicalMethodName}Request`,
-                doc: undefined
-              };
-
               for (let param of params.map(resolveMaybeRef)) {
                 assert.equal(
                   param?.in,
@@ -464,22 +452,18 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
                   originalName: param.name,
                   doc: getDoc(param),
                   type: handleOptType(
-                    `${argsType.name}${param.name}`,
+            `${device.name}${canonicalMethodName}Request${param.name}`,
                     param.schema,
                     param.required ?? false
                   )
                 });
               }
 
-              return argsType;
-            });
-
       set(device.methods, canonicalMethodName, {
         name: toPropName(canonicalMethodName),
         mutable: false,
         path: methodPath,
         doc: getDoc(get),
-        argsType,
         resolvedArgs,
         returnType: handleResponse(`${device.name}${canonicalMethodName}`, get)
       });
@@ -539,7 +523,6 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         mutable: true,
         path: methodPath,
         doc: getDoc(put),
-        argsType,
         resolvedArgs,
         returnType: handleResponse(`${device.name}${canonicalMethodName}`, put)
       });
@@ -575,9 +558,10 @@ ${api.info.description}
   clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
 )]
 
-use crate::rpc::rpc;
+use crate::rpc::{ascom_enum, rpc};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 ${stringifyIter(types, type => {
   if (type.name === 'ImageArrayResponse') {
@@ -591,17 +575,15 @@ ${stringifyIter(types, type => {
   }
 
   switch (type.kind) {
+    case 'Request': return '';
     case 'Object':
-    case 'Request':
     case 'Response': {
-      let vis = type.kind !== 'Request' ? 'pub' : '';
-
       return `
         ${stringifyDoc(type.doc)}
         #[allow(missing_copy_implementations)]
         #[derive(Debug, Clone, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
-        ${vis} struct ${type.name} {
+        pub struct ${type.name} {
           ${stringifyIter(
             type.properties,
             prop => `
@@ -612,7 +594,7 @@ ${stringifyIter(types, type => {
                   ? ''
                   : `#[serde(rename = "${prop.originalName}")]`
               }
-              ${vis} ${prop.name}: ${prop.type},
+              pub ${prop.name}: ${prop.type},
             `
           )}
         }
@@ -622,7 +604,7 @@ ${stringifyIter(types, type => {
     case 'Enum': {
       return `
         ${stringifyDoc(type.doc)}
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
         #[repr(${type.baseType})]
         #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
         pub enum ${type.name} {
@@ -634,6 +616,8 @@ ${stringifyIter(types, type => {
             `
           )}
         }
+
+        ascom_enum!(${type.name});
       `;
     }
   }
@@ -650,14 +634,12 @@ rpc! {
           device.methods,
           method => `
             ${stringifyDoc(method.doc)}
-            #[http("${method.path}"${method.argsType.ifNotVoid(
-            argsType => `, ${argsType}`
-          )})]
+            #[http("${method.path}")]
             fn ${method.name}(
               &${method.mutable ? 'mut ' : ''}self,
               ${stringifyIter(
                 method.resolvedArgs,
-                arg => `${arg.name}: ${arg.type},`
+                arg => `#[http("${arg.originalName}")] ${arg.name}: ${arg.type},`
               )}
             )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
 
