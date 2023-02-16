@@ -1,6 +1,7 @@
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMParams, ASCOMResult};
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMParams, ASCOMResult, Devices};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::future::Future;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct OpaqueResponse(pub(crate) serde_json::Map<String, serde_json::Value>);
@@ -26,6 +27,11 @@ impl OpaqueResponse {
                 std::iter::once(("Value".to_owned(), value)).collect()
             }
         })
+    }
+
+    // TODO: handle $.Value
+    pub(crate) fn try_as<T: DeserializeOwned>(self) -> serde_json::Result<T> {
+        Ok(serde_json::from_value(serde_json::Value::Object(self.0))?)
     }
 }
 
@@ -99,9 +105,132 @@ macro_rules! ascom_enum {
 pub(crate) use ascom_enum;
 
 #[derive(Debug)]
+pub struct Client {
+    inner: reqwest::Client,
+    base_url: reqwest::Url,
+    client_id: u32,
+    client_transaction_id: AtomicU32,
+}
+
+impl Client {
+    pub fn new(base_url: reqwest::Url, client_id: u32) -> Arc<Self> {
+        Arc::new(Self {
+            inner: reqwest::Client::new(),
+            base_url,
+            client_id,
+            client_transaction_id: AtomicU32::new(0),
+        })
+    }
+
+    pub(crate) async fn raw_request<T, F: Future<Output = anyhow::Result<T>>>(
+        &self,
+        is_mut: bool,
+        path: &str,
+        mut params: ASCOMParams,
+        convert_response: impl FnOnce(reqwest::Response) -> F,
+    ) -> anyhow::Result<T> {
+        let client_transaction_id = self
+            .client_transaction_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        async move {
+            let builder = self.inner.request(
+                if is_mut {
+                    reqwest::Method::GET
+                } else {
+                    reqwest::Method::PUT
+                },
+                self.base_url.join(path).map_err(|err| {
+                    tracing::error!("URL error: {}", err);
+                    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
+                })?,
+            );
+            params.insert("ClientID", self.client_id);
+            params.insert(
+                "ClientTransactionID",
+                self.client_transaction_id
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            );
+            let builder = if is_mut {
+                builder.form(&params)
+            } else {
+                builder.query(&params)
+            };
+            let response = builder
+                .send()
+                .await
+                .and_then(reqwest::Response::error_for_status)
+                .map_err(|err| {
+                    tracing::error!("Request error: {}", err);
+                    err
+                })?;
+            convert_response(response).await.map_err(|err| {
+                tracing::error!("Response error: {}", err);
+                err
+            })
+        }
+        .instrument(tracing::debug_span!(
+            "alpaca_transaction",
+            client_id = self.client_id,
+            client_transaction_id,
+        ))
+        .await
+    }
+
+    pub(crate) async fn request(
+        &self,
+        is_mut: bool,
+        path: &str,
+        params: ASCOMParams,
+    ) -> anyhow::Result<OpaqueResponse> {
+        self.raw_request(is_mut, path, params, |response| async move {
+            let mut opaque_response: OpaqueResponse = response.json().await.map_err(|err| {
+                tracing::error!("Response error: {}", err);
+                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
+            })?;
+            tracing::debug!(
+                server_transaction_id = opaque_response
+                    .0
+                    .remove("ServerTransactionID")
+                    .and_then(|v| u32::deserialize(v).ok()),
+                "Received response"
+            );
+            Ok(opaque_response)
+        })
+        .await
+    }
+
+    pub async fn get_devices(self: &Arc<Self>) -> anyhow::Result<Devices> {
+        let mut devices = Devices::default();
+
+        self.request(
+            false,
+            "management/v1/configureddevices",
+            ASCOMParams::default(),
+        )
+        .await?
+        .try_as::<Vec<ConfiguredDevice>>()
+        .map_err(|err| {
+            tracing::error!("Couldn't parse list of devices: {}", err);
+            ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
+        })?
+        .into_iter()
+        .try_for_each(|device| {
+            let sender = Sender {
+                client: self.clone(),
+                unique_id: device.unique_id,
+                device_number: device.device_number,
+            };
+            sender.add_as(&device.device_type, &mut devices)
+        })?;
+
+        Ok(devices)
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct Sender {
-    pub(crate) client: reqwest::Client,
-    pub(crate) base_url: Arc<reqwest::Url>,
+    pub(crate) client: Arc<Client>,
     pub(crate) unique_id: String,
     pub(crate) device_number: usize,
 }
@@ -112,51 +241,31 @@ impl Sender {
         device_type: &str,
         is_mut: bool,
         action: &str,
-        params: &ASCOMParams,
+        params: ASCOMParams,
     ) -> ASCOMResult<OpaqueResponse> {
         let device_number = self.device_number;
-        let request = self.client.request(
-            if is_mut {
-                reqwest::Method::PUT
-            } else {
-                reqwest::Method::GET
-            },
-            self.base_url
-                .join(&format!("api/v1/{device_type}/{device_number}/{action}"))
-                .map_err(|err| {
-                    tracing::error!("Could not construct an action URL: {}", err);
-                    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-                })?,
-        );
-        // TODO: add transaction IDs.
-        let request = if is_mut {
-            request.form(params)
-        } else {
-            request.query(params)
-        };
-        let res: OpaqueResponse = request
-            .send()
+        let opaque_response = self
+            .client
+            .request(
+                is_mut,
+                &format!("api/v1/{device_type}/{device_number}/{action}"),
+                params,
+            )
             .await
-            .and_then(reqwest::Response::error_for_status)
-            .map_err(|err| {
-                tracing::error!("HTTP error: {}", err);
-                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-            })?
-            .json()
-            .await
-            .map_err(|err| {
-                tracing::error!("Could not parse response: {}", err);
-                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-            })?;
-        match res.0.get("ErrorNumber") {
-            None => Ok(res),
-            Some(value) if value == 0_i32 => Ok(res),
-            _ => Err(
-                ASCOMError::deserialize(serde_json::Value::from(res.0)).map_err(|err| {
-                    tracing::error!("Could not deserialize error: {}", err);
-                    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-                })?,
-            ),
+            .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))?;
+        match opaque_response.0.contains_key("ErrorNumber") {
+            true => Err(opaque_response
+                .try_as::<ASCOMError>()
+                .unwrap_or_else(|err| {
+                    ASCOMError::new(
+                        ASCOMErrorCode::UNSPECIFIED,
+                        format!(
+                            "Server returned an error but it couldn't be parsed: {}",
+                            err
+                        ),
+                    )
+                })),
+            false => Ok(opaque_response),
         }
     }
 }
@@ -277,11 +386,11 @@ macro_rules! rpc {
                             opaque_params.insert($param_query, $param);
                         )*
                         #[allow(unused_variables)]
-                        let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, &opaque_params).await?;
+                        let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?;
                         Ok({
                             $(
                                 // TODO: handle $.Value
-                                <$return_type as serde::Deserialize>::deserialize(serde_json::Value::from(opaque_response.0))
+                                opaque_response.try_as::<$return_type>()
                                 .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?
                             )?
                         })
@@ -386,5 +495,9 @@ macro_rules! rpc {
     };
 }
 
+use crate::api::ConfiguredDevice;
 pub(crate) use rpc;
+use serde::de::DeserializeOwned;
+use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
+use tracing::Instrument;

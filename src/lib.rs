@@ -52,4 +52,5 @@ pub(crate) use rpc::OpaqueResponse;
 
 pub use api::Devices;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+pub use rpc::Client;
 pub(crate) use transaction::ASCOMParams;

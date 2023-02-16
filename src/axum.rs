@@ -1,5 +1,4 @@
 use crate::api::{Camera, ConfiguredDevice, ImageArrayResponse};
-use crate::rpc::Sender;
 use crate::transaction::ASCOMRequest;
 use crate::{Devices, OpaqueResponse};
 use axum::extract::Path;
@@ -10,7 +9,6 @@ use axum::routing::{on, MethodFilter};
 use axum::{Router, TypedHeader};
 use futures::StreamExt;
 use mediatype::MediaTypeList;
-use reqwest::IntoUrl;
 use std::sync::Arc;
 use tracing::Instrument;
 
@@ -62,29 +60,6 @@ impl axum::headers::Header for AcceptsImageBytes {
 }
 
 impl Devices {
-    pub async fn from_server(client: reqwest::Client, url: impl IntoUrl) -> anyhow::Result<Self> {
-        let mut devices = Self::default();
-        let url = Arc::new(url.into_url()?);
-        client
-            .get(url.join("management/v1/configureddevices")?)
-            .send()
-            .await?
-            // TODO: handle $.Value
-            .json::<Vec<ConfiguredDevice>>()
-            .await?
-            .into_iter()
-            .try_for_each(|device| {
-                let sender = Sender {
-                    client: client.clone(),
-                    base_url: url.clone(),
-                    unique_id: device.unique_id,
-                    device_number: device.device_number,
-                };
-                sender.add_as(&device.device_type, &mut devices)
-            })?;
-        Ok(devices)
-    }
-
     pub fn into_router(self) -> Router {
         let this = Arc::new(self);
 

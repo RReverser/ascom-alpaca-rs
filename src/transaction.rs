@@ -124,11 +124,14 @@ impl ASCOMParams {
     }
 
     pub(crate) fn insert<T: ASCOMParam>(&mut self, name: &str, value: T) {
-        let prev_value = self.0.insert(Box::<str>::from(name).into(), value.to_string());
+        let prev_value = self
+            .0
+            .insert(Box::<str>::from(name).into(), value.to_string());
         debug_assert!(prev_value.is_none());
     }
 }
 
+#[derive(Serialize)]
 // #[derive(Deserialize)]
 pub(crate) struct ASCOMRequest {
     // #[serde(flatten)]
