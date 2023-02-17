@@ -299,8 +299,7 @@ fn expect_key<'de, A: serde::de::MapAccess<'de>>(
     match map.next_key::<&str>()? {
         Some(key) if key == expected_key => Ok(()),
         Some(key) => Err(serde::de::Error::custom(format!(
-            "expected field {}, got {}",
-            expected_key, key
+            "expected field {expected_key}, got {key}"
         ))),
         None => Err(serde::de::Error::missing_field(expected_key)),
     }

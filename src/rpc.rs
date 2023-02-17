@@ -31,7 +31,7 @@ impl OpaqueResponse {
 
     // TODO: handle $.Value
     pub(crate) fn try_as<T: DeserializeOwned>(self) -> serde_json::Result<T> {
-        Ok(serde_json::from_value(serde_json::Value::Object(self.0))?)
+        serde_json::from_value(serde_json::Value::Object(self.0))
     }
 }
 
@@ -60,11 +60,7 @@ impl ASCOMParam for bool {
     }
 
     fn to_string(self) -> String {
-        match self {
-            true => "True",
-            false => "False",
-        }
-        .to_owned()
+        (if self { "True" } else { "False" }).to_owned()
     }
 }
 
@@ -122,12 +118,12 @@ impl Client {
         })
     }
 
-    pub(crate) async fn raw_request<T, F: Future<Output = anyhow::Result<T>>>(
+    pub(crate) async fn raw_request<T, F: Future<Output = anyhow::Result<T>> + Send>(
         &self,
         is_mut: bool,
         path: &str,
         mut params: OpaqueParams,
-        convert_response: impl FnOnce(reqwest::Response) -> F,
+        convert_response: impl FnOnce(reqwest::Response) -> F + Send,
     ) -> anyhow::Result<T> {
         let client_transaction_id = self
             .client_transaction_id
@@ -217,7 +213,7 @@ impl Client {
         .into_iter()
         .try_for_each(|device| {
             let sender = Sender {
-                client: self.clone(),
+                client: Arc::clone(self),
                 unique_id: device.unique_id,
                 device_number: device.device_number,
             };
@@ -253,19 +249,17 @@ impl Sender {
             )
             .await
             .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))?;
-        match opaque_response.0.contains_key("ErrorNumber") {
-            true => Err(opaque_response
+        if opaque_response.0.contains_key("ErrorNumber") {
+            Err(opaque_response
                 .try_as::<ASCOMError>()
                 .unwrap_or_else(|err| {
                     ASCOMError::new(
                         ASCOMErrorCode::UNSPECIFIED,
-                        format!(
-                            "Server returned an error but it couldn't be parsed: {}",
-                            err
-                        ),
+                        format!("Server returned an error but it couldn't be parsed: {err}"),
                     )
-                })),
-            false => Ok(opaque_response),
+                }))
+        } else {
+            Ok(opaque_response)
         }
     }
 }
