@@ -1,16 +1,16 @@
-use crate::api::{Camera, ConfiguredDevice, ImageArrayResponse};
-use crate::transaction::ASCOMRequest;
-use crate::{Devices, OpaqueResponse};
+use crate::api::{Camera, ConfiguredDevice};
+use crate::params::OpaqueParams;
+use crate::response::OpaqueResponse;
+use crate::transaction::server_handler;
+use crate::Devices;
 use axum::extract::Path;
-use axum::http::header::CONTENT_TYPE;
 use axum::http::Method;
-use axum::response::{ErrorResponse, IntoResponse};
+
 use axum::routing::{on, MethodFilter};
-use axum::{Router, TypedHeader};
+use axum::{Form, Router, TypedHeader};
 use futures::StreamExt;
 use mediatype::MediaTypeList;
 use std::sync::Arc;
-use tracing::Instrument;
 
 // A hack until TypedHeader supports Accept natively.
 struct AcceptsImageBytes {
@@ -66,35 +66,20 @@ impl Devices {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|request: ASCOMRequest| {
-                    let span = request.transaction.span();
-
-                    async move {
-                        Ok::<_, ErrorResponse>(
-                            request
-                                .transaction
-                                .make_response(OpaqueResponse::new([1_u32])),
-                        )
-                    }
-                    .instrument(span)
+                axum::routing::get(|Form(params): Form<OpaqueParams>| {
+                    server_handler("/management/apiversions", false, params, |_params| async move {
+                        Ok(OpaqueResponse::new([1_u32]))
+                    })
                 }),
             )
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&this);
 
-                axum::routing::get(|request: ASCOMRequest| {
-                    let span = request.transaction.span();
-
-                    async move {
-                        let devices = this.iter().collect::<Vec<ConfiguredDevice>>().await;
-
-                        Ok::<_, ErrorResponse>(
-                            request
-                                .transaction
-                                .make_response(OpaqueResponse::new(devices)),
-                        )
-                    }
-                    .instrument(span)
+                axum::routing::get(|Form(params): Form<OpaqueParams>| {
+                    server_handler("/management/v1/configureddevices", false, params, |_params| async move {
+                        let devices = this.stream_configured().collect::<Vec<ConfiguredDevice>>().await;
+                        Ok(OpaqueResponse::new(devices))
+                    })
                 })
             })
             .route(
@@ -108,8 +93,8 @@ impl Devices {
                         String,
                     )>,
                           TypedHeader(accepts_image_bytes): TypedHeader<AcceptsImageBytes>,
-                          request: ASCOMRequest| {
-                        let span = request.transaction.span();
+                          Form(params): Form<OpaqueParams>| {
+                        let is_mut = method == Method::PUT;
 
                         async move {
                             if accepts_image_bytes.accepts
@@ -117,39 +102,30 @@ impl Devices {
                                 && device_type == "camera"
                                 && action == "imagearray"
                             {
-                                match <dyn Camera>::get_in(&this, device_number).await {
-                                    Some(device) => Ok((
-                                        [(CONTENT_TYPE, "application/imagebytes")],
-                                        ImageArrayResponse::to_image_bytes(
-                                            &device.image_array().await,
-                                            &request.transaction,
-                                        ),
-                                    )
-                                        .into_response()),
-                                    None => Err(ErrorResponse::from((
-                                        axum::http::StatusCode::NOT_FOUND,
-                                        "Device not found",
-                                    ))),
-                                }
-                            } else {
-                                Ok(request
-                                    .transaction
-                                    .make_response(
-                                        this.handle_action(
-                                            &device_type,
-                                            device_number,
-                                            method == Method::PUT,
-                                            &action,
-                                            request.encoded_params,
-                                        )
-                                        .await?,
-                                    )
-                                    .into_response())
-                            }
+                                return server_handler(format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), is_mut, params, |params| async move {
+                                    params.finish_extraction();
+
+                                    match <dyn Camera>::get_in(&this, device_number).await {
+                                        Some(device) => Ok(device.image_array().await),
+                                        None => Err((
+                                            axum::http::StatusCode::NOT_FOUND,
+                                            "Device not found",
+                                        ).into()),
+                                    }
+                            }).await;
                         }
-                        .instrument(span)
-                    },
-                ),
+
+                            server_handler(format!("/api/v1/{device_type}/{device_number}/{action}"), is_mut, params, |params| {
+                                this.handle_action(
+                                    &device_type,
+                                    device_number,
+                                    method == Method::PUT,
+                                    &action,
+                                    params,
+                                )
+                            }).await
+                        }
+                    }),
             )
     }
 }

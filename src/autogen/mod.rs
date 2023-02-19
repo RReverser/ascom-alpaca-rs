@@ -41,7 +41,8 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
   clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
 )]
 
-use crate::rpc::{ascom_enum, rpc};
+use crate::params::ascom_enum;
+use crate::rpc::rpc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};

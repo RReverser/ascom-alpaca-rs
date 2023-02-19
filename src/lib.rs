@@ -45,13 +45,12 @@ pub(crate) mod rpc;
 pub mod api;
 
 mod axum;
+mod client;
 mod errors;
-mod new_trans;
+mod params;
+mod response;
 mod transaction;
-
-pub(crate) use rpc::OpaqueResponse;
 
 pub use api::Devices;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
-pub use rpc::Client;
-pub(crate) use transaction::OpaqueParams;
+pub use transaction::Client;

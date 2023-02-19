@@ -1,269 +1,3 @@
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices, OpaqueParams};
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::future::Future;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct OpaqueResponse(pub(crate) serde_json::Map<String, serde_json::Value>);
-
-impl OpaqueResponse {
-    pub(crate) fn new<T: Debug + Serialize>(value: T) -> Self {
-        let json = serde_json::to_value(&value).unwrap_or_else(|err| {
-            // This should never happen, but if it does, log and return the error.
-            // This simplifies error handling for this rare case without having to panic!.
-            tracing::error!(?value, %err, "Serialization failure");
-            serde_json::to_value(ASCOMError {
-                code: ASCOMErrorCode::UNSPECIFIED,
-                message: format!("Failed to serialize {value:#?}: {err}").into(),
-            })
-            .expect("ASCOMError can never fail to serialize")
-        });
-
-        Self(match json {
-            serde_json::Value::Object(map) => map,
-            serde_json::Value::Null => serde_json::Map::new(),
-            value => {
-                // Wrap into IntResponse / BoolResponse / ..., aka {"value": ...}
-                std::iter::once(("Value".to_owned(), value)).collect()
-            }
-        })
-    }
-
-    // TODO: handle $.Value
-    pub(crate) fn try_as<T: DeserializeOwned>(self) -> serde_json::Result<T> {
-        serde_json::from_value(serde_json::Value::Object(self.0))
-    }
-}
-
-pub(crate) trait ASCOMParam: Sized {
-    fn from_string(s: String) -> anyhow::Result<Self>;
-    fn to_string(self) -> String;
-}
-
-impl ASCOMParam for String {
-    fn from_string(s: String) -> anyhow::Result<Self> {
-        Ok(s)
-    }
-
-    fn to_string(self) -> String {
-        self
-    }
-}
-
-impl ASCOMParam for bool {
-    fn from_string(s: String) -> anyhow::Result<Self> {
-        Ok(match s.as_str() {
-            "True" => true,
-            "False" => false,
-            _ => anyhow::bail!(r#"Invalid bool value {s:?}, expected "True" or "False""#),
-        })
-    }
-
-    fn to_string(self) -> String {
-        (if self { "True" } else { "False" }).to_owned()
-    }
-}
-
-macro_rules! simple_ascom_param {
-    ($($ty:ty),*) => {
-        $(
-            impl ASCOMParam for $ty {
-                fn from_string(s: String) -> anyhow::Result<Self> {
-                    Ok(s.parse()?)
-                }
-
-                fn to_string(self) -> String {
-                    ToString::to_string(&self)
-                }
-            }
-        )*
-    };
-}
-
-simple_ascom_param!(i32, u32, f64);
-
-macro_rules! ascom_enum {
-    ($name:ty) => {
-        impl $crate::rpc::ASCOMParam for $name {
-            fn from_string(s: String) -> anyhow::Result<Self> {
-                Ok(<Self as num_enum::TryFromPrimitive>::try_from_primitive(
-                    $crate::rpc::ASCOMParam::from_string(s)?,
-                )?)
-            }
-
-            fn to_string(self) -> String {
-                let primitive: <Self as num_enum::TryFromPrimitive>::Primitive = self.into();
-                $crate::rpc::ASCOMParam::to_string(primitive)
-            }
-        }
-    };
-}
-pub(crate) use ascom_enum;
-
-#[derive(Debug)]
-pub struct Client {
-    inner: reqwest::Client,
-    base_url: reqwest::Url,
-    client_id: u32,
-    client_transaction_id: AtomicU32,
-}
-
-impl Client {
-    pub fn new(base_url: reqwest::Url, client_id: u32) -> Arc<Self> {
-        Arc::new(Self {
-            inner: reqwest::Client::new(),
-            base_url,
-            client_id,
-            client_transaction_id: AtomicU32::new(0),
-        })
-    }
-
-    pub(crate) async fn raw_request<T, F: Future<Output = anyhow::Result<T>> + Send>(
-        &self,
-        is_mut: bool,
-        path: &str,
-        mut params: OpaqueParams,
-        convert_response: impl FnOnce(reqwest::Response) -> F + Send,
-    ) -> anyhow::Result<T> {
-        let client_transaction_id = self
-            .client_transaction_id
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
-        async move {
-            let builder = self.inner.request(
-                if is_mut {
-                    reqwest::Method::GET
-                } else {
-                    reqwest::Method::PUT
-                },
-                self.base_url.join(path).map_err(|err| {
-                    tracing::error!("URL error: {}", err);
-                    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-                })?,
-            );
-            params.insert("ClientID", self.client_id);
-            params.insert(
-                "ClientTransactionID",
-                self.client_transaction_id
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-            );
-            let builder = if is_mut {
-                builder.form(&params)
-            } else {
-                builder.query(&params)
-            };
-            let response = builder
-                .send()
-                .await
-                .and_then(reqwest::Response::error_for_status)
-                .map_err(|err| {
-                    tracing::error!("Request error: {}", err);
-                    err
-                })?;
-            convert_response(response).await.map_err(|err| {
-                tracing::error!("Response error: {}", err);
-                err
-            })
-        }
-        .instrument(tracing::debug_span!(
-            "alpaca_transaction",
-            client_id = self.client_id,
-            client_transaction_id,
-        ))
-        .await
-    }
-
-    pub(crate) async fn request(
-        &self,
-        is_mut: bool,
-        path: &str,
-        params: OpaqueParams,
-    ) -> anyhow::Result<OpaqueResponse> {
-        self.raw_request(is_mut, path, params, |response| async move {
-            let mut opaque_response: OpaqueResponse = response.json().await.map_err(|err| {
-                tracing::error!("Response error: {}", err);
-                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-            })?;
-            tracing::debug!(
-                server_transaction_id = opaque_response
-                    .0
-                    .remove("ServerTransactionID")
-                    .and_then(|v| u32::deserialize(v).ok()),
-                "Received response"
-            );
-            Ok(opaque_response)
-        })
-        .await
-    }
-
-    pub async fn get_devices(self: &Arc<Self>) -> anyhow::Result<Devices> {
-        let mut devices = Devices::default();
-
-        self.request(
-            false,
-            "management/v1/configureddevices",
-            OpaqueParams::default(),
-        )
-        .await?
-        .try_as::<Vec<ConfiguredDevice>>()
-        .map_err(|err| {
-            tracing::error!("Couldn't parse list of devices: {}", err);
-            ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-        })?
-        .into_iter()
-        .try_for_each(|device| {
-            let sender = Sender {
-                client: Arc::clone(self),
-                unique_id: device.unique_id,
-                device_number: device.device_number,
-            };
-            sender.add_as(&device.device_type, &mut devices)
-        })?;
-
-        Ok(devices)
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct Sender {
-    pub(crate) client: Arc<Client>,
-    pub(crate) unique_id: String,
-    pub(crate) device_number: usize,
-}
-
-impl Sender {
-    pub(crate) async fn exec_action(
-        &self,
-        device_type: &str,
-        is_mut: bool,
-        action: &str,
-        params: OpaqueParams,
-    ) -> ASCOMResult<OpaqueResponse> {
-        let device_number = self.device_number;
-        let opaque_response = self
-            .client
-            .request(
-                is_mut,
-                &format!("api/v1/{device_type}/{device_number}/{action}"),
-                params,
-            )
-            .await
-            .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))?;
-        if opaque_response.0.contains_key("ErrorNumber") {
-            Err(opaque_response
-                .try_as::<ASCOMError>()
-                .unwrap_or_else(|err| {
-                    ASCOMError::new(
-                        ASCOMErrorCode::UNSPECIFIED,
-                        format!("Server returned an error but it couldn't be parsed: {err}"),
-                    )
-                }))
-        } else {
-            Ok(opaque_response)
-        }
-    }
-}
-
 macro_rules! rpc {
     (@if_specific Device $then:tt $({ $($else:tt)* })?) => {
         $($($else)*)?
@@ -331,30 +65,16 @@ macro_rules! rpc {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, #[allow(unused_mut)] mut params: $crate::transaction::OpaqueParams) -> axum::response::Result<$crate::OpaqueResponse> {
-                use tracing::Instrument;
-
+            async fn handle_action(device: &mut (impl ?Sized + $trait_name), is_mut: bool, action: &str, #[allow(unused_mut)] mut params: $crate::params::OpaqueParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
                 match (is_mut, action) {
                     $(
-                        (rpc!(@is_mut $($mut_self)*), $method_path) => async move {
+                        (rpc!(@is_mut $($mut_self)*), $method_path) => {
                             $(
-                                let $param = params.extract($param_query)?;
+                                let $param = params.extract($param_query).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
                             )*
-                            tracing::debug!($(?$param,)* "Calling Alpaca handler");
-                            Ok(match device.$method_name($($param),*).await {
-                                Ok(value) => {
-                                    tracing::debug!(?value, "Alpaca handler returned");
-                                    $crate::OpaqueResponse::new(value)
-                                },
-                                Err(err) => {
-                                    tracing::error!(%err, "Alpaca handler returned an error");
-                                    $crate::OpaqueResponse::new(err)
-                                },
-                            })
-                        }
-                        .instrument(tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name))))
-                        .await
-                        .map_err(|err: anyhow::Error| (axum::http::StatusCode::BAD_REQUEST, format!("{:#}", err)).into()),
+                            params.finish_extraction();
+                            Ok(device.$method_name($($param),*).await.map($crate::response::OpaqueResponse::new))
+                        },
                     )*
                     _ => rpc!(@if_specific $trait_name {
                         <dyn Device>::handle_action(device, is_mut, action, params).await
@@ -366,7 +86,7 @@ macro_rules! rpc {
         }
 
         #[async_trait::async_trait]
-        impl $trait_name for $crate::rpc::Sender {
+        impl $trait_name for $crate::client::Sender {
             $($extra_impl_body)*
 
             $(
@@ -375,7 +95,7 @@ macro_rules! rpc {
 
                     async move {
                         #[allow(unused_mut)]
-                        let mut opaque_params = $crate::transaction::OpaqueParams::default();
+                        let mut opaque_params = $crate::params::OpaqueParams::default();
                         $(
                             opaque_params.insert($param_query, $param);
                         )*
@@ -440,7 +160,7 @@ macro_rules! rpc {
             pub unique_id: String,
         }
 
-        impl $crate::rpc::Sender {
+        impl $crate::client::Sender {
             pub(crate) fn add_as(self, device_type: &str, storage: &mut Devices) -> anyhow::Result<()> {
                 $(
                     rpc!(@if_specific $trait_name {
@@ -454,7 +174,7 @@ macro_rules! rpc {
         }
 
         impl Devices {
-            pub(crate) fn iter(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
+            pub(crate) fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
                 async_stream::stream! {
                     $(
                         rpc!(@if_specific $trait_name {
@@ -474,7 +194,7 @@ macro_rules! rpc {
                 }
             }
 
-            pub(crate) async fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::transaction::OpaqueParams) -> axum::response::Result<$crate::OpaqueResponse> {
+            pub(crate) async fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::params::OpaqueParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
                 $(
                     rpc!(@if_specific $trait_name {
                         if device_type == $path {
@@ -489,9 +209,4 @@ macro_rules! rpc {
     };
 }
 
-use crate::api::ConfiguredDevice;
 pub(crate) use rpc;
-use serde::de::DeserializeOwned;
-use std::sync::atomic::AtomicU32;
-use std::sync::Arc;
-use tracing::Instrument;
