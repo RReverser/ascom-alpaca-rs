@@ -272,15 +272,14 @@ impl Response for ASCOMResult<OpaqueResponse> {
 
         Ok((
             transaction,
-            if response.0.contains_key("ErrorNumber") {
-                Err(response.try_as::<ASCOMError>().unwrap_or_else(|err| {
+            match response.0.get("ErrorNumber") {
+                Some(error_number) if error_number != 0_i32 => Ok(response),
+                _ => Err(response.try_as::<ASCOMError>().unwrap_or_else(|err| {
                     ASCOMError::new(
                         ASCOMErrorCode::UNSPECIFIED,
                         format!("Server returned an error but it couldn't be parsed: {err}"),
                     )
-                }))
-            } else {
-                Ok(response)
+                })),
             },
         ))
     }
