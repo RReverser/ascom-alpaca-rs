@@ -29,8 +29,12 @@ impl OpaqueResponse {
         })
     }
 
-    // TODO: handle $.Value
-    pub(crate) fn try_as<T: DeserializeOwned>(self) -> serde_json::Result<T> {
-        serde_json::from_value(serde_json::Value::Object(self.0))
+    pub(crate) fn try_as<T: DeserializeOwned>(mut self) -> serde_json::Result<T> {
+        serde_json::from_value(if self.0.contains_key("Value") {
+            #[allow(clippy::unwrap_used)]
+            self.0.remove("Value").unwrap()
+        } else {
+            serde_json::Value::Object(self.0)
+        })
     }
 }
