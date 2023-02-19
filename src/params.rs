@@ -1,15 +1,8 @@
-
 use anyhow::Context;
-
-
-
-
-
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
-
 
 pub(crate) trait ASCOMParam: Sized {
     fn from_string(s: String) -> anyhow::Result<Self>;
@@ -77,6 +70,7 @@ macro_rules! ascom_enum {
 pub(crate) use ascom_enum;
 
 #[derive(Serialize)]
+#[serde(transparent)]
 #[repr(transparent)]
 pub(crate) struct CaseInsensitiveStr(str);
 

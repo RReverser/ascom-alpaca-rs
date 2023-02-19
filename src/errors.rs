@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use thiserror::Error;
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(transparent)]
+#[serde(transparent)]
 pub struct ASCOMErrorCode(pub u16);
 
 /// The starting value for driver-specific error numbers.
