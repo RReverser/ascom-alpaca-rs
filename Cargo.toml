@@ -10,6 +10,7 @@ async-trait = "0.1.64"
 auto_enums = { version = "0.7.12", features = ["serde"] }
 axum = { version = "0.5.16", features = ["headers"] }
 bytemuck = { version = "1.13.0", features = ["derive", "extern_crate_std"] }
+bytes = "1.4.0"
 form_urlencoded = "1.1.0"
 futures = "0.3.26"
 indexmap = { version = "1.9.2", features = ["serde"] }

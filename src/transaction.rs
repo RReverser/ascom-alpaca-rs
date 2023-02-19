@@ -106,7 +106,7 @@ impl std::hash::Hash for CaseInsensitiveStr {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(transparent)]
-pub(crate) struct OpaqueParams(IndexMap<Box<CaseInsensitiveStr>, String>);
+pub(crate) struct OpaqueParams(pub(crate) IndexMap<Box<CaseInsensitiveStr>, String>);
 
 impl OpaqueParams {
     pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {

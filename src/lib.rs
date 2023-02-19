@@ -46,6 +46,7 @@ pub mod api;
 
 mod axum;
 mod errors;
+mod new_trans;
 mod transaction;
 
 pub(crate) use rpc::OpaqueResponse;
