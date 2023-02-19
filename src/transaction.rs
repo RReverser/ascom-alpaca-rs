@@ -17,7 +17,7 @@ use tracing::Instrument;
 
 macro_rules! auto_increment {
     () => {{
-        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        static COUNTER: AtomicU32 = AtomicU32::new(1);
         COUNTER.fetch_add(1, Ordering::Relaxed)
     }};
 }
