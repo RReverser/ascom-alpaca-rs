@@ -10,7 +10,6 @@ use futures::TryFutureExt;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
 use serde::Serialize;
-use std::fmt::Display;
 use std::future::Future;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -46,7 +45,7 @@ pub(crate) fn server_handler<
     Resp: Response,
     RespFut: Future<Output = axum::response::Result<Resp>> + Send,
 >(
-    path: impl Display,
+    path: &str,
     is_mut: bool,
     mut raw_opaque_params: OpaqueParams,
     make_response: impl FnOnce(OpaqueParams) -> RespFut + Send,
@@ -61,7 +60,7 @@ pub(crate) fn server_handler<
 
     let span = tracing::debug_span!(
         "Alpaca transaction",
-        %path,
+        path,
         params = ?raw_opaque_params,
         is_mut,
         client_id,

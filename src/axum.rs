@@ -102,7 +102,7 @@ impl Devices {
                                 && device_type == "camera"
                                 && action == "imagearray"
                             {
-                                return server_handler(format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), is_mut, params, |params| async move {
+                                return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), is_mut, params, |params| async move {
                                     params.finish_extraction();
 
                                     match <dyn Camera>::get_in(&this, device_number).await {
@@ -115,7 +115,7 @@ impl Devices {
                             }).await;
                         }
 
-                            server_handler(format!("/api/v1/{device_type}/{device_number}/{action}"), is_mut, params, |params| {
+                            server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"), is_mut, params, |params| {
                                 this.handle_action(
                                     &device_type,
                                     device_number,
