@@ -257,10 +257,17 @@ impl Response for OpaqueResponse {
 
 impl Response for ASCOMResult<OpaqueResponse> {
     fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response {
-        self.unwrap_or_else(|err| {
-            tracing::error!(%err, "Alpaca method returned an error");
-            OpaqueResponse::new(err)
-        })
+        match self {
+            Ok(mut res) => {
+                res.0
+                    .extend(OpaqueResponse::new(ASCOMError::new(ASCOMErrorCode(0), "")).0);
+                res
+            }
+            Err(err) => {
+                tracing::error!(%err, "Alpaca method returned an error");
+                OpaqueResponse::new(err)
+            }
+        }
         .into_axum(transaction)
     }
 
