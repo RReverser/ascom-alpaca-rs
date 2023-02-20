@@ -91,24 +91,20 @@ macro_rules! rpc {
 
             $(
                 async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
-                    use tracing::Instrument;
-
-                    async move {
-                        #[allow(unused_mut)]
-                        let mut opaque_params = $crate::params::OpaqueParams::default();
+                    #[allow(unused_mut)]
+                    let mut opaque_params = $crate::params::OpaqueParams::default();
+                    $(
+                        opaque_params.insert($param_query, $param);
+                    )*
+                    #[allow(unused_variables)]
+                    let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?;
+                    Ok({
                         $(
-                            opaque_params.insert($param_query, $param);
-                        )*
-                        #[allow(unused_variables)]
-                        let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?;
-                        Ok({
-                            $(
-                                // TODO: handle $.Value
-                                opaque_response.try_as::<$return_type>()
-                                .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?
-                            )?
-                        })
-                    }.instrument(tracing::info_span!(concat!(stringify!($trait_name), "::", stringify!($method_name)))).await
+                            // TODO: handle $.Value
+                            opaque_response.try_as::<$return_type>()
+                            .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?
+                        )?
+                    })
                 }
             )*
         }
