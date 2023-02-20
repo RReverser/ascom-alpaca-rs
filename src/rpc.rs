@@ -97,7 +97,7 @@ macro_rules! rpc {
                         opaque_params.insert($param_query, $param);
                     )*
                     #[allow(unused_variables)]
-                    let opaque_response = rpc!(@get_self $($mut_self)*).exec_action($path, rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?;
+                    let opaque_response = rpc!(@get_self $($mut_self)*).exec_action(rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?;
                     Ok({
                         $(
                             // TODO: handle $.Value
@@ -157,15 +157,15 @@ macro_rules! rpc {
         }
 
         impl $crate::client::Sender {
-            pub(crate) fn add_as(self, device_type: &str, storage: &mut Devices) -> anyhow::Result<()> {
+            pub(crate) fn add_to(self, storage: &mut Devices) -> anyhow::Result<()> {
                 $(
                     rpc!(@if_specific $trait_name {
-                        if device_type == stringify!($trait_name) {
+                        if self.device_type == stringify!($trait_name) {
                             return Ok(<Self as $trait_name>::add_to(self, storage));
                         }
                     });
                 )*
-                anyhow::bail!("Unknown device type {device_type}")
+                anyhow::bail!("Unknown device type {}", self.device_type)
             }
         }
 

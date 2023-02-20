@@ -191,12 +191,13 @@ impl Client {
         })?
         .into_iter()
         .try_for_each(|device| {
-            let sender = Sender {
+            Sender {
                 client: Arc::clone(self),
                 unique_id: device.unique_id,
+                device_type: device.device_type,
                 device_number: device.device_number,
-            };
-            sender.add_as(&device.device_type, &mut devices)
+            }
+            .add_to(&mut devices)
         })?;
 
         Ok(devices)
