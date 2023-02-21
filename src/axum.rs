@@ -1,11 +1,10 @@
-use crate::api::{Camera, ConfiguredDevice};
+use crate::api::{Camera, ConfiguredDevice, DevicePath, DeviceType};
 use crate::params::OpaqueParams;
 use crate::response::OpaqueResponse;
 use crate::transaction::server_handler;
 use crate::Devices;
 use axum::extract::Path;
 use axum::http::Method;
-
 use axum::routing::{on, MethodFilter};
 use axum::{Form, Router, TypedHeader};
 use futures::StreamExt;
@@ -87,8 +86,8 @@ impl Devices {
                 on(
                     MethodFilter::GET | MethodFilter::PUT,
                     move |method: Method,
-                          Path((device_type, device_number, action)): Path<(
-                        String,
+                          Path((DevicePath(device_type), device_number, action)): Path<(
+                        DevicePath,
                         usize,
                         String,
                     )>,
@@ -99,25 +98,19 @@ impl Devices {
                         async move {
                             if accepts_image_bytes.accepts
                                 && method == Method::GET
-                                && device_type == "camera"
+                                && device_type == DeviceType::Camera
                                 && action == "imagearray"
                             {
                                 return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), is_mut, params, |params| async move {
                                     params.finish_extraction();
 
-                                    match <dyn Camera>::get_in(&this, device_number).await {
-                                        Some(device) => Ok(device.image_array().await),
-                                        None => Err((
-                                            axum::http::StatusCode::NOT_FOUND,
-                                            "Device not found",
-                                        ).into()),
-                                    }
+                                    Ok(<dyn Camera>::get_in(&this, device_number).await?.image_array().await)
                             }).await;
                         }
 
                             server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"), is_mut, params, |params| {
                                 this.handle_action(
-                                    &device_type,
+                                    device_type,
                                     device_number,
                                     method == Method::PUT,
                                     &action,

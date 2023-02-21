@@ -190,15 +190,15 @@ impl Client {
             ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
         })?
         .into_iter()
-        .try_for_each(|device| {
+        .for_each(|device| {
             Sender {
                 client: Arc::clone(self),
                 unique_id: device.unique_id,
                 device_type: device.device_type,
                 device_number: device.device_number,
             }
-            .add_to(&mut devices)
-        })?;
+            .add_to(&mut devices);
+        });
 
         Ok(devices)
     }

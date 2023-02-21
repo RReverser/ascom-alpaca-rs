@@ -15,12 +15,83 @@ macro_rules! rpc {
 
     (@get_self $self:ident) => ($self);
 
-    (@storage $device:ident $($specific_device:ident)*) => {
+    (@storage Device = $generic_path:literal, $($trait_name:ident = $path:literal,)*) => {
+        #[derive(Deserialize, PartialEq, Eq, Clone, Copy)]
+        pub enum DeviceType {
+            $(
+                $trait_name,
+            )*
+        }
+
+        impl DeviceType {
+            const fn as_str(self) -> &'static str {
+                match self {
+                    $(
+                        DeviceType::$trait_name => stringify!($trait_name),
+                    )*
+                }
+            }
+        }
+
+        impl std::fmt::Display for DeviceType {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+
+        impl std::fmt::Debug for DeviceType {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Display::fmt(self, f)
+            }
+        }
+
+        impl Serialize for DeviceType {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                self.as_str().serialize(serializer)
+            }
+        }
+
+        #[derive(PartialEq, Eq, Clone, Copy)]
+        pub struct DevicePath(pub DeviceType);
+
+        impl DevicePath {
+            const fn as_str(self) -> &'static str {
+                match self.0 {
+                    $(
+                        DeviceType::$trait_name => $path,
+                    )*
+                }
+            }
+        }
+
+        impl std::fmt::Display for DevicePath {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+
+        impl std::fmt::Debug for DevicePath {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Display::fmt(self, f)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for DevicePath {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                Ok(DevicePath(match String::deserialize(deserializer)?.as_str() {
+                    $(
+                        $path => DeviceType::$trait_name,
+                    )*
+                    other => return Err(serde::de::Error::unknown_variant(other, &[ $($path),* ])),
+                }))
+            }
+        }
+
         #[allow(non_snake_case)]
         #[derive(Default)]
         pub struct Devices {
             $(
-                $specific_device: Vec<std::sync::Arc<tokio::sync::Mutex<dyn $specific_device>>>,
+                $trait_name: Vec<std::sync::Arc<tokio::sync::Mutex<dyn $trait_name>>>,
             )*
         }
 
@@ -28,13 +99,47 @@ macro_rules! rpc {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut f = f.debug_struct("Devices");
                 $(
-                    if !self.$specific_device.is_empty() {
-                        let _ = f.field(stringify!($specific_device), &self.$specific_device);
+                    if !self.$trait_name.is_empty() {
+                        let _ = f.field(stringify!($trait_name), &self.$trait_name);
                     }
                 )*
                 f.finish()
             }
         }
+
+        impl Devices {
+            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, is_mut: bool, action: &str, params: $crate::params::OpaqueParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
+                match device_type {
+                    $(
+                        DeviceType::$trait_name => {
+                            let mut device = <dyn $trait_name>::get_in(self, device_number).await?;
+                            <dyn $trait_name>::handle_action(&mut *device, is_mut, action, params).await
+                        }
+                    )*
+                }
+            }
+        }
+
+        impl $crate::client::Sender {
+            pub(crate) fn add_to(self, storage: &mut Devices) {
+                match self.device_type {
+                    $(
+                        DeviceType::$trait_name => <Self as $trait_name>::add_to(self, storage),
+                    )*
+                }
+            }
+        }
+
+        $(
+            impl dyn $trait_name {
+                pub(crate) async fn get_in(storage: &Devices, device_number: usize) -> axum::response::Result<tokio::sync::MutexGuard<'_, dyn $trait_name>> {
+                    match storage.$trait_name.get(device_number) {
+                        Some(device) => Ok(device.lock().await),
+                        None => Err((axum::http::StatusCode::NOT_FOUND, concat!(stringify!($trait_name), " not found")).into()),
+                    }
+                }
+            }
+        )*
     };
 
     (@trait $(#[doc = $doc:literal])* #[http($path:literal)] $trait_name:ident: $($parent:path),* {
@@ -115,7 +220,7 @@ macro_rules! rpc {
         #[http($path:literal)]
         pub trait $trait_name:ident $trait_body:tt
     )*) => {
-        rpc!(@storage $($trait_name)*);
+        rpc!(@storage $($trait_name = $path,)*);
 
         $(
             rpc!(@if_specific $trait_name {
@@ -136,37 +241,16 @@ macro_rules! rpc {
                     }
                 });
             });
-
-            rpc!(@if_specific $trait_name {
-                impl dyn $trait_name {
-                    pub(crate) async fn get_in(storage: &Devices, device_number: usize) -> Option<tokio::sync::OwnedMutexGuard<dyn $trait_name>> {
-                        Some(storage.$trait_name.get(device_number)?.clone().lock_owned().await)
-                    }
-                }
-            });
         )*
 
         #[derive(Debug, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
         pub struct ConfiguredDevice {
             pub device_name: String,
-            pub device_type: String,
+            pub device_type: DeviceType,
             pub device_number: usize,
             #[serde(rename = "UniqueID")]
             pub unique_id: String,
-        }
-
-        impl $crate::client::Sender {
-            pub(crate) fn add_to(self, storage: &mut Devices) -> anyhow::Result<()> {
-                $(
-                    rpc!(@if_specific $trait_name {
-                        if self.device_type == stringify!($trait_name) {
-                            return Ok(<Self as $trait_name>::add_to(self, storage));
-                        }
-                    });
-                )*
-                anyhow::bail!("Unknown device type {}", self.device_type)
-            }
         }
 
         impl Devices {
@@ -178,7 +262,7 @@ macro_rules! rpc {
                                 let device = device.lock().await;
                                 let device = ConfiguredDevice {
                                     device_name: device.name().await.unwrap_or_default(),
-                                    device_type: stringify!($trait_name).to_owned(),
+                                    device_type: DeviceType::$trait_name,
                                     device_number,
                                     unique_id: device.unique_id().to_owned(),
                                 };
@@ -188,18 +272,6 @@ macro_rules! rpc {
                         });
                     )*
                 }
-            }
-
-            pub(crate) async fn handle_action(&self, device_type: &str, device_number: usize, is_mut: bool, action: &str, params: $crate::params::OpaqueParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
-                $(
-                    rpc!(@if_specific $trait_name {
-                        if device_type == $path {
-                            let mut device = <dyn $trait_name>::get_in(self, device_number).await.ok_or((axum::http::StatusCode::NOT_FOUND, "Device not found"))?;
-                            return <dyn $trait_name>::handle_action(&mut *device, is_mut, action, params).await;
-                        }
-                    });
-                )*
-                Err((axum::http::StatusCode::NOT_FOUND, "Unknown device type").into())
             }
         }
     };

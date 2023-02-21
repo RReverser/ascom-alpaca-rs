@@ -1,15 +1,15 @@
+use crate::api::DeviceType;
 use crate::params::OpaqueParams;
 use crate::response::OpaqueResponse;
 use crate::transaction::Client;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
-
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) struct Sender {
     pub(crate) client: Arc<Client>,
     pub(crate) unique_id: String,
-    pub(crate) device_type: String,
+    pub(crate) device_type: DeviceType,
     pub(crate) device_number: usize,
 }
 
