@@ -140,6 +140,36 @@ macro_rules! rpc {
                 }
             }
         )*
+
+        #[derive(Debug, Serialize, Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        pub struct ConfiguredDevice {
+            pub device_name: String,
+            pub device_type: DeviceType,
+            pub device_number: usize,
+            #[serde(rename = "UniqueID")]
+            pub unique_id: String,
+        }
+
+        impl Devices {
+            pub(crate) fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
+                async_stream::stream! {
+                    $(
+                        for (device_number, device) in self.$trait_name.iter().enumerate() {
+                            let device = device.lock().await;
+                            let device = ConfiguredDevice {
+                                device_name: device.name().await.unwrap_or_default(),
+                                device_type: DeviceType::$trait_name,
+                                device_number,
+                                unique_id: device.unique_id().to_owned(),
+                            };
+                            tracing::debug!(?device, "Reporting device");
+                            yield device;
+                        }
+                    )*
+                }
+            }
+        }
     };
 
     (@trait $(#[doc = $doc:literal])* #[http($path:literal)] $trait_name:ident: $($parent:path),* {
@@ -242,38 +272,6 @@ macro_rules! rpc {
                 });
             });
         )*
-
-        #[derive(Debug, Serialize, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        pub struct ConfiguredDevice {
-            pub device_name: String,
-            pub device_type: DeviceType,
-            pub device_number: usize,
-            #[serde(rename = "UniqueID")]
-            pub unique_id: String,
-        }
-
-        impl Devices {
-            pub(crate) fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
-                async_stream::stream! {
-                    $(
-                        rpc!(@if_specific $trait_name {
-                            for (device_number, device) in self.$trait_name.iter().enumerate() {
-                                let device = device.lock().await;
-                                let device = ConfiguredDevice {
-                                    device_name: device.name().await.unwrap_or_default(),
-                                    device_type: DeviceType::$trait_name,
-                                    device_number,
-                                    unique_id: device.unique_id().to_owned(),
-                                };
-                                tracing::debug!(?device, "Reporting device");
-                                yield device;
-                            }
-                        });
-                    )*
-                }
-            }
-        }
     };
 }
 
