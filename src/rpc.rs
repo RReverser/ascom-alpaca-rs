@@ -235,7 +235,6 @@ macro_rules! rpc {
                     let opaque_response = rpc!(@get_self $($mut_self)*).exec_action(rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?;
                     Ok({
                         $(
-                            // TODO: handle $.Value
                             opaque_response.try_as::<$return_type>()
                             .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?
                         )?
