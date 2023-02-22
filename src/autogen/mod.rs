@@ -452,7 +452,6 @@ pub struct AxisRate {
 rpc! {
 
     /// ASCOM Methods Common To All Devices
-    #[http("{device_type}")]
     pub trait Device {
         /**
         Actions and SupportedActions are a standardised means for drivers to extend functionality beyond the built-in capabilities of the ASCOM device interfaces.

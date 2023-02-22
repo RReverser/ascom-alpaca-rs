@@ -34,11 +34,7 @@ function getOrSet<K, V>(
   return value;
 }
 
-function set<K, V>(
-  map: Map<K, V>,
-  key: K,
-  value: V
-) {
+function set<K, V>(map: Map<K, V>, key: K, value: V) {
   if (map.has(key)) {
     throw new Error(`Duplicate key: ${key}`);
   }
@@ -440,24 +436,20 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let resolvedArgs = new Map<string, Property>();
 
-              for (let param of params.map(resolveMaybeRef)) {
-                assert.equal(
-                  param?.in,
-                  'query',
-                  'Parameter is not a query parameter'
-                );
-                let name = toPropName(param.name);
-                set(resolvedArgs, name, {
-                  name,
-                  originalName: param.name,
-                  doc: getDoc(param),
-                  type: handleOptType(
+      for (let param of params.map(resolveMaybeRef)) {
+        assert.equal(param?.in, 'query', 'Parameter is not a query parameter');
+        let name = toPropName(param.name);
+        set(resolvedArgs, name, {
+          name,
+          originalName: param.name,
+          doc: getDoc(param),
+          type: handleOptType(
             `${device.name}${canonicalMethodName}Request${param.name}`,
-                    param.schema,
-                    param.required ?? false
-                  )
-                });
-              }
+            param.schema,
+            param.required ?? false
+          )
+        });
+      }
 
       set(device.methods, canonicalMethodName, {
         name: toPropName(canonicalMethodName),
@@ -558,7 +550,8 @@ ${api.info.description}
   clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
 )]
 
-use crate::rpc::{ascom_enum, rpc};
+use crate::params::ascom_enum;
+use crate::rpc::rpc;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
@@ -575,7 +568,8 @@ ${stringifyIter(types, type => {
   }
 
   switch (type.kind) {
-    case 'Request': return '';
+    case 'Request':
+      return '';
     case 'Object':
     case 'Response': {
       return `
@@ -628,8 +622,9 @@ rpc! {
     devices,
     device => `
       ${stringifyDoc(device.doc)}
-      #[http("${device.path}")]
-      pub trait ${device.name} {
+      ${
+        device.path === '{device_type}' ? '' : `#[http("${device.path}")]`
+      } pub trait ${device.name} {
         ${stringifyIter(
           device.methods,
           method => `
@@ -639,7 +634,8 @@ rpc! {
               &${method.mutable ? 'mut ' : ''}self,
               ${stringifyIter(
                 method.resolvedArgs,
-                arg => `#[http("${arg.originalName}")] ${arg.name}: ${arg.type},`
+                arg =>
+                  `#[http("${arg.originalName}")] ${arg.name}: ${arg.type},`
               )}
             )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
 

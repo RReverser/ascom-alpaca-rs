@@ -15,7 +15,7 @@ macro_rules! rpc {
 
     (@get_self $self:ident) => ($self);
 
-    (@storage Device = $generic_path:literal, $($trait_name:ident = $path:literal,)*) => {
+    (@storage $($trait_name:ident = $path:literal,)*) => {
         #[derive(Deserialize, PartialEq, Eq, Clone, Copy)]
         pub enum DeviceType {
             $(
@@ -172,7 +172,7 @@ macro_rules! rpc {
         }
     };
 
-    (@trait $(#[doc = $doc:literal])* #[http($path:literal)] $trait_name:ident: $($parent:path),* {
+    (@trait $(#[doc = $doc:literal])* $(#[http($path:literal)])? $trait_name:ident: $($parent:path),* {
         $(
             $(#[doc = $method_doc:literal])*
             #[http($method_path:literal)]
@@ -247,14 +247,14 @@ macro_rules! rpc {
 
     ($(
         $(#[doc = $doc:literal])*
-        #[http($path:literal)]
+        $(#[http($path:literal)])?
         pub trait $trait_name:ident $trait_body:tt
     )*) => {
-        rpc!(@storage $($trait_name = $path,)*);
+        rpc!(@storage $($($trait_name = $path,)?)*);
 
         $(
             rpc!(@if_specific $trait_name {
-                rpc!(@trait $(#[doc = $doc])* #[http($path)] $trait_name: Device, Send, Sync $trait_body {
+                rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: Device, Send, Sync $trait_body {
                     /// Register this device in the storage.
                     /// This method should not be overridden by implementors.
                     fn add_to(self, storage: &mut Devices) where Self: Sized + 'static {
@@ -262,7 +262,7 @@ macro_rules! rpc {
                     }
                 } {});
             } {
-                rpc!(@trait $(#[doc = $doc])* #[http($path)] $trait_name: std::fmt::Debug, Send, Sync $trait_body {
+                rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: std::fmt::Debug, Send, Sync $trait_body {
                     /// Unique ID of this device, ideally UUID.
                     fn unique_id(&self) -> &str;
                 } {
