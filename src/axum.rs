@@ -11,6 +11,7 @@ use axum::routing::{on, MethodFilter};
 use axum::{Form, Router};
 use futures::StreamExt;
 use mediatype::MediaTypeList;
+use serde::Serialize;
 use std::sync::Arc;
 
 // A hack until TypedHeader supports Accept natively.
@@ -70,10 +71,16 @@ impl Header for AcceptsImageBytes {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct ServerInfoValue {
+    #[serde(rename = "Value")]
+    server_info: ServerInfo,
+}
+
 impl Devices {
     pub fn into_router(self, server_info: ServerInfo) -> Router {
         let this = Arc::new(self);
-        let server_info = Arc::new(server_info);
+        let server_info = OpaqueResponse::new(ServerInfoValue { server_info });
 
         Router::new()
             .route(
@@ -97,7 +104,7 @@ impl Devices {
             .route("/management/v1/description",
                 axum::routing::get(move |Form(params): Form<OpaqueParams>| {
                     server_handler("/management/v1/serverinfo", false, params, |_params| async move {
-                        Ok(OpaqueResponse::new(server_info.as_ref()))
+                        Ok(server_info.clone())
                     })
                 })
             )
