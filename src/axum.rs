@@ -1,4 +1,4 @@
-use crate::api::{Camera, ConfiguredDevice, DevicePath, DeviceType};
+use crate::api::{Camera, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
 use crate::params::OpaqueParams;
 use crate::response::OpaqueResponse;
 use crate::transaction::server_handler;
@@ -59,8 +59,9 @@ impl axum::headers::Header for AcceptsImageBytes {
 }
 
 impl Devices {
-    pub fn into_router(self) -> Router {
+    pub fn into_router(self, server_info: ServerInfo) -> Router {
         let this = Arc::new(self);
+        let server_info = Arc::new(server_info);
 
         Router::new()
             .route(
@@ -81,6 +82,13 @@ impl Devices {
                     })
                 })
             })
+            .route("/management/v1/description",
+                axum::routing::get(move |Form(params): Form<OpaqueParams>| {
+                    server_handler("/management/v1/serverinfo", false, params, |_params| async move {
+                        Ok(OpaqueResponse::new(server_info.as_ref()))
+                    })
+                })
+            )
             .route(
                 "/api/v1/:device_type/:device_number/:action",
                 on(

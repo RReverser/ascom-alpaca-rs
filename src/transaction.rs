@@ -1,4 +1,4 @@
-use crate::api::ConfiguredDevice;
+use crate::api::{ConfiguredDevice, ServerInfo};
 use crate::client::Sender;
 use crate::params::OpaqueParams;
 use crate::response::OpaqueResponse;
@@ -185,10 +185,7 @@ impl Client {
         )
         .await?
         .try_as::<Vec<ConfiguredDevice>>()
-        .map_err(|err| {
-            tracing::error!(%err, "Couldn't parse list of devices");
-            ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string())
-        })?
+        .context("Couldn't parse list of devices")?
         .into_iter()
         .for_each(|device| {
             Sender {
@@ -201,6 +198,18 @@ impl Client {
         });
 
         Ok(devices)
+    }
+
+    pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
+        self.request::<OpaqueResponse>(
+            "management/v1/description",
+            false,
+            OpaqueParams::default(),
+            |request| request,
+        )
+        .await?
+        .try_as::<ServerInfo>()
+        .context("Couldn't parse server info")
     }
 }
 
