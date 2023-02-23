@@ -45,7 +45,7 @@ pub(crate) trait Response: Sized {
     ) -> anyhow::Result<(ClientResponseTransaction, Self)>;
 }
 
-pub(crate) fn server_handler<
+pub(crate) async fn server_handler<
     Resp: Response,
     RespFut: Future<Output = axum::response::Result<Resp>> + Send,
 >(
@@ -53,13 +53,16 @@ pub(crate) fn server_handler<
     is_mut: bool,
     mut raw_opaque_params: OpaqueParams,
     make_response: impl FnOnce(OpaqueParams) -> RespFut + Send,
-) -> impl Future<Output = axum::response::Result<axum::response::Response>> {
-    let [client_id, client_transaction_id] = ["ClientID", "ClientTransactionID"].map(|name| {
-        raw_opaque_params.maybe_extract(name).unwrap_or_else(|err| {
-            tracing::warn!(%err, "Ignoring invalid {name}");
-            None
-        })
-    });
+) -> axum::response::Result<axum::response::Response> {
+    let mut extract_id = |name| {
+        raw_opaque_params
+            .maybe_extract(name)
+            .map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))
+    };
+
+    let client_id = extract_id("ClientID")?;
+    let client_transaction_id = extract_id("ClientTransactionID")?;
+
     let server_transaction_id = auto_increment!();
 
     let span = tracing::debug_span!(
@@ -80,6 +83,7 @@ pub(crate) fn server_handler<
         }))
     }
     .instrument(span)
+    .await
 }
 
 #[derive(Debug)]
@@ -248,16 +252,17 @@ impl Response for OpaqueResponse {
         };
 
         let mut opaque_response = serde_json::from_slice::<Self>(&bytes)?;
-        let [client_transaction_id, server_transaction_id] =
-            ["ClientTransactionID", "ServerTransactionID"].map(|name| {
-                opaque_response.0.remove(name).and_then(|value| {
-                    serde_json::from_value(value)
-                        .map_err(|err| {
-                            tracing::warn!(%err, "Ignoring invalid {name}");
-                        })
-                        .ok()
-                })
-            });
+
+        let mut extract_id = |name| {
+            opaque_response
+                .0
+                .remove(name)
+                .map(serde_json::from_value)
+                .transpose()
+        };
+
+        let client_transaction_id = extract_id("ClientTransactionID")?;
+        let server_transaction_id = extract_id("ServerTransactionID")?;
 
         Ok((
             ClientResponseTransaction {
