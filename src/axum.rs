@@ -106,7 +106,7 @@ impl Devices {
                 on(
                     MethodFilter::GET | MethodFilter::PUT,
                     move |method: Method,
-                          Path((DevicePath(device_type), device_number, action)): Path<(
+                          Path((DevicePath(device_type), device_number, mut action)): Path<(
                         DevicePath,
                         usize,
                         String,
@@ -114,6 +114,12 @@ impl Devices {
                           accepts_image_bytes: AcceptsImageBytes,
                           Form(params): Form<OpaqueParams>| {
                         let is_mut = method == Method::PUT;
+
+                        // imagearrayvariant is soft-deprecated; we should accept it but
+                        // forward to the imagearray handler instead.
+                        if device_type == DeviceType::Camera && action == "imagearrayvariant" {
+                            action.truncate("imagearray".len());
+                        }
 
                         async move {
                             if accepts_image_bytes.accepts
