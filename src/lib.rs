@@ -51,6 +51,8 @@ mod params;
 mod response;
 mod transaction;
 
+pub mod discovery;
+
 pub use api::Devices;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 pub use transaction::Client;
