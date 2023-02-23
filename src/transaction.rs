@@ -24,7 +24,11 @@ macro_rules! auto_increment {
 
 #[derive(Serialize)]
 pub(crate) struct ServerResponseTransaction {
+    #[serde(rename = "ClientTransactionID")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) client_transaction_id: Option<u32>,
+
+    #[serde(rename = "ServerTransactionID")]
     pub(crate) server_transaction_id: u32,
 }
 
