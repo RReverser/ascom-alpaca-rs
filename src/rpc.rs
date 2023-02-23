@@ -52,7 +52,7 @@ macro_rules! rpc {
         }
 
         #[derive(PartialEq, Eq, Clone, Copy)]
-        pub struct DevicePath(pub DeviceType);
+        pub(crate) struct DevicePath(pub(crate) DeviceType);
 
         impl DevicePath {
             const fn as_str(self) -> &'static str {
