@@ -18,7 +18,7 @@ impl Sender {
         &self,
         is_mut: bool,
         action: &str,
-        params: OpaqueParams,
+        params: OpaqueParams<str>,
     ) -> ASCOMResult<OpaqueResponse> {
         self.client
             .request::<ASCOMResult<OpaqueResponse>>(

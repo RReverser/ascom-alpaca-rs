@@ -1,6 +1,6 @@
 use crate::api::{ConfiguredDevice, ServerInfo};
 use crate::client::Sender;
-use crate::params::OpaqueParams;
+use crate::params::{OpaqueParams, RawActionParams};
 use crate::response::OpaqueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
@@ -50,9 +50,8 @@ pub(crate) async fn server_handler<
     RespFut: Future<Output = axum::response::Result<Resp>> + Send,
 >(
     path: &str,
-    is_mut: bool,
-    mut raw_opaque_params: OpaqueParams,
-    make_response: impl FnOnce(OpaqueParams) -> RespFut + Send,
+    mut raw_opaque_params: RawActionParams,
+    make_response: impl FnOnce(RawActionParams) -> RespFut + Send,
 ) -> axum::response::Result<axum::response::Response> {
     let mut extract_id = |name| {
         raw_opaque_params
@@ -69,7 +68,6 @@ pub(crate) async fn server_handler<
         "Alpaca transaction",
         path,
         params = ?raw_opaque_params,
-        is_mut,
         client_id,
         client_transaction_id,
         server_transaction_id,
@@ -110,7 +108,7 @@ impl Client {
         &self,
         path: &str,
         is_mut: bool,
-        mut params: OpaqueParams,
+        mut params: OpaqueParams<str>,
         fill: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder + Send,
     ) -> anyhow::Result<Resp> {
         let client_transaction_id = auto_increment!();

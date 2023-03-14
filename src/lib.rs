@@ -36,7 +36,8 @@
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
     clippy::redundant_pub_crate,
-    clippy::single_match_else
+    clippy::single_match_else,
+    clippy::type_repetition_in_bounds
 )]
 
 pub(crate) mod rpc;

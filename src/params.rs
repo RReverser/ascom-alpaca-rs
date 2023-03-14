@@ -1,7 +1,14 @@
 use anyhow::Context;
+use axum::body::HttpBody;
+use axum::extract::FromRequest;
+use axum::http::{Method, Request, StatusCode};
+use axum::response::IntoResponse;
+use axum::{BoxError, Form};
 use indexmap::IndexMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
+use std::hash::Hash;
+use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub(crate) trait ASCOMParam: Sized {
     fn from_string(s: String) -> anyhow::Result<Self>;
@@ -83,8 +90,8 @@ impl AsRef<CaseInsensitiveStr> for str {
 }
 
 impl From<Box<str>> for Box<CaseInsensitiveStr> {
-    fn from(str: Box<str>) -> Self {
-        let as_ptr = Box::into_raw(str);
+    fn from(s: Box<str>) -> Self {
+        let as_ptr = Box::into_raw(s);
         #[allow(clippy::as_conversions)]
         unsafe {
             Self::from_raw(as_ptr as *mut _)
@@ -112,7 +119,7 @@ impl PartialEq for CaseInsensitiveStr {
 
 impl Eq for CaseInsensitiveStr {}
 
-impl std::hash::Hash for CaseInsensitiveStr {
+impl Hash for CaseInsensitiveStr {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         for b in self.0.as_bytes() {
             state.write_u8(b.to_ascii_lowercase());
@@ -121,14 +128,29 @@ impl std::hash::Hash for CaseInsensitiveStr {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
-pub(crate) struct OpaqueParams(pub(crate) IndexMap<Box<CaseInsensitiveStr>, String>);
+#[serde(bound(
+    serialize = "ParamStr: Serialize + Hash + Eq",
+    deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"
+))]
+pub(crate) struct OpaqueParams<ParamStr: ?Sized + Debug>(
+    pub(crate) IndexMap<Box<ParamStr>, String>,
+);
 
-impl OpaqueParams {
+impl<ParamStr: ?Sized + Debug> Default for OpaqueParams<ParamStr> {
+    fn default() -> Self {
+        Self(IndexMap::new())
+    }
+}
+
+impl<ParamStr: ?Sized + Debug + Hash + Eq> OpaqueParams<ParamStr>
+where
+    str: AsRef<ParamStr>,
+{
     pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {
         self.0
-            .remove::<CaseInsensitiveStr>(name.as_ref())
+            .remove(name.as_ref())
             .map(|value| {
                 T::from_string(value).with_context(|| format!("Invalid value for parameter {name}"))
             })
@@ -140,16 +162,95 @@ impl OpaqueParams {
             .ok_or_else(|| anyhow::anyhow!("Missing parameter {name}"))
     }
 
-    pub(crate) fn finish_extraction(self) {
-        if !self.0.is_empty() {
-            tracing::warn!("Unexpected parameters: {:?}", self.0.keys());
-        }
-    }
-
-    pub(crate) fn insert<T: ASCOMParam>(&mut self, name: &str, value: T) {
+    pub(crate) fn insert<T: ASCOMParam>(&mut self, name: &str, value: T)
+    where
+        Box<ParamStr>: From<Box<str>>,
+    {
         let prev_value = self
             .0
             .insert(Box::<str>::from(name).into(), value.to_string());
         debug_assert!(prev_value.is_none());
+    }
+}
+
+impl<ParamStr: ?Sized + Debug> Drop for OpaqueParams<ParamStr> {
+    fn drop(&mut self) {
+        if !self.0.is_empty() {
+            tracing::warn!("Unused parameters: {:?}", self.0.keys());
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum RawActionParams {
+    Get(OpaqueParams<CaseInsensitiveStr>),
+    Put(OpaqueParams<str>),
+}
+
+#[derive(Debug)]
+pub(crate) enum DeviceActionParams<'device, Device: ?Sized> {
+    Get {
+        device: RwLockReadGuard<'device, Device>,
+        params: OpaqueParams<CaseInsensitiveStr>,
+    },
+    Put {
+        device: RwLockWriteGuard<'device, Device>,
+        params: OpaqueParams<str>,
+    },
+}
+
+impl RawActionParams {
+    pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {
+        match self {
+            Self::Get(params) => params.maybe_extract(name),
+            Self::Put(params) => params.maybe_extract(name),
+        }
+    }
+}
+
+impl<'device, Device: ?Sized + crate::api::Device> DeviceActionParams<'device, Device> {
+    pub(crate) async fn new(
+        device: &'device RwLock<Device>,
+        raw_params: RawActionParams,
+    ) -> DeviceActionParams<'device, Device> {
+        match raw_params {
+            RawActionParams::Get(params) => Self::Get {
+                device: device.read().await,
+                params,
+            },
+            RawActionParams::Put(params) => Self::Put {
+                device: device.write().await,
+                params,
+            },
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<S, B> FromRequest<S, B> for RawActionParams
+where
+    B: HttpBody + Send + Sync + 'static,
+    B::Data: Send,
+    B::Error: Into<BoxError>,
+    S: Send + Sync,
+{
+    type Rejection = axum::response::Response;
+
+    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+        match *req.method() {
+            Method::GET => Ok(Self::Get(
+                Form::from_request(req, state)
+                    .await
+                    .map_err(IntoResponse::into_response)?
+                    .0,
+            )),
+            Method::PUT => Ok(Self::Put(
+                Form::from_request(req, state)
+                    .await
+                    .map_err(IntoResponse::into_response)?
+                    .0,
+            )),
+            _ => Err((StatusCode::METHOD_NOT_ALLOWED, "Method not allowed").into_response()),
+        }
     }
 }

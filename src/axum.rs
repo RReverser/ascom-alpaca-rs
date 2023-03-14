@@ -1,14 +1,12 @@
 use crate::api::{Camera, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
-use crate::params::OpaqueParams;
+use crate::params::RawActionParams;
 use crate::response::OpaqueResponse;
 use crate::transaction::server_handler;
 use crate::Devices;
-use async_trait::async_trait;
-use axum::extract::{FromRequest, Path};
+use axum::extract::Path;
 use axum::headers::{Header, HeaderName, HeaderValue};
-use axum::http::Method;
-use axum::routing::{on, MethodFilter};
-use axum::{Form, Router};
+use axum::routing::MethodFilter;
+use axum::{Router, TypedHeader};
 use futures::StreamExt;
 use mediatype::MediaTypeList;
 use serde::Serialize;
@@ -18,17 +16,6 @@ use std::sync::Arc;
 #[derive(Default)]
 struct AcceptsImageBytes {
     accepts: bool,
-}
-
-#[async_trait]
-impl<B: Send> FromRequest<B> for AcceptsImageBytes {
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request(
-        req: &mut axum::extract::RequestParts<B>,
-    ) -> Result<Self, Self::Rejection> {
-        Ok(Self::decode(&mut req.headers().get_all("accept").into_iter()).unwrap_or_default())
-    }
 }
 
 impl Header for AcceptsImageBytes {
@@ -85,8 +72,8 @@ impl Devices {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|Form(params): Form<OpaqueParams>| {
-                    server_handler("/management/apiversions", false, params, |_params| async move {
+                axum::routing::get(|params: RawActionParams| {
+                    server_handler("/management/apiversions",  params, |_params| async move {
                         Ok(OpaqueResponse::new([1_u32]))
                     })
                 }),
@@ -94,34 +81,32 @@ impl Devices {
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&this);
 
-                axum::routing::get(|Form(params): Form<OpaqueParams>| {
-                    server_handler("/management/v1/configureddevices", false, params, |_params| async move {
+                axum::routing::get(|params: RawActionParams| {
+                    server_handler("/management/v1/configureddevices",  params, |_params| async move {
                         let devices = this.stream_configured().collect::<Vec<ConfiguredDevice>>().await;
                         Ok(OpaqueResponse::new(devices))
                     })
                 })
             })
             .route("/management/v1/description",
-                axum::routing::get(move |Form(params): Form<OpaqueParams>| {
-                    server_handler("/management/v1/serverinfo", false, params, |_params| async move {
+                axum::routing::get(move |params: RawActionParams| {
+                    server_handler("/management/v1/serverinfo", params, |_params| async move {
                         Ok(server_info.clone())
                     })
                 })
             )
             .route(
                 "/api/v1/:device_type/:device_number/:action",
-                on(
+                axum::routing::on(
                     MethodFilter::GET | MethodFilter::PUT,
-                    move |method: Method,
+                    move |
                           Path((DevicePath(device_type), device_number, mut action)): Path<(
                         DevicePath,
                         usize,
                         String,
                     )>,
-                          accepts_image_bytes: AcceptsImageBytes,
-                          Form(params): Form<OpaqueParams>| {
-                        let is_mut = method == Method::PUT;
-
+                          accepts_image_bytes: TypedHeader<AcceptsImageBytes>,
+                          params: RawActionParams| {
                         // imagearrayvariant is soft-deprecated; we should accept it but
                         // forward to the imagearray handler instead.
                         if device_type == DeviceType::Camera && action == "imagearrayvariant" {
@@ -130,22 +115,19 @@ impl Devices {
 
                         async move {
                             if accepts_image_bytes.accepts
-                                && method == Method::GET
+                                && matches!(params, RawActionParams::Get { .. })
                                 && device_type == DeviceType::Camera
                                 && action == "imagearray"
                             {
-                                return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), is_mut, params, |params| async move {
-                                    params.finish_extraction();
+                                return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
+                                    Ok(<dyn Camera>::get_in(&this, device_number)?.read().await.image_array().await)
+                                }).await;
+                            }
 
-                                    Ok(<dyn Camera>::get_in(&this, device_number).await?.image_array().await)
-                            }).await;
-                        }
-
-                            server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"), is_mut, params, |params| {
+                            server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"),  params, |params| {
                                 this.handle_action(
                                     device_type,
                                     device_number,
-                                    method == Method::PUT,
                                     &action,
                                     params,
                                 )
