@@ -6,7 +6,6 @@ use std::time::Duration;
 const DISCOVERY_ADDR: Ipv6Addr = ipv6!("ff12::a1:9aca");
 const DISCOVERY_MSG: &[u8] = b"alpacadiscovery1";
 const DISCOVERY_PORT: u16 = 32227;
-const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Serialize, Deserialize)]
 struct AlpacaPort {
@@ -37,7 +36,7 @@ pub async fn start_server(alpaca_port: u16) -> anyhow::Result<()> {
 }
 
 #[tracing::instrument]
-pub async fn discover() -> impl futures::Stream<Item = anyhow::Result<SocketAddr>> {
+pub fn discover(each_timeout: Duration) -> impl futures::Stream<Item = anyhow::Result<SocketAddr>> {
     async_stream::try_stream! {
         tracing::debug!("Starting Alpaca discovery");
         let socket = tokio::net::UdpSocket::bind(addr!("[::]:0")).await?;
@@ -48,7 +47,7 @@ pub async fn discover() -> impl futures::Stream<Item = anyhow::Result<SocketAddr
         let mut buf = [0; 32]; // "{"AlpacaPort":12345}" + some extra bytes for spaces just in case
         loop {
             let (len, src) =
-                match tokio::time::timeout(DISCOVERY_TIMEOUT, socket.recv_from(&mut buf)).await {
+                match tokio::time::timeout(each_timeout, socket.recv_from(&mut buf)).await {
                     Ok(result) => result?,
                     Err(_timeout) => {
                         tracing::debug!("Ending discovery");
