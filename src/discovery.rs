@@ -1,6 +1,6 @@
 use net_literals::{addr, ipv6};
 use serde::{Deserialize, Serialize};
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 
 const DISCOVERY_ADDR_V6: Ipv6Addr = ipv6!("ff12::a1:9aca");
@@ -90,12 +90,12 @@ impl DiscoveryClient {
         }
     }
 
-    /// Discover Alpaca devices on the local network.
+    /// Discover Alpaca servers on the local network.
     ///
     /// This function returns a stream of discovered device addresses.
     /// `each_timeout` determines how long to wait after each discovered device.
     #[tracing::instrument]
-    pub fn discover(self) -> impl futures::Stream<Item = anyhow::Result<SocketAddr>> {
+    pub fn discover_addrs(self) -> impl futures::Stream<Item = anyhow::Result<SocketAddr>> {
         async_stream::try_stream! {
             tracing::debug!("Starting Alpaca discovery");
             let socket = tokio::net::UdpSocket::bind(addr!("[::]:0")).await?;
@@ -122,7 +122,14 @@ impl DiscoveryClient {
                     let data = &buf[..len];
                     match serde_json::from_slice::<AlpacaPort>(data) {
                         Ok(AlpacaPort { alpaca_port }) => {
-                            let addr = SocketAddr::new(src.ip(), alpaca_port);
+                            let mut ip = src.ip();
+                            // TODO: use `to_canonical` when it's stable.
+                            if let IpAddr::V6(ip_v6) = ip {
+                                if let Some(ip_v4) = ip_v6.to_ipv4_mapped() {
+                                    ip = IpAddr::V4(ip_v4);
+                                }
+                            }
+                            let addr = SocketAddr::new(ip, alpaca_port);
                             tracing::debug!(%addr, "Received Alpaca discovery response");
                             yield addr;
                         }
