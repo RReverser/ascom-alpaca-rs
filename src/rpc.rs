@@ -28,6 +28,7 @@ macro_rules! rpc {
         #[derive(Deserialize, PartialEq, Eq, Clone, Copy)]
         pub enum DeviceType {
             $(
+                #[cfg(feature = $path)]
                 $trait_name,
             )*
         }
@@ -36,6 +37,7 @@ macro_rules! rpc {
             const fn as_str(self) -> &'static str {
                 match self {
                     $(
+                        #[cfg(feature = $path)]
                         DeviceType::$trait_name => stringify!($trait_name),
                     )*
                 }
@@ -67,6 +69,7 @@ macro_rules! rpc {
             const fn as_str(self) -> &'static str {
                 match self.0 {
                     $(
+                        #[cfg(feature = $path)]
                         DeviceType::$trait_name => $path,
                     )*
                 }
@@ -89,9 +92,13 @@ macro_rules! rpc {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 Ok(DevicePath(match String::deserialize(deserializer)?.as_str() {
                     $(
+                        #[cfg(feature = $path)]
                         $path => DeviceType::$trait_name,
                     )*
-                    other => return Err(serde::de::Error::unknown_variant(other, &[ $($path),* ])),
+                    other => return Err(serde::de::Error::unknown_variant(other, &[ $(
+                        #[cfg(feature = $path)]
+                        $path
+                    ),* ])),
                 }))
             }
         }
@@ -100,6 +107,7 @@ macro_rules! rpc {
         #[derive(Default)]
         pub struct Devices {
             $(
+                #[cfg(feature = $path)]
                 $trait_name: Vec<std::sync::Arc<tokio::sync::RwLock<dyn $trait_name>>>,
             )*
         }
@@ -108,6 +116,7 @@ macro_rules! rpc {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut f = f.debug_struct("Devices");
                 $(
+                    #[cfg(feature = $path)]
                     if !self.$trait_name.is_empty() {
                         let _ = f.field(stringify!($trait_name), &self.$trait_name);
                     }
@@ -120,6 +129,7 @@ macro_rules! rpc {
             pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::params::RawActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
                 match device_type {
                     $(
+                        #[cfg(feature = $path)]
                         DeviceType::$trait_name => {
                             let device = <dyn $trait_name>::get_in(self, device_number)?;
                             let params = $crate::params::DeviceActionParams::new(device, params).await;
@@ -134,6 +144,7 @@ macro_rules! rpc {
             pub(crate) fn add_to(self, storage: &mut Devices) {
                 match self.device_type {
                     $(
+                        #[cfg(feature = $path)]
                         DeviceType::$trait_name => <Self as $trait_name>::add_to(self, storage),
                     )*
                 }
@@ -141,6 +152,7 @@ macro_rules! rpc {
         }
 
         $(
+            #[cfg(feature = $path)]
             impl dyn $trait_name {
                 pub(crate) fn get_in(storage: &Devices, device_number: usize) -> axum::response::Result<&tokio::sync::RwLock<dyn $trait_name>> {
                     match storage.$trait_name.get(device_number) {
@@ -184,6 +196,7 @@ macro_rules! rpc {
             pub(crate) fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
                 async_stream::stream! {
                     $(
+                        #[cfg(feature = $path)]
                         for (device_number, device) in self.$trait_name.iter().enumerate() {
                             let device = device.read().await;
                             let device = ConfiguredDevice {
@@ -281,6 +294,7 @@ macro_rules! rpc {
         rpc!(@storage $($($trait_name = $path,)?)*);
 
         $(
+            $(#[cfg(feature = $path)])?
             rpc!(@if_specific $trait_name {
                 rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: Device, Send, Sync $trait_body {
                     /// Register this device in the storage.

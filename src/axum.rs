@@ -1,4 +1,6 @@
-use crate::api::{Camera, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
+#[cfg(feature = "camera")]
+use crate::api::Camera;
+use crate::api::{ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
 use crate::params::RawActionParams;
 use crate::response::OpaqueResponse;
 use crate::transaction::server_handler;
@@ -107,21 +109,24 @@ impl Devices {
                     )>,
                           accepts_image_bytes: TypedHeader<AcceptsImageBytes>,
                           params: RawActionParams| {
-                        // imagearrayvariant is soft-deprecated; we should accept it but
-                        // forward to the imagearray handler instead.
-                        if device_type == DeviceType::Camera && action == "imagearrayvariant" {
-                            action.truncate("imagearray".len());
-                        }
-
                         async move {
-                            if accepts_image_bytes.accepts
-                                && matches!(params, RawActionParams::Get { .. })
-                                && device_type == DeviceType::Camera
-                                && action == "imagearray"
-                            {
-                                return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
-                                    Ok(<dyn Camera>::get_in(&this, device_number)?.read().await.image_array().await)
-                                }).await;
+                            #[cfg(feature = "camera")]
+                            if device_type == DeviceType::Camera {
+                                // imagearrayvariant is soft-deprecated; we should accept it but
+                                // forward to the imagearray handler instead.
+                                if action == "imagearrayvariant" {
+                                    action.truncate("imagearray".len());
+                                }
+
+                                if accepts_image_bytes.accepts
+                                    && matches!(params, RawActionParams::Get { .. })
+                                    && device_type == DeviceType::Camera
+                                    && action == "imagearray"
+                                {
+                                    return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
+                                        Ok(<dyn Camera>::get_in(&this, device_number)?.read().await.image_array().await)
+                                    }).await;
+                                }
                             }
 
                             server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"),  params, |params| {
