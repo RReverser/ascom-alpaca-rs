@@ -14,6 +14,11 @@ use mediatype::MediaTypeList;
 use serde::Serialize;
 use std::sync::Arc;
 
+const MEDIA_TYPE_IMAGE_BYTES: mediatype::MediaType<'static> = mediatype::MediaType::new(
+    mediatype::names::APPLICATION,
+    mediatype::Name::new_unchecked("imagebytes"),
+);
+
 // A hack until TypedHeader supports Accept natively.
 #[derive(Default)]
 struct AcceptsImageBytes {
@@ -39,10 +44,7 @@ impl Header for AcceptsImageBytes {
                     .map_err(|_err| axum::headers::Error::invalid())?,
             ) {
                 let media_type = media_type.map_err(|_err| axum::headers::Error::invalid())?;
-                if media_type.ty == mediatype::names::APPLICATION
-                    && media_type.subty == "imagebytes"
-                    && media_type.suffix.is_none()
-                {
+                if media_type.essence() == MEDIA_TYPE_IMAGE_BYTES {
                     accepts = true;
                     break;
                 }
