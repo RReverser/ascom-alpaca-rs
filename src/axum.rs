@@ -7,8 +7,9 @@ use crate::transaction::server_handler;
 use crate::Devices;
 use axum::extract::Path;
 use axum::headers::{Header, HeaderName, HeaderValue};
+use axum::http::HeaderMap;
 use axum::routing::MethodFilter;
-use axum::{Router, TypedHeader};
+use axum::Router;
 use futures::StreamExt;
 use mediatype::MediaTypeList;
 use serde::Serialize;
@@ -109,7 +110,7 @@ impl Devices {
                         usize,
                         String,
                     )>,
-                          accepts_image_bytes: TypedHeader<AcceptsImageBytes>,
+                          headers: HeaderMap<HeaderValue>,
                           params: RawActionParams| {
                         async move {
                             #[cfg(feature = "camera")]
@@ -120,10 +121,11 @@ impl Devices {
                                     action.truncate("imagearray".len());
                                 }
 
-                                if accepts_image_bytes.accepts
-                                    && matches!(params, RawActionParams::Get { .. })
+                                if matches!(params, RawActionParams::Get { .. })
                                     && device_type == DeviceType::Camera
                                     && action == "imagearray"
+                                    && AcceptsImageBytes::decode(&mut headers.get_all(AcceptsImageBytes::name()).iter())
+                                        .map_or(false, |h| h.accepts)
                                 {
                                     return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
                                         Ok(<dyn Camera>::get_in(&this, device_number)?.read().await.image_array().await)
