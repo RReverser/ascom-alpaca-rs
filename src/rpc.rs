@@ -214,6 +214,21 @@ macro_rules! rpc {
         }
     };
 
+    (@decode_response $resp:expr => ImageArrayResponse) => {
+        Ok(std::convert::identity::<ImageArrayResponse>($resp))
+    };
+
+    (@decode_response $resp:expr => $return_type:ty) => {
+        std::convert::identity::<$crate::response::OpaqueResponse>($resp)
+        .try_as::<$return_type>()
+        .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))
+    };
+
+    (@decode_response $resp:expr) => {{
+        let _: $crate::response::OpaqueResponse = $resp;
+        Ok(())
+    }};
+
     (@trait $(#[doc = $doc:literal])* $(#[http($path:literal)])? $trait_name:ident: $($parent:path),* {
         $(
             $(#[doc = $method_doc:literal])*
@@ -273,14 +288,10 @@ macro_rules! rpc {
                     $(
                         opaque_params.insert($param_query, $param);
                     )*
-                    #[allow(unused_variables)]
-                    let opaque_response = rpc!(@get_self $($mut_self)*).exec_action(rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?;
-                    Ok({
-                        $(
-                            opaque_response.try_as::<$return_type>()
-                            .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, err.to_string()))?
-                        )?
-                    })
+                    rpc!(@decode_response
+                        rpc!(@get_self $($mut_self)*).exec_action(rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?
+                        $(=> $return_type)?
+                    )
                 }
             )*
         }

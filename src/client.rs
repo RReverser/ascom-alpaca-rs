@@ -1,7 +1,6 @@
 use crate::api::DeviceType;
 use crate::params::OpaqueParams;
-use crate::response::OpaqueResponse;
-use crate::transaction::Client;
+use crate::transaction::{Client, Response};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use std::sync::Arc;
 
@@ -14,14 +13,17 @@ pub(crate) struct Sender {
 }
 
 impl Sender {
-    pub(crate) async fn exec_action(
+    pub(crate) async fn exec_action<Resp>(
         &self,
         is_mut: bool,
         action: &str,
         params: OpaqueParams<str>,
-    ) -> ASCOMResult<OpaqueResponse> {
+    ) -> ASCOMResult<Resp>
+    where
+        ASCOMResult<Resp>: Response,
+    {
         self.client
-            .request::<ASCOMResult<OpaqueResponse>>(
+            .request::<ASCOMResult<Resp>>(
                 &format!(
                     "api/v1/{device_type}/{device_number}/{action}",
                     device_type = self.device_type,

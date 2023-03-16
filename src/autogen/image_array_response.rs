@@ -57,6 +57,7 @@ impl ImageArrayResponse {
 mod image_bytes {
     use super::ImageArrayResponse;
     use crate::api::ImageArrayResponseType;
+    use crate::response::OpaqueResponse;
     use crate::transaction::{ClientResponseTransaction, Response, ServerResponseTransaction};
     use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
     use axum::response::IntoResponse;
@@ -132,7 +133,18 @@ mod image_bytes {
             mime_type: Mime,
             bytes: Bytes,
         ) -> anyhow::Result<(ClientResponseTransaction, Self)> {
-            anyhow::ensure!(mime_type.essence_str() == "application/imagebytes");
+            if mime_type.essence_str() != "application/imagebytes" {
+                let (transaction, opaque_response_res) =
+                    <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?;
+
+                let response = opaque_response_res.and_then(|opaque_response| {
+                    opaque_response.try_as().map_err(|err| {
+                        ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}"))
+                    })
+                });
+
+                return Ok((transaction, response));
+            }
             let metadata = bytes
                 .get(..std::mem::size_of::<ImageBytesMetadata>())
                 .ok_or_else(|| anyhow::anyhow!("not enough bytes to read image metadata"))?;
