@@ -129,6 +129,10 @@ mod image_bytes {
                 .into_response()
         }
 
+        fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+            request.header("Accept", "application/imagebytes")
+        }
+
         fn from_reqwest(
             mime_type: Mime,
             bytes: Bytes,

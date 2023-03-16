@@ -39,6 +39,11 @@ pub(crate) struct ClientResponseTransaction {
 
 pub(crate) trait Response: Sized {
     fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response;
+
+    fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        request
+    }
+
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
