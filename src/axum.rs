@@ -1,6 +1,7 @@
 #[cfg(feature = "camera")]
 use crate::api::Camera;
-use crate::api::{ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
+use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
+use crate::discovery::{DiscoveryServer, DEFAULT_DISCOVERY_PORT};
 use crate::params::RawActionParams;
 use crate::response::OpaqueResponse;
 use crate::transaction::server_handler;
@@ -10,9 +11,11 @@ use axum::headers::{Header, HeaderName, HeaderValue};
 use axum::http::HeaderMap;
 use axum::routing::MethodFilter;
 use axum::Router;
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use mediatype::MediaTypeList;
+use net_literals::addr;
 use serde::Serialize;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 const MEDIA_TYPE_IMAGE_BYTES: mediatype::MediaType<'static> = mediatype::MediaType::new(
@@ -69,10 +72,58 @@ struct ServerInfoValue {
     server_info: ServerInfo,
 }
 
-impl Devices {
-    pub fn into_router(self, server_info: ServerInfo) -> Router {
-        let this = Arc::new(self);
-        let server_info = OpaqueResponse::new(ServerInfoValue { server_info });
+#[derive(Debug)]
+pub struct DevicesServer {
+    pub devices: Devices,
+    pub info: ServerInfo,
+    pub listen_addr: SocketAddr,
+    pub discovery_port: u16,
+}
+
+impl Default for DevicesServer {
+    fn default() -> Self {
+        Self {
+            devices: Devices::default(),
+            info: CargoServerInfo!(),
+            listen_addr: addr!("[::]:0"),
+            discovery_port: DEFAULT_DISCOVERY_PORT,
+        }
+    }
+}
+
+impl DevicesServer {
+    pub async fn start_server(self) -> anyhow::Result<()> {
+        let mut addr = self.listen_addr;
+
+        tracing::debug!(%addr, "Binding Alpaca server");
+
+        let server = axum::Server::try_bind(&addr)?.serve(
+            self.into_router()
+                // .layer(TraceLayer::new_for_http())
+                .into_make_service(),
+        );
+
+        // The address can differ e.g. when using port 0 (auto-assigned).
+        addr = server.local_addr();
+
+        tracing::info!(%addr, "Bound Alpaca server");
+
+        tracing::debug!("Starting Alpaca main and discovery servers");
+
+        // Start the discovery server only once we ensured that the Alpaca server is bound to a port successfully.
+        tokio::try_join!(
+            server.map_err(Into::into),
+            DiscoveryServer::new(addr.port()).start_server()
+        )?;
+
+        Ok(())
+    }
+
+    pub fn into_router(self) -> Router {
+        let devices = Arc::new(self.devices);
+        let server_info = OpaqueResponse::new(ServerInfoValue {
+            server_info: self.info,
+        });
 
         Router::new()
             .route(
@@ -84,7 +135,7 @@ impl Devices {
                 }),
             )
             .route("/management/v1/configureddevices", {
-                let this = Arc::clone(&this);
+                let this = Arc::clone(&devices);
 
                 axum::routing::get(|params: RawActionParams| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
@@ -128,13 +179,13 @@ impl Devices {
                                         .map_or(false, |h| h.accepts)
                                 {
                                     return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
-                                        Ok(<dyn Camera>::get_in(&this, device_number)?.read().await.image_array().await)
+                                        Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await)
                                     }).await;
                                 }
                             }
 
                             server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"),  params, |params| {
-                                this.handle_action(
+                                devices.handle_action(
                                     device_type,
                                     device_number,
                                     &action,

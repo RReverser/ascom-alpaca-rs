@@ -55,6 +55,7 @@ mod transaction;
 
 pub mod discovery;
 
+pub use self::axum::DevicesServer as Server;
 pub use api::Devices;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 pub use transaction::Client;

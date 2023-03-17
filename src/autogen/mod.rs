@@ -48,7 +48,7 @@ use crate::rpc::rpc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-pub use server_info::{CargoServerInfo, ConfiguredDevice, ServerInfo};
+pub use server_info::*;
 
 /// Returned camera state
 #[cfg(feature = "camera")]

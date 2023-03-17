@@ -569,13 +569,12 @@ ${api.info.description}
 
 mod server_info;
 
-pub use server_info::{ConfiguredDevice, ServerInfo, CargoServerInfo};
-
 use crate::params::ascom_enum;
 use crate::rpc::rpc;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
+pub use server_info::*;
 
 ${stringifyIter(types, ({features, type}) => {
   let cfg: string = Array.from(features, feature => `#[cfg(feature = "${feature}")]`).join('\n');
