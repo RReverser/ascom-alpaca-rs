@@ -114,11 +114,32 @@ macro_rules! rpc {
 
         impl std::fmt::Debug for Devices {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                struct DebugRes<T, E>(Result<T, E>);
+
+                impl<T: std::fmt::Debug, E: std::fmt::Debug> std::fmt::Debug for DebugRes<T, E> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        match &self.0 {
+                            Ok(t) => t.fmt(f),
+                            err => err.fmt(f),
+                        }
+                    }
+                }
+
+                struct DebugList<'list, T: ?Sized> {
+                    list: &'list [std::sync::Arc<tokio::sync::RwLock<T>>]
+                }
+
+                impl<T: ?Sized + std::fmt::Debug> std::fmt::Debug for DebugList<'_, T> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        f.debug_list().entries(self.list.iter().map(|device| DebugRes(device.try_read()))).finish()
+                    }
+                }
+
                 let mut f = f.debug_struct("Devices");
                 $(
                     #[cfg(feature = $path)]
                     if !self.$trait_name.is_empty() {
-                        let _ = f.field(stringify!($trait_name), &self.$trait_name);
+                        let _ = f.field(stringify!($trait_name), &DebugList { list: &self.$trait_name });
                     }
                 )*
                 f.finish()
