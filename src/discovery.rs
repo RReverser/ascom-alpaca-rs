@@ -5,7 +5,8 @@ use std::time::Duration;
 
 const DISCOVERY_ADDR_V6: Ipv6Addr = ipv6!("ff12::a1:9aca");
 const DISCOVERY_MSG: &[u8] = b"alpacadiscovery1";
-const DEFAULT_DISCOVERY_PORT: u16 = 32227;
+
+pub const DEFAULT_DISCOVERY_PORT: u16 = 32227;
 
 #[derive(Serialize, Deserialize)]
 struct AlpacaPort {
@@ -19,7 +20,7 @@ pub struct DiscoveryServer {
     pub alpaca_port: u16,
     /// Discovery port to listen on.
     ///
-    /// Defaults to 32227.
+    /// Defaults to [`DEFAULT_DISCOVERY_PORT`].
     pub discovery_port: u16,
 }
 
@@ -75,7 +76,7 @@ pub struct DiscoveryClient {
     pub include_ipv6: bool,
     /// Discovery port to send requests to.
     ///
-    /// Defaults to 32227.
+    /// Defaults to [`DEFAULT_DISCOVERY_PORT`].
     pub discovery_port: u16,
 }
 
