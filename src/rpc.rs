@@ -240,6 +240,7 @@ macro_rules! rpc {
     } {
         $($extra_impl_body:item)*
     }) => {
+        $(#[cfg(feature = $path)])?
         #[allow(unused_variables)]
         $(#[doc = $doc])*
         #[async_trait::async_trait]
@@ -254,6 +255,7 @@ macro_rules! rpc {
             )*
         }
 
+        $(#[cfg(feature = $path)])?
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
@@ -277,6 +279,7 @@ macro_rules! rpc {
             }
         }
 
+        $(#[cfg(feature = $path)])?
         #[async_trait::async_trait]
         impl $trait_name for $crate::client::Sender {
             $($extra_impl_body)*
@@ -305,7 +308,7 @@ macro_rules! rpc {
         rpc!(@storage $($($trait_name = $path,)?)*);
 
         $(
-            $(#[cfg(feature = $path)])?
+            $(#[cfg(any(feature = $path, doc))])?
             rpc!(@if_specific $trait_name {
                 rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: Device, Send, Sync $trait_body {
                     /// Register this device in the storage.

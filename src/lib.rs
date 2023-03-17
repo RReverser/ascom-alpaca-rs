@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "nightly", feature(doc_auto_cfg))]
 #![warn(
     clippy::pedantic,
     clippy::nursery,
