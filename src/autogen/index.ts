@@ -567,6 +567,10 @@ ${api.info.description}
   clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
 )]
 
+mod server_info;
+
+pub use server_info::{ConfiguredDevice, ServerInfo, CargoServerInfo};
+
 use crate::params::ascom_enum;
 use crate::rpc::rpc;
 use serde::{Deserialize, Serialize};

@@ -163,35 +163,6 @@ macro_rules! rpc {
             }
         )*
 
-        #[derive(Debug, Serialize, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        pub struct ConfiguredDevice {
-            pub device_name: String,
-            pub device_type: DeviceType,
-            pub device_number: usize,
-            #[serde(rename = "UniqueID")]
-            pub unique_id: String,
-        }
-
-        #[derive(Debug, Serialize, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        pub struct ServerInfo {
-            pub server_name: String,
-            pub manufacturer: String,
-            pub manufacturer_version: String,
-            pub location: String,
-        }
-
-        #[macro_export]
-        macro_rules! CargoServerInfo {
-            () => ($crate::api::ServerInfo {
-                server_name: env!("CARGO_PKG_NAME").to_owned(),
-                manufacturer: env!("CARGO_PKG_AUTHORS").to_owned(),
-                manufacturer_version: env!("CARGO_PKG_VERSION").to_owned(),
-                location: env!("CARGO_PKG_HOMEPAGE").to_owned(),
-            });
-        }
-
         impl Devices {
             pub(crate) fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
                 async_stream::stream! {
