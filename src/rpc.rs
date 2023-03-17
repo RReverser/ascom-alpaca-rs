@@ -235,7 +235,7 @@ macro_rules! rpc {
         $(#[cfg(feature = $path)])?
         #[allow(unused_variables)]
         $(#[doc = $doc])*
-        #[async_trait::async_trait]
+        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         pub trait $trait_name: $($parent+)* {
             $($extra_trait_body)*
 
@@ -272,7 +272,7 @@ macro_rules! rpc {
         }
 
         $(#[cfg(feature = $path)])?
-        #[async_trait::async_trait]
+        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         impl $trait_name for $crate::client::Sender {
             $($extra_impl_body)*
 

@@ -1,4 +1,8 @@
-#![cfg_attr(feature = "nightly", feature(doc_auto_cfg))]
+#![cfg_attr(
+    all(doc, feature = "nightly"),
+    feature(doc_auto_cfg, async_fn_in_trait),
+    allow(incomplete_features)
+)]
 #![warn(
     clippy::pedantic,
     clippy::nursery,
