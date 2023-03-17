@@ -146,27 +146,16 @@ macro_rules! rpc {
             }
         }
 
-        impl Devices {
-            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::params::RawActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
-                match device_type {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name => {
-                            let device = <dyn $trait_name>::get_in(self, device_number)?;
-                            let params = $crate::params::DeviceActionParams::new(device, params).await;
-                            <dyn $trait_name>::handle_action(action, params).await
-                        }
-                    )*
-                }
-            }
+        pub trait RegistrableDevice<DynTrait: ?Sized + Device>: Device /* where Self: Unsize<DynTrait> */ {
+            fn add_to(self, storage: &mut Devices);
         }
 
-        impl $crate::client::Sender {
-            pub(crate) fn add_to(self, storage: &mut Devices) {
+        impl RegistrableDevice<dyn Device> for $crate::client::Sender {
+            fn add_to(self, storage: &mut Devices) {
                 match self.device_type {
                     $(
                         #[cfg(feature = $path)]
-                        DeviceType::$trait_name => <Self as $trait_name>::add_to(self, storage),
+                        DeviceType::$trait_name => storage.register::<dyn $trait_name>(self),
                     )*
                 }
             }
@@ -182,9 +171,33 @@ macro_rules! rpc {
                     }
                 }
             }
+
+            #[cfg(feature = $path)]
+            impl<T: 'static + $trait_name> RegistrableDevice<dyn $trait_name> for T {
+                fn add_to(self, storage: &mut Devices) {
+                    storage.$trait_name.push(std::sync::Arc::new(tokio::sync::RwLock::new(self)));
+                }
+            }
         )*
 
         impl Devices {
+            pub fn register<DynTrait: ?Sized + Device>(&mut self, device: impl RegistrableDevice<DynTrait>) {
+                device.add_to(self);
+            }
+
+            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::params::RawActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
+                match device_type {
+                    $(
+                        #[cfg(feature = $path)]
+                        DeviceType::$trait_name => {
+                            let device = <dyn $trait_name>::get_in(self, device_number)?;
+                            let params = $crate::params::DeviceActionParams::new(device, params).await;
+                            <dyn $trait_name>::handle_action(action, params).await
+                        }
+                    )*
+                }
+            }
+
             pub(crate) fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
                 async_stream::stream! {
                     $(
@@ -302,13 +315,7 @@ macro_rules! rpc {
         $(
             $(#[cfg(any(feature = $path, doc))])?
             rpc!(@if_specific $trait_name {
-                rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: Device, Send, Sync $trait_body {
-                    /// Register this device in the storage.
-                    /// This method should not be overridden by implementors.
-                    fn add_to(self, storage: &mut Devices) where Self: Sized + 'static {
-                        storage.$trait_name.push(std::sync::Arc::new(tokio::sync::RwLock::new(self)));
-                    }
-                } {});
+                rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: Device, Send, Sync $trait_body {} {});
             } {
                 rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: std::fmt::Debug, Send, Sync $trait_body {
                     /// Unique ID of this device, ideally UUID.

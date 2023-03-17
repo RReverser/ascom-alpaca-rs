@@ -1,4 +1,4 @@
-use crate::api::{ConfiguredDevice, ServerInfo};
+use crate::api::{ConfiguredDevice, Device, ServerInfo};
 use crate::client::Sender;
 use crate::params::{OpaqueParams, RawActionParams};
 use crate::response::OpaqueResponse;
@@ -207,13 +207,12 @@ impl Client {
         .context("Couldn't parse list of devices")?
         .into_iter()
         .for_each(|device| {
-            Sender {
+            devices.register::<dyn Device>(Sender {
                 client: Arc::clone(self),
                 unique_id: device.unique_id,
                 device_type: device.device_type,
                 device_number: device.device_number,
-            }
-            .add_to(&mut devices);
+            });
         });
 
         Ok(devices)
