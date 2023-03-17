@@ -48,6 +48,7 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 /// Returned camera state
+#[cfg(feature = "camera")]
 #[derive(
     Debug,
     PartialEq,
@@ -75,8 +76,10 @@ pub enum CameraStateResponse {
     Error = 5,
 }
 
+#[cfg(feature = "camera")]
 ascom_enum!(CameraStateResponse);
 
+#[cfg(feature = "camera")]
 #[derive(
     Debug,
     PartialEq,
@@ -103,14 +106,18 @@ pub enum ImageArrayResponseType {
     Double = 3,
 }
 
+#[cfg(feature = "camera")]
 ascom_enum!(ImageArrayResponseType);
 
+#[cfg(feature = "camera")]
 #[path = "image_array_response.rs"]
 mod image_array_response;
 
+#[cfg(feature = "camera")]
 pub use image_array_response::*;
 
 /// Returned sensor type
+#[cfg(feature = "camera")]
 #[derive(
     Debug,
     PartialEq,
@@ -144,9 +151,11 @@ pub enum SensorTypeResponse {
     LRGB = 5,
 }
 
+#[cfg(feature = "camera")]
 ascom_enum!(SensorTypeResponse);
 
 /// The direction in which the guide-rate motion is to be made.
+#[cfg(feature = "camera")]
 #[derive(
     Debug,
     PartialEq,
@@ -170,9 +179,11 @@ pub enum PutPulseGuideDirection {
     West = 3,
 }
 
+#[cfg(feature = "camera")]
 ascom_enum!(PutPulseGuideDirection);
 
 /// Returned side of pier
+#[cfg(feature = "covercalibrator")]
 #[derive(
     Debug,
     PartialEq,
@@ -206,9 +217,11 @@ pub enum CalibratorStatusResponse {
     Error = 5,
 }
 
+#[cfg(feature = "covercalibrator")]
 ascom_enum!(CalibratorStatusResponse);
 
 /// Returned side of pier
+#[cfg(feature = "covercalibrator")]
 #[derive(
     Debug,
     PartialEq,
@@ -242,9 +255,11 @@ pub enum CoverStatusResponse {
     Error = 5,
 }
 
+#[cfg(feature = "covercalibrator")]
 ascom_enum!(CoverStatusResponse);
 
 /// Returned dome shutter status
+#[cfg(feature = "dome")]
 #[derive(
     Debug,
     PartialEq,
@@ -270,9 +285,11 @@ pub enum DomeShutterStatusResponse {
     Error = 4,
 }
 
+#[cfg(feature = "dome")]
 ascom_enum!(DomeShutterStatusResponse);
 
 /// Returned side of pier
+#[cfg(feature = "telescope")]
 #[derive(
     Debug,
     PartialEq,
@@ -297,9 +314,11 @@ pub enum AlignmentModeResponse {
     GermanPolar = 2,
 }
 
+#[cfg(feature = "telescope")]
 ascom_enum!(AlignmentModeResponse);
 
 /// Returned side of pier
+#[cfg(feature = "telescope")]
 #[derive(
     Debug,
     PartialEq,
@@ -330,9 +349,11 @@ pub enum EquatorialSystemResponse {
     B1950 = 4,
 }
 
+#[cfg(feature = "telescope")]
 ascom_enum!(EquatorialSystemResponse);
 
 /// Returned side of pier
+#[cfg(feature = "telescope")]
 #[derive(
     Debug,
     PartialEq,
@@ -357,9 +378,11 @@ pub enum SideOfPierResponse {
     Unknown = -1,
 }
 
+#[cfg(feature = "telescope")]
 ascom_enum!(SideOfPierResponse);
 
 /// New pointing state.
+#[cfg(feature = "telescope")]
 #[derive(
     Debug,
     PartialEq,
@@ -381,9 +404,11 @@ pub enum TelescopeSetSideOfPierRequestSideOfPier {
     West = 1,
 }
 
+#[cfg(feature = "telescope")]
 ascom_enum!(TelescopeSetSideOfPierRequestSideOfPier);
 
 /// DriveRate enum corresponding to one of the standard drive rates.
+#[cfg(feature = "telescope")]
 #[derive(
     Debug,
     PartialEq,
@@ -411,9 +436,11 @@ pub enum DriveRate {
     King = 3,
 }
 
+#[cfg(feature = "telescope")]
 ascom_enum!(DriveRate);
 
 /// The axis of mount rotation.
+#[cfg(feature = "telescope")]
 #[derive(
     Debug,
     PartialEq,
@@ -435,9 +462,11 @@ pub enum Axis {
     Tertiary = 2,
 }
 
+#[cfg(feature = "telescope")]
 ascom_enum!(Axis);
 
 /// Axis rate object
+#[cfg(feature = "telescope")]
 #[allow(missing_copy_implementations)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]

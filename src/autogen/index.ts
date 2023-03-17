@@ -86,22 +86,31 @@ function getDoc({
   // return summary && summary + (description ? `\n\n${description}` : '');
 }
 
-let types = new Map<string, RegisteredType>();
+let types = new Map<string, {
+  features: Set<string>,
+  type: RegisteredType
+}>();
 let typeBySchema = new WeakMap<OpenAPIV3.SchemaObject, RustType>();
 
 function registerType<T extends RegisteredType>(
+  devicePath: string,
   schema: OpenAPIV3.SchemaObject,
   createType: (schema: OpenAPIV3.SchemaObject) => T | RustType
 ): RustType {
-  return getOrSet(typeBySchema, schema, schema => {
+  let type = getOrSet(typeBySchema, schema, schema => {
     let type = createType(schema);
     if (type instanceof RustType) {
       return type;
     } else {
-      set(types, type.name, type);
+      set(types, type.name, { type, features: new Set<string>() });
       return rusty(type.name);
     }
   });
+  let registeredType = types.get(type.toString());
+  if (registeredType && devicePath !== '{device_type}') {
+    registeredType.features.add(devicePath);
+  }
+  return type;
 }
 
 class RustType {
@@ -202,6 +211,7 @@ function assertString(value: any): asserts value is string {
 }
 
 function handleObjectProps(
+  devicePath: string,
   objName: string,
   {
     properties = err('Missing properties'),
@@ -214,6 +224,7 @@ function handleObjectProps(
       name: toPropName(propName),
       originalName: propName,
       type: handleOptType(
+        devicePath,
         `${objName}${propName}`,
         propSchema,
         required.includes(propName)
@@ -225,6 +236,7 @@ function handleObjectProps(
 }
 
 function handleType(
+  devicePath: string,
   name: string,
   schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject = err(
     'Missing schema'
@@ -233,7 +245,7 @@ function handleType(
   return withContext(name, () => {
     ({ name = name, target: schema } = nameAndTarget(schema));
     if (schema.enum) {
-      return registerType(schema, schema => {
+      return registerType(devicePath, schema, schema => {
         assert.equal(schema.type, 'integer');
         let enumType: EnumType = {
           kind: 'Enum',
@@ -271,7 +283,7 @@ function handleType(
       case 'integer':
         return handleIntFormat(schema.format);
       case 'array':
-        return rusty(`Vec<${handleType(`${name}Item`, schema.items)}>`);
+        return rusty(`Vec<${handleType(devicePath, `${name}Item`, schema.items)}>`);
       case 'number':
         return rusty('f64');
       case 'string':
@@ -279,11 +291,11 @@ function handleType(
       case 'boolean':
         return rusty('bool');
       case 'object': {
-        return registerType(schema, schema => ({
+        return registerType(devicePath, schema, schema => ({
           kind: 'Object',
           name,
           doc: getDoc(schema),
-          properties: handleObjectProps(name, schema)
+          properties: handleObjectProps(devicePath, name, schema)
         }));
       }
     }
@@ -292,15 +304,17 @@ function handleType(
 }
 
 function handleOptType(
+  devicePath: string,
   name: string,
   schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | undefined,
   required: boolean
 ): RustType {
-  let type = handleType(name, schema);
+  let type = handleType(devicePath, name, schema);
   return required ? type : rusty(`Option<${type}>`);
 }
 
 function handleContent(
+  devicePath: string,
   prefixName: string,
   baseKind: 'Request' | 'Response',
   contentType: string,
@@ -325,7 +339,7 @@ function handleContent(
       return rusty('()');
     }
     ({ name = name, target: schema } = nameAndTarget(schema));
-    return registerType(schema, schema => {
+    return registerType(devicePath, schema, schema => {
       doc = getDoc(schema) ?? doc;
       let {
         allOf: [base, extension, ...otherItemsInAllOf] = err('Missing allOf'),
@@ -347,27 +361,28 @@ function handleContent(
         properties !== undefined &&
         isDeepStrictEqual(Object.keys(properties), ['Value'])
       ) {
-        return handleType(name, properties.Value);
+        return handleType(devicePath, name, properties.Value);
       }
 
       return {
         kind: baseKind,
         name,
         doc,
-        properties: handleObjectProps(name, { properties, required })
+        properties: handleObjectProps(devicePath, name, { properties, required })
       };
     });
   });
 }
 
 function handleResponse(
+  devicePath: string,
   prefixName: string,
   {
     responses: { 200: success, 400: error400, 500: error500, ...otherResponses }
   }: OpenAPIV3.OperationObject
 ) {
   assertEmpty(otherResponses, 'Unexpected response status codes');
-  return handleContent(prefixName, 'Response', 'application/json', success);
+  return handleContent(devicePath, prefixName, 'Response', 'application/json', success);
 }
 
 for (let [path, methods = err('Missing methods')] of Object.entries(
@@ -444,6 +459,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
           originalName: param.name,
           doc: getDoc(param),
           type: handleOptType(
+            devicePath,
             `${device.name}${canonicalMethodName}Request${param.name}`,
             param.schema,
             param.required ?? false
@@ -457,7 +473,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(get),
         resolvedArgs,
-        returnType: handleResponse(`${device.name}${canonicalMethodName}`, get)
+        returnType: handleResponse(devicePath, `${device.name}${canonicalMethodName}`, get)
       });
     });
 
@@ -489,6 +505,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
 
       let argsType = handleContent(
+        devicePath,
         `${device.name}${canonicalMethodName}`,
         'Request',
         'application/x-www-form-urlencoded',
@@ -501,11 +518,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         let resolvedType = types.get(argsType.toString());
         assert.ok(resolvedType, 'Could not find registered type');
         assert.equal(
-          resolvedType.kind,
+          resolvedType.type.kind,
           'Request' as const,
           'Registered type is not a request'
         );
-        resolvedArgs = resolvedType.properties;
+        resolvedArgs = resolvedType.type.properties;
       } else {
         resolvedArgs = new Map();
       }
@@ -516,7 +533,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(put),
         resolvedArgs,
-        returnType: handleResponse(`${device.name}${canonicalMethodName}`, put)
+        returnType: handleResponse(devicePath, `${device.name}${canonicalMethodName}`, put)
       });
     });
   });
@@ -556,13 +573,17 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
-${stringifyIter(types, type => {
+${stringifyIter(types, ({features, type}) => {
+  let cfg: string = Array.from(features, feature => `#[cfg(feature = "${feature}")]`).join('\n');
+
   if (type.name === 'ImageArrayResponse') {
     // Override with a better implementation.
     return `
+      ${cfg}
       #[path = "image_array_response.rs"]
       mod image_array_response;
 
+      ${cfg}
       pub use image_array_response::*;
     `;
   }
@@ -574,6 +595,7 @@ ${stringifyIter(types, type => {
     case 'Response': {
       return `
         ${stringifyDoc(type.doc)}
+        ${cfg}
         #[allow(missing_copy_implementations)]
         #[derive(Debug, Clone, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
@@ -598,6 +620,7 @@ ${stringifyIter(types, type => {
     case 'Enum': {
       return `
         ${stringifyDoc(type.doc)}
+        ${cfg}
         #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
         #[repr(${type.baseType})]
         #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
@@ -611,6 +634,7 @@ ${stringifyIter(types, type => {
           )}
         }
 
+        ${cfg}
         ascom_enum!(${type.name});
       `;
     }
