@@ -9,8 +9,10 @@ use bytes::Bytes;
 use futures::TryFutureExt;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
+use reqwest::IntoUrl;
 use serde::Serialize;
 use std::future::Future;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tracing::Instrument;
@@ -97,7 +99,8 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(base_url: reqwest::Url, client_id: u32) -> anyhow::Result<Arc<Self>> {
+    pub fn new(base_url: impl IntoUrl) -> anyhow::Result<Arc<Self>> {
+        let base_url = base_url.into_url()?;
         anyhow::ensure!(
             !base_url.cannot_be_a_base(),
             "{base_url} is not a valid base URL"
@@ -105,8 +108,13 @@ impl Client {
         Ok(Arc::new(Self {
             inner: reqwest::Client::new(),
             base_url,
-            client_id,
+            client_id: rand::random(),
         }))
+    }
+
+    pub fn new_from_addr(addr: impl Into<SocketAddr>) -> anyhow::Result<Arc<Self>> {
+        let addr = addr.into();
+        Self::new(format!("http://{addr}/"))
     }
 
     pub(crate) async fn request<Resp: Response>(
