@@ -1,6 +1,4 @@
-use crate::transaction::{
-    ClientResponseTransaction, ServerResponseTransaction, ServerResponseWithTransaction,
-};
+use crate::transaction::{client, server};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use axum::response::IntoResponse;
 use bytes::Bytes;
@@ -47,7 +45,7 @@ impl OpaqueResponse {
 }
 
 pub(crate) trait Response: Sized {
-    fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response;
+    fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response;
 
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         request
@@ -56,12 +54,12 @@ pub(crate) trait Response: Sized {
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
-    ) -> anyhow::Result<(ClientResponseTransaction, Self)>;
+    ) -> anyhow::Result<client::ResponseWithTransaction<Self>>;
 }
 
 impl Response for OpaqueResponse {
-    fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response {
-        axum::response::Json(ServerResponseWithTransaction {
+    fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response {
+        axum::response::Json(server::ResponseWithTransaction {
             transaction,
             response: self,
         })
@@ -71,7 +69,7 @@ impl Response for OpaqueResponse {
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
-    ) -> anyhow::Result<(ClientResponseTransaction, Self)> {
+    ) -> anyhow::Result<client::ResponseWithTransaction<Self>> {
         anyhow::ensure!(
             mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),
             "Expected JSON response, got {mime_type}"
@@ -81,31 +79,12 @@ impl Response for OpaqueResponse {
             Some(charset) => anyhow::bail!("Unsupported charset {charset}"),
         };
 
-        let mut opaque_response = serde_json::from_slice::<Self>(&bytes)?;
-
-        let mut extract_id = |name| {
-            opaque_response
-                .0
-                .remove(name)
-                .map(serde_json::from_value)
-                .transpose()
-        };
-
-        let client_transaction_id = extract_id("ClientTransactionID")?;
-        let server_transaction_id = extract_id("ServerTransactionID")?;
-
-        Ok((
-            ClientResponseTransaction {
-                client_transaction_id,
-                server_transaction_id,
-            },
-            opaque_response,
-        ))
+        serde_json::from_slice::<Self>(&bytes)?.try_into()
     }
 }
 
 impl Response for ASCOMResult<OpaqueResponse> {
-    fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response {
+    fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response {
         match self {
             Ok(mut res) => {
                 res.0
@@ -123,22 +102,23 @@ impl Response for ASCOMResult<OpaqueResponse> {
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
-    ) -> anyhow::Result<(ClientResponseTransaction, Self)> {
-        let (transaction, response) = OpaqueResponse::from_reqwest(mime_type, bytes)?;
-
-        Ok((
-            transaction,
-            match response.0.get("ErrorNumber") {
-                Some(error_number) if error_number != 0_i32 => {
-                    Err(response.try_as::<ASCOMError>().unwrap_or_else(|err| {
-                        ASCOMError::new(
-                            ASCOMErrorCode::UNSPECIFIED,
-                            format!("Server returned an error but it couldn't be parsed: {err}"),
-                        )
-                    }))
+    ) -> anyhow::Result<client::ResponseWithTransaction<Self>> {
+        Ok(
+            OpaqueResponse::from_reqwest(mime_type, bytes)?.map(|response| {
+                match response.0.get("ErrorNumber") {
+                    Some(error_number) if error_number != 0_i32 => {
+                        Err(response.try_as::<ASCOMError>().unwrap_or_else(|err| {
+                            ASCOMError::new(
+                                ASCOMErrorCode::UNSPECIFIED,
+                                format!(
+                                    "Server returned an error but it couldn't be parsed: {err}"
+                                ),
+                            )
+                        }))
+                    }
+                    _ => Ok(response),
                 }
-                _ => Ok(response),
-            },
-        ))
+            }),
+        )
     }
 }

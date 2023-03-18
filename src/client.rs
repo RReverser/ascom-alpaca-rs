@@ -11,9 +11,9 @@ use reqwest::header::CONTENT_TYPE;
 use reqwest::IntoUrl;
 use std::net::SocketAddr;
 use tracing::Instrument;
-use crate::transaction::ClientRequestTransaction;
-use crate::transaction::ClientRequestWithTransaction;
+use crate::transaction::client::{RequestTransaction, RequestWithTransaction};
 use futures::TryFutureExt;
+use crate::transaction::client::ResponseWithTransaction;
 
 #[derive(Debug)]
 pub(crate) struct DeviceClient {
@@ -75,7 +75,7 @@ impl RawClient {
         params: OpaqueParams<str>,
         fill: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder + Send,
     ) -> anyhow::Result<Resp> {
-        let request_transaction = ClientRequestTransaction::new(self.client_id);
+        let request_transaction = RequestTransaction::new(self.client_id);
 
         let span = tracing::debug_span!(
             "Alpaca transaction",
@@ -95,7 +95,7 @@ impl RawClient {
                 self.base_url.join(path)?,
             );
 
-            let params = ClientRequestWithTransaction {
+            let params = RequestWithTransaction {
                 transaction: request_transaction,
                 params,
             };
@@ -115,7 +115,10 @@ impl RawClient {
                 .to_str()?
                 .parse::<Mime>()?;
             let bytes = response.bytes().await?;
-            let (response_transaction, response) = Resp::from_reqwest(mime_type, bytes)?;
+            let ResponseWithTransaction {
+                transaction: response_transaction,
+                response,
+            } = Resp::from_reqwest(mime_type, bytes)?;
 
             tracing::debug!(
                 server_transaction_id = response_transaction.server_transaction_id,

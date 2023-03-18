@@ -186,15 +186,6 @@ pub(crate) enum ActionParams {
     Put(OpaqueParams<str>),
 }
 
-impl ActionParams {
-    pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {
-        match self {
-            Self::Get(params) => params.maybe_extract(name),
-            Self::Put(params) => params.maybe_extract(name),
-        }
-    }
-}
-
 #[async_trait::async_trait]
 impl<S, B> FromRequest<S, B> for ActionParams
 where

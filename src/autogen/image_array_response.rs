@@ -58,7 +58,7 @@ mod image_bytes {
     use super::ImageArrayResponse;
     use crate::api::ImageArrayResponseType;
     use crate::response::{OpaqueResponse, Response};
-    use crate::transaction::{ClientResponseTransaction, ServerResponseTransaction};
+    use crate::transaction::{client, server};
     use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
     use axum::response::IntoResponse;
     use bytemuck::{Pod, Zeroable};
@@ -82,7 +82,7 @@ mod image_bytes {
     }
 
     impl Response for ASCOMResult<ImageArrayResponse> {
-        fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response {
+        fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response {
             let mut metadata = ImageBytesMetadata {
                 metadata_version: 1,
                 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
@@ -136,18 +136,17 @@ mod image_bytes {
         fn from_reqwest(
             mime_type: Mime,
             bytes: Bytes,
-        ) -> anyhow::Result<(ClientResponseTransaction, Self)> {
+        ) -> anyhow::Result<client::ResponseWithTransaction<Self>> {
             if mime_type.essence_str() != "application/imagebytes" {
-                let (transaction, opaque_response_res) =
-                    <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?;
-
-                let response = opaque_response_res.and_then(|opaque_response| {
-                    opaque_response.try_as().map_err(|err| {
-                        ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}"))
-                    })
-                });
-
-                return Ok((transaction, response));
+                return Ok(
+                    <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?.map(
+                        |opaque_result| {
+                            opaque_result?.try_as().map_err(|err| {
+                                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}"))
+                            })
+                        },
+                    ),
+                );
             }
             let metadata = bytes
                 .get(..std::mem::size_of::<ImageBytesMetadata>())
@@ -166,7 +165,7 @@ mod image_bytes {
             let data = bytes
                 .get(data_start..)
                 .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
-            let transaction = ClientResponseTransaction {
+            let transaction = client::ResponseTransaction {
                 client_transaction_id: if metadata.client_transaction_id == 0 {
                     None
                 } else {
@@ -218,7 +217,10 @@ mod image_bytes {
                     std::str::from_utf8(data)?.to_owned(),
                 ))
             };
-            Ok((transaction, ascom_result))
+            Ok(client::ResponseWithTransaction {
+                transaction,
+                response: ascom_result,
+            })
         }
     }
 }

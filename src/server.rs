@@ -4,7 +4,7 @@ use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, DeviceType, Serv
 use crate::discovery::{DiscoveryServer, DEFAULT_DISCOVERY_PORT};
 use crate::params::ActionParams;
 use crate::response::{OpaqueResponse, Response};
-use crate::transaction::{ServerResponseTransaction};
+use crate::transaction::server::{ResponseTransaction, RequestTransaction};
 use crate::Devices;
 use axum::extract::Path;
 use axum::headers::{Header, HeaderName, HeaderValue};
@@ -208,29 +208,21 @@ pub(crate) async fn server_handler<
     mut raw_opaque_params: ActionParams,
     make_response: impl FnOnce(ActionParams) -> RespFut + Send,
 ) -> axum::response::Result<axum::response::Response> {
-    let mut extract_id = |name| {
-        raw_opaque_params
-            .maybe_extract(name)
-            .map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))
-    };
-
-    let client_id = extract_id("ClientID")?;
-    let client_transaction_id = extract_id("ClientTransactionID")?;
-
-    let server_transaction = ServerResponseTransaction::new(client_transaction_id);
+    let request_transaction = RequestTransaction::extract(&mut raw_opaque_params).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
+    let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
 
     let span = tracing::debug_span!(
         "Alpaca transaction",
         path,
         params = ?raw_opaque_params,
-        client_id,
-        client_transaction_id,
-        server_transaction.server_transaction_id,
+        client_id = request_transaction.client_id,
+        client_transaction_id = request_transaction.client_transaction_id,
+        server_transaction_id = response_transaction.server_transaction_id,
     );
 
     async move {
         let response = make_response(raw_opaque_params).await?;
-        Ok(response.into_axum(server_transaction))
+        Ok(response.into_axum(response_transaction))
     }
     .instrument(span)
     .await
