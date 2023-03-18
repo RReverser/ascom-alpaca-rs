@@ -2,7 +2,7 @@
 use crate::api::Camera;
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
 use crate::discovery::{DiscoveryServer, DEFAULT_DISCOVERY_PORT};
-use crate::params::RawActionParams;
+use crate::params::ActionParams;
 use crate::response::OpaqueResponse;
 use crate::transaction::server_handler;
 use crate::Devices;
@@ -128,7 +128,7 @@ impl DevicesServer {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|params: RawActionParams| {
+                axum::routing::get(|params: ActionParams| {
                     server_handler("/management/apiversions",  params, |_params| async move {
                         Ok(OpaqueResponse::new([1_u32]))
                     })
@@ -137,7 +137,7 @@ impl DevicesServer {
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&devices);
 
-                axum::routing::get(|params: RawActionParams| {
+                axum::routing::get(|params: ActionParams| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
                         let devices = this.stream_configured().collect::<Vec<ConfiguredDevice>>().await;
                         Ok(OpaqueResponse::new(devices))
@@ -145,7 +145,7 @@ impl DevicesServer {
                 })
             })
             .route("/management/v1/description",
-                axum::routing::get(move |params: RawActionParams| {
+                axum::routing::get(move |params: ActionParams| {
                     server_handler("/management/v1/serverinfo", params, |_params| async move {
                         Ok(server_info.clone())
                     })
@@ -162,7 +162,7 @@ impl DevicesServer {
                         String,
                     )>,
                           headers: HeaderMap<HeaderValue>,
-                          params: RawActionParams| {
+                          params: ActionParams| {
                         async move {
                             #[cfg(feature = "camera")]
                             if device_type == DeviceType::Camera {
@@ -172,7 +172,7 @@ impl DevicesServer {
                                     action.truncate("imagearray".len());
                                 }
 
-                                if matches!(params, RawActionParams::Get { .. })
+                                if matches!(params, ActionParams::Get { .. })
                                     && device_type == DeviceType::Camera
                                     && action == "imagearray"
                                     && AcceptsImageBytes::decode(&mut headers.get_all(AcceptsImageBytes::name()).iter())

@@ -11,14 +11,15 @@ macro_rules! rpc {
 
     (@is_mut $self:ident) => (false);
 
-    (@params_pat_impl $variant:ident, $($mut_device:ident)+, $params:ident) => ($crate::params::DeviceActionParams::$variant {
-        $($mut_device)+,
-        mut $params
-    });
+    (@params_pat_impl $variant:ident, $params:ident) => ($crate::params::ActionParams::$variant(mut $params));
 
-    (@params_pat mut $self:ident, $device:ident, $params:ident) => (rpc!(@params_pat_impl Put, mut $device, $params));
+    (@params_pat mut $self:ident, $params:ident) => (rpc!(@params_pat_impl Put, $params));
 
-    (@params_pat $self:ident, $device:ident, $params:ident) => (rpc!(@params_pat_impl Get, $device, $params));
+    (@params_pat $self:ident, $params:ident) => (rpc!(@params_pat_impl Get, $params));
+
+    (@device_lock mut $self:ident) => (tokio::sync::RwLock::write);
+
+    (@device_lock $self:ident) => (tokio::sync::RwLock::read);
 
     (@get_self mut $self:ident) => ($self);
 
@@ -185,14 +186,13 @@ macro_rules! rpc {
                 device.add_to(self);
             }
 
-            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::params::RawActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
+            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::params::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
                 match device_type {
                     $(
                         #[cfg(feature = $path)]
                         DeviceType::$trait_name => {
                             let device = <dyn $trait_name>::get_in(self, device_number)?;
-                            let params = $crate::params::DeviceActionParams::new(device, params).await;
-                            <dyn $trait_name>::handle_action(action, params).await
+                            <dyn $trait_name>::handle_action(device, action, params).await
                         }
                     )*
                 }
@@ -277,19 +277,19 @@ macro_rules! rpc {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(action: &str, params: $crate::params::DeviceActionParams<'_, impl ?Sized + $trait_name>) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
+            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::params::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
                 #[allow(unused)]
                 match (action, params) {
                     $(
-                        ($method_path, rpc!(@params_pat $($mut_self)*, device, params)) => {
+                        ($method_path, rpc!(@params_pat $($mut_self)*, params)) => {
                             $(
                                 let $param = params.extract($param_query).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
                             )*
-                            Ok(device.$method_name($($param),*).await.map($crate::response::OpaqueResponse::new))
+                            Ok(rpc!(@device_lock $($mut_self)*)(device).await.$method_name($($param),*).await.map($crate::response::OpaqueResponse::new))
                         },
                     )*
                     (action, params) => rpc!(@if_specific $trait_name {
-                        <dyn Device>::handle_action(action, params).await
+                        <dyn Device>::handle_action(device, action, params).await
                     } {
                         Err((axum::http::StatusCode::NOT_FOUND, "Unknown action").into())
                     })

@@ -8,7 +8,6 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
 use std::hash::Hash;
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub(crate) trait ASCOMParam: Sized {
     fn from_string(s: String) -> anyhow::Result<Self>;
@@ -182,24 +181,12 @@ impl<ParamStr: ?Sized + Debug> Drop for OpaqueParams<ParamStr> {
 }
 
 #[derive(Debug)]
-pub(crate) enum RawActionParams {
+pub(crate) enum ActionParams {
     Get(OpaqueParams<CaseInsensitiveStr>),
     Put(OpaqueParams<str>),
 }
 
-#[derive(Debug)]
-pub(crate) enum DeviceActionParams<'device, Device: ?Sized> {
-    Get {
-        device: RwLockReadGuard<'device, Device>,
-        params: OpaqueParams<CaseInsensitiveStr>,
-    },
-    Put {
-        device: RwLockWriteGuard<'device, Device>,
-        params: OpaqueParams<str>,
-    },
-}
-
-impl RawActionParams {
+impl ActionParams {
     pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {
         match self {
             Self::Get(params) => params.maybe_extract(name),
@@ -208,26 +195,8 @@ impl RawActionParams {
     }
 }
 
-impl<'device, Device: ?Sized + crate::api::Device> DeviceActionParams<'device, Device> {
-    pub(crate) async fn new(
-        device: &'device RwLock<Device>,
-        raw_params: RawActionParams,
-    ) -> DeviceActionParams<'device, Device> {
-        match raw_params {
-            RawActionParams::Get(params) => Self::Get {
-                device: device.read().await,
-                params,
-            },
-            RawActionParams::Put(params) => Self::Put {
-                device: device.write().await,
-                params,
-            },
-        }
-    }
-}
-
 #[async_trait::async_trait]
-impl<S, B> FromRequest<S, B> for RawActionParams
+impl<S, B> FromRequest<S, B> for ActionParams
 where
     B: HttpBody + Send + Sync + 'static,
     B::Data: Send,

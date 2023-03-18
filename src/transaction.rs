@@ -1,6 +1,6 @@
 use crate::api::{ConfiguredDevice, Device, ServerInfo};
 use crate::client::Sender;
-use crate::params::{OpaqueParams, RawActionParams};
+use crate::params::{ActionParams, OpaqueParams};
 use crate::response::OpaqueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
@@ -57,8 +57,8 @@ pub(crate) async fn server_handler<
     RespFut: Future<Output = axum::response::Result<Resp>> + Send,
 >(
     path: &str,
-    mut raw_opaque_params: RawActionParams,
-    make_response: impl FnOnce(RawActionParams) -> RespFut + Send,
+    mut raw_opaque_params: ActionParams,
+    make_response: impl FnOnce(ActionParams) -> RespFut + Send,
 ) -> axum::response::Result<axum::response::Response> {
     let mut extract_id = |name| {
         raw_opaque_params
