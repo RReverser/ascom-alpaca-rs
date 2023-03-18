@@ -1,18 +1,13 @@
-#[cfg(feature = "camera")]
-use crate::api::Camera;
-use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
+use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
 use crate::discovery::{Server as DiscoveryServer, DEFAULT_DISCOVERY_PORT};
 use crate::params::ActionParams;
 use crate::response::{OpaqueResponse, Response};
 use crate::transaction::server::{RequestTransaction, ResponseTransaction};
 use crate::Devices;
 use axum::extract::Path;
-use axum::headers::{Header, HeaderName, HeaderValue};
-use axum::http::HeaderMap;
 use axum::routing::MethodFilter;
 use axum::Router;
 use futures::{StreamExt, TryFutureExt};
-use mediatype::MediaTypeList;
 use net_literals::addr;
 use serde::Serialize;
 use std::future::Future;
@@ -20,53 +15,68 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
 
-const MEDIA_TYPE_IMAGE_BYTES: mediatype::MediaType<'static> = mediatype::MediaType::new(
-    mediatype::names::APPLICATION,
-    mediatype::Name::new_unchecked("imagebytes"),
-);
+#[cfg(all(feature = "camera", target_endian = "little"))]
+mod image_bytes {
+    use mediatype::{MediaType, MediaTypeList};
+    use axum::headers::{Header, HeaderName, HeaderValue, Error, HeaderMap};
 
-// A hack until TypedHeader supports Accept natively.
-#[derive(Default)]
-struct AcceptsImageBytes {
-    accepts: bool,
-}
+    const MEDIA_TYPE_IMAGE_BYTES: MediaType<'static> = MediaType::new(
+        mediatype::names::APPLICATION,
+        mediatype::Name::new_unchecked("imagebytes"),
+    );
 
-impl Header for AcceptsImageBytes {
-    fn name() -> &'static HeaderName {
-        static ACCEPT: HeaderName = HeaderName::from_static("accept");
-        &ACCEPT
+    // A hack until TypedHeader supports Accept natively.
+    #[derive(Default)]
+    pub(super) struct AcceptsImageBytes {
+        accepts: bool,
     }
 
-    fn decode<'value, I>(values: &mut I) -> Result<Self, axum::headers::Error>
-    where
-        Self: Sized,
-        I: Iterator<Item = &'value HeaderValue>,
-    {
-        let mut accepts = false;
-        for value in values {
-            for media_type in MediaTypeList::new(
-                value
-                    .to_str()
-                    .map_err(|_err| axum::headers::Error::invalid())?,
-            ) {
-                let media_type = media_type.map_err(|_err| axum::headers::Error::invalid())?;
-                if media_type.essence() == MEDIA_TYPE_IMAGE_BYTES {
-                    accepts = true;
-                    break;
+    impl AcceptsImageBytes {
+        pub(super) fn extract(headers: &HeaderMap) -> bool {
+            Self::decode(&mut headers.get_all(HeaderName::from_static("accept")).iter()).unwrap_or_default().accepts
+        }
+    }
+
+    impl Header for AcceptsImageBytes {
+        fn name() -> &'static HeaderName {
+            static ACCEPT: HeaderName = HeaderName::from_static("accept");
+            &ACCEPT
+        }
+
+        fn decode<'value, I>(values: &mut I) -> Result<Self, Error>
+        where
+            Self: Sized,
+            I: Iterator<Item = &'value HeaderValue>,
+        {
+            let mut accepts = false;
+            for value in values {
+                for media_type in MediaTypeList::new(
+                    value
+                        .to_str()
+                        .map_err(|_err| Error::invalid())?,
+                ) {
+                    let media_type = media_type.map_err(|_err| Error::invalid())?;
+                    if media_type.essence() == MEDIA_TYPE_IMAGE_BYTES {
+                        accepts = true;
+                        break;
+                    }
                 }
             }
+            Ok(Self { accepts })
         }
-        Ok(Self { accepts })
-    }
 
-    fn encode<E: Extend<HeaderValue>>(&self, values: &mut E) {
-        values.extend(std::iter::once(HeaderValue::from_static(if self.accepts {
-            "application/imagebytes"
-        } else {
-            "*/*"
-        })));
+        fn encode<E: Extend<HeaderValue>>(&self, values: &mut E) {
+            values.extend(std::iter::once(HeaderValue::from_static(if self.accepts {
+                "application/imagebytes"
+            } else {
+                "*/*"
+            })));
+        }
     }
 }
+
+#[cfg(all(feature = "camera", target_endian = "little"))]
+use {image_bytes::AcceptsImageBytes, crate::api::{Camera, DeviceType}, axum::headers::{HeaderMap, HeaderValue}};
 
 #[derive(Debug, Serialize)]
 struct ServerInfoValue {
@@ -192,10 +202,11 @@ impl Server {
                         usize,
                         String,
                     )>,
+                          #[cfg(all(feature = "camera", target_endian = "little"))]
                           headers: HeaderMap<HeaderValue>,
                           params: ActionParams| {
                         async move {
-                            #[cfg(feature = "camera")]
+                            #[cfg(all(feature = "camera", target_endian = "little"))]
                             if device_type == DeviceType::Camera {
                                 // imagearrayvariant is soft-deprecated; we should accept it but
                                 // forward to the imagearray handler instead.
@@ -206,8 +217,7 @@ impl Server {
                                 if matches!(params, ActionParams::Get { .. })
                                     && device_type == DeviceType::Camera
                                     && action == "imagearray"
-                                    && AcceptsImageBytes::decode(&mut headers.get_all(AcceptsImageBytes::name()).iter())
-                                        .map_or(false, |h| h.accepts)
+                                    && AcceptsImageBytes::extract(&headers)
                                 {
                                     return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
                                         Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await)
