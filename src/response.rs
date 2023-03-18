@@ -1,4 +1,10 @@
-use crate::{ASCOMError, ASCOMErrorCode};
+use crate::transaction::{
+    ClientResponseTransaction, ServerResponseTransaction, ServerResponseWithTransaction,
+};
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+use axum::response::IntoResponse;
+use bytes::Bytes;
+use mime::Mime;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -37,5 +43,102 @@ impl OpaqueResponse {
         } else {
             serde_json::Value::Object(self.0)
         })
+    }
+}
+
+pub(crate) trait Response: Sized {
+    fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response;
+
+    fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        request
+    }
+
+    fn from_reqwest(
+        mime_type: Mime,
+        bytes: Bytes,
+    ) -> anyhow::Result<(ClientResponseTransaction, Self)>;
+}
+
+impl Response for OpaqueResponse {
+    fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response {
+        axum::response::Json(ServerResponseWithTransaction {
+            transaction,
+            response: self,
+        })
+        .into_response()
+    }
+
+    fn from_reqwest(
+        mime_type: Mime,
+        bytes: Bytes,
+    ) -> anyhow::Result<(ClientResponseTransaction, Self)> {
+        anyhow::ensure!(
+            mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),
+            "Expected JSON response, got {mime_type}"
+        );
+        match mime_type.get_param(mime::CHARSET) {
+            Some(mime::UTF_8) | None => {}
+            Some(charset) => anyhow::bail!("Unsupported charset {charset}"),
+        };
+
+        let mut opaque_response = serde_json::from_slice::<Self>(&bytes)?;
+
+        let mut extract_id = |name| {
+            opaque_response
+                .0
+                .remove(name)
+                .map(serde_json::from_value)
+                .transpose()
+        };
+
+        let client_transaction_id = extract_id("ClientTransactionID")?;
+        let server_transaction_id = extract_id("ServerTransactionID")?;
+
+        Ok((
+            ClientResponseTransaction {
+                client_transaction_id,
+                server_transaction_id,
+            },
+            opaque_response,
+        ))
+    }
+}
+
+impl Response for ASCOMResult<OpaqueResponse> {
+    fn into_axum(self, transaction: ServerResponseTransaction) -> axum::response::Response {
+        match self {
+            Ok(mut res) => {
+                res.0
+                    .extend(OpaqueResponse::new(ASCOMError::new(ASCOMErrorCode(0), "")).0);
+                res
+            }
+            Err(err) => {
+                tracing::error!(%err, "Alpaca method returned an error");
+                OpaqueResponse::new(err)
+            }
+        }
+        .into_axum(transaction)
+    }
+
+    fn from_reqwest(
+        mime_type: Mime,
+        bytes: Bytes,
+    ) -> anyhow::Result<(ClientResponseTransaction, Self)> {
+        let (transaction, response) = OpaqueResponse::from_reqwest(mime_type, bytes)?;
+
+        Ok((
+            transaction,
+            match response.0.get("ErrorNumber") {
+                Some(error_number) if error_number != 0_i32 => {
+                    Err(response.try_as::<ASCOMError>().unwrap_or_else(|err| {
+                        ASCOMError::new(
+                            ASCOMErrorCode::UNSPECIFIED,
+                            format!("Server returned an error but it couldn't be parsed: {err}"),
+                        )
+                    }))
+                }
+                _ => Ok(response),
+            },
+        ))
     }
 }

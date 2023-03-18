@@ -44,7 +44,7 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
 mod server_info;
 
 use crate::params::ascom_enum;
-use crate::rpc::rpc;
+use crate::macros::rpc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};

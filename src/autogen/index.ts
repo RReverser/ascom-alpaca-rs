@@ -570,7 +570,7 @@ ${api.info.description}
 mod server_info;
 
 use crate::params::ascom_enum;
-use crate::rpc::rpc;
+use crate::macros::rpc;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{TryFromPrimitive, IntoPrimitive};

@@ -3,8 +3,8 @@ use crate::api::Camera;
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
 use crate::discovery::{DiscoveryServer, DEFAULT_DISCOVERY_PORT};
 use crate::params::ActionParams;
-use crate::response::OpaqueResponse;
-use crate::transaction::server_handler;
+use crate::response::{OpaqueResponse, Response};
+use crate::transaction::{ServerResponseTransaction};
 use crate::Devices;
 use axum::extract::Path;
 use axum::headers::{Header, HeaderName, HeaderValue};
@@ -17,6 +17,8 @@ use net_literals::addr;
 use serde::Serialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::future::Future;
+use tracing::Instrument;
 
 const MEDIA_TYPE_IMAGE_BYTES: mediatype::MediaType<'static> = mediatype::MediaType::new(
     mediatype::names::APPLICATION,
@@ -73,14 +75,14 @@ struct ServerInfoValue {
 }
 
 #[derive(Debug)]
-pub struct DevicesServer {
+pub struct Server {
     pub devices: Devices,
     pub info: ServerInfo,
     pub listen_addr: SocketAddr,
     pub discovery_port: u16,
 }
 
-impl Default for DevicesServer {
+impl Default for Server {
     fn default() -> Self {
         Self {
             devices: Devices::default(),
@@ -91,7 +93,7 @@ impl Default for DevicesServer {
     }
 }
 
-impl DevicesServer {
+impl Server {
     pub async fn start_server(self) -> anyhow::Result<()> {
         let mut addr = self.listen_addr;
 
@@ -196,4 +198,40 @@ impl DevicesServer {
                     }),
             )
     }
+}
+
+pub(crate) async fn server_handler<
+    Resp: Response,
+    RespFut: Future<Output = axum::response::Result<Resp>> + Send,
+>(
+    path: &str,
+    mut raw_opaque_params: ActionParams,
+    make_response: impl FnOnce(ActionParams) -> RespFut + Send,
+) -> axum::response::Result<axum::response::Response> {
+    let mut extract_id = |name| {
+        raw_opaque_params
+            .maybe_extract(name)
+            .map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))
+    };
+
+    let client_id = extract_id("ClientID")?;
+    let client_transaction_id = extract_id("ClientTransactionID")?;
+
+    let server_transaction = ServerResponseTransaction::new(client_transaction_id);
+
+    let span = tracing::debug_span!(
+        "Alpaca transaction",
+        path,
+        params = ?raw_opaque_params,
+        client_id,
+        client_transaction_id,
+        server_transaction.server_transaction_id,
+    );
+
+    async move {
+        let response = make_response(raw_opaque_params).await?;
+        Ok(response.into_axum(server_transaction))
+    }
+    .instrument(span)
+    .await
 }

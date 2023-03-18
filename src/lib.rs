@@ -45,21 +45,21 @@
     clippy::type_repetition_in_bounds
 )]
 
-pub(crate) mod rpc;
+pub(crate) mod macros;
 
 #[path = "autogen/mod.rs"]
 pub mod api;
 
-mod axum;
 mod client;
 mod errors;
 mod params;
 mod response;
+mod server;
 mod transaction;
 
 pub mod discovery;
 
-pub use self::axum::DevicesServer as Server;
 pub use api::Devices;
+pub use client::Client;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
-pub use transaction::Client;
+pub use server::Server;

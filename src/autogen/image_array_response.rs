@@ -57,8 +57,8 @@ impl ImageArrayResponse {
 mod image_bytes {
     use super::ImageArrayResponse;
     use crate::api::ImageArrayResponseType;
-    use crate::response::OpaqueResponse;
-    use crate::transaction::{ClientResponseTransaction, Response, ServerResponseTransaction};
+    use crate::response::{OpaqueResponse, Response};
+    use crate::transaction::{ClientResponseTransaction, ServerResponseTransaction};
     use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
     use axum::response::IntoResponse;
     use bytemuck::{Pod, Zeroable};
