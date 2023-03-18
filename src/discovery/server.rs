@@ -1,6 +1,6 @@
 use super::DEFAULT_DISCOVERY_PORT;
+use crate::discovery::{AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
 use std::net::Ipv6Addr;
-use crate::discovery::{DISCOVERY_ADDR_V6, DISCOVERY_MSG, AlpacaPort};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Server {

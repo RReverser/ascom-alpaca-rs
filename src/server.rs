@@ -1,10 +1,10 @@
 #[cfg(feature = "camera")]
 use crate::api::Camera;
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
-use crate::discovery::{DEFAULT_DISCOVERY_PORT};
+use crate::discovery::{Server as DiscoveryServer, DEFAULT_DISCOVERY_PORT};
 use crate::params::ActionParams;
 use crate::response::{OpaqueResponse, Response};
-use crate::transaction::server::{ResponseTransaction, RequestTransaction};
+use crate::transaction::server::{RequestTransaction, ResponseTransaction};
 use crate::Devices;
 use axum::extract::Path;
 use axum::headers::{Header, HeaderName, HeaderValue};
@@ -15,11 +15,10 @@ use futures::{StreamExt, TryFutureExt};
 use mediatype::MediaTypeList;
 use net_literals::addr;
 use serde::Serialize;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::future::Future;
 use tracing::Instrument;
-use crate::discovery::Server as DiscoveryServer;
 
 const MEDIA_TYPE_IMAGE_BYTES: mediatype::MediaType<'static> = mediatype::MediaType::new(
     mediatype::names::APPLICATION,
@@ -102,7 +101,8 @@ async fn server_handler<
     mut raw_opaque_params: ActionParams,
     make_response: impl FnOnce(ActionParams) -> RespFut + Send,
 ) -> axum::response::Result<axum::response::Response> {
-    let request_transaction = RequestTransaction::extract(&mut raw_opaque_params).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
+    let request_transaction = RequestTransaction::extract(&mut raw_opaque_params)
+        .map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
     let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
 
     let span = tracing::debug_span!(

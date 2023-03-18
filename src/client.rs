@@ -1,21 +1,17 @@
-use crate::api::ConfiguredDevice;
-use crate::api::ServerInfo;
-use crate::response::OpaqueResponse;
-use crate::response::Response;
-use crate::Devices;
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+use crate::api::{ConfiguredDevice, ServerInfo};
+use crate::params::{ActionParams, OpaqueParams};
+use crate::response::{OpaqueResponse, Response};
+use crate::transaction::client::{
+    RequestTransaction, RequestWithTransaction, ResponseWithTransaction,
+};
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
+use futures::TryFutureExt;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
-use reqwest::IntoUrl;
+use reqwest::{IntoUrl, RequestBuilder};
 use std::net::SocketAddr;
 use tracing::Instrument;
-use crate::transaction::client::{RequestTransaction, RequestWithTransaction};
-use futures::TryFutureExt;
-use crate::transaction::client::ResponseWithTransaction;
-use crate::params::ActionParams;
-use reqwest::RequestBuilder;
-use crate::params::OpaqueParams;
 
 #[derive(Debug)]
 pub(crate) struct DeviceClient {
@@ -33,10 +29,7 @@ impl DeviceClient {
         ASCOMResult<Resp>: Response,
     {
         self.inner
-            .request::<ASCOMResult<Resp>>(
-                action,
-                params,
-            )
+            .request::<ASCOMResult<Resp>>(action, params)
             .await
             .unwrap_or_else(|err| {
                 Err(ASCOMError::new(
@@ -93,12 +86,15 @@ impl RawClient {
 
             let add_params = match params {
                 ActionParams::Get(_) => RequestBuilder::query,
-                ActionParams::Put(_) => RequestBuilder::form
+                ActionParams::Put(_) => RequestBuilder::form,
             };
-            request = add_params(request, &RequestWithTransaction {
-                transaction: request_transaction,
-                params,
-            });
+            request = add_params(
+                request,
+                &RequestWithTransaction {
+                    transaction: request_transaction,
+                    params,
+                },
+            );
 
             request = Resp::prepare_reqwest(request);
 
@@ -122,7 +118,8 @@ impl RawClient {
 
             match response_transaction.client_transaction_id {
                 Some(received_client_transaction_id)
-                    if received_client_transaction_id != request_transaction.client_transaction_id =>
+                    if received_client_transaction_id
+                        != request_transaction.client_transaction_id =>
                 {
                     tracing::warn!(
                         sent = request_transaction.client_transaction_id,
@@ -169,39 +166,41 @@ impl Client {
     pub async fn get_devices(&self) -> anyhow::Result<Devices> {
         let mut devices = Devices::default();
 
-        self.inner.request::<OpaqueResponse>(
-            "management/v1/configureddevices",
-            ActionParams::Get(OpaqueParams::default()),
-        )
-        .await?
-        .try_as::<Vec<ConfiguredDevice>>()
-        .context("Couldn't parse list of devices")?
-        .into_iter()
-        .try_for_each(|device| {
-            let device_client = DeviceClient {
-                unique_id: device.unique_id,
-                inner: self.inner.join_url(&format!(
-                    "api/v1/{device_type}/{device_number}/",
-                    device_type = device.device_type,
-                    device_number = device.device_number
-                ))?
-            };
+        self.inner
+            .request::<OpaqueResponse>(
+                "management/v1/configureddevices",
+                ActionParams::Get(OpaqueParams::default()),
+            )
+            .await?
+            .try_as::<Vec<ConfiguredDevice>>()
+            .context("Couldn't parse list of devices")?
+            .into_iter()
+            .try_for_each(|device| {
+                let device_client = DeviceClient {
+                    unique_id: device.unique_id,
+                    inner: self.inner.join_url(&format!(
+                        "api/v1/{device_type}/{device_number}/",
+                        device_type = device.device_type,
+                        device_number = device.device_number
+                    ))?,
+                };
 
-            device_client.add_to_as(&mut devices, device.device_type);
+                device_client.add_to_as(&mut devices, device.device_type);
 
-            Ok::<_, anyhow::Error>(())
-        })?;
+                Ok::<_, anyhow::Error>(())
+            })?;
 
         Ok(devices)
     }
 
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
-        self.inner.request::<OpaqueResponse>(
-            "management/v1/description",
-            ActionParams::Get(OpaqueParams::default()),
-        )
-        .await?
-        .try_as::<ServerInfo>()
-        .context("Couldn't parse server info")
+        self.inner
+            .request::<OpaqueResponse>(
+                "management/v1/description",
+                ActionParams::Get(OpaqueParams::default()),
+            )
+            .await?
+            .try_as::<ServerInfo>()
+            .context("Couldn't parse server info")
     }
 }
