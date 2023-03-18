@@ -151,9 +151,9 @@ macro_rules! rpc {
             fn add_to(self, storage: &mut Devices);
         }
 
-        impl RegistrableDevice<dyn Device> for $crate::client::Sender {
-            fn add_to(self, storage: &mut Devices) {
-                match self.device_type {
+        impl $crate::client::DeviceClient {
+            pub(crate) fn add_to_as(self, storage: &mut Devices, device_type: DeviceType) {
+                match device_type {
                     $(
                         #[cfg(feature = $path)]
                         DeviceType::$trait_name => storage.register::<dyn $trait_name>(self),
@@ -299,7 +299,7 @@ macro_rules! rpc {
 
         $(#[cfg(feature = $path)])?
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
-        impl $trait_name for $crate::client::Sender {
+        impl $trait_name for $crate::client::DeviceClient {
             $(
                 fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)? {
                     $client_impl

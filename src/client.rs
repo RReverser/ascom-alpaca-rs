@@ -1,6 +1,4 @@
 use crate::api::ConfiguredDevice;
-use crate::api::Device;
-use crate::api::DeviceType;
 use crate::api::ServerInfo;
 use crate::params::OpaqueParams;
 use crate::response::OpaqueResponse;
@@ -12,21 +10,18 @@ use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::IntoUrl;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use tracing::Instrument;
 use crate::transaction::ClientRequestTransaction;
 use crate::transaction::ClientRequestWithTransaction;
 use futures::TryFutureExt;
 
 #[derive(Debug)]
-pub(crate) struct Sender {
-    pub(crate) client: Arc<Client>,
+pub(crate) struct DeviceClient {
+    pub(crate) inner: RawClient,
     pub(crate) unique_id: String,
-    pub(crate) device_type: DeviceType,
-    pub(crate) device_number: usize,
 }
 
-impl Sender {
+impl DeviceClient {
     pub(crate) async fn exec_action<Resp>(
         &self,
         is_mut: bool,
@@ -36,13 +31,9 @@ impl Sender {
     where
         ASCOMResult<Resp>: Response,
     {
-        self.client
+        self.inner
             .request::<ASCOMResult<Resp>>(
-                &format!(
-                    "api/v1/{device_type}/{device_number}/{action}",
-                    device_type = self.device_type,
-                    device_number = self.device_number
-                ),
+                action,
                 is_mut,
                 params,
                 |request| request,
@@ -58,29 +49,23 @@ impl Sender {
 }
 
 #[derive(Debug)]
-pub struct Client {
+pub(crate) struct RawClient {
     pub(crate) inner: reqwest::Client,
     pub(crate) base_url: reqwest::Url,
     pub(crate) client_id: u32,
 }
 
-impl Client {
-    pub fn new(base_url: impl IntoUrl) -> anyhow::Result<Arc<Self>> {
-        let base_url = base_url.into_url()?;
+impl RawClient {
+    pub(crate) fn new(base_url: reqwest::Url) -> anyhow::Result<Self> {
         anyhow::ensure!(
             !base_url.cannot_be_a_base(),
             "{base_url} is not a valid base URL"
         );
-        Ok(Arc::new(Self {
+        Ok(Self {
             inner: reqwest::Client::new(),
             base_url,
             client_id: rand::random(),
-        }))
-    }
-
-    pub fn new_from_addr(addr: impl Into<SocketAddr>) -> anyhow::Result<Arc<Self>> {
-        let addr = addr.into();
-        Self::new(format!("http://{addr}/"))
+        })
     }
 
     pub(crate) async fn request<Resp: Response>(
@@ -160,10 +145,33 @@ impl Client {
         .await
     }
 
-    pub async fn get_devices(self: &Arc<Self>) -> anyhow::Result<Devices> {
+    pub(crate) fn join_url(&self, path: &str) -> anyhow::Result<Self> {
+        Ok(Self {
+            inner: self.inner.clone(),
+            base_url: self.base_url.join(path)?,
+            client_id: self.client_id,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct Client {
+    inner: RawClient,
+}
+
+impl Client {
+    pub fn new(base_url: impl IntoUrl) -> anyhow::Result<Self> {
+        RawClient::new(base_url.into_url()?).map(|inner| Self { inner })
+    }
+
+    pub fn new_from_addr(addr: impl Into<SocketAddr>) -> anyhow::Result<Self> {
+        Self::new(format!("http://{}/", addr.into()))
+    }
+
+    pub async fn get_devices(&self) -> anyhow::Result<Devices> {
         let mut devices = Devices::default();
 
-        self.request::<OpaqueResponse>(
+        self.inner.request::<OpaqueResponse>(
             "management/v1/configureddevices",
             false,
             OpaqueParams::default(),
@@ -173,20 +181,26 @@ impl Client {
         .try_as::<Vec<ConfiguredDevice>>()
         .context("Couldn't parse list of devices")?
         .into_iter()
-        .for_each(|device| {
-            devices.register::<dyn Device>(Sender {
-                client: Arc::clone(self),
+        .try_for_each(|device| {
+            let device_client = DeviceClient {
                 unique_id: device.unique_id,
-                device_type: device.device_type,
-                device_number: device.device_number,
-            });
-        });
+                inner: self.inner.join_url(&format!(
+                    "api/v1/{device_type}/{device_number}/",
+                    device_type = device.device_type,
+                    device_number = device.device_number
+                ))?
+            };
+
+            device_client.add_to_as(&mut devices, device.device_type);
+
+            Ok::<_, anyhow::Error>(())
+        })?;
 
         Ok(devices)
     }
 
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
-        self.request::<OpaqueResponse>(
+        self.inner.request::<OpaqueResponse>(
             "management/v1/description",
             false,
             OpaqueParams::default(),
