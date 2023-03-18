@@ -569,12 +569,13 @@ ${api.info.description}
 
 mod server_info;
 
-use crate::params::ascom_enum;
+use crate::params::ASCOMEnumParam;
 use crate::macros::rpc;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 pub use server_info::*;
+use macro_rules_attribute::macro_rules_derive;
 
 ${stringifyIter(types, ({features, type}) => {
   let cfg: string = Array.from(features, feature => `#[cfg(feature = "${feature}")]`).join('\n');
@@ -625,6 +626,7 @@ ${stringifyIter(types, ({features, type}) => {
         ${stringifyDoc(type.doc)}
         ${cfg}
         #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
+        #[macro_rules_derive(ASCOMEnumParam)]
         #[repr(${type.baseType})]
         #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
         pub enum ${type.name} {
@@ -636,9 +638,6 @@ ${stringifyIter(types, ({features, type}) => {
             `
           )}
         }
-
-        ${cfg}
-        ascom_enum!(${type.name});
       `;
     }
   }

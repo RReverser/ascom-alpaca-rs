@@ -56,8 +56,8 @@ macro_rules! simple_ascom_param {
 
 simple_ascom_param!(i32, u32, f64);
 
-macro_rules! ascom_enum {
-    ($name:ty) => {
+macro_rules! ASCOMEnumParam {
+    ($(# $attr:tt)* $pub:vis enum $name:ident $variants:tt) => {
         impl $crate::params::ASCOMParam for $name {
             fn from_string(s: String) -> anyhow::Result<Self> {
                 Ok(<Self as num_enum::TryFromPrimitive>::try_from_primitive(
@@ -72,7 +72,7 @@ macro_rules! ascom_enum {
         }
     };
 }
-pub(crate) use ascom_enum;
+pub(crate) use ASCOMEnumParam;
 
 #[derive(Serialize)]
 #[serde(transparent)]

@@ -43,8 +43,9 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
 
 mod server_info;
 
-use crate::params::ascom_enum;
 use crate::macros::rpc;
+use crate::params::ASCOMEnumParam;
+use macro_rules_attribute::macro_rules_derive;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -63,6 +64,7 @@ pub use server_info::*;
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum CameraStateResponse {
@@ -80,9 +82,6 @@ pub enum CameraStateResponse {
 }
 
 #[cfg(feature = "camera")]
-ascom_enum!(CameraStateResponse);
-
-#[cfg(feature = "camera")]
 #[derive(
     Debug,
     PartialEq,
@@ -94,6 +93,7 @@ ascom_enum!(CameraStateResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum ImageArrayResponseType {
@@ -108,9 +108,6 @@ pub enum ImageArrayResponseType {
     /// Double precision real number
     Double = 3,
 }
-
-#[cfg(feature = "camera")]
-ascom_enum!(ImageArrayResponseType);
 
 #[cfg(feature = "camera")]
 #[path = "image_array_response.rs"]
@@ -132,6 +129,7 @@ pub use image_array_response::*;
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum SensorTypeResponse {
@@ -154,9 +152,6 @@ pub enum SensorTypeResponse {
     LRGB = 5,
 }
 
-#[cfg(feature = "camera")]
-ascom_enum!(SensorTypeResponse);
-
 /// The direction in which the guide-rate motion is to be made.
 #[cfg(feature = "camera")]
 #[derive(
@@ -170,6 +165,7 @@ ascom_enum!(SensorTypeResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum PutPulseGuideDirection {
@@ -181,9 +177,6 @@ pub enum PutPulseGuideDirection {
 
     West = 3,
 }
-
-#[cfg(feature = "camera")]
-ascom_enum!(PutPulseGuideDirection);
 
 /// Returned side of pier
 #[cfg(feature = "covercalibrator")]
@@ -198,6 +191,7 @@ ascom_enum!(PutPulseGuideDirection);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum CalibratorStatusResponse {
@@ -220,9 +214,6 @@ pub enum CalibratorStatusResponse {
     Error = 5,
 }
 
-#[cfg(feature = "covercalibrator")]
-ascom_enum!(CalibratorStatusResponse);
-
 /// Returned side of pier
 #[cfg(feature = "covercalibrator")]
 #[derive(
@@ -236,6 +227,7 @@ ascom_enum!(CalibratorStatusResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum CoverStatusResponse {
@@ -258,9 +250,6 @@ pub enum CoverStatusResponse {
     Error = 5,
 }
 
-#[cfg(feature = "covercalibrator")]
-ascom_enum!(CoverStatusResponse);
-
 /// Returned dome shutter status
 #[cfg(feature = "dome")]
 #[derive(
@@ -274,6 +263,7 @@ ascom_enum!(CoverStatusResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum DomeShutterStatusResponse {
@@ -288,9 +278,6 @@ pub enum DomeShutterStatusResponse {
     Error = 4,
 }
 
-#[cfg(feature = "dome")]
-ascom_enum!(DomeShutterStatusResponse);
-
 /// Returned side of pier
 #[cfg(feature = "telescope")]
 #[derive(
@@ -304,6 +291,7 @@ ascom_enum!(DomeShutterStatusResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum AlignmentModeResponse {
@@ -317,9 +305,6 @@ pub enum AlignmentModeResponse {
     GermanPolar = 2,
 }
 
-#[cfg(feature = "telescope")]
-ascom_enum!(AlignmentModeResponse);
-
 /// Returned side of pier
 #[cfg(feature = "telescope")]
 #[derive(
@@ -333,6 +318,7 @@ ascom_enum!(AlignmentModeResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum EquatorialSystemResponse {
@@ -352,9 +338,6 @@ pub enum EquatorialSystemResponse {
     B1950 = 4,
 }
 
-#[cfg(feature = "telescope")]
-ascom_enum!(EquatorialSystemResponse);
-
 /// Returned side of pier
 #[cfg(feature = "telescope")]
 #[derive(
@@ -368,6 +351,7 @@ ascom_enum!(EquatorialSystemResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum SideOfPierResponse {
@@ -380,9 +364,6 @@ pub enum SideOfPierResponse {
     /// Unknown or indeterminate.
     Unknown = -1,
 }
-
-#[cfg(feature = "telescope")]
-ascom_enum!(SideOfPierResponse);
 
 /// New pointing state.
 #[cfg(feature = "telescope")]
@@ -397,6 +378,7 @@ ascom_enum!(SideOfPierResponse);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum TelescopeSetSideOfPierRequestSideOfPier {
@@ -406,9 +388,6 @@ pub enum TelescopeSetSideOfPierRequestSideOfPier {
     /// Through the pole pointing state - Mount on the West side of pier (looking East).
     West = 1,
 }
-
-#[cfg(feature = "telescope")]
-ascom_enum!(TelescopeSetSideOfPierRequestSideOfPier);
 
 /// DriveRate enum corresponding to one of the standard drive rates.
 #[cfg(feature = "telescope")]
@@ -423,6 +402,7 @@ ascom_enum!(TelescopeSetSideOfPierRequestSideOfPier);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum DriveRate {
@@ -439,9 +419,6 @@ pub enum DriveRate {
     King = 3,
 }
 
-#[cfg(feature = "telescope")]
-ascom_enum!(DriveRate);
-
 /// The axis of mount rotation.
 #[cfg(feature = "telescope")]
 #[derive(
@@ -455,6 +432,7 @@ ascom_enum!(DriveRate);
     TryFromPrimitive,
     IntoPrimitive,
 )]
+#[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum Axis {
@@ -464,9 +442,6 @@ pub enum Axis {
 
     Tertiary = 2,
 }
-
-#[cfg(feature = "telescope")]
-ascom_enum!(Axis);
 
 /// Axis rate object
 #[cfg(feature = "telescope")]
