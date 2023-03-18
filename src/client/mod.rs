@@ -1,9 +1,12 @@
+mod discovery;
+pub use discovery::Client as DiscoveryClient;
+
+mod transaction;
+pub(crate) use transaction::*;
+
 use crate::api::{ConfiguredDevice, ServerInfo};
 use crate::params::{ActionParams, OpaqueParams};
 use crate::response::{OpaqueResponse, Response};
-use crate::transaction::client::{
-    RequestTransaction, RequestWithTransaction, ResponseWithTransaction,
-};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
 use futures::TryFutureExt;

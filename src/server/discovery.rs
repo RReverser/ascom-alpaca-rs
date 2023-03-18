@@ -8,7 +8,7 @@ pub struct Server {
     pub alpaca_port: u16,
     /// Discovery port to listen on.
     ///
-    /// Defaults to [`DEFAULT_DISCOVERY_PORT`].
+    /// Defaults to 32227.
     pub discovery_port: u16,
 }
 

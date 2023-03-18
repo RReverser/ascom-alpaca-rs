@@ -58,7 +58,6 @@ mod image_bytes {
     use super::ImageArrayResponse;
     use crate::api::ImageArrayResponseType;
     use crate::response::{OpaqueResponse, Response};
-    use crate::transaction::{client, server};
     use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
     use axum::response::IntoResponse;
     use bytemuck::{Pod, Zeroable};
@@ -82,7 +81,10 @@ mod image_bytes {
     }
 
     impl Response for ASCOMResult<ImageArrayResponse> {
-        fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response {
+        fn into_axum(
+            self,
+            transaction: crate::server::ResponseTransaction,
+        ) -> axum::response::Response {
             let mut metadata = ImageBytesMetadata {
                 metadata_version: 1,
                 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
@@ -136,7 +138,7 @@ mod image_bytes {
         fn from_reqwest(
             mime_type: Mime,
             bytes: Bytes,
-        ) -> anyhow::Result<client::ResponseWithTransaction<Self>> {
+        ) -> anyhow::Result<crate::client::ResponseWithTransaction<Self>> {
             if mime_type.essence_str() != "application/imagebytes" {
                 return Ok(
                     <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?.map(
@@ -165,7 +167,7 @@ mod image_bytes {
             let data = bytes
                 .get(data_start..)
                 .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
-            let transaction = client::ResponseTransaction {
+            let transaction = crate::client::ResponseTransaction {
                 client_transaction_id: if metadata.client_transaction_id == 0 {
                     None
                 } else {
@@ -217,7 +219,7 @@ mod image_bytes {
                     std::str::from_utf8(data)?.to_owned(),
                 ))
             };
-            Ok(client::ResponseWithTransaction {
+            Ok(crate::client::ResponseWithTransaction {
                 transaction,
                 response: ascom_result,
             })

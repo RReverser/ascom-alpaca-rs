@@ -1,4 +1,4 @@
-use super::{AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
+use crate::discovery::{AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
 use net_literals::addr;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
@@ -19,7 +19,7 @@ pub struct Client {
     pub include_ipv6: bool,
     /// Discovery port to send requests to.
     ///
-    /// Defaults to [`DEFAULT_DISCOVERY_PORT`].
+    /// Defaults to 32227.
     pub discovery_port: u16,
 }
 

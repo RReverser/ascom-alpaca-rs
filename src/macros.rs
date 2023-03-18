@@ -1,3 +1,12 @@
+macro_rules! auto_increment {
+    () => {{
+        static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }};
+}
+
+pub(crate) use auto_increment;
+
 macro_rules! rpc_trait {
     (@if_specific Device $then:tt $({ $($else:tt)* })?) => {
         $($($else)*)?

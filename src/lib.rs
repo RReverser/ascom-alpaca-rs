@@ -50,16 +50,12 @@ pub(crate) mod macros;
 #[path = "autogen/mod.rs"]
 pub mod api;
 
-mod client;
+pub mod client;
+mod discovery;
 mod errors;
 mod params;
 mod response;
-mod server;
-mod transaction;
-
-pub mod discovery;
+pub mod server;
 
 pub use api::Devices;
-pub use client::Client;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
-pub use server::Server;

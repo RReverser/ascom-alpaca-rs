@@ -1,5 +1,4 @@
-use crate::transaction::{client, server};
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+use crate::{client, server, ASCOMError, ASCOMErrorCode, ASCOMResult};
 use axum::response::IntoResponse;
 use bytes::Bytes;
 use mime::Mime;
@@ -45,7 +44,8 @@ impl OpaqueResponse {
 }
 
 pub(crate) trait Response: Sized {
-    fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response;
+    fn into_axum(self, transaction: crate::server::ResponseTransaction)
+        -> axum::response::Response;
 
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         request
@@ -54,12 +54,15 @@ pub(crate) trait Response: Sized {
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
-    ) -> anyhow::Result<client::ResponseWithTransaction<Self>>;
+    ) -> anyhow::Result<crate::client::ResponseWithTransaction<Self>>;
 }
 
 impl Response for OpaqueResponse {
-    fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response {
-        axum::response::Json(server::ResponseWithTransaction {
+    fn into_axum(
+        self,
+        transaction: crate::server::ResponseTransaction,
+    ) -> axum::response::Response {
+        axum::response::Json(crate::server::ResponseWithTransaction {
             transaction,
             response: self,
         })

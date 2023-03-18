@@ -1,3 +1,4 @@
+use crate::macros::auto_increment;
 use crate::params::ActionParams;
 use crate::response::OpaqueResponse;
 use anyhow::Context;

@@ -1,8 +1,13 @@
+mod discovery;
+pub use discovery::Server as DiscoveryServer;
+
+mod transaction;
+pub(crate) use transaction::*;
+
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
-use crate::discovery::{Server as DiscoveryServer, DEFAULT_DISCOVERY_PORT};
+use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::params::ActionParams;
 use crate::response::{OpaqueResponse, Response};
-use crate::transaction::server::{RequestTransaction, ResponseTransaction};
 use crate::Devices;
 use axum::extract::Path;
 use axum::routing::MethodFilter;
