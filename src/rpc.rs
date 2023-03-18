@@ -234,29 +234,42 @@ macro_rules! rpc {
         Ok(())
     }};
 
-    (@trait $(#[doc = $doc:literal])* $(#[http($path:literal)])? $trait_name:ident: $($parent:path),* {
+    (@trait $(#[doc = $doc:literal])* $(#[http($path:literal)])? $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
+        $(#[doc = $docs_before_methods:literal])*
+
         $(
-            $(#[doc = $method_doc:literal])*
+            #[extra_method(client_impl = $client_impl:expr)]
+            fn $extra_method_name:ident (& $($extra_mut_self:ident)+ $(, $extra_param:ident: $extra_param_ty:ty)* $(,)?) $(-> $extra_method_return:ty)?;
+
+            $(#[doc = $docs_after_extra_method:literal])*
+        )*
+
+        $(
             #[http($method_path:literal)]
             fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
+
+            $(#[doc = $docs_after_method:literal])*
         )*
-    } {
-        $($extra_trait_body:item)*
-    } {
-        $($extra_impl_body:item)*
     }) => {
         $(#[cfg(feature = $path)])?
         #[allow(unused_variables)]
         $(#[doc = $doc])*
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
-        pub trait $trait_name: $($parent+)* {
-            $($extra_trait_body)*
+        pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* {
+            $(#[doc = $docs_before_methods])*
 
             $(
-                $(#[doc = $method_doc])*
+                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)?;
+
+                $(#[doc = $docs_after_extra_method])*
+            )*
+
+            $(
                 async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
                     Err($crate::ASCOMError::NOT_IMPLEMENTED)
                 }
+
+                $(#[doc = $docs_after_method])*
             )*
         }
 
@@ -287,7 +300,11 @@ macro_rules! rpc {
         $(#[cfg(feature = $path)])?
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         impl $trait_name for $crate::client::Sender {
-            $($extra_impl_body)*
+            $(
+                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)? {
+                    $client_impl
+                }
+            )*
 
             $(
                 async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
@@ -308,24 +325,13 @@ macro_rules! rpc {
     ($(
         $(#[doc = $doc:literal])*
         $(#[http($path:literal)])?
-        pub trait $trait_name:ident $trait_body:tt
+        pub trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* { $($trait_body:tt)* }
     )*) => {
         rpc!(@storage $($($trait_name = $path,)?)*);
 
         $(
             $(#[cfg(any(feature = $path, doc))])?
-            rpc!(@if_specific $trait_name {
-                rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: Device, Send, Sync $trait_body {} {});
-            } {
-                rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: std::fmt::Debug, Send, Sync $trait_body {
-                    /// Unique ID of this device, ideally UUID.
-                    fn unique_id(&self) -> &str;
-                } {
-                    fn unique_id(&self) -> &str {
-                        &self.unique_id
-                    }
-                });
-            });
+            rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* { $($trait_body)* });
         )*
     };
 }

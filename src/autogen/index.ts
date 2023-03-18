@@ -651,7 +651,12 @@ rpc! {
       ${stringifyDoc(device.doc)}
       ${
         device.path === '{device_type}' ? '' : `#[http("${device.path}")]`
-      } pub trait ${device.name} {
+      } pub trait ${device.name}: ${device.path === '{device_type}' ? 'std::fmt::Debug + Send + Sync' : 'Device + Send + Sync'} {
+        ${device.path === '{device_type}' ? `
+          /// Unique ID of this device.
+          #[extra_method(client_impl = &self.unique_id)]
+          fn unique_id(&self) -> &str;
+        ` : ''}
         ${stringifyIter(
           device.methods,
           method => `

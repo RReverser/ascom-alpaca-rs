@@ -484,7 +484,11 @@ pub struct AxisRate {
 rpc! {
 
     /// ASCOM Methods Common To All Devices
-    pub trait Device {
+    pub trait Device: std::fmt::Debug + Send + Sync {
+        /// Unique ID of this device.
+        #[extra_method(client_impl = &self.unique_id)]
+        fn unique_id(&self) -> &str;
+
         /**
         Actions and SupportedActions are a standardised means for drivers to extend functionality beyond the built-in capabilities of the ASCOM device interfaces.
 
@@ -563,7 +567,7 @@ rpc! {
 
     /// Camera Specific Methods
     #[http("camera")]
-    pub trait Camera {
+    pub trait Camera: Device + Send + Sync {
         /// Returns the X offset of the Bayer matrix, as defined in SensorType.
         #[http("bayeroffsetx")]
         fn bayer_offset_x(&self) -> i32;
@@ -918,7 +922,7 @@ rpc! {
 
     /// CoverCalibrator Specific Methods
     #[http("covercalibrator")]
-    pub trait CoverCalibrator {
+    pub trait CoverCalibrator: Device + Send + Sync {
         /// Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on)
         #[http("brightness")]
         fn brightness(&self) -> i32;
@@ -958,7 +962,7 @@ rpc! {
 
     /// Dome Specific Methods
     #[http("dome")]
-    pub trait Dome {
+    pub trait Dome: Device + Send + Sync {
         /// The dome altitude (degrees, horizon zero and increasing positive to 90 zenith).
         #[http("altitude")]
         fn altitude(&self) -> f64;
@@ -1062,7 +1066,7 @@ rpc! {
 
     /// FilterWheel Specific Methods
     #[http("filterwheel")]
-    pub trait FilterWheel {
+    pub trait FilterWheel: Device + Send + Sync {
         /// An integer array of filter focus offsets.
         #[http("focusoffsets")]
         fn focus_offsets(&self) -> Vec<i32>;
@@ -1082,7 +1086,7 @@ rpc! {
 
     /// Focuser Specific Methods
     #[http("focuser")]
-    pub trait Focuser {
+    pub trait Focuser: Device + Send + Sync {
         /// True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
         #[http("absolute")]
         fn absolute(&self) -> bool;
@@ -1134,7 +1138,7 @@ rpc! {
 
     /// ObservingConditions Specific Methods
     #[http("observingconditions")]
-    pub trait ObservingConditions {
+    pub trait ObservingConditions: Device + Send + Sync {
         /// Gets the time period over which observations will be averaged
         #[http("averageperiod")]
         fn average_period(&self) -> f64;
@@ -1210,7 +1214,7 @@ rpc! {
 
     /// Rotator Specific Methods
     #[http("rotator")]
-    pub trait Rotator {
+    pub trait Rotator: Device + Send + Sync {
         /// True if the Rotator supports the Reverse method.
         #[http("canreverse")]
         fn can_reverse(&self) -> bool;
@@ -1266,7 +1270,7 @@ rpc! {
 
     /// SafetyMonitor Specific Methods
     #[http("safetymonitor")]
-    pub trait SafetyMonitor {
+    pub trait SafetyMonitor: Device + Send + Sync {
         /// Indicates whether the monitored state is safe for use. True if the state is safe, False if it is unsafe.
         #[http("issafe")]
         fn is_safe(&self) -> bool;
@@ -1274,7 +1278,7 @@ rpc! {
 
     /// Switch Specific Methods
     #[http("switch")]
-    pub trait Switch {
+    pub trait Switch: Device + Send + Sync {
         /// Returns the number of switch devices managed by this driver. Devices are numbered from 0 to MaxSwitch - 1
         #[http("maxswitch")]
         fn max_switch(&self) -> i32;
@@ -1326,7 +1330,7 @@ rpc! {
 
     /// Telescope Specific Methods
     #[http("telescope")]
-    pub trait Telescope {
+    pub trait Telescope: Device + Send + Sync {
         /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
         #[http("alignmentmode")]
         fn alignment_mode(&self) -> AlignmentModeResponse;
