@@ -93,6 +93,34 @@ impl Default for Server {
     }
 }
 
+async fn server_handler<
+    Resp: Response,
+    RespFut: Future<Output = axum::response::Result<Resp>> + Send,
+>(
+    path: &str,
+    mut raw_opaque_params: ActionParams,
+    make_response: impl FnOnce(ActionParams) -> RespFut + Send,
+) -> axum::response::Result<axum::response::Response> {
+    let request_transaction = RequestTransaction::extract(&mut raw_opaque_params).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
+    let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
+
+    let span = tracing::debug_span!(
+        "Alpaca transaction",
+        path,
+        params = ?raw_opaque_params,
+        client_id = request_transaction.client_id,
+        client_transaction_id = request_transaction.client_transaction_id,
+        server_transaction_id = response_transaction.server_transaction_id,
+    );
+
+    async move {
+        let response = make_response(raw_opaque_params).await?;
+        Ok(response.into_axum(response_transaction))
+    }
+    .instrument(span)
+    .await
+}
+
 impl Server {
     pub async fn start_server(self) -> anyhow::Result<()> {
         let mut addr = self.listen_addr;
@@ -130,7 +158,7 @@ impl Server {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|params: ActionParams| {
+                axum::routing::get(|params| {
                     server_handler("/management/apiversions",  params, |_params| async move {
                         Ok(OpaqueResponse::new([1_u32]))
                     })
@@ -139,7 +167,7 @@ impl Server {
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&devices);
 
-                axum::routing::get(|params: ActionParams| {
+                axum::routing::get(|params| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
                         let devices = this.stream_configured().collect::<Vec<ConfiguredDevice>>().await;
                         Ok(OpaqueResponse::new(devices))
@@ -147,7 +175,7 @@ impl Server {
                 })
             })
             .route("/management/v1/description",
-                axum::routing::get(move |params: ActionParams| {
+                axum::routing::get(move |params| {
                     server_handler("/management/v1/serverinfo", params, |_params| async move {
                         Ok(server_info.clone())
                     })
@@ -198,32 +226,4 @@ impl Server {
                     }),
             )
     }
-}
-
-pub(crate) async fn server_handler<
-    Resp: Response,
-    RespFut: Future<Output = axum::response::Result<Resp>> + Send,
->(
-    path: &str,
-    mut raw_opaque_params: ActionParams,
-    make_response: impl FnOnce(ActionParams) -> RespFut + Send,
-) -> axum::response::Result<axum::response::Response> {
-    let request_transaction = RequestTransaction::extract(&mut raw_opaque_params).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
-    let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
-
-    let span = tracing::debug_span!(
-        "Alpaca transaction",
-        path,
-        params = ?raw_opaque_params,
-        client_id = request_transaction.client_id,
-        client_transaction_id = request_transaction.client_transaction_id,
-        server_transaction_id = response_transaction.server_transaction_id,
-    );
-
-    async move {
-        let response = make_response(raw_opaque_params).await?;
-        Ok(response.into_axum(response_transaction))
-    }
-    .instrument(span)
-    .await
 }
