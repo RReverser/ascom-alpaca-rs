@@ -1,7 +1,8 @@
-use futures::TryStreamExt;
-
+#[cfg(feature = "client")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    use futures::TryStreamExt;
+
     let mut client = ascom_alpaca_rs::client::DiscoveryClient::new();
     client.include_ipv6 = true;
     client
@@ -11,4 +12,9 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         })
         .await
+}
+
+#[cfg(not(feature = "client"))]
+fn main() {
+    println!("This example requires the `client` feature");
 }

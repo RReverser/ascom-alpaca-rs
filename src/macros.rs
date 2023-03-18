@@ -92,6 +92,7 @@ macro_rules! rpc_trait {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
+            #[cfg(feature = "server")]
             async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::params::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
                 #[allow(unused)]
                 match (action, params) {
@@ -112,6 +113,7 @@ macro_rules! rpc_trait {
             }
         }
 
+        #[cfg(feature = "client")]
         $(#[cfg(feature = $path)])?
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         impl $trait_name for $crate::client::DeviceClient {
@@ -267,6 +269,7 @@ macro_rules! rpc_mod {
             fn add_to(self, storage: &mut Devices);
         }
 
+        #[cfg(feature = "client")]
         impl $crate::client::DeviceClient {
             pub(crate) fn add_to_as(self, storage: &mut Devices, device_type: DeviceType) {
                 match device_type {
@@ -279,6 +282,7 @@ macro_rules! rpc_mod {
         }
 
         $(
+            #[cfg(feature = "server")]
             #[cfg(feature = $path)]
             impl dyn $trait_name {
                 pub(crate) fn get_in(storage: &Devices, device_number: usize) -> axum::response::Result<&tokio::sync::RwLock<dyn $trait_name>> {
@@ -302,6 +306,7 @@ macro_rules! rpc_mod {
                 device.add_to(self);
             }
 
+            #[cfg(feature = "server")]
             pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::params::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
                 match device_type {
                     $(
@@ -314,7 +319,7 @@ macro_rules! rpc_mod {
                 }
             }
 
-            pub(crate) fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
+            pub fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
                 async_stream::stream! {
                     $(
                         #[cfg(feature = $path)]

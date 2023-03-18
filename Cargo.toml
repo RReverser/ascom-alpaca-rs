@@ -8,7 +8,7 @@ anyhow = "1.0.68"
 async-stream = "0.3.3"
 async-trait = "0.1.64"
 auto_enums = { version = "0.8.0", default-features = false, features = ["serde"], optional = true }
-axum = { version = "0.6.11", features = ["headers"] }
+axum = { version = "0.6.11", optional = true, features = ["headers"] }
 bytemuck = { version = "1.13.0", features = ["derive", "extern_crate_std"], optional = true }
 bytes = "1.4.0"
 futures = "0.3.26"
@@ -20,13 +20,13 @@ ndarray = { version = "0.15.6", optional = true }
 net-literals = "0.2.0"
 num_enum = "0.5.9"
 rand = "0.8.5"
-reqwest = { version = "0.11.14", default-features = false, features = ["json"] }
+reqwest = { version = "0.11.14", optional = true, default-features = false, features = ["json"] }
 serde = { version = "1.0.145", features = ["derive"] }
 serde_iter = { version = "0.1.1", optional = true }
 serde_json = "1.0.86"
 serde_repr = "0.1.9"
 thiserror = "1.0.37"
-tokio = { version = "1.25.0", features = ["macros"] }
+tokio = { version = "1.25.0", features = ["sync", "macros"] }
 tracing = "0.1.37"
 
 [dev-dependencies]
@@ -46,6 +46,9 @@ rotator = []
 safetymonitor = []
 switch = []
 telescope = []
+
+client = ["dep:reqwest"]
+server = ["dep:axum"]
 
 nightly = []
 

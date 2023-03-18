@@ -1,16 +1,17 @@
-use crate::{client, server, ASCOMError, ASCOMErrorCode, ASCOMResult};
-use axum::response::IntoResponse;
-use bytes::Bytes;
-use mime::Mime;
-use serde::de::DeserializeOwned;
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+#[cfg(feature = "client")]
+use {crate::client, bytes::Bytes, mime::Mime};
+#[cfg(feature = "server")]
+use {crate::server, axum::response::IntoResponse};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(transparent)]
 pub(crate) struct OpaqueResponse(pub(crate) serde_json::Map<String, serde_json::Value>);
 
 impl OpaqueResponse {
+    #[cfg(feature = "server")]
     pub(crate) fn new<T: Debug + Serialize>(value: T) -> Self {
         let json = serde_json::to_value(&value).unwrap_or_else(|err| {
             // This should never happen, but if it does, log and return the error.
@@ -33,7 +34,8 @@ impl OpaqueResponse {
         })
     }
 
-    pub(crate) fn try_as<T: DeserializeOwned>(mut self) -> serde_json::Result<T> {
+    #[cfg(feature = "client")]
+    pub(crate) fn try_as<T: serde::de::DeserializeOwned>(mut self) -> serde_json::Result<T> {
         serde_json::from_value(if self.0.contains_key("Value") {
             #[allow(clippy::unwrap_used)]
             self.0.remove("Value").unwrap()
@@ -44,13 +46,16 @@ impl OpaqueResponse {
 }
 
 pub(crate) trait Response: Sized {
+    #[cfg(feature = "server")]
     fn into_axum(self, transaction: crate::server::ResponseTransaction)
         -> axum::response::Response;
 
+    #[cfg(feature = "client")]
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         request
     }
 
+    #[cfg(feature = "client")]
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
@@ -58,6 +63,7 @@ pub(crate) trait Response: Sized {
 }
 
 impl Response for OpaqueResponse {
+    #[cfg(feature = "server")]
     fn into_axum(
         self,
         transaction: crate::server::ResponseTransaction,
@@ -69,10 +75,11 @@ impl Response for OpaqueResponse {
         .into_response()
     }
 
+    #[cfg(feature = "client")]
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
-    ) -> anyhow::Result<client::ResponseWithTransaction<Self>> {
+    ) -> anyhow::Result<crate::client::ResponseWithTransaction<Self>> {
         anyhow::ensure!(
             mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),
             "Expected JSON response, got {mime_type}"
@@ -87,6 +94,7 @@ impl Response for OpaqueResponse {
 }
 
 impl Response for ASCOMResult<OpaqueResponse> {
+    #[cfg(feature = "server")]
     fn into_axum(self, transaction: server::ResponseTransaction) -> axum::response::Response {
         match self {
             Ok(mut res) => {
@@ -102,6 +110,7 @@ impl Response for ASCOMResult<OpaqueResponse> {
         .into_axum(transaction)
     }
 
+    #[cfg(feature = "client")]
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,

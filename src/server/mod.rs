@@ -202,43 +202,43 @@ impl Server {
                 axum::routing::on(
                     MethodFilter::GET | MethodFilter::PUT,
                     move |
-                          Path((DevicePath(device_type), device_number, mut action)): Path<(
-                        DevicePath,
-                        usize,
-                        String,
-                    )>,
-                          #[cfg(all(feature = "camera", target_endian = "little"))]
-                          headers: HeaderMap<HeaderValue>,
-                          params: ActionParams| {
-                        async move {
-                            #[cfg(all(feature = "camera", target_endian = "little"))]
-                            if device_type == DeviceType::Camera {
-                                // imagearrayvariant is soft-deprecated; we should accept it but
-                                // forward to the imagearray handler instead.
-                                if action == "imagearrayvariant" {
-                                    action.truncate("imagearray".len());
-                                }
-
-                                if matches!(params, ActionParams::Get { .. })
-                                    && device_type == DeviceType::Camera
-                                    && action == "imagearray"
-                                    && AcceptsImageBytes::extract(&headers)
-                                {
-                                    return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
-                                        Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await)
-                                    }).await;
-                                }
+                        #[cfg_attr(not(all(feature = "camera", target_endian = "little")), allow(unused_mut))]
+                        Path((DevicePath(device_type), device_number, mut action)): Path<(
+                            DevicePath,
+                            usize,
+                            String,
+                        )>,
+                        #[cfg(all(feature = "camera", target_endian = "little"))]
+                        headers: HeaderMap<HeaderValue>,
+                        params: ActionParams
+                    | async move {
+                        #[cfg(all(feature = "camera", target_endian = "little"))]
+                        if device_type == DeviceType::Camera {
+                            // imagearrayvariant is soft-deprecated; we should accept it but
+                            // forward to the imagearray handler instead.
+                            if action == "imagearrayvariant" {
+                                action.truncate("imagearray".len());
                             }
 
-                            server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"),  params, |params| {
-                                devices.handle_action(
-                                    device_type,
-                                    device_number,
-                                    &action,
-                                    params,
-                                )
-                            }).await
+                            if matches!(params, ActionParams::Get { .. })
+                                && device_type == DeviceType::Camera
+                                && action == "imagearray"
+                                && AcceptsImageBytes::extract(&headers)
+                            {
+                                return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
+                                    Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await)
+                                }).await;
+                            }
                         }
+
+                        server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"),  params, |params| {
+                            devices.handle_action(
+                                device_type,
+                                device_number,
+                                &action,
+                                params,
+                            )
+                        }).await
                     }),
             )
     }

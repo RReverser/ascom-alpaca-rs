@@ -57,12 +57,11 @@ impl ImageArrayResponse {
 mod image_bytes {
     use super::ImageArrayResponse;
     use crate::api::ImageArrayResponseType;
-    use crate::response::{OpaqueResponse, Response};
-    use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
-    use axum::response::IntoResponse;
+    use crate::response::Response;
+    use crate::ASCOMResult;
     use bytemuck::{Pod, Zeroable};
-    use bytes::Bytes;
-    use mime::Mime;
+    #[cfg(feature = "client")]
+    use {bytes::Bytes, mime::Mime};
 
     #[repr(C)]
     #[derive(Clone, Copy, Zeroable, Pod)]
@@ -81,14 +80,17 @@ mod image_bytes {
     }
 
     impl Response for ASCOMResult<ImageArrayResponse> {
+        #[cfg(feature = "server")]
         fn into_axum(
             self,
             transaction: crate::server::ResponseTransaction,
         ) -> axum::response::Response {
+            use axum::response::IntoResponse;
+
             let mut metadata = ImageBytesMetadata {
                 metadata_version: 1,
-                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-                data_start: std::mem::size_of::<ImageBytesMetadata>() as i32,
+                data_start: i32::try_from(std::mem::size_of::<ImageBytesMetadata>())
+                    .expect("internal error: metadata size is too large"),
                 client_transaction_id: transaction.client_transaction_id.unwrap_or(0),
                 server_transaction_id: transaction.server_transaction_id,
                 ..Zeroable::zeroed()
@@ -131,14 +133,19 @@ mod image_bytes {
                 .into_response()
         }
 
+        #[cfg(feature = "client")]
         fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
             request.header("Accept", "application/imagebytes")
         }
 
+        #[cfg(feature = "client")]
         fn from_reqwest(
             mime_type: Mime,
             bytes: Bytes,
         ) -> anyhow::Result<crate::client::ResponseWithTransaction<Self>> {
+            use crate::response::{OpaqueResponse, Response};
+            use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+
             if mime_type.essence_str() != "application/imagebytes" {
                 return Ok(
                     <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?.map(

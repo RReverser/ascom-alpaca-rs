@@ -50,11 +50,13 @@ pub(crate) mod macros;
 #[path = "autogen/mod.rs"]
 pub mod api;
 
+#[cfg(feature = "client")]
 pub mod client;
 mod discovery;
 mod errors;
 mod params;
 mod response;
+#[cfg(feature = "server")]
 pub mod server;
 
 pub use api::Devices;
