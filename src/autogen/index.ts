@@ -570,12 +570,12 @@ ${api.info.description}
 mod server_info;
 
 use crate::params::ASCOMEnumParam;
-use crate::macros::rpc;
+use crate::macros::{rpc_trait, rpc_mod};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 pub use server_info::*;
-use macro_rules_attribute::macro_rules_derive;
+use macro_rules_attribute::{apply, macro_rules_derive};
 
 ${stringifyIter(types, ({features, type}) => {
   let cfg: string = Array.from(features, feature => `#[cfg(feature = "${feature}")]`).join('\n');
@@ -643,57 +643,61 @@ ${stringifyIter(types, ({features, type}) => {
   }
 })}
 
-rpc! {
-  ${stringifyIter(
-    devices,
-    device => `
-      ${stringifyDoc(device.doc)}
-      ${
-        device.path === '{device_type}' ? '' : `#[http("${device.path}")]`
-      } pub trait ${device.name}: ${device.path === '{device_type}' ? 'std::fmt::Debug + Send + Sync' : 'Device + Send + Sync'} {
-        ${device.path === '{device_type}' ? `
-          /// Unique ID of this device.
-          #[extra_method(client_impl = &self.unique_id)]
-          fn unique_id(&self) -> &str;
-        ` : ''}
-        ${stringifyIter(
-          device.methods,
-          method => `
-            ${stringifyDoc(method.doc)}
-            #[http("${method.path}")]
-            fn ${method.name}(
-              &${method.mutable ? 'mut ' : ''}self,
-              ${stringifyIter(
-                method.resolvedArgs,
-                arg =>
-                  `#[http("${arg.originalName}")] ${arg.name}: ${arg.type},`
-              )}
-            )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
+${stringifyIter(
+  devices,
+  device => `
+    ${stringifyDoc(device.doc)}
+    #[apply(rpc_trait)]
+    ${
+      device.path === '{device_type}' ? '' : `#[http("${device.path}")]`
+    } pub trait ${device.name}: ${device.path === '{device_type}' ? 'std::fmt::Debug + Send + Sync' : 'Device + Send + Sync'} {
+      ${device.path === '{device_type}' ? `
+        /// Unique ID of this device.
+        #[extra_method(client_impl = &self.unique_id)]
+        fn unique_id(&self) -> &str;
+      ` : ''}
+      ${stringifyIter(
+        device.methods,
+        method => `
+          ${stringifyDoc(method.doc)}
+          #[http("${method.path}")]
+          fn ${method.name}(
+            &${method.mutable ? 'mut ' : ''}self,
+            ${stringifyIter(
+              method.resolvedArgs,
+              arg =>
+                `#[http("${arg.originalName}")] ${arg.name}: ${arg.type},`
+            )}
+          )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
 
-          `
-        )}
-      }
-    `
-  )}
+        `
+      )}
+    }
+  `
+)}
+
+rpc_mod! {${stringifyIter(
+  devices,
+  device => device.path === '{device_type}' ? '' : `
+    ${device.name} = "${device.path}",`
+)}
 }
 `;
 
-// Help rustfmt format contents of the `rpc!` macro.
-rendered = rendered.replaceAll('rpc!', 'mod __rpc__');
-
-let rustfmt = spawnSync('rustfmt', ['--edition=2021'], {
-  encoding: 'utf-8',
-  input: rendered
-});
-if (rustfmt.error) {
-  throw rustfmt.error;
+try {
+  let rustfmt = spawnSync('rustfmt', ['--edition=2021'], {
+    encoding: 'utf-8',
+    input: rendered
+  });
+  if (rustfmt.error) {
+    throw rustfmt.error;
+  }
+  if (rustfmt.status !== 0) {
+    throw new Error(rustfmt.stderr);
+  }
+  rendered = rustfmt.stdout;
+} catch (err) {
+  console.warn(err);
 }
-if (rustfmt.status !== 0) {
-  throw new Error(rustfmt.stderr);
-}
-rendered = rustfmt.stdout;
-
-// Revert the helper changes.
-rendered = rendered.replaceAll('mod __rpc__', 'rpc!');
 
 await writeFile('mod.rs', rendered);

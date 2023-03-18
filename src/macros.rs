@@ -1,4 +1,4 @@
-macro_rules! rpc {
+macro_rules! rpc_trait {
     (@if_specific Device $then:tt $({ $($else:tt)* })?) => {
         $($($else)*)?
     };
@@ -9,9 +9,9 @@ macro_rules! rpc {
 
     (@params_pat_impl $variant:ident $inner:tt) => ($crate::params::ActionParams::$variant $inner);
 
-    (@params_pat mut $self:ident $inner:tt) => (rpc!(@params_pat_impl Put $inner));
+    (@params_pat mut $self:ident $inner:tt) => (rpc_trait!(@params_pat_impl Put $inner));
 
-    (@params_pat $self:ident $inner:tt) => (rpc!(@params_pat_impl Get $inner));
+    (@params_pat $self:ident $inner:tt) => (rpc_trait!(@params_pat_impl Get $inner));
 
     (@device_lock mut $self:ident) => (tokio::sync::RwLock::write);
 
@@ -21,7 +21,118 @@ macro_rules! rpc {
 
     (@get_self $self:ident) => ($self);
 
-    (@storage $($trait_name:ident = $path:literal,)*) => {
+    (@decode_response $resp:expr => ImageArrayResponse) => {
+        Ok(std::convert::identity::<ImageArrayResponse>($resp))
+    };
+
+    (@decode_response $resp:expr => $return_type:ty) => {
+        std::convert::identity::<$crate::response::OpaqueResponse>($resp)
+        .try_as::<$return_type>()
+        .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))
+    };
+
+    (@decode_response $resp:expr) => {{
+        let _: $crate::response::OpaqueResponse = $resp;
+        Ok(())
+    }};
+
+    (
+        $(#[doc = $doc:literal])*
+        $(#[http($path:literal)])?
+        $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
+            $(#[doc = $docs_before_methods:literal])*
+
+            $(
+                #[extra_method(client_impl = $client_impl:expr)]
+                fn $extra_method_name:ident (& $($extra_mut_self:ident)+ $(, $extra_param:ident: $extra_param_ty:ty)* $(,)?) $(-> $extra_method_return:ty)?;
+
+                $(#[doc = $docs_after_extra_method:literal])*
+            )*
+
+            $(
+                #[http($method_path:literal)]
+                fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
+
+                $(#[doc = $docs_after_method:literal])*
+            )*
+        }
+    ) => {
+        $(#[cfg(any(feature = $path, doc))])?
+        #[allow(unused_variables)]
+        $(#[doc = $doc])*
+        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
+        $pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* {
+            $(#[doc = $docs_before_methods])*
+
+            $(
+                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)?;
+
+                $(#[doc = $docs_after_extra_method])*
+            )*
+
+            $(
+                async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
+                    Err($crate::ASCOMError::NOT_IMPLEMENTED)
+                }
+
+                $(#[doc = $docs_after_method])*
+            )*
+        }
+
+        $(#[cfg(feature = $path)])?
+        impl dyn $trait_name {
+            /// Private inherent method for handling actions.
+            /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
+            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::params::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
+                #[allow(unused)]
+                match (action, params) {
+                    $(
+                        ($method_path, rpc_trait!(@params_pat $($mut_self)* (mut params))) => {
+                            $(
+                                let $param = params.extract($param_query).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
+                            )*
+                            Ok(rpc_trait!(@device_lock $($mut_self)*)(device).await.$method_name($($param),*).await.map($crate::response::OpaqueResponse::new))
+                        },
+                    )*
+                    (action, params) => rpc_trait!(@if_specific $trait_name {
+                        <dyn Device>::handle_action(device, action, params).await
+                    } {
+                        Err((axum::http::StatusCode::NOT_FOUND, "Unknown action").into())
+                    })
+                }
+            }
+        }
+
+        $(#[cfg(feature = $path)])?
+        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
+        impl $trait_name for $crate::client::DeviceClient {
+            $(
+                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)? {
+                    $client_impl
+                }
+            )*
+
+            $(
+                async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
+                    #[allow(unused_mut)]
+                    let mut opaque_params = $crate::params::OpaqueParams::default();
+                    $(
+                        opaque_params.insert($param_query, $param);
+                    )*
+                    rpc_trait!(@decode_response
+                        rpc_trait!(@get_self $($mut_self)*).exec_action($method_path, rpc_trait!(@params_pat $($mut_self)* (opaque_params))).await?
+                        $(=> $return_type)?
+                    )
+                }
+            )*
+        }
+    };
+}
+
+pub(crate) use rpc_trait;
+
+macro_rules! rpc_mod {
+    ($($trait_name:ident = $path:literal,)*) => {
         #[derive(Deserialize, PartialEq, Eq, Clone, Copy)]
         pub enum DeviceType {
             $(
@@ -214,122 +325,6 @@ macro_rules! rpc {
             }
         }
     };
-
-    (@decode_response $resp:expr => ImageArrayResponse) => {
-        Ok(std::convert::identity::<ImageArrayResponse>($resp))
-    };
-
-    (@decode_response $resp:expr => $return_type:ty) => {
-        std::convert::identity::<$crate::response::OpaqueResponse>($resp)
-        .try_as::<$return_type>()
-        .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))
-    };
-
-    (@decode_response $resp:expr) => {{
-        let _: $crate::response::OpaqueResponse = $resp;
-        Ok(())
-    }};
-
-    (@trait $(#[doc = $doc:literal])* $(#[http($path:literal)])? $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
-        $(#[doc = $docs_before_methods:literal])*
-
-        $(
-            #[extra_method(client_impl = $client_impl:expr)]
-            fn $extra_method_name:ident (& $($extra_mut_self:ident)+ $(, $extra_param:ident: $extra_param_ty:ty)* $(,)?) $(-> $extra_method_return:ty)?;
-
-            $(#[doc = $docs_after_extra_method:literal])*
-        )*
-
-        $(
-            #[http($method_path:literal)]
-            fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
-
-            $(#[doc = $docs_after_method:literal])*
-        )*
-    }) => {
-        $(#[cfg(feature = $path)])?
-        #[allow(unused_variables)]
-        $(#[doc = $doc])*
-        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
-        pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* {
-            $(#[doc = $docs_before_methods])*
-
-            $(
-                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)?;
-
-                $(#[doc = $docs_after_extra_method])*
-            )*
-
-            $(
-                async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
-                    Err($crate::ASCOMError::NOT_IMPLEMENTED)
-                }
-
-                $(#[doc = $docs_after_method])*
-            )*
-        }
-
-        $(#[cfg(feature = $path)])?
-        impl dyn $trait_name {
-            /// Private inherent method for handling actions.
-            /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::params::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
-                #[allow(unused)]
-                match (action, params) {
-                    $(
-                        ($method_path, rpc!(@params_pat $($mut_self)* (mut params))) => {
-                            $(
-                                let $param = params.extract($param_query).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
-                            )*
-                            Ok(rpc!(@device_lock $($mut_self)*)(device).await.$method_name($($param),*).await.map($crate::response::OpaqueResponse::new))
-                        },
-                    )*
-                    (action, params) => rpc!(@if_specific $trait_name {
-                        <dyn Device>::handle_action(device, action, params).await
-                    } {
-                        Err((axum::http::StatusCode::NOT_FOUND, "Unknown action").into())
-                    })
-                }
-            }
-        }
-
-        $(#[cfg(feature = $path)])?
-        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
-        impl $trait_name for $crate::client::DeviceClient {
-            $(
-                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)? {
-                    $client_impl
-                }
-            )*
-
-            $(
-                async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
-                    #[allow(unused_mut)]
-                    let mut opaque_params = $crate::params::OpaqueParams::default();
-                    $(
-                        opaque_params.insert($param_query, $param);
-                    )*
-                    rpc!(@decode_response
-                        rpc!(@get_self $($mut_self)*).exec_action($method_path, rpc!(@params_pat $($mut_self)* (opaque_params))).await?
-                        $(=> $return_type)?
-                    )
-                }
-            )*
-        }
-    };
-
-    ($(
-        $(#[doc = $doc:literal])*
-        $(#[http($path:literal)])?
-        pub trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* { $($trait_body:tt)* }
-    )*) => {
-        rpc!(@storage $($($trait_name = $path,)?)*);
-
-        $(
-            $(#[cfg(any(feature = $path, doc))])?
-            rpc!(@trait $(#[doc = $doc])* $(#[http($path)])? $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* { $($trait_body)* });
-        )*
-    };
 }
 
-pub(crate) use rpc;
+pub(crate) use rpc_mod;
