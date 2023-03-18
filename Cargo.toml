@@ -29,21 +29,11 @@ tokio = { version = "1.25.0", features = ["macros"] }
 tracing = "0.1.37"
 
 [dev-dependencies]
+nokhwa = "0.10.3"
 tokio = { version = "1.25.0", features = ["rt-multi-thread"] }
 
 [features]
-all-devices = [
-	"camera",
-	"covercalibrator",
-	"dome",
-	"filterwheel",
-	"focuser",
-	"observingconditions",
-	"rotator",
-	"safetymonitor",
-	"switch",
-	"telescope",
-]
+all-devices = ["camera", "covercalibrator", "dome", "filterwheel", "focuser", "observingconditions", "rotator", "safetymonitor", "switch", "telescope"]
 camera = []
 covercalibrator = []
 dome = []
