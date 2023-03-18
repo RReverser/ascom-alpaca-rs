@@ -1,6 +1,5 @@
 use crate::api::ConfiguredDevice;
 use crate::api::ServerInfo;
-use crate::params::OpaqueParams;
 use crate::response::OpaqueResponse;
 use crate::response::Response;
 use crate::Devices;
@@ -14,6 +13,9 @@ use tracing::Instrument;
 use crate::transaction::client::{RequestTransaction, RequestWithTransaction};
 use futures::TryFutureExt;
 use crate::transaction::client::ResponseWithTransaction;
+use crate::params::ActionParams;
+use reqwest::RequestBuilder;
+use crate::params::OpaqueParams;
 
 #[derive(Debug)]
 pub(crate) struct DeviceClient {
@@ -24,9 +26,8 @@ pub(crate) struct DeviceClient {
 impl DeviceClient {
     pub(crate) async fn exec_action<Resp>(
         &self,
-        is_mut: bool,
         action: &str,
-        params: OpaqueParams<str>,
+        params: ActionParams,
     ) -> ASCOMResult<Resp>
     where
         ASCOMResult<Resp>: Response,
@@ -34,9 +35,7 @@ impl DeviceClient {
         self.inner
             .request::<ASCOMResult<Resp>>(
                 action,
-                is_mut,
                 params,
-                |request| request,
             )
             .await
             .unwrap_or_else(|err| {
@@ -71,9 +70,7 @@ impl RawClient {
     pub(crate) async fn request<Resp: Response>(
         &self,
         path: &str,
-        is_mut: bool,
-        params: OpaqueParams<str>,
-        fill: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder + Send,
+        params: ActionParams,
     ) -> anyhow::Result<Resp> {
         let request_transaction = RequestTransaction::new(self.client_id);
 
@@ -81,32 +78,29 @@ impl RawClient {
             "Alpaca transaction",
             path,
             ?params,
-            is_mut,
             client_transaction_id = request_transaction.client_transaction_id,
             client_id = request_transaction.client_id,
         );
 
         async move {
             let mut request = self.inner.request(
-                if is_mut {
-                    reqwest::Method::PUT
-                } else {
-                    reqwest::Method::GET
+                match params {
+                    ActionParams::Get(_) => reqwest::Method::GET,
+                    ActionParams::Put(_) => reqwest::Method::PUT,
                 },
                 self.base_url.join(path)?,
             );
 
-            let params = RequestWithTransaction {
+            let add_params = match params {
+                ActionParams::Get(_) => RequestBuilder::query,
+                ActionParams::Put(_) => RequestBuilder::form
+            };
+            request = add_params(request, &RequestWithTransaction {
                 transaction: request_transaction,
                 params,
-            };
-            request = if is_mut {
-                request.form(&params)
-            } else {
-                request.query(&params)
-            };
+            });
 
-            request = fill(request);
+            request = Resp::prepare_reqwest(request);
 
             let response = request.send().await?.error_for_status()?;
             let mime_type = response
@@ -177,9 +171,7 @@ impl Client {
 
         self.inner.request::<OpaqueResponse>(
             "management/v1/configureddevices",
-            false,
-            OpaqueParams::default(),
-            |request| request,
+            ActionParams::Get(OpaqueParams::default()),
         )
         .await?
         .try_as::<Vec<ConfiguredDevice>>()
@@ -206,9 +198,7 @@ impl Client {
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
         self.inner.request::<OpaqueResponse>(
             "management/v1/description",
-            false,
-            OpaqueParams::default(),
-            |request| request,
+            ActionParams::Get(OpaqueParams::default()),
         )
         .await?
         .try_as::<ServerInfo>()

@@ -180,7 +180,8 @@ impl<ParamStr: ?Sized + Debug> Drop for OpaqueParams<ParamStr> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub(crate) enum ActionParams {
     Get(OpaqueParams<CaseInsensitiveStr>),
     Put(OpaqueParams<str>),

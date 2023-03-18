@@ -7,15 +7,11 @@ macro_rules! rpc {
         $($then)*
     };
 
-    (@is_mut mut $self:ident) => (true);
+    (@params_pat_impl $variant:ident $inner:tt) => ($crate::params::ActionParams::$variant $inner);
 
-    (@is_mut $self:ident) => (false);
+    (@params_pat mut $self:ident $inner:tt) => (rpc!(@params_pat_impl Put $inner));
 
-    (@params_pat_impl $variant:ident, $params:ident) => ($crate::params::ActionParams::$variant(mut $params));
-
-    (@params_pat mut $self:ident, $params:ident) => (rpc!(@params_pat_impl Put, $params));
-
-    (@params_pat $self:ident, $params:ident) => (rpc!(@params_pat_impl Get, $params));
+    (@params_pat $self:ident $inner:tt) => (rpc!(@params_pat_impl Get $inner));
 
     (@device_lock mut $self:ident) => (tokio::sync::RwLock::write);
 
@@ -281,7 +277,7 @@ macro_rules! rpc {
                 #[allow(unused)]
                 match (action, params) {
                     $(
-                        ($method_path, rpc!(@params_pat $($mut_self)*, params)) => {
+                        ($method_path, rpc!(@params_pat $($mut_self)* (mut params))) => {
                             $(
                                 let $param = params.extract($param_query).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
                             )*
@@ -314,7 +310,7 @@ macro_rules! rpc {
                         opaque_params.insert($param_query, $param);
                     )*
                     rpc!(@decode_response
-                        rpc!(@get_self $($mut_self)*).exec_action(rpc!(@is_mut $($mut_self)*), $method_path, opaque_params).await?
+                        rpc!(@get_self $($mut_self)*).exec_action($method_path, rpc!(@params_pat $($mut_self)* (opaque_params))).await?
                         $(=> $return_type)?
                     )
                 }

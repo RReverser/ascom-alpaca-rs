@@ -1,4 +1,4 @@
-use crate::params::OpaqueParams;
+use crate::params::ActionParams;
 use crate::response::OpaqueResponse;
 use anyhow::Context;
 use serde::Serialize;
@@ -23,7 +23,7 @@ pub(crate) struct RequestWithTransaction {
     #[serde(flatten)]
     pub(crate) transaction: RequestTransaction,
     #[serde(flatten)]
-    pub(crate) params: OpaqueParams<str>,
+    pub(crate) params: ActionParams,
 }
 
 #[derive(Debug, Clone, Copy)]
