@@ -82,7 +82,8 @@ impl RawClient {
             path,
             ?params,
             is_mut,
-            ?request_transaction,
+            client_transaction_id = request_transaction.client_transaction_id,
+            client_id = request_transaction.client_id,
         );
 
         async move {
