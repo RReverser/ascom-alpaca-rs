@@ -1,67 +1,10 @@
-use net_literals::{addr, ipv6};
-use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use super::{AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
+use net_literals::addr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-const DISCOVERY_ADDR_V6: Ipv6Addr = ipv6!("ff12::a1:9aca");
-const DISCOVERY_MSG: &[u8] = b"alpacadiscovery1";
-
-pub const DEFAULT_DISCOVERY_PORT: u16 = 32227;
-
-#[derive(Serialize, Deserialize)]
-struct AlpacaPort {
-    #[serde(rename = "AlpacaPort")]
-    alpaca_port: u16,
-}
-
 #[derive(Debug, Clone, Copy)]
-pub struct DiscoveryServer {
-    /// Port of the running server.
-    pub alpaca_port: u16,
-    /// Discovery port to listen on.
-    ///
-    /// Defaults to [`DEFAULT_DISCOVERY_PORT`].
-    pub discovery_port: u16,
-}
-
-impl DiscoveryServer {
-    /// Creates a new discovery server for Alpaca server running at specified port.
-    pub const fn new(alpaca_port: u16) -> Self {
-        Self {
-            alpaca_port,
-            discovery_port: DEFAULT_DISCOVERY_PORT,
-        }
-    }
-
-    /// Starts a discovery server on the local network.
-    #[tracing::instrument(err)]
-    pub async fn start_server(self) -> anyhow::Result<()> {
-        tracing::debug!("Starting Alpaca discovery server");
-        let response_msg = serde_json::to_string(&AlpacaPort {
-            alpaca_port: self.alpaca_port,
-        })?;
-        let socket =
-            tokio::net::UdpSocket::bind((Ipv6Addr::UNSPECIFIED, self.discovery_port)).await?;
-        socket.join_multicast_v6(&DISCOVERY_ADDR_V6, 0)?;
-        let mut buf = [0; 16];
-        loop {
-            let (len, src) = socket.recv_from(&mut buf).await?;
-            let data = &buf[..len];
-            if data == DISCOVERY_MSG {
-                tracing::debug!(%src, "Received Alpaca discovery request");
-                anyhow::ensure!(
-                    socket.send_to(response_msg.as_bytes(), src).await? == response_msg.len(),
-                    "Failed to send discovery response"
-                );
-            } else {
-                tracing::warn!(%src, "Received unknown multicast packet");
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct DiscoveryClient {
+pub struct Client {
     /// Number of discovery requests to send.
     ///
     /// Defaults to 1.
@@ -80,7 +23,7 @@ pub struct DiscoveryClient {
     pub discovery_port: u16,
 }
 
-impl DiscoveryClient {
+impl Client {
     /// Create a discovery client with default settings.
     pub const fn new() -> Self {
         Self {
@@ -124,7 +67,7 @@ impl DiscoveryClient {
                     match serde_json::from_slice::<AlpacaPort>(data) {
                         Ok(AlpacaPort { alpaca_port }) => {
                             let mut ip = src.ip();
-                            // TODO: use `to_canonical` when it's stable.
+                            // TODO: use `SocketAddr::to_canonical` when it's stable.
                             if let IpAddr::V6(ip_v6) = ip {
                                 if let Some(ip_v4) = ip_v6.to_ipv4_mapped() {
                                     ip = IpAddr::V4(ip_v4);

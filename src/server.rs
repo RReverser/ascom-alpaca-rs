@@ -1,7 +1,7 @@
 #[cfg(feature = "camera")]
 use crate::api::Camera;
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
-use crate::discovery::{DiscoveryServer, DEFAULT_DISCOVERY_PORT};
+use crate::discovery::{DEFAULT_DISCOVERY_PORT};
 use crate::params::ActionParams;
 use crate::response::{OpaqueResponse, Response};
 use crate::transaction::server::{ResponseTransaction, RequestTransaction};
@@ -19,6 +19,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::future::Future;
 use tracing::Instrument;
+use crate::discovery::Server as DiscoveryServer;
 
 const MEDIA_TYPE_IMAGE_BYTES: mediatype::MediaType<'static> = mediatype::MediaType::new(
     mediatype::names::APPLICATION,
