@@ -143,8 +143,8 @@ mod image_bytes {
             mime_type: Mime,
             bytes: Bytes,
         ) -> anyhow::Result<crate::client::ResponseWithTransaction<Self>> {
-            use crate::response::{OpaqueResponse, Response};
-            use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+            use crate::response::OpaqueResponse;
+            use crate::{ASCOMError, ASCOMErrorCode};
 
             if mime_type.essence_str() != "application/imagebytes" {
                 return Ok(

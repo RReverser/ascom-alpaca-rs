@@ -4,6 +4,8 @@ pub use discovery::Client as DiscoveryClient;
 mod transaction;
 pub(crate) use transaction::*;
 
+mod params_impl;
+
 use crate::api::{ConfiguredDevice, ServerInfo};
 use crate::params::{ActionParams, OpaqueParams};
 use crate::response::{OpaqueResponse, Response};

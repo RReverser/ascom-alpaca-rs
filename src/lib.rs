@@ -52,12 +52,14 @@ pub mod api;
 
 #[cfg(feature = "client")]
 pub mod client;
+
+#[cfg(feature = "server")]
+pub mod server;
+
 mod discovery;
 mod errors;
 mod params;
 mod response;
-#[cfg(feature = "server")]
-pub mod server;
 
 pub use api::Devices;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};

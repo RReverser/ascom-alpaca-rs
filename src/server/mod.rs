@@ -4,6 +4,8 @@ pub use discovery::Server as DiscoveryServer;
 mod transaction;
 pub(crate) use transaction::*;
 
+mod params_impl;
+
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::params::ActionParams;
@@ -22,8 +24,8 @@ use tracing::Instrument;
 
 #[cfg(all(feature = "camera", target_endian = "little"))]
 mod image_bytes {
+    use axum::headers::{Error, Header, HeaderMap, HeaderName, HeaderValue};
     use mediatype::{MediaType, MediaTypeList};
-    use axum::headers::{Header, HeaderName, HeaderValue, Error, HeaderMap};
 
     const MEDIA_TYPE_IMAGE_BYTES: MediaType<'static> = MediaType::new(
         mediatype::names::APPLICATION,
@@ -38,7 +40,9 @@ mod image_bytes {
 
     impl AcceptsImageBytes {
         pub(super) fn extract(headers: &HeaderMap) -> bool {
-            Self::decode(&mut headers.get_all(HeaderName::from_static("accept")).iter()).unwrap_or_default().accepts
+            Self::decode(&mut headers.get_all(HeaderName::from_static("accept")).iter())
+                .unwrap_or_default()
+                .accepts
         }
     }
 
@@ -55,11 +59,9 @@ mod image_bytes {
         {
             let mut accepts = false;
             for value in values {
-                for media_type in MediaTypeList::new(
-                    value
-                        .to_str()
-                        .map_err(|_err| Error::invalid())?,
-                ) {
+                for media_type in
+                    MediaTypeList::new(value.to_str().map_err(|_err| Error::invalid())?)
+                {
                     let media_type = media_type.map_err(|_err| Error::invalid())?;
                     if media_type.essence() == MEDIA_TYPE_IMAGE_BYTES {
                         accepts = true;
@@ -81,7 +83,11 @@ mod image_bytes {
 }
 
 #[cfg(all(feature = "camera", target_endian = "little"))]
-use {image_bytes::AcceptsImageBytes, crate::api::{Camera, DeviceType}, axum::headers::{HeaderMap, HeaderValue}};
+use {
+    crate::api::{Camera, DeviceType},
+    axum::headers::{HeaderMap, HeaderValue},
+    image_bytes::AcceptsImageBytes,
+};
 
 #[derive(Debug, Serialize)]
 struct ServerInfoValue {
