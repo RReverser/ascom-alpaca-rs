@@ -153,7 +153,7 @@ pub enum SensorTypeResponse {
 }
 
 /// The direction in which the guide-rate motion is to be made.
-#[cfg(feature = "camera")]
+#[cfg(any(feature = "camera", feature = "telescope"))]
 #[derive(
     Debug,
     PartialEq,

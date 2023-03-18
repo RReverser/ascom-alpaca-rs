@@ -97,7 +97,7 @@ function registerType<T extends RegisteredType>(
   schema: OpenAPIV3.SchemaObject,
   createType: (schema: OpenAPIV3.SchemaObject) => T | RustType
 ): RustType {
-  let type = getOrSet(typeBySchema, schema, schema => {
+  let rustyType = getOrSet(typeBySchema, schema, schema => {
     let type = createType(schema);
     if (type instanceof RustType) {
       return type;
@@ -106,11 +106,31 @@ function registerType<T extends RegisteredType>(
       return rusty(type.name);
     }
   });
-  let registeredType = types.get(type.toString());
-  if (registeredType && devicePath !== '{device_type}') {
-    registeredType.features.add(devicePath);
+  if (devicePath !== '{device_type}') {
+    // This needs to be done even on cached types.
+    addFeature(rustyType, devicePath);
   }
-  return type;
+  return rustyType;
+}
+
+// Recursively add given feature flag to the type.
+function addFeature(rustyType: RustType, feature: string, visited = new Set<string>()) {
+  let typeName = rustyType.toString();
+  if (visited.has(typeName)) {
+    return;
+  }
+  visited.add(typeName);
+  let registeredType = types.get(typeName);
+  if (!registeredType) {
+    return;
+  }
+  registeredType.features.add(feature);
+  if (registeredType.type.kind === 'Enum') {
+    return;
+  }
+  for (let { type } of registeredType.type.properties.values()) {
+    addFeature(type, feature, visited);
+  }
 }
 
 class RustType {
@@ -578,7 +598,20 @@ pub use server_info::*;
 use macro_rules_attribute::{apply, macro_rules_derive};
 
 ${stringifyIter(types, ({features, type}) => {
-  let cfg: string = Array.from(features, feature => `#[cfg(feature = "${feature}")]`).join('\n');
+  let cfgs = Array.from(features, feature => `feature = "${feature}"`).join(', ');
+  let cfg: string;
+  switch (features.size) {
+    case 0:
+      cfg = '';
+      break;
+
+    default:
+      cfgs = `any(${cfgs})`;
+      // fallthrough
+
+    case 1:
+      cfg = `#[cfg(${cfgs})]`;
+  }
 
   if (type.name === 'ImageArrayResponse') {
     // Override with a better implementation.
