@@ -18,11 +18,11 @@ impl RequestTransaction {
 }
 
 #[derive(Debug, Serialize)]
-pub(crate) struct RequestWithTransaction {
+pub(crate) struct RequestWithTransaction<T> {
     #[serde(flatten)]
     pub(crate) transaction: RequestTransaction,
     #[serde(flatten)]
-    pub(crate) params: ActionParams,
+    pub(crate) params: ActionParams<T>,
 }
 
 #[derive(Debug, Clone, Copy)]

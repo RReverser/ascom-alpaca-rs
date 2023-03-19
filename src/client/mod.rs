@@ -5,7 +5,7 @@ mod transaction;
 pub(crate) use transaction::*;
 
 mod params;
-pub(crate) use params::{OpaqueParams, ActionParams, opaque_params};
+pub(crate) use params::{ActionParams, opaque_params};
 
 mod response;
 pub(crate) use response::{OpaqueResponse, Response};
@@ -20,6 +20,8 @@ use reqwest::{IntoUrl, RequestBuilder};
 use std::net::SocketAddr;
 use tracing::Instrument;
 use crate::response::ValueResponse;
+use serde::Serialize;
+use std::fmt::Debug;
 
 #[derive(Debug)]
 pub(crate) struct DeviceClient {
@@ -31,7 +33,7 @@ impl DeviceClient {
     pub(crate) async fn exec_action<Resp>(
         &self,
         action: &str,
-        params: ActionParams,
+        params: ActionParams<impl Debug + Serialize + Send>,
     ) -> ASCOMResult<Resp>
     where
         ASCOMResult<Resp>: Response,
@@ -71,7 +73,7 @@ impl RawClient {
     pub(crate) async fn request<Resp: Response>(
         &self,
         path: &str,
-        params: ActionParams,
+        params: ActionParams<impl Debug + Serialize + Send>,
     ) -> anyhow::Result<Resp> {
         let request_transaction = RequestTransaction::new(self.client_id);
 
