@@ -18,20 +18,13 @@ use axum::routing::MethodFilter;
 use axum::Router;
 use futures::{StreamExt, TryFutureExt};
 use net_literals::addr;
-use serde::Serialize;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
-
+use crate::response::ValueResponse;
 #[cfg(feature = "camera")]
 use crate::api::{Camera, DeviceType};
-
-#[derive(Debug, Serialize)]
-struct ServerInfoValue {
-    #[serde(rename = "Value")]
-    server_info: ServerInfo,
-}
 
 #[derive(Debug)]
 pub struct Server {
@@ -111,16 +104,14 @@ impl Server {
 
     pub fn into_router(self) -> Router {
         let devices = Arc::new(self.devices);
-        let server_info = OpaqueResponse::new(ServerInfoValue {
-            server_info: self.info,
-        });
+        let server_info = OpaqueResponse::new(ValueResponse::from(self.info));
 
         Router::new()
             .route(
                 "/management/apiversions",
                 axum::routing::get(|params| {
                     server_handler("/management/apiversions",  params, |_params| async move {
-                        Ok(OpaqueResponse::new([1_u32]))
+                        Ok(OpaqueResponse::new(ValueResponse::from([1_u32])))
                     })
                 }),
             )
@@ -130,7 +121,7 @@ impl Server {
                 axum::routing::get(|params| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
                         let devices = this.stream_configured().collect::<Vec<ConfiguredDevice>>().await;
-                        Ok(OpaqueResponse::new(devices))
+                        Ok(OpaqueResponse::new(ValueResponse::from(devices)))
                     })
                 })
             })

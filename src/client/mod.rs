@@ -19,6 +19,7 @@ use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
 use std::net::SocketAddr;
 use tracing::Instrument;
+use crate::response::ValueResponse;
 
 #[derive(Debug)]
 pub(crate) struct DeviceClient {
@@ -179,8 +180,9 @@ impl Client {
                 ActionParams::Get(opaque_params! {}),
             )
             .await?
-            .try_as::<Vec<ConfiguredDevice>>()
+            .try_as::<ValueResponse<Vec<ConfiguredDevice>>>()
             .context("Couldn't parse list of devices")?
+            .into()
             .into_iter()
             .try_for_each(|device| {
                 let device_client = DeviceClient {
@@ -207,7 +209,8 @@ impl Client {
                 ActionParams::Get(opaque_params! {}),
             )
             .await?
-            .try_as::<ServerInfo>()
+            .try_as::<ValueResponse<ServerInfo>>()
+            .map(ValueResponse::into)
             .context("Couldn't parse server info")
     }
 }

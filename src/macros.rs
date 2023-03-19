@@ -36,6 +36,11 @@ macro_rules! rpc_trait {
         Ok(std::convert::identity::<ImageArrayResponse>($resp))
     };
 
+    (@decode_response $resp:expr => $return_type:ty as $via:ident) => {
+        rpc_trait!(@decode_response $resp => $via::<$return_type>)
+        .map($via::into)
+    };
+
     (@decode_response $resp:expr => $return_type:ty) => {
         std::convert::identity::<$crate::client::OpaqueResponse>($resp)
         .try_as::<$return_type>()
@@ -60,7 +65,7 @@ macro_rules! rpc_trait {
             )*
 
             $(
-                #[http($method_path:literal)]
+                #[http($method_path:literal $(, via = $via:ident)?)]
                 fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:ident)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
 
                 $(#[doc = $docs_after_method:literal])*
@@ -100,7 +105,14 @@ macro_rules! rpc_trait {
                             $(
                                 let $param = params.extract(stringify!($param_query)).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
                             )*
-                            Ok(rpc_trait!(@device_lock $($mut_self)*)(device).await.$method_name($($param),*).await.map($crate::server::OpaqueResponse::new))
+                            Ok(
+                                rpc_trait!(@device_lock $($mut_self)*)(device)
+                                .await
+                                .$method_name($($param),*)
+                                .await
+                                $(.map($via::from))?
+                                .map($crate::server::OpaqueResponse::new)
+                            )
                         },
                     )*
                     (action, params) => rpc_trait!(@if_specific $trait_name {
@@ -127,8 +139,11 @@ macro_rules! rpc_trait {
                         $($param_query: $param,)*
                     };
                     rpc_trait!(@decode_response
-                        rpc_trait!(@get_self $($mut_self)*).exec_action($method_path, rpc_trait!(@params_pat client, $($mut_self)* (opaque_params))).await?
+                        rpc_trait!(@get_self $($mut_self)*)
+                        .exec_action($method_path, rpc_trait!(@params_pat client, $($mut_self)* (opaque_params)))
+                        .await?
                         $(=> $return_type)?
+                        $(as $via)?
                     )
                 }
             )*

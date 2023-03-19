@@ -26,8 +26,8 @@ impl OpaqueResponse {
             serde_json::Value::Object(map) => map,
             serde_json::Value::Null => serde_json::Map::new(),
             value => {
-                // Wrap into IntResponse / BoolResponse / ..., aka {"value": ...}
-                std::iter::once(("Value".to_owned(), value)).collect()
+                // all methods must return structs, `()` or use `ValueResponse` struct wrapper
+                unreachable!("internal error: expected object or null, got {value:?}")
             }
         })
     }

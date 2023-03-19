@@ -134,7 +134,7 @@ function addFeature(rustyType: RustType, feature: string, visited = new Set<stri
 }
 
 class RustType {
-  constructor(private rusty: string) {}
+  constructor(private rusty: string, public readonly isValueResponse: boolean) {}
 
   isVoid() {
     return this.rusty === '()';
@@ -149,8 +149,8 @@ class RustType {
   }
 }
 
-function rusty(rusty: string) {
-  return new RustType(rusty);
+function rusty(rusty: string, isValueResponse = false) {
+  return new RustType(rusty, isValueResponse);
 }
 
 interface RegisteredTypeBase {
@@ -381,7 +381,7 @@ function handleContent(
         properties !== undefined &&
         isDeepStrictEqual(Object.keys(properties), ['Value'])
       ) {
-        return handleType(devicePath, name, properties.Value);
+        return rusty(handleType(devicePath, name, properties.Value).toString(), true);
       }
 
       return {
@@ -589,13 +589,14 @@ ${api.info.description}
 
 mod server_info;
 
+use crate::macros::{rpc_mod, rpc_trait};
 use crate::params::ASCOMEnumParam;
-use crate::macros::{rpc_trait, rpc_mod};
+use crate::response::ValueResponse;
+use macro_rules_attribute::{apply, macro_rules_derive};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use num_enum::{TryFromPrimitive, IntoPrimitive};
 pub use server_info::*;
-use macro_rules_attribute::{apply, macro_rules_derive};
 
 ${stringifyIter(types, ({features, type}) => {
   let cfgs = Array.from(features, feature => `feature = "${feature}"`).join(', ');
@@ -693,7 +694,7 @@ ${stringifyIter(
         device.methods,
         method => `
           ${stringifyDoc(method.doc)}
-          #[http("${method.path}")]
+          #[http("${method.path}"${method.returnType.isValueResponse ? ', via = ValueResponse' : ''})]
           fn ${method.name}(
             &${method.mutable ? 'mut ' : ''}self,
             ${stringifyIter(
