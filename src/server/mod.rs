@@ -10,9 +10,12 @@ pub(crate) use params::ActionParams;
 mod response;
 pub(crate) use response::{Response};
 
+mod error;
+pub(crate) use error::Error;
+
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo, ImageBytesResponse};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
-use crate::Devices;
+use crate::{Devices, ASCOMResult};
 use axum::extract::Path;
 use axum::routing::MethodFilter;
 use axum::Router;
@@ -46,13 +49,14 @@ impl Default for Server {
 }
 
 async fn server_handler<
-    Resp: Response,
-    RespFut: Future<Output = axum::response::Result<Resp>> + Send,
+    Resp,
+    RespFut: Future<Output = Result<Resp, Error>> + Send,
 >(
     path: &str,
     mut raw_opaque_params: ActionParams,
     make_response: impl FnOnce(ActionParams) -> RespFut + Send,
-) -> axum::response::Result<axum::response::Response> {
+) -> Result<axum::response::Response, (axum::http::StatusCode, String)>
+    where ASCOMResult<Resp>: Response {
     let request_transaction = RequestTransaction::extract(&mut raw_opaque_params)
         .map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
     let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
@@ -67,8 +71,17 @@ async fn server_handler<
     );
 
     async move {
-        let response = make_response(raw_opaque_params).await?;
-        Ok(response.into_axum(response_transaction))
+        let ascom_result = match make_response(raw_opaque_params).await {
+            Ok(response) => Ok(response),
+            Err(Error::Ascom(err)) => Err(err),
+            Err(Error::BadRequest(err)) => {
+                return Err((axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")));
+            },
+            Err(Error::NotFound(err)) => {
+                return Err((axum::http::StatusCode::NOT_FOUND, format!("{err:#}")));
+            },
+        };
+        Ok(ascom_result.into_axum(response_transaction))
     }
     .instrument(span)
     .await
@@ -160,7 +173,7 @@ impl Server {
                                 && crate::api::ImageArrayResponse::is_accepted(&headers)
                             {
                                 return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
-                                    Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await.map(ImageBytesResponse))
+                                    Ok(ImageBytesResponse(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await?))
                                 }).await;
                             }
                         }
