@@ -259,7 +259,13 @@ macro_rules! rpc_mod {
             }
         }
 
-        pub trait RegistrableDevice<DynTrait: ?Sized + Device>: Device /* where Self: Unsize<DynTrait> */ {
+        pub trait DeviceStorage<DynTrait: ?Sized + Device> /* where Self: Unsize<DynTrait> */ {
+            const TYPE: DeviceType;
+
+            fn get(&self, device_number: usize) -> Option<&DynTrait>;
+        }
+
+        pub trait RegistrableDevice<DynTrait: ?Sized + Device> /* where Self: Unsize<DynTrait> */ {
             fn add_to(self, storage: &mut Devices);
         }
 
@@ -276,14 +282,12 @@ macro_rules! rpc_mod {
         }
 
         $(
-            #[cfg(feature = "server")]
             #[cfg(feature = $path)]
-            impl dyn $trait_name {
-                pub(crate) fn get_in(storage: &Devices, device_number: usize) -> Result<&dyn $trait_name, $crate::server::Error> {
-                    match storage.$trait_name.get(device_number) {
-                        Some(device) => Ok(&**device),
-                        None => Err($crate::server::Error::NotFound(anyhow::anyhow!("Unknown device type {}", stringify!($trait_name)))),
-                    }
+            impl DeviceStorage<dyn $trait_name> for Devices {
+                const TYPE: DeviceType = DeviceType::$trait_name;
+
+                fn get(&self, device_number: usize) -> Option<&(dyn 'static + $trait_name)> {
+                    self.$trait_name.get(device_number).map(std::sync::Arc::as_ref)
                 }
             }
 
@@ -298,6 +302,15 @@ macro_rules! rpc_mod {
         impl Devices {
             pub fn register<DynTrait: ?Sized + Device>(&mut self, device: impl RegistrableDevice<DynTrait>) {
                 device.add_to(self);
+            }
+
+            pub fn get<DynTrait: ?Sized + Device>(&self, device_number: usize) -> Option<&DynTrait> where Self: DeviceStorage<DynTrait> {
+                DeviceStorage::<DynTrait>::get(self, device_number)
+            }
+
+            #[cfg(feature = "server")]
+            pub(crate) fn get_for_server<DynTrait: ?Sized + Device>(&self, device_number: usize) -> Result<&DynTrait, $crate::server::Error> where Self: DeviceStorage<DynTrait> {
+                self.get(device_number).ok_or_else(|| $crate::server::Error::NotFound(anyhow::anyhow!("Device {}#{} not found", Self::TYPE, device_number)))
             }
 
             #[cfg(feature = "server")]
@@ -318,7 +331,7 @@ macro_rules! rpc_mod {
                     $(
                         #[cfg(feature = $path)]
                         DeviceType::$trait_name => {
-                            let device = <dyn $trait_name>::get_in(self, device_number)?;
+                            let device = self.get_for_server::<dyn $trait_name>(device_number)?;
                             let result = <dyn $trait_name>::handle_action(device, action, params).await?;
                             ResponseRepr::$trait_name(result)
                         }
