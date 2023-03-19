@@ -8,13 +8,22 @@ use crate::params::{ASCOMParam, CaseInsensitiveStr};
 use std::hash::Hash;
 use indexmap::IndexMap;
 use serde::Deserialize;
+use std::fmt::Debug;
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
 #[serde(bound(
     deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"
 ))]
-pub(crate) struct OpaqueParams<ParamStr: ?Sized>(pub(crate) IndexMap<Box<ParamStr>, String>);
+pub(crate) struct OpaqueParams<ParamStr: ?Sized + Debug>(pub(crate) IndexMap<Box<ParamStr>, String>);
+
+impl<ParamStr: ?Sized + Debug> Drop for OpaqueParams<ParamStr> {
+    fn drop(&mut self) {
+        if !self.0.is_empty() {
+            tracing::warn!("Unused parameters: {:?}", self.0);
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(crate) enum ActionParams {
@@ -22,7 +31,7 @@ pub(crate) enum ActionParams {
     Put(OpaqueParams<str>),
 }
 
-impl<ParamStr: ?Sized + Hash + Eq> OpaqueParams<ParamStr>
+impl<ParamStr: ?Sized + Hash + Eq + Debug> OpaqueParams<ParamStr>
 where
     str: AsRef<ParamStr>,
 {
