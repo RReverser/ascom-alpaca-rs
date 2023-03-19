@@ -191,14 +191,14 @@ impl Client {
                 let device_client = DeviceClient {
                     inner: self.inner.join_url(&format!(
                         "api/v1/{device_type}/{device_number}/",
-                        device_type = DevicePath(device.device_type),
-                        device_number = device.device_number
+                        device_type = DevicePath(device.ty),
+                        device_number = device.number
                     ))?,
-                    name: device.device_name,
+                    name: device.name,
                     unique_id: device.unique_id,
                 };
 
-                device_client.add_to_as(&mut devices, device.device_type);
+                device_client.add_to_as(&mut devices, device.ty);
 
                 Ok::<_, anyhow::Error>(())
             })?;

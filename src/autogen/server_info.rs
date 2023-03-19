@@ -2,11 +2,13 @@ use super::DeviceType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
 pub struct ConfiguredDevice {
-    pub device_name: String,
-    pub device_type: DeviceType,
-    pub device_number: usize,
+    #[serde(rename = "DeviceName")]
+    pub name: String,
+    #[serde(rename = "DeviceType")]
+    pub ty: DeviceType,
+    #[serde(rename = "DeviceNumber")]
+    pub number: usize,
     #[serde(rename = "UniqueID")]
     pub unique_id: String,
 }

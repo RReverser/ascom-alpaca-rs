@@ -348,10 +348,10 @@ macro_rules! rpc_mod {
 
                 $(
                     #[cfg(feature = $path)]
-                    let iter = iter.chain(self.$trait_name.iter().enumerate().map(|(device_number, device)| ConfiguredDevice {
-                        device_name: device.static_name().to_owned(),
-                        device_type: DeviceType::$trait_name,
-                        device_number,
+                    let iter = iter.chain(self.$trait_name.iter().enumerate().map(|(number, device)| ConfiguredDevice {
+                        name: device.static_name().to_owned(),
+                        ty: DeviceType::$trait_name,
+                        number,
                         unique_id: device.unique_id().to_owned(),
                     }));
                 )*
