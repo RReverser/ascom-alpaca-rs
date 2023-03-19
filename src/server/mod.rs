@@ -4,11 +4,11 @@ pub use discovery::Server as DiscoveryServer;
 mod transaction;
 pub(crate) use transaction::*;
 
-mod params_impl;
+mod params;
+pub(crate) use params::ActionParams;
 
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
-use crate::params::ActionParams;
 use crate::response::{OpaqueResponse, Response};
 use crate::Devices;
 use axum::extract::Path;

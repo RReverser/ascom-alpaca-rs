@@ -4,8 +4,23 @@ use axum::extract::FromRequest;
 use axum::http::{Method, Request, StatusCode};
 use axum::response::IntoResponse;
 use axum::{BoxError, Form};
-use crate::params::{OpaqueParams, ASCOMParam, ActionParams};
+use crate::params::{ASCOMParam, CaseInsensitiveStr};
 use std::hash::Hash;
+use indexmap::IndexMap;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+#[serde(transparent)]
+#[serde(bound(
+    deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"
+))]
+pub(crate) struct OpaqueParams<ParamStr: ?Sized>(pub(crate) IndexMap<Box<ParamStr>, String>);
+
+#[derive(Debug)]
+pub(crate) enum ActionParams {
+    Get(OpaqueParams<CaseInsensitiveStr>),
+    Put(OpaqueParams<str>),
+}
 
 impl<ParamStr: ?Sized + Hash + Eq> OpaqueParams<ParamStr>
 where

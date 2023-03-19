@@ -4,10 +4,10 @@ pub use discovery::Client as DiscoveryClient;
 mod transaction;
 pub(crate) use transaction::*;
 
-mod params_impl;
+mod params;
+pub(crate) use params::{OpaqueParams, ActionParams, opaque_params};
 
 use crate::api::{ConfiguredDevice, ServerInfo};
-use crate::params::{ActionParams, OpaqueParams};
 use crate::response::{OpaqueResponse, Response};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
@@ -174,7 +174,7 @@ impl Client {
         self.inner
             .request::<OpaqueResponse>(
                 "management/v1/configureddevices",
-                ActionParams::Get(OpaqueParams::default()),
+                ActionParams::Get(opaque_params! {}),
             )
             .await?
             .try_as::<Vec<ConfiguredDevice>>()
@@ -202,7 +202,7 @@ impl Client {
         self.inner
             .request::<OpaqueResponse>(
                 "management/v1/description",
-                ActionParams::Get(OpaqueParams::default()),
+                ActionParams::Get(opaque_params! {}),
             )
             .await?
             .try_as::<ServerInfo>()

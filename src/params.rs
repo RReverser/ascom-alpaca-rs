@@ -1,4 +1,3 @@
-use indexmap::IndexMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -119,25 +118,4 @@ impl Hash for CaseInsensitiveStr {
         }
         state.write_u8(0xff);
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
-#[serde(bound(
-    serialize = "ParamStr: Serialize + Hash + Eq",
-    deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"
-))]
-pub(crate) struct OpaqueParams<ParamStr: ?Sized>(pub(crate) IndexMap<Box<ParamStr>, String>);
-
-impl<ParamStr: ?Sized> Default for OpaqueParams<ParamStr> {
-    fn default() -> Self {
-        Self(IndexMap::new())
-    }
-}
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub(crate) enum ActionParams {
-    Get(OpaqueParams<CaseInsensitiveStr>),
-    Put(OpaqueParams<str>),
 }
