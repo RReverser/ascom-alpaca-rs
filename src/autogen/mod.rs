@@ -460,6 +460,10 @@ pub struct AxisRate {
 /// ASCOM Methods Common To All Devices
 #[apply(rpc_trait)]
 pub trait Device: std::fmt::Debug + Send + Sync {
+    /// Static device name for the configured list.
+    #[extra_method(client_impl = &self.name)]
+    fn static_name(&self) -> &str;
+
     /// Unique ID of this device.
     #[extra_method(client_impl = &self.unique_id)]
     fn unique_id(&self) -> &str;

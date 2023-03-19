@@ -686,6 +686,10 @@ ${stringifyIter(
     } #[apply(rpc_trait)]
     pub trait ${device.name}: ${device.path === '{device_type}' ? 'std::fmt::Debug + Send + Sync' : 'Device + Send + Sync'} {
       ${device.path === '{device_type}' ? `
+        /// Static device name for the configured list.
+        #[extra_method(client_impl = &self.name)]
+        fn static_name(&self) -> &str;
+
         /// Unique ID of this device.
         #[extra_method(client_impl = &self.unique_id)]
         fn unique_id(&self) -> &str;

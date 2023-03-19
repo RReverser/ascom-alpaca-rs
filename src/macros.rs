@@ -326,22 +326,20 @@ macro_rules! rpc_mod {
                 })
             }
 
-            pub fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
-                async_stream::stream! {
-                    $(
-                        #[cfg(feature = $path)]
-                        for (device_number, device) in self.$trait_name.iter().enumerate() {
-                            let device = ConfiguredDevice {
-                                device_name: device.name().await.unwrap_or_default(),
-                                device_type: DeviceType::$trait_name,
-                                device_number,
-                                unique_id: device.unique_id().to_owned(),
-                            };
-                            tracing::debug!(?device, "Reporting device");
-                            yield device;
-                        }
-                    )*
-                }
+            pub fn iter(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {
+                let iter = std::iter::empty();
+
+                $(
+                    #[cfg(feature = $path)]
+                    let iter = iter.chain(self.$trait_name.iter().enumerate().map(|(device_number, device)| ConfiguredDevice {
+                        device_name: device.static_name().to_owned(),
+                        device_type: DeviceType::$trait_name,
+                        device_number,
+                        unique_id: device.unique_id().to_owned(),
+                    }));
+                )*
+
+                iter
             }
         }
     };

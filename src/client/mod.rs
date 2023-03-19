@@ -26,6 +26,7 @@ use tracing::Instrument;
 #[derive(Debug)]
 pub(crate) struct DeviceClient {
     pub(crate) inner: RawClient,
+    pub(crate) name: String,
     pub(crate) unique_id: String,
 }
 
@@ -188,12 +189,13 @@ impl Client {
             .into_iter()
             .try_for_each(|device| {
                 let device_client = DeviceClient {
-                    unique_id: device.unique_id,
                     inner: self.inner.join_url(&format!(
                         "api/v1/{device_type}/{device_number}/",
                         device_type = DevicePath(device.device_type),
                         device_number = device.device_number
                     ))?,
+                    name: device.device_name,
+                    unique_id: device.unique_id,
                 };
 
                 device_client.add_to_as(&mut devices, device.device_type);

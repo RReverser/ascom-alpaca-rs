@@ -22,7 +22,7 @@ use crate::{ASCOMResult, Devices};
 use axum::extract::Path;
 use axum::routing::MethodFilter;
 use axum::Router;
-use futures::{StreamExt, TryFutureExt};
+use futures::TryFutureExt;
 use net_literals::addr;
 use std::future::Future;
 use std::net::SocketAddr;
@@ -132,7 +132,7 @@ impl Server {
 
                 axum::routing::get(|params| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
-                        let devices = this.stream_configured().collect::<Vec<ConfiguredDevice>>().await;
+                        let devices = this.iter().collect::<Vec<ConfiguredDevice>>();
                         Ok(ValueResponse::from(devices))
                     })
                 })
