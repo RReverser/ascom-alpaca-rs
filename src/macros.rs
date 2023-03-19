@@ -259,23 +259,13 @@ macro_rules! rpc_mod {
             }
         }
 
-        pub trait RetrieavableDevice: 'static + Device /* where Self: Unsize<DynTrait> */ {
-            const TYPE: DeviceType;
-
-            fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>];
-        }
-
-        pub trait RegistrableDevice<DynTrait: ?Sized + RetrieavableDevice> /* where Self: Unsize<DynTrait> */ {
-            fn add_to(self, storage: &mut Devices);
-        }
-
         #[cfg(feature = "client")]
-        impl $crate::client::DeviceClient {
-            pub(crate) fn add_to_as(self, storage: &mut Devices, device_type: DeviceType) {
-                match device_type {
+        impl Devices {
+            pub(crate) fn register_client(&mut self, client: $crate::client::DeviceClient, as_type: DeviceType) {
+                match as_type {
                     $(
                         #[cfg(feature = $path)]
-                        DeviceType::$trait_name => storage.register::<dyn $trait_name>(self),
+                        DeviceType::$trait_name => self.register::<dyn $trait_name>(client),
                     )*
                 }
             }
@@ -283,36 +273,24 @@ macro_rules! rpc_mod {
 
         $(
             #[cfg(feature = $path)]
-            impl RetrieavableDevice for dyn $trait_name {
-                const TYPE: DeviceType = DeviceType::$trait_name;
+            const _: () = {
+                impl $crate::api::devices_impl::RetrieavableDevice for dyn $trait_name {
+                    const TYPE: DeviceType = DeviceType::$trait_name;
 
-                fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>] {
-                    &storage.$trait_name
+                    fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>] {
+                        &storage.$trait_name
+                    }
                 }
-            }
 
-            #[cfg(feature = $path)]
-            impl<T: 'static + $trait_name> RegistrableDevice<dyn $trait_name> for T {
-                fn add_to(self, storage: &mut Devices) {
-                    storage.$trait_name.push(std::sync::Arc::new(self));
+                impl<T: 'static + $trait_name> $crate::api::devices_impl::RegistrableDevice<dyn $trait_name> for T {
+                    fn add_to(self, storage: &mut Devices) {
+                        storage.$trait_name.push(std::sync::Arc::new(self));
+                    }
                 }
-            }
+            };
         )*
 
         impl Devices {
-            pub fn register<DynTrait: ?Sized + RetrieavableDevice>(&mut self, device: impl RegistrableDevice<DynTrait>) {
-                device.add_to(self);
-            }
-
-            pub fn get<DynTrait: ?Sized + RetrieavableDevice>(&self, device_number: usize) -> Option<&DynTrait> {
-                DynTrait::get_storage(&self).get(device_number).map(std::sync::Arc::as_ref)
-            }
-
-            #[cfg(feature = "server")]
-            pub(crate) fn get_for_server<DynTrait: ?Sized + RetrieavableDevice>(&self, device_number: usize) -> Result<&DynTrait, $crate::server::Error> {
-                self.get(device_number).ok_or_else(|| $crate::server::Error::NotFound(anyhow::anyhow!("Device {}#{} not found", DynTrait::TYPE, device_number)))
-            }
-
             #[cfg(feature = "server")]
             pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> Result<impl 'this + Serialize, $crate::server::Error> {
                 #[derive(Serialize)]
@@ -337,10 +315,6 @@ macro_rules! rpc_mod {
                         }
                     )*
                 })
-            }
-
-            pub fn iter<DynTrait: ?Sized + RetrieavableDevice>(&self) -> impl '_ + Iterator<Item = &DynTrait> {
-                DynTrait::get_storage(&self).iter().map(std::sync::Arc::as_ref)
             }
 
             pub fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {

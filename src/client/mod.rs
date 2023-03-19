@@ -188,7 +188,7 @@ impl Client {
             .into()
             .into_iter()
             .try_for_each(|device| {
-                let device_client = DeviceClient {
+                devices.register_client(DeviceClient {
                     inner: self.inner.join_url(&format!(
                         "api/v1/{device_type}/{device_number}/",
                         device_type = DevicePath(device.ty),
@@ -196,9 +196,7 @@ impl Client {
                     ))?,
                     name: device.name,
                     unique_id: device.unique_id,
-                };
-
-                device_client.add_to_as(&mut devices, device.ty);
+                }, device.ty);
 
                 Ok::<_, anyhow::Error>(())
             })?;
