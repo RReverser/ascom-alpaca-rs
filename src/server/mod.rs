@@ -146,13 +146,13 @@ impl Server {
                 axum::routing::on(
                     MethodFilter::GET | MethodFilter::PUT,
                     move |
-                        #[cfg_attr(not(all(feature = "camera", target_endian = "little")), allow(unused_mut))]
+                        #[cfg_attr(not(feature = "camera"), allow(unused_mut))]
                         Path((DevicePath(device_type), device_number, mut action)): Path<(
                             DevicePath,
                             usize,
                             String,
                         )>,
-                        #[cfg(all(feature = "camera", target_endian = "little"))]
+                        #[cfg(feature = "camera")]
                         headers: axum::http::HeaderMap,
                         params: ActionParams
                     | async move {
@@ -164,7 +164,6 @@ impl Server {
                                 action.truncate("imagearray".len());
                             }
 
-                            #[cfg(target_endian = "little")]
                             if matches!(params, ActionParams::Get { .. })
                                 && device_type == DeviceType::Camera
                                 && action == "imagearray"
