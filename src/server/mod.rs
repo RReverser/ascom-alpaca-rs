@@ -156,7 +156,6 @@ impl Server {
                             }
 
                             if matches!(params, ActionParams::Get { .. })
-                                && device_type == DeviceType::Camera
                                 && action == "imagearray"
                                 && crate::api::ImageArrayResponse::is_accepted(&headers)
                             {
