@@ -7,6 +7,15 @@ macro_rules! auto_increment {
 
 pub(crate) use auto_increment;
 
+#[cfg_attr(
+    not(all(
+        feature = "client",
+        feature = "server",
+        feature = "camera",
+        target_endian = "little"
+    )),
+    allow(unused_macro_rules)
+)]
 macro_rules! rpc_trait {
     (@if_specific Device $then:tt $({ $($else:tt)* })?) => {
         $($($else)*)?
