@@ -262,7 +262,7 @@ macro_rules! rpc_mod {
         pub trait DeviceStorage<DynTrait: ?Sized + Device> /* where Self: Unsize<DynTrait> */ {
             const TYPE: DeviceType;
 
-            fn get(&self, device_number: usize) -> Option<&DynTrait>;
+            fn as_storage(&self) -> &[std::sync::Arc<DynTrait>];
         }
 
         pub trait RegistrableDevice<DynTrait: ?Sized + Device> /* where Self: Unsize<DynTrait> */ {
@@ -286,8 +286,8 @@ macro_rules! rpc_mod {
             impl DeviceStorage<dyn $trait_name> for Devices {
                 const TYPE: DeviceType = DeviceType::$trait_name;
 
-                fn get(&self, device_number: usize) -> Option<&(dyn 'static + $trait_name)> {
-                    self.$trait_name.get(device_number).map(std::sync::Arc::as_ref)
+                fn as_storage(&self) -> &[std::sync::Arc<dyn $trait_name>] {
+                    &self.$trait_name
                 }
             }
 
@@ -305,7 +305,7 @@ macro_rules! rpc_mod {
             }
 
             pub fn get<DynTrait: ?Sized + Device>(&self, device_number: usize) -> Option<&DynTrait> where Self: DeviceStorage<DynTrait> {
-                DeviceStorage::<DynTrait>::get(self, device_number)
+                self.as_storage().get(device_number).map(std::sync::Arc::as_ref)
             }
 
             #[cfg(feature = "server")]
@@ -339,7 +339,11 @@ macro_rules! rpc_mod {
                 })
             }
 
-            pub fn iter(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {
+            pub fn iter<'this, DynTrait: 'this + ?Sized + Device>(&'this self) -> impl '_ + Iterator<Item = &DynTrait> where Self: DeviceStorage<DynTrait> {
+                self.as_storage().iter().map(std::sync::Arc::as_ref)
+            }
+
+            pub fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {
                 let iter = std::iter::empty();
 
                 $(
