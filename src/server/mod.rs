@@ -8,14 +8,17 @@ mod params;
 pub(crate) use params::ActionParams;
 
 mod response;
-pub(crate) use response::{Response};
+pub(crate) use response::Response;
 
 mod error;
 pub(crate) use error::Error;
 
+#[cfg(feature = "camera")]
+use crate::api::{Camera, DeviceType};
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
-use crate::{Devices, ASCOMResult};
+use crate::response::ValueResponse;
+use crate::{ASCOMResult, Devices};
 use axum::extract::Path;
 use axum::routing::MethodFilter;
 use axum::Router;
@@ -25,9 +28,6 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
-use crate::response::ValueResponse;
-#[cfg(feature = "camera")]
-use crate::api::{Camera, DeviceType};
 
 #[derive(Debug)]
 pub struct Server {
@@ -48,15 +48,14 @@ impl Default for Server {
     }
 }
 
-async fn server_handler<
-    Resp,
-    RespFut: Future<Output = Result<Resp, Error>> + Send,
->(
+async fn server_handler<Resp, RespFut: Future<Output = Result<Resp, Error>> + Send>(
     path: &str,
     mut raw_opaque_params: ActionParams,
     make_response: impl FnOnce(ActionParams) -> RespFut + Send,
 ) -> Result<axum::response::Response, (axum::http::StatusCode, String)>
-    where ASCOMResult<Resp>: Response {
+where
+    ASCOMResult<Resp>: Response,
+{
     let request_transaction = RequestTransaction::extract(&mut raw_opaque_params)
         .map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
     let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
@@ -76,10 +75,10 @@ async fn server_handler<
             Err(Error::Ascom(err)) => Err(err),
             Err(Error::BadRequest(err)) => {
                 return Err((axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")));
-            },
+            }
             Err(Error::NotFound(err)) => {
                 return Err((axum::http::StatusCode::NOT_FOUND, format!("{err:#}")));
-            },
+            }
         };
         Ok(ascom_result.into_axum(response_transaction))
     }

@@ -1,4 +1,4 @@
-use net_literals::{ipv6};
+use net_literals::ipv6;
 use serde::{Deserialize, Serialize};
 use std::net::Ipv6Addr;
 

@@ -1,21 +1,21 @@
+use crate::params::{ASCOMParam, CaseInsensitiveStr};
 use anyhow::Context;
 use axum::body::HttpBody;
 use axum::extract::FromRequest;
 use axum::http::{Method, Request, StatusCode};
 use axum::response::IntoResponse;
 use axum::{BoxError, Form};
-use crate::params::{ASCOMParam, CaseInsensitiveStr};
-use std::hash::Hash;
 use indexmap::IndexMap;
 use serde::Deserialize;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-#[serde(bound(
-    deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"
-))]
-pub(crate) struct OpaqueParams<ParamStr: ?Sized + Debug>(pub(crate) IndexMap<Box<ParamStr>, String>);
+#[serde(bound(deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"))]
+pub(crate) struct OpaqueParams<ParamStr: ?Sized + Debug>(
+    pub(crate) IndexMap<Box<ParamStr>, String>,
+);
 
 impl<ParamStr: ?Sized + Debug> Drop for OpaqueParams<ParamStr> {
     fn drop(&mut self) {

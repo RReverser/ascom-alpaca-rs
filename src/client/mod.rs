@@ -5,23 +5,23 @@ mod transaction;
 pub(crate) use transaction::*;
 
 mod params;
-pub(crate) use params::{ActionParams, opaque_params};
+pub(crate) use params::{opaque_params, ActionParams};
 
 mod response;
 pub(crate) use response::{OpaqueResponse, Response};
 
-use crate::api::{ConfiguredDevice, ServerInfo, DevicePath};
+use crate::api::{ConfiguredDevice, DevicePath, ServerInfo};
+use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
 use futures::TryFutureExt;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
-use std::net::SocketAddr;
-use tracing::Instrument;
-use crate::response::ValueResponse;
 use serde::Serialize;
 use std::fmt::Debug;
+use std::net::SocketAddr;
+use tracing::Instrument;
 
 #[derive(Debug)]
 pub(crate) struct DeviceClient {

@@ -1,5 +1,5 @@
 [package]
-name = "ascom-alpaca-rs"
+name = "ascom-alpaca"
 version = "0.1.0"
 edition = "2021"
 
