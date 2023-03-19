@@ -1,4 +1,4 @@
-use net_literals::ipv6;
+use net_literals::{ipv6};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv6Addr;
 
@@ -14,3 +14,21 @@ pub(crate) struct AlpacaPort {
 
 pub use crate::client::DiscoveryClient;
 pub use crate::server::DiscoveryServer;
+
+#[cfg(test)]
+#[tokio::test]
+async fn test_discovery() -> anyhow::Result<()> {
+    use futures::TryStreamExt;
+
+    tokio::select!(
+        result = DiscoveryServer::new(8378).start_server() => result,
+        addrs = DiscoveryClient::new().discover_addrs().try_collect::<Vec<_>>() => {
+            let addrs = addrs?;
+            anyhow::ensure!(
+                addrs.iter().any(|addr| addr.port() == 8378),
+                "Couldn't find own discovery server on port 8378. Found: {addrs:?}"
+            );
+            Ok(())
+        }
+    )
+}
