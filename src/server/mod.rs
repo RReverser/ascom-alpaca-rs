@@ -24,72 +24,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
 
-#[cfg(all(feature = "camera", target_endian = "little"))]
-mod image_bytes {
-    use axum::headers::{Error, Header, HeaderMap, HeaderName, HeaderValue};
-    use mediatype::{MediaType, MediaTypeList};
-
-    const MEDIA_TYPE_IMAGE_BYTES: MediaType<'static> = MediaType::new(
-        mediatype::names::APPLICATION,
-        mediatype::Name::new_unchecked("imagebytes"),
-    );
-
-    // A hack until TypedHeader supports Accept natively.
-    #[derive(Default)]
-    pub(super) struct AcceptsImageBytes {
-        accepts: bool,
-    }
-
-    impl AcceptsImageBytes {
-        pub(super) fn extract(headers: &HeaderMap) -> bool {
-            Self::decode(&mut headers.get_all(HeaderName::from_static("accept")).iter())
-                .unwrap_or_default()
-                .accepts
-        }
-    }
-
-    impl Header for AcceptsImageBytes {
-        fn name() -> &'static HeaderName {
-            static ACCEPT: HeaderName = HeaderName::from_static("accept");
-            &ACCEPT
-        }
-
-        fn decode<'value, I>(values: &mut I) -> Result<Self, Error>
-        where
-            Self: Sized,
-            I: Iterator<Item = &'value HeaderValue>,
-        {
-            let mut accepts = false;
-            for value in values {
-                for media_type in
-                    MediaTypeList::new(value.to_str().map_err(|_err| Error::invalid())?)
-                {
-                    let media_type = media_type.map_err(|_err| Error::invalid())?;
-                    if media_type.essence() == MEDIA_TYPE_IMAGE_BYTES {
-                        accepts = true;
-                        break;
-                    }
-                }
-            }
-            Ok(Self { accepts })
-        }
-
-        fn encode<E: Extend<HeaderValue>>(&self, values: &mut E) {
-            values.extend(std::iter::once(HeaderValue::from_static(if self.accepts {
-                "application/imagebytes"
-            } else {
-                "*/*"
-            })));
-        }
-    }
-}
-
-#[cfg(all(feature = "camera", target_endian = "little"))]
-use {
-    crate::api::{Camera, DeviceType},
-    axum::headers::{HeaderMap, HeaderValue},
-    image_bytes::AcceptsImageBytes,
-};
+#[cfg(feature = "camera")]
+use crate::api::{Camera, DeviceType};
 
 #[derive(Debug, Serialize)]
 struct ServerInfoValue {
@@ -217,10 +153,10 @@ impl Server {
                             String,
                         )>,
                         #[cfg(all(feature = "camera", target_endian = "little"))]
-                        headers: HeaderMap<HeaderValue>,
+                        headers: axum::http::HeaderMap,
                         params: ActionParams
                     | async move {
-                        #[cfg(all(feature = "camera", target_endian = "little"))]
+                        #[cfg(feature = "camera")]
                         if device_type == DeviceType::Camera {
                             // imagearrayvariant is soft-deprecated; we should accept it but
                             // forward to the imagearray handler instead.
@@ -228,10 +164,11 @@ impl Server {
                                 action.truncate("imagearray".len());
                             }
 
+                            #[cfg(target_endian = "little")]
                             if matches!(params, ActionParams::Get { .. })
                                 && device_type == DeviceType::Camera
                                 && action == "imagearray"
-                                && AcceptsImageBytes::extract(&headers)
+                                && crate::api::ImageArrayResponse::is_accepted(&headers)
                             {
                                 return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
                                     Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await)

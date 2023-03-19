@@ -76,6 +76,28 @@ mod image_bytes {
         dimension_3: i32,
     }
 
+    const MIME_TYPE_STR: &str = "application/imagebytes";
+
+    #[cfg(feature = "server")]
+    impl ImageArrayResponse {
+        pub(crate) fn is_accepted(headers: &axum::headers::HeaderMap) -> bool {
+            use mediatype::{MediaType, MediaTypeList};
+
+            const MEDIA_TYPE: MediaType<'static> = MediaType::new(
+                mediatype::names::APPLICATION,
+                mediatype::Name::new_unchecked("imagebytes"),
+            );
+
+            headers
+                .get_all(axum::http::header::ACCEPT)
+                .iter()
+                .filter_map(|value| value.to_str().ok())
+                .flat_map(MediaTypeList::new)
+                .filter_map(std::result::Result::ok)
+                .any(|media_type| media_type.essence() == MEDIA_TYPE)
+        }
+    }
+
     #[cfg(feature = "server")]
     impl crate::server::Response for ASCOMResult<ImageArrayResponse> {
         fn into_axum(
@@ -123,11 +145,7 @@ mod image_bytes {
                 Vec::with_capacity(std::mem::size_of::<ImageBytesMetadata>() + data.len());
             bytes.extend_from_slice(bytemuck::bytes_of(&metadata));
             bytes.extend_from_slice(data);
-            (
-                [(axum::http::header::CONTENT_TYPE, "application/imagebytes")],
-                bytes,
-            )
-                .into_response()
+            ([(axum::http::header::CONTENT_TYPE, MIME_TYPE_STR)], bytes).into_response()
         }
     }
 
@@ -142,14 +160,14 @@ mod image_bytes {
 
         impl Response for ASCOMResult<ImageArrayResponse> {
             fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-                request.header("Accept", "application/imagebytes")
+                request.header(reqwest::header::ACCEPT, MIME_TYPE_STR)
             }
 
             fn from_reqwest(
                 mime_type: Mime,
                 bytes: Bytes,
             ) -> anyhow::Result<ResponseWithTransaction<Self>> {
-                if mime_type.essence_str() != "application/imagebytes" {
+                if mime_type.essence_str() != MIME_TYPE_STR {
                     return Ok(
                         <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?.map(
                             |opaque_result| {
