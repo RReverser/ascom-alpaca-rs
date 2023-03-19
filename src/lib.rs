@@ -47,7 +47,7 @@
 
 pub(crate) mod macros;
 
-#[path = "autogen/mod.rs"]
+#[path = "api/mod.autogen.rs"]
 pub mod api;
 
 #[cfg(feature = "client")]

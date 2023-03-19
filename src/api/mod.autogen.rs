@@ -113,7 +113,6 @@ pub enum ImageArrayResponseType {
 }
 
 #[cfg(feature = "camera")]
-#[path = "image_array_response.rs"]
 mod image_array_response;
 
 #[cfg(feature = "camera")]

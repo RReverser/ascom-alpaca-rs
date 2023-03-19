@@ -623,7 +623,6 @@ ${stringifyIter(types, ({features, type}) => {
     // Override with a better implementation.
     return `
       ${cfg}
-      #[path = "image_array_response.rs"]
       mod image_array_response;
 
       ${cfg}
