@@ -7,9 +7,11 @@ pub(crate) use transaction::*;
 mod params;
 pub(crate) use params::ActionParams;
 
+mod response;
+pub(crate) use response::{OpaqueResponse, Response};
+
 use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
-use crate::response::{OpaqueResponse, Response};
 use crate::Devices;
 use axum::extract::Path;
 use axum::routing::MethodFilter;

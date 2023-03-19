@@ -57,11 +57,8 @@ impl ImageArrayResponse {
 mod image_bytes {
     use super::ImageArrayResponse;
     use crate::api::ImageArrayResponseType;
-    use crate::response::Response;
     use crate::ASCOMResult;
     use bytemuck::{Pod, Zeroable};
-    #[cfg(feature = "client")]
-    use {bytes::Bytes, mime::Mime};
 
     #[repr(C)]
     #[derive(Clone, Copy, Zeroable, Pod)]
@@ -79,8 +76,8 @@ mod image_bytes {
         dimension_3: i32,
     }
 
-    impl Response for ASCOMResult<ImageArrayResponse> {
-        #[cfg(feature = "server")]
+    #[cfg(feature = "server")]
+    impl crate::server::Response for ASCOMResult<ImageArrayResponse> {
         fn into_axum(
             self,
             transaction: crate::server::ResponseTransaction,
@@ -132,106 +129,114 @@ mod image_bytes {
             )
                 .into_response()
         }
-
-        #[cfg(feature = "client")]
-        fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-            request.header("Accept", "application/imagebytes")
-        }
-
-        #[cfg(feature = "client")]
-        fn from_reqwest(
-            mime_type: Mime,
-            bytes: Bytes,
-        ) -> anyhow::Result<crate::client::ResponseWithTransaction<Self>> {
-            use crate::response::OpaqueResponse;
-            use crate::{ASCOMError, ASCOMErrorCode};
-
-            if mime_type.essence_str() != "application/imagebytes" {
-                return Ok(
-                    <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?.map(
-                        |opaque_result| {
-                            opaque_result?.try_as().map_err(|err| {
-                                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}"))
-                            })
-                        },
-                    ),
-                );
-            }
-            let metadata = bytes
-                .get(..std::mem::size_of::<ImageBytesMetadata>())
-                .ok_or_else(|| anyhow::anyhow!("not enough bytes to read image metadata"))?;
-            let metadata = bytemuck::pod_read_unaligned::<ImageBytesMetadata>(metadata);
-            anyhow::ensure!(
-                metadata.metadata_version == 1_i32,
-                "unsupported metadata version {}",
-                metadata.metadata_version
-            );
-            let data_start = usize::try_from(metadata.data_start)?;
-            anyhow::ensure!(
-                data_start >= std::mem::size_of::<ImageBytesMetadata>(),
-                "image data start offset is within metadata"
-            );
-            let data = bytes
-                .get(data_start..)
-                .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
-            let transaction = crate::client::ResponseTransaction {
-                client_transaction_id: if metadata.client_transaction_id == 0 {
-                    None
-                } else {
-                    Some(metadata.client_transaction_id)
-                },
-                server_transaction_id: if metadata.server_transaction_id == 0 {
-                    None
-                } else {
-                    Some(metadata.server_transaction_id)
-                },
-            };
-            let ascom_result = if metadata.error_number == 0_i32 {
-                anyhow::ensure!(
-                    metadata.image_element_type == ImageArrayResponseType::Integer as i32,
-                    "only Integer image element type is supported, got {}",
-                    metadata.image_element_type
-                );
-                anyhow::ensure!(
-                    metadata.transmission_element_type == ImageArrayResponseType::Integer as i32,
-                    "only Integer transmission element type is supported for now, got {}",
-                    metadata.transmission_element_type
-                );
-                let shape = ndarray::Ix3(
-                    usize::try_from(metadata.dimension_1)?,
-                    usize::try_from(metadata.dimension_2)?,
-                    match metadata.rank {
-                        2 => {
-                            anyhow::ensure!(
-                                metadata.dimension_3 == 0_i32,
-                                "dimension 3 must be 0 for rank 2, got {}",
-                                metadata.dimension_3
-                            );
-                            1
-                        }
-                        3 => usize::try_from(metadata.dimension_3)?,
-                        rank => anyhow::bail!("unsupported rank {}, expected 2 or 3", rank),
-                    },
-                );
-                Ok(ImageArrayResponse {
-                    data: ndarray::Array::from_shape_vec(
-                        shape,
-                        bytemuck::cast_vec(data.to_owned()),
-                    )
-                    .expect("couldn't match the parsed shape to the data"),
-                })
-            } else {
-                Err(ASCOMError::new(
-                    ASCOMErrorCode(u16::try_from(metadata.error_number)?),
-                    std::str::from_utf8(data)?.to_owned(),
-                ))
-            };
-            Ok(crate::client::ResponseWithTransaction {
-                transaction,
-                response: ascom_result,
-            })
-        }
     }
+
+    #[cfg(feature = "client")]
+    const _: () = {
+        use crate::client::{
+            OpaqueResponse, Response, ResponseTransaction, ResponseWithTransaction,
+        };
+        use crate::{ASCOMError, ASCOMErrorCode};
+        use bytes::Bytes;
+        use mime::Mime;
+
+        impl Response for ASCOMResult<ImageArrayResponse> {
+            fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+                request.header("Accept", "application/imagebytes")
+            }
+
+            fn from_reqwest(
+                mime_type: Mime,
+                bytes: Bytes,
+            ) -> anyhow::Result<ResponseWithTransaction<Self>> {
+                if mime_type.essence_str() != "application/imagebytes" {
+                    return Ok(
+                        <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?.map(
+                            |opaque_result| {
+                                opaque_result?.try_as().map_err(|err| {
+                                    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}"))
+                                })
+                            },
+                        ),
+                    );
+                }
+                let metadata = bytes
+                    .get(..std::mem::size_of::<ImageBytesMetadata>())
+                    .ok_or_else(|| anyhow::anyhow!("not enough bytes to read image metadata"))?;
+                let metadata = bytemuck::pod_read_unaligned::<ImageBytesMetadata>(metadata);
+                anyhow::ensure!(
+                    metadata.metadata_version == 1_i32,
+                    "unsupported metadata version {}",
+                    metadata.metadata_version
+                );
+                let data_start = usize::try_from(metadata.data_start)?;
+                anyhow::ensure!(
+                    data_start >= std::mem::size_of::<ImageBytesMetadata>(),
+                    "image data start offset is within metadata"
+                );
+                let data = bytes
+                    .get(data_start..)
+                    .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
+                let transaction = ResponseTransaction {
+                    client_transaction_id: if metadata.client_transaction_id == 0 {
+                        None
+                    } else {
+                        Some(metadata.client_transaction_id)
+                    },
+                    server_transaction_id: if metadata.server_transaction_id == 0 {
+                        None
+                    } else {
+                        Some(metadata.server_transaction_id)
+                    },
+                };
+                let ascom_result = if metadata.error_number == 0_i32 {
+                    anyhow::ensure!(
+                        metadata.image_element_type == ImageArrayResponseType::Integer as i32,
+                        "only Integer image element type is supported, got {}",
+                        metadata.image_element_type
+                    );
+                    anyhow::ensure!(
+                        metadata.transmission_element_type
+                            == ImageArrayResponseType::Integer as i32,
+                        "only Integer transmission element type is supported for now, got {}",
+                        metadata.transmission_element_type
+                    );
+                    let shape = ndarray::Ix3(
+                        usize::try_from(metadata.dimension_1)?,
+                        usize::try_from(metadata.dimension_2)?,
+                        match metadata.rank {
+                            2 => {
+                                anyhow::ensure!(
+                                    metadata.dimension_3 == 0_i32,
+                                    "dimension 3 must be 0 for rank 2, got {}",
+                                    metadata.dimension_3
+                                );
+                                1
+                            }
+                            3 => usize::try_from(metadata.dimension_3)?,
+                            rank => anyhow::bail!("unsupported rank {}, expected 2 or 3", rank),
+                        },
+                    );
+                    Ok(ImageArrayResponse {
+                        data: ndarray::Array::from_shape_vec(
+                            shape,
+                            bytemuck::cast_vec(data.to_owned()),
+                        )
+                        .expect("couldn't match the parsed shape to the data"),
+                    })
+                } else {
+                    Err(ASCOMError::new(
+                        ASCOMErrorCode(u16::try_from(metadata.error_number)?),
+                        std::str::from_utf8(data)?.to_owned(),
+                    ))
+                };
+                Ok(ResponseWithTransaction {
+                    transaction,
+                    response: ascom_result,
+                })
+            }
+        }
+    };
 }
 
 impl Serialize for ImageArrayResponse {

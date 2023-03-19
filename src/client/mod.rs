@@ -7,8 +7,10 @@ pub(crate) use transaction::*;
 mod params;
 pub(crate) use params::{OpaqueParams, ActionParams, opaque_params};
 
+mod response;
+pub(crate) use response::{OpaqueResponse, Response};
+
 use crate::api::{ConfiguredDevice, ServerInfo};
-use crate::response::{OpaqueResponse, Response};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
 use futures::TryFutureExt;

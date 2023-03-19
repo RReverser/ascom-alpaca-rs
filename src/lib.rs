@@ -59,7 +59,6 @@ pub mod server;
 mod discovery;
 mod errors;
 mod params;
-mod response;
 
 pub use api::Devices;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};

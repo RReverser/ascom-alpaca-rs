@@ -3,7 +3,13 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 #[serde(transparent)]
-pub(crate) struct OpaqueParams(pub(crate) IndexMap<&'static str, String>);
+pub(crate) struct OpaqueParams(IndexMap<&'static str, String>);
+
+impl From<IndexMap<&'static str, String>> for OpaqueParams {
+    fn from(map: IndexMap<&'static str, String>) -> Self {
+        Self(map)
+    }
+}
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
@@ -19,7 +25,7 @@ macro_rules! opaque_params {
             $($key: (),)*
         }
 
-        $crate::client::OpaqueParams(indexmap::indexmap! {
+        $crate::client::OpaqueParams::from(indexmap::indexmap! {
             $(stringify!($key) => $crate::params::ASCOMParam::to_string($value),)*
         })
     }};

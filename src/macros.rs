@@ -42,13 +42,13 @@ macro_rules! rpc_trait {
     };
 
     (@decode_response $resp:expr => $return_type:ty) => {
-        std::convert::identity::<$crate::response::OpaqueResponse>($resp)
+        std::convert::identity::<$crate::client::OpaqueResponse>($resp)
         .try_as::<$return_type>()
         .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))
     };
 
     (@decode_response $resp:expr) => {{
-        let _: $crate::response::OpaqueResponse = $resp;
+        let _: $crate::client::OpaqueResponse = $resp;
         Ok(())
     }};
 
@@ -97,7 +97,7 @@ macro_rules! rpc_trait {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
+            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::server::OpaqueResponse>> {
                 #[allow(unused)]
                 match (action, params) {
                     $(
@@ -105,7 +105,7 @@ macro_rules! rpc_trait {
                             $(
                                 let $param = params.extract(stringify!($param_query)).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
                             )*
-                            Ok(rpc_trait!(@device_lock $($mut_self)*)(device).await.$method_name($($param),*).await.map($crate::response::OpaqueResponse::new))
+                            Ok(rpc_trait!(@device_lock $($mut_self)*)(device).await.$method_name($($param),*).await.map($crate::server::OpaqueResponse::new))
                         },
                     )*
                     (action, params) => rpc_trait!(@if_specific $trait_name {
@@ -308,7 +308,7 @@ macro_rules! rpc_mod {
             }
 
             #[cfg(feature = "server")]
-            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::response::OpaqueResponse>> {
+            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::server::OpaqueResponse>> {
                 match device_type {
                     $(
                         #[cfg(feature = $path)]

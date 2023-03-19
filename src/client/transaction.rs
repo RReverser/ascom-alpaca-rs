@@ -1,7 +1,5 @@
-use super::ActionParams;
+use super::{ActionParams, OpaqueResponse};
 use crate::macros::auto_increment;
-use crate::response::OpaqueResponse;
-use anyhow::Context;
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -35,18 +33,9 @@ pub(crate) struct ResponseTransaction {
 
 impl ResponseTransaction {
     pub(crate) fn extract(response: &mut OpaqueResponse) -> anyhow::Result<Self> {
-        let mut extract_id = |name| {
-            response
-                .0
-                .remove(name)
-                .map(serde_json::from_value)
-                .transpose()
-                .with_context(|| format!("couldn't parse {name}"))
-        };
-
         Ok(Self {
-            client_transaction_id: extract_id("ClientTransactionID")?,
-            server_transaction_id: extract_id("ServerTransactionID")?,
+            client_transaction_id: response.maybe_extract("ClientTransactionID")?,
+            server_transaction_id: response.maybe_extract("ServerTransactionID")?,
         })
     }
 }

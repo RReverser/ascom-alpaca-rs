@@ -1,6 +1,5 @@
 use super::ActionParams;
 use crate::macros::auto_increment;
-use crate::response::OpaqueResponse;
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -23,11 +22,11 @@ impl ResponseTransaction {
 }
 
 #[derive(Debug, Serialize)]
-pub(crate) struct ResponseWithTransaction {
+pub(crate) struct ResponseWithTransaction<T> {
     #[serde(flatten)]
     pub(crate) transaction: ResponseTransaction,
     #[serde(flatten)]
-    pub(crate) response: OpaqueResponse,
+    pub(crate) response: T,
 }
 
 #[derive(Debug, Clone, Copy)]
