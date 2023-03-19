@@ -172,7 +172,7 @@ impl Server {
                                 && crate::api::ImageArrayResponse::is_accepted(&headers)
                             {
                                 return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
-                                    Ok(crate::api::ImageBytesResponse(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await?))
+                                    Ok(crate::api::ImageBytesResponse(<dyn Camera>::get_in(&devices, device_number)?.image_array().await?))
                                 }).await;
                             }
                         }

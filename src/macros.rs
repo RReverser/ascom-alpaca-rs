@@ -20,14 +20,6 @@ macro_rules! rpc_trait {
 
     (@params_pat $scope:ident, $self:ident $inner:tt) => ($crate::$scope::ActionParams::Get $inner);
 
-    (@device_lock mut $self:ident) => (tokio::sync::RwLock::write);
-
-    (@device_lock $self:ident) => (tokio::sync::RwLock::read);
-
-    (@get_self mut $self:ident) => ($self);
-
-    (@get_self $self:ident) => ($self);
-
     (@decode_response $resp:expr => ImageArrayResponse) => {
         Ok(std::convert::identity::<ImageArrayResponse>($resp))
     };
@@ -81,7 +73,7 @@ macro_rules! rpc_trait {
             )*
 
             $(
-                async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
+                async fn $method_name(&self $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
                     Err($crate::ASCOMError::NOT_IMPLEMENTED)
                 }
 
@@ -94,7 +86,7 @@ macro_rules! rpc_trait {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
             #[allow(non_camel_case_types)]
-            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::server::ActionParams) -> Result<impl Serialize, $crate::server::Error> {
+            async fn handle_action(device: &(impl ?Sized + $trait_name), action: &str, params: $crate::server::ActionParams) -> Result<impl Serialize, $crate::server::Error> {
                 #[derive(Serialize)]
                 enum ResponseRepr<$($method_name),*> {
                     $($method_name($method_name),)*
@@ -109,8 +101,7 @@ macro_rules! rpc_trait {
                             )*
 
                             let value =
-                                rpc_trait!(@device_lock $($mut_self)*)(device)
-                                .await
+                                device
                                 .$method_name($($param),*)
                                 .await?;
 
@@ -144,12 +135,12 @@ macro_rules! rpc_trait {
             )*
 
             $(
-                async fn $method_name(& $($mut_self)* $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
+                async fn $method_name(&self $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
                     let opaque_params = $crate::client::opaque_params! {
                         $($param_query: $param,)*
                     };
                     rpc_trait!(@decode_response
-                        rpc_trait!(@get_self $($mut_self)*)
+                        self
                         .exec_action($method_path, rpc_trait!(@params_pat client, $($mut_self)* (opaque_params)))
                         .await?
                         $(=> $return_type)?
@@ -251,38 +242,17 @@ macro_rules! rpc_mod {
         pub struct Devices {
             $(
                 #[cfg(feature = $path)]
-                $trait_name: Vec<std::sync::Arc<tokio::sync::RwLock<dyn $trait_name>>>,
+                $trait_name: Vec<std::sync::Arc<dyn $trait_name>>,
             )*
         }
 
         impl std::fmt::Debug for Devices {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                struct DebugRes<T, E>(Result<T, E>);
-
-                impl<T: std::fmt::Debug, E: std::fmt::Debug> std::fmt::Debug for DebugRes<T, E> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        match &self.0 {
-                            Ok(t) => t.fmt(f),
-                            err => err.fmt(f),
-                        }
-                    }
-                }
-
-                struct DebugList<'list, T: ?Sized> {
-                    list: &'list [std::sync::Arc<tokio::sync::RwLock<T>>]
-                }
-
-                impl<T: ?Sized + std::fmt::Debug> std::fmt::Debug for DebugList<'_, T> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        f.debug_list().entries(self.list.iter().map(|device| DebugRes(device.try_read()))).finish()
-                    }
-                }
-
                 let mut f = f.debug_struct("Devices");
                 $(
                     #[cfg(feature = $path)]
                     if !self.$trait_name.is_empty() {
-                        let _ = f.field(stringify!($trait_name), &DebugList { list: &self.$trait_name });
+                        let _ = f.field(stringify!($trait_name), &self.$trait_name);
                     }
                 )*
                 f.finish()
@@ -309,9 +279,9 @@ macro_rules! rpc_mod {
             #[cfg(feature = "server")]
             #[cfg(feature = $path)]
             impl dyn $trait_name {
-                pub(crate) fn get_in(storage: &Devices, device_number: usize) -> Result<&tokio::sync::RwLock<dyn $trait_name>, $crate::server::Error> {
+                pub(crate) fn get_in(storage: &Devices, device_number: usize) -> Result<&dyn $trait_name, $crate::server::Error> {
                     match storage.$trait_name.get(device_number) {
-                        Some(device) => Ok(device),
+                        Some(device) => Ok(&**device),
                         None => Err($crate::server::Error::NotFound(anyhow::anyhow!("Unknown device type {}", stringify!($trait_name)))),
                     }
                 }
@@ -320,7 +290,7 @@ macro_rules! rpc_mod {
             #[cfg(feature = $path)]
             impl<T: 'static + $trait_name> RegistrableDevice<dyn $trait_name> for T {
                 fn add_to(self, storage: &mut Devices) {
-                    storage.$trait_name.push(std::sync::Arc::new(tokio::sync::RwLock::new(self)));
+                    storage.$trait_name.push(std::sync::Arc::new(self));
                 }
             }
         )*
@@ -331,7 +301,7 @@ macro_rules! rpc_mod {
             }
 
             #[cfg(feature = "server")]
-            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::server::ActionParams) -> Result<impl Serialize, $crate::server::Error> {
+            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> Result<impl 'this + Serialize, $crate::server::Error> {
                 #[derive(Serialize)]
                 #[serde(untagged)]
                 enum ResponseRepr<$(
@@ -344,15 +314,16 @@ macro_rules! rpc_mod {
                     )*
                 }
 
-                match device_type {
+                Ok(match device_type {
                     $(
                         #[cfg(feature = $path)]
                         DeviceType::$trait_name => {
                             let device = <dyn $trait_name>::get_in(self, device_number)?;
-                            <dyn $trait_name>::handle_action(device, action, params).await.map(ResponseRepr::$trait_name)
+                            let result = <dyn $trait_name>::handle_action(device, action, params).await?;
+                            ResponseRepr::$trait_name(result)
                         }
                     )*
-                }
+                })
             }
 
             pub fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {
@@ -360,7 +331,6 @@ macro_rules! rpc_mod {
                     $(
                         #[cfg(feature = $path)]
                         for (device_number, device) in self.$trait_name.iter().enumerate() {
-                            let device = device.read().await;
                             let device = ConfiguredDevice {
                                 device_name: device.name().await.unwrap_or_default(),
                                 device_type: DeviceType::$trait_name,
