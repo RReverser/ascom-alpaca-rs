@@ -11,6 +11,9 @@ import * as assert from 'assert/strict';
 import { getCanonicalNames } from './xml-names.js';
 import { rustKeywords } from './rust-keywords.js';
 import { isDeepStrictEqual } from 'util';
+import { fileURLToPath } from 'url';
+
+process.chdir(fileURLToPath(new URL('./', import.meta.url)));
 
 let api = (await openapi.parse(
   './AlpacaDeviceAPI_v1.yaml'
@@ -738,4 +741,4 @@ try {
   console.warn(err);
 }
 
-await writeFile('mod.rs', rendered);
+await writeFile('../mod.rs', rendered);
