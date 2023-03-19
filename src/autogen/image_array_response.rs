@@ -1,4 +1,5 @@
 use crate::api::ImageArrayResponseType;
+use crate::either::Either;
 use crate::ASCOMResult;
 use bytemuck::{Pod, Zeroable};
 use serde::de::{DeserializeSeed, Visitor};
@@ -25,7 +26,6 @@ impl ImageArrayResponse {
         }
     }
 
-    #[auto_enums::auto_enum(serde::Serialize)]
     fn value_as_serialize(&self) -> impl '_ + Serialize {
         #[derive(Serialize)]
         struct IterSerialize<I: Iterator + Clone>(#[serde(with = "serde_iter::seq")] I)
@@ -33,12 +33,14 @@ impl ImageArrayResponse {
             I::Item: Serialize;
 
         match self.rank() {
-            ImageArrayResponseRank::Rank2 => IterSerialize(self.data.outer_iter().map(|column| {
-                column
-                    .to_slice()
-                    .expect("internal arrays should always be in standard layout")
-            })),
-            ImageArrayResponseRank::Rank3 => IterSerialize(
+            ImageArrayResponseRank::Rank2 => {
+                Either::Left(IterSerialize(self.data.outer_iter().map(|column| {
+                    column
+                        .to_slice()
+                        .expect("internal arrays should always be in standard layout")
+                })))
+            }
+            ImageArrayResponseRank::Rank3 => Either::Right(IterSerialize(
                 // Slicing is used as a workaround for https://github.com/rust-ndarray/ndarray/issues/1232.
                 (0..self.data.len_of(ndarray::Axis(0))).map(move |column_i| {
                     IterSerialize((0..self.data.len_of(ndarray::Axis(1))).map(move |row_i| {
@@ -48,7 +50,7 @@ impl ImageArrayResponse {
                             .expect("internal arrays should always be in standard layout")
                     }))
                 }),
-            ),
+            )),
         }
     }
 }
@@ -98,7 +100,10 @@ impl ImageArrayResponse {
 }
 
 #[cfg(feature = "server")]
-impl crate::server::Response for ASCOMResult<ImageArrayResponse> {
+pub(crate) struct ImageBytesResponse(pub(crate) ImageArrayResponse);
+
+#[cfg(feature = "server")]
+impl crate::server::Response for ASCOMResult<ImageBytesResponse> {
     fn into_axum(
         self,
         transaction: crate::server::ResponseTransaction,
@@ -114,10 +119,10 @@ impl crate::server::Response for ASCOMResult<ImageArrayResponse> {
             ..Zeroable::zeroed()
         };
         let data = match &self {
-            Ok(this) => {
+            Ok(ImageBytesResponse(ImageArrayResponse { data })) => {
                 metadata.image_element_type = ImageArrayResponseType::Integer as i32;
                 metadata.transmission_element_type = ImageArrayResponseType::Integer as i32;
-                let dims = <[usize; 3]>::try_from(this.data.shape())
+                let dims = <[usize; 3]>::try_from(data.shape())
                     .expect("dimension count mismatch")
                     .map(|dim| i32::try_from(dim).expect("dimension is too large"));
                 metadata.dimension_1 = dims[0];
@@ -130,8 +135,7 @@ impl crate::server::Response for ASCOMResult<ImageArrayResponse> {
                     }
                 };
                 bytemuck::cast_slice(
-                    this.data
-                        .as_slice()
+                    data.as_slice()
                         .expect("internal arrays should always be in standard layout"),
                 )
             }

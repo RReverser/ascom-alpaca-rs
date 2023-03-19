@@ -8,9 +8,9 @@ mod params;
 pub(crate) use params::ActionParams;
 
 mod response;
-pub(crate) use response::{OpaqueResponse, Response};
+pub(crate) use response::{Response};
 
-use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
+use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo, ImageBytesResponse};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::Devices;
 use axum::extract::Path;
@@ -104,14 +104,14 @@ impl Server {
 
     pub fn into_router(self) -> Router {
         let devices = Arc::new(self.devices);
-        let server_info = OpaqueResponse::new(ValueResponse::from(self.info));
+        let server_info = Arc::new(self.info);
 
         Router::new()
             .route(
                 "/management/apiversions",
                 axum::routing::get(|params| {
                     server_handler("/management/apiversions",  params, |_params| async move {
-                        Ok(OpaqueResponse::new(ValueResponse::from([1_u32])))
+                        Ok(ValueResponse::from([1_u32]))
                     })
                 }),
             )
@@ -121,14 +121,14 @@ impl Server {
                 axum::routing::get(|params| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
                         let devices = this.stream_configured().collect::<Vec<ConfiguredDevice>>().await;
-                        Ok(OpaqueResponse::new(ValueResponse::from(devices)))
+                        Ok(ValueResponse::from(devices))
                     })
                 })
             })
             .route("/management/v1/description",
                 axum::routing::get(move |params| {
                     server_handler("/management/v1/serverinfo", params, |_params| async move {
-                        Ok(server_info.clone())
+                        Ok(ValueResponse::from(Arc::clone(&server_info)))
                     })
                 })
             )
@@ -160,7 +160,7 @@ impl Server {
                                 && crate::api::ImageArrayResponse::is_accepted(&headers)
                             {
                                 return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
-                                    Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await)
+                                    Ok(<dyn Camera>::get_in(&devices, device_number)?.read().await.image_array().await.map(ImageBytesResponse))
                                 }).await;
                             }
                         }

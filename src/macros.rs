@@ -12,13 +12,9 @@ pub(crate) use auto_increment;
     allow(unused_macro_rules)
 )]
 macro_rules! rpc_trait {
-    (@if_specific Device $then:tt $({ $($else:tt)* })?) => {
-        $($($else)*)?
-    };
+    (@if_specific Device $then:block $else:block) => ($else);
 
-    (@if_specific $trait_name:ident { $($then:tt)* } $($else:tt)?) => {
-        $($then)*
-    };
+    (@if_specific $trait_name:ident $then:block $else:block) => ($then);
 
     (@params_pat $scope:ident, mut $self:ident $inner:tt) => ($crate::$scope::ActionParams::Put $inner);
 
@@ -97,30 +93,41 @@ macro_rules! rpc_trait {
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::server::OpaqueResponse>> {
+            #[allow(non_camel_case_types)]
+            async fn handle_action(device: &tokio::sync::RwLock<impl ?Sized + $trait_name>, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<impl Serialize>> {
+                #[derive(Serialize)]
+                enum ResponseRepr<$($method_name),*> {
+                    $($method_name($method_name),)*
+                }
+
                 #[allow(unused)]
-                match (action, params) {
+                let ascom_result: $crate::ASCOMResult<_> = match (action, params) {
                     $(
                         ($method_path, rpc_trait!(@params_pat server, $($mut_self)* (mut params))) => {
                             $(
                                 let $param = params.extract(stringify!($param_query)).map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
                             )*
-                            Ok(
-                                rpc_trait!(@device_lock $($mut_self)*)(device)
-                                .await
-                                .$method_name($($param),*)
-                                .await
-                                $(.map($via::from))?
-                                .map($crate::server::OpaqueResponse::new)
-                            )
-                        },
+
+                            rpc_trait!(@device_lock $($mut_self)*)(device)
+                            .await
+                            .$method_name($($param),*)
+                            .await
+                            $(.map($via::from))?
+                            .map(ResponseRepr::$method_name)
+                        }
                     )*
                     (action, params) => rpc_trait!(@if_specific $trait_name {
-                        <dyn Device>::handle_action(device, action, params).await
+                        return Ok(<dyn Device>::handle_action(device, action, params).await?.map($crate::either::Either::Right));
                     } {
-                        Err((axum::http::StatusCode::NOT_FOUND, "Unknown action").into())
+                        return Err((axum::http::StatusCode::NOT_FOUND, "Unknown action").into());
                     })
-                }
+                };
+
+                Ok(rpc_trait!(@if_specific $trait_name {
+                    ascom_result.map($crate::either::Either::Left)
+                } {
+                    ascom_result
+                }))
             }
         }
 
@@ -318,16 +325,28 @@ macro_rules! rpc_mod {
             }
 
             #[cfg(feature = "server")]
-            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<$crate::server::OpaqueResponse>> {
-                match device_type {
+            pub(crate) async fn handle_action(&self, device_type: DeviceType, device_number: usize, action: &str, params: $crate::server::ActionParams) -> axum::response::Result<$crate::ASCOMResult<impl Serialize>> {
+                #[derive(Serialize)]
+                #[serde(untagged)]
+                enum ResponseRepr<$(
+                    #[cfg(feature = $path)]
+                    $trait_name,
+                )*> {
+                    $(
+                        #[cfg(feature = $path)]
+                        $trait_name($trait_name),
+                    )*
+                }
+
+                Ok(match device_type {
                     $(
                         #[cfg(feature = $path)]
                         DeviceType::$trait_name => {
                             let device = <dyn $trait_name>::get_in(self, device_number)?;
-                            <dyn $trait_name>::handle_action(device, action, params).await
+                            <dyn $trait_name>::handle_action(device, action, params).await?.map(ResponseRepr::$trait_name)
                         }
                     )*
-                }
+                })
             }
 
             pub fn stream_configured(&self) -> impl '_ + futures::Stream<Item = ConfiguredDevice> {

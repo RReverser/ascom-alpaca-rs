@@ -57,6 +57,7 @@ pub mod client;
 pub mod server;
 
 mod discovery;
+mod either;
 mod errors;
 mod params;
 mod response;
