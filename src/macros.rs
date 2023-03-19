@@ -165,6 +165,9 @@ pub(crate) use rpc_trait;
 
 macro_rules! rpc_mod {
     ($($trait_name:ident = $path:literal,)*) => {
+        #[cfg(not(any( $(feature = $path),* )))]
+        compile_error!(concat!("At least one device type must be enabled via Cargo features:" $(, "\n - ", $path)*));
+
         #[derive(Deserialize, PartialEq, Eq, Clone, Copy)]
         pub enum DeviceType {
             $(
