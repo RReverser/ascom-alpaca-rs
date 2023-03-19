@@ -1,5 +1,7 @@
 {
 	"rust-analyzer.cargo.features": [
-		"all-devices"
+		"all-devices",
+		"client",
+		"server",
 	]
 }
