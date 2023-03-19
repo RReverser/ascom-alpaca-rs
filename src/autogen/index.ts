@@ -680,10 +680,10 @@ ${stringifyIter(
   devices,
   device => `
     ${stringifyDoc(device.doc)}
-    #[apply(rpc_trait)]
     ${
-      device.path === '{device_type}' ? '' : `#[http("${device.path}")]`
-    } pub trait ${device.name}: ${device.path === '{device_type}' ? 'std::fmt::Debug + Send + Sync' : 'Device + Send + Sync'} {
+      device.path === '{device_type}' ? '' : `#[cfg(feature = "${device.path}")]`
+    } #[apply(rpc_trait)]
+    pub trait ${device.name}: ${device.path === '{device_type}' ? 'std::fmt::Debug + Send + Sync' : 'Device + Send + Sync'} {
       ${device.path === '{device_type}' ? `
         /// Unique ID of this device.
         #[extra_method(client_impl = &self.unique_id)]

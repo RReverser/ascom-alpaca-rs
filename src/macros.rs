@@ -44,8 +44,7 @@ macro_rules! rpc_trait {
     }};
 
     (
-        $(#[doc = $doc:literal])*
-        $(#[http($path:literal)])?
+        $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
             $(#[doc = $docs_before_methods:literal])*
 
@@ -64,10 +63,9 @@ macro_rules! rpc_trait {
             )*
         }
     ) => {
-        $(#[cfg(any(feature = $path, doc))])?
-        #[allow(unused_variables)]
-        $(#[doc = $doc])*
+        $(# $attr)*
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
+        #[allow(unused_variables)]
         $pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* {
             $(#[doc = $docs_before_methods])*
 
@@ -87,7 +85,6 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(feature = "server")]
-        $(#[cfg(feature = $path)])?
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
@@ -112,7 +109,6 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(feature = "client")]
-        $(#[cfg(feature = $path)])?
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         impl $trait_name for $crate::client::DeviceClient {
             $(

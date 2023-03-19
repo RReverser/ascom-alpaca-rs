@@ -536,8 +536,8 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 }
 
 /// Camera Specific Methods
+#[cfg(feature = "camera")]
 #[apply(rpc_trait)]
-#[http("camera")]
 pub trait Camera: Device + Send + Sync {
     /// Returns the X offset of the Bayer matrix, as defined in SensorType.
     #[http("bayeroffsetx")]
@@ -888,8 +888,8 @@ pub trait Camera: Device + Send + Sync {
 }
 
 /// CoverCalibrator Specific Methods
+#[cfg(feature = "covercalibrator")]
 #[apply(rpc_trait)]
-#[http("covercalibrator")]
 pub trait CoverCalibrator: Device + Send + Sync {
     /// Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on)
     #[http("brightness")]
@@ -929,8 +929,8 @@ pub trait CoverCalibrator: Device + Send + Sync {
 }
 
 /// Dome Specific Methods
+#[cfg(feature = "dome")]
 #[apply(rpc_trait)]
-#[http("dome")]
 pub trait Dome: Device + Send + Sync {
     /// The dome altitude (degrees, horizon zero and increasing positive to 90 zenith).
     #[http("altitude")]
@@ -1034,8 +1034,8 @@ pub trait Dome: Device + Send + Sync {
 }
 
 /// FilterWheel Specific Methods
+#[cfg(feature = "filterwheel")]
 #[apply(rpc_trait)]
-#[http("filterwheel")]
 pub trait FilterWheel: Device + Send + Sync {
     /// An integer array of filter focus offsets.
     #[http("focusoffsets")]
@@ -1055,8 +1055,8 @@ pub trait FilterWheel: Device + Send + Sync {
 }
 
 /// Focuser Specific Methods
+#[cfg(feature = "focuser")]
 #[apply(rpc_trait)]
-#[http("focuser")]
 pub trait Focuser: Device + Send + Sync {
     /// True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
     #[http("absolute")]
@@ -1108,8 +1108,8 @@ pub trait Focuser: Device + Send + Sync {
 }
 
 /// ObservingConditions Specific Methods
+#[cfg(feature = "observingconditions")]
 #[apply(rpc_trait)]
-#[http("observingconditions")]
 pub trait ObservingConditions: Device + Send + Sync {
     /// Gets the time period over which observations will be averaged
     #[http("averageperiod")]
@@ -1185,8 +1185,8 @@ pub trait ObservingConditions: Device + Send + Sync {
 }
 
 /// Rotator Specific Methods
+#[cfg(feature = "rotator")]
 #[apply(rpc_trait)]
-#[http("rotator")]
 pub trait Rotator: Device + Send + Sync {
     /// True if the Rotator supports the Reverse method.
     #[http("canreverse")]
@@ -1242,8 +1242,8 @@ pub trait Rotator: Device + Send + Sync {
 }
 
 /// SafetyMonitor Specific Methods
+#[cfg(feature = "safetymonitor")]
 #[apply(rpc_trait)]
-#[http("safetymonitor")]
 pub trait SafetyMonitor: Device + Send + Sync {
     /// Indicates whether the monitored state is safe for use. True if the state is safe, False if it is unsafe.
     #[http("issafe")]
@@ -1251,8 +1251,8 @@ pub trait SafetyMonitor: Device + Send + Sync {
 }
 
 /// Switch Specific Methods
+#[cfg(feature = "switch")]
 #[apply(rpc_trait)]
-#[http("switch")]
 pub trait Switch: Device + Send + Sync {
     /// Returns the number of switch devices managed by this driver. Devices are numbered from 0 to MaxSwitch - 1
     #[http("maxswitch")]
@@ -1304,8 +1304,8 @@ pub trait Switch: Device + Send + Sync {
 }
 
 /// Telescope Specific Methods
+#[cfg(feature = "telescope")]
 #[apply(rpc_trait)]
-#[http("telescope")]
 pub trait Telescope: Device + Send + Sync {
     /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
     #[http("alignmentmode")]
