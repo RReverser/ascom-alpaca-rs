@@ -10,7 +10,7 @@ pub(crate) use params::{OpaqueParams, ActionParams, opaque_params};
 mod response;
 pub(crate) use response::{OpaqueResponse, Response};
 
-use crate::api::{ConfiguredDevice, ServerInfo};
+use crate::api::{ConfiguredDevice, ServerInfo, DevicePath};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
 use anyhow::Context;
 use futures::TryFutureExt;
@@ -187,7 +187,7 @@ impl Client {
                     unique_id: device.unique_id,
                     inner: self.inner.join_url(&format!(
                         "api/v1/{device_type}/{device_number}/",
-                        device_type = device.device_type,
+                        device_type = DevicePath(device.device_type),
                         device_number = device.device_number
                     ))?,
                 };
