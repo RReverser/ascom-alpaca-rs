@@ -742,4 +742,4 @@ try {
   console.warn(err);
 }
 
-await writeFile('../mod.rs', rendered);
+await writeFile('../mod.autogen.rs', rendered);
