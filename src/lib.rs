@@ -51,16 +51,18 @@ pub(crate) mod macros;
 pub mod api;
 
 #[cfg(feature = "client")]
-pub mod client;
+mod client;
 
 #[cfg(feature = "server")]
-pub mod server;
+mod server;
 
-mod discovery;
+pub mod discovery;
 mod either;
 mod errors;
 mod params;
 mod response;
 
 pub use api::Devices;
+pub use client::Client;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+pub use server::Server;

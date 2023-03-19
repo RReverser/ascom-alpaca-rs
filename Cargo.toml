@@ -47,7 +47,7 @@ switch = []
 telescope = []
 
 client = ["dep:reqwest", "dep:bytes", "dep:mime", "dep:rand"]
-server = ["dep:axum"]
+server = ["dep:axum", "tokio/macros"]
 
 nightly = []
 

@@ -11,3 +11,6 @@ pub(crate) struct AlpacaPort {
     #[serde(rename = "AlpacaPort")]
     pub(crate) alpaca_port: u16,
 }
+
+pub use crate::client::DiscoveryClient;
+pub use crate::server::DiscoveryServer;
