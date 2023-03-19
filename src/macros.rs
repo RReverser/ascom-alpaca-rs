@@ -259,13 +259,13 @@ macro_rules! rpc_mod {
             }
         }
 
-        pub trait DeviceStorage<DynTrait: ?Sized + Device> /* where Self: Unsize<DynTrait> */ {
+        pub trait RetrieavableDevice: 'static + Device /* where Self: Unsize<DynTrait> */ {
             const TYPE: DeviceType;
 
-            fn as_storage(&self) -> &[std::sync::Arc<DynTrait>];
+            fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>];
         }
 
-        pub trait RegistrableDevice<DynTrait: ?Sized + Device> /* where Self: Unsize<DynTrait> */ {
+        pub trait RegistrableDevice<DynTrait: ?Sized + RetrieavableDevice> /* where Self: Unsize<DynTrait> */ {
             fn add_to(self, storage: &mut Devices);
         }
 
@@ -283,11 +283,11 @@ macro_rules! rpc_mod {
 
         $(
             #[cfg(feature = $path)]
-            impl DeviceStorage<dyn $trait_name> for Devices {
+            impl RetrieavableDevice for dyn $trait_name {
                 const TYPE: DeviceType = DeviceType::$trait_name;
 
-                fn as_storage(&self) -> &[std::sync::Arc<dyn $trait_name>] {
-                    &self.$trait_name
+                fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>] {
+                    &storage.$trait_name
                 }
             }
 
@@ -300,17 +300,17 @@ macro_rules! rpc_mod {
         )*
 
         impl Devices {
-            pub fn register<DynTrait: ?Sized + Device>(&mut self, device: impl RegistrableDevice<DynTrait>) {
+            pub fn register<DynTrait: ?Sized + RetrieavableDevice>(&mut self, device: impl RegistrableDevice<DynTrait>) {
                 device.add_to(self);
             }
 
-            pub fn get<DynTrait: ?Sized + Device>(&self, device_number: usize) -> Option<&DynTrait> where Self: DeviceStorage<DynTrait> {
-                self.as_storage().get(device_number).map(std::sync::Arc::as_ref)
+            pub fn get<DynTrait: ?Sized + RetrieavableDevice>(&self, device_number: usize) -> Option<&DynTrait> {
+                DynTrait::get_storage(&self).get(device_number).map(std::sync::Arc::as_ref)
             }
 
             #[cfg(feature = "server")]
-            pub(crate) fn get_for_server<DynTrait: ?Sized + Device>(&self, device_number: usize) -> Result<&DynTrait, $crate::server::Error> where Self: DeviceStorage<DynTrait> {
-                self.get(device_number).ok_or_else(|| $crate::server::Error::NotFound(anyhow::anyhow!("Device {}#{} not found", Self::TYPE, device_number)))
+            pub(crate) fn get_for_server<DynTrait: ?Sized + RetrieavableDevice>(&self, device_number: usize) -> Result<&DynTrait, $crate::server::Error> {
+                self.get(device_number).ok_or_else(|| $crate::server::Error::NotFound(anyhow::anyhow!("Device {}#{} not found", DynTrait::TYPE, device_number)))
             }
 
             #[cfg(feature = "server")]
@@ -339,8 +339,8 @@ macro_rules! rpc_mod {
                 })
             }
 
-            pub fn iter<'this, DynTrait: 'this + ?Sized + Device>(&'this self) -> impl '_ + Iterator<Item = &DynTrait> where Self: DeviceStorage<DynTrait> {
-                self.as_storage().iter().map(std::sync::Arc::as_ref)
+            pub fn iter<DynTrait: ?Sized + RetrieavableDevice>(&self) -> impl '_ + Iterator<Item = &DynTrait> {
+                DynTrait::get_storage(&self).iter().map(std::sync::Arc::as_ref)
             }
 
             pub fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {
