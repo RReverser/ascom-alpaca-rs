@@ -19,13 +19,17 @@ pub use crate::server::DiscoveryServer;
 #[tokio::test]
 async fn test_discovery() -> anyhow::Result<()> {
     use futures::TryStreamExt;
+    use std::net::SocketAddr;
 
     tokio::select!(
         result = DiscoveryServer::new(8378).start_server() => result,
         addrs = DiscoveryClient::new().discover_addrs().try_collect::<Vec<_>>() => {
             let addrs = addrs?;
             anyhow::ensure!(
-                addrs.iter().any(|addr| addr.port() == 8378),
+                matches!(
+                    addrs.as_slice(),
+                    [SocketAddr::V4(addr)] if addr.port() == 8378
+                ),
                 "Couldn't find own discovery server on port 8378. Found: {addrs:?}"
             );
             Ok(())
