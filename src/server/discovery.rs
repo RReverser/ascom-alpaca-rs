@@ -1,6 +1,5 @@
 use super::DEFAULT_DISCOVERY_PORT;
-use crate::discovery::{AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
-use std::net::Ipv6Addr;
+use crate::discovery::{AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG, bind_socket};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Server {
@@ -28,8 +27,7 @@ impl Server {
         let response_msg = serde_json::to_string(&AlpacaPort {
             alpaca_port: self.alpaca_port,
         })?;
-        let socket =
-            tokio::net::UdpSocket::bind((Ipv6Addr::UNSPECIFIED, self.discovery_port)).await?;
+        let socket = bind_socket(self.discovery_port)?;
         socket.join_multicast_v6(&DISCOVERY_ADDR_V6, 0)?;
         let mut buf = [0; 16];
         loop {
