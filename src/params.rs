@@ -19,10 +19,12 @@ impl ASCOMParam for String {
 
 impl ASCOMParam for bool {
     fn from_string(s: String) -> anyhow::Result<Self> {
-        Ok(match s.as_str() {
-            "True" => true,
-            "False" => false,
-            _ => anyhow::bail!(r#"Invalid bool value {s:?}, expected "True" or "False""#),
+        Ok(if s.eq_ignore_ascii_case("true") {
+            true
+        } else if s.eq_ignore_ascii_case("false") {
+            false
+        } else {
+            anyhow::bail!(r#"Invalid bool value {s:?}, expected "True" or "False""#);
         })
     }
 
