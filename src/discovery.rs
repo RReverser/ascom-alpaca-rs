@@ -18,7 +18,10 @@ pub(crate) fn bind_socket(port: u16) -> anyhow::Result<tokio::net::UdpSocket> {
         socket2::Type::DGRAM,
         Some(socket2::Protocol::UDP),
     )?;
+    // For async code, we need to set the socket to non-blocking mode.
     socket.set_nonblocking(true)?;
+    // We want to talk to the IPv4 broadcast address from the same socket.
+    // Using `socket2` seems to be the only way to do this from safe Rust.
     socket.set_only_v6(false)?;
     socket.bind(&socket2::SockAddr::from(SocketAddr::from((
         Ipv6Addr::UNSPECIFIED,
