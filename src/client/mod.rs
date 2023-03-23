@@ -174,11 +174,11 @@ impl Client {
         Self::new(format!("http://{}/", addr.into()))
     }
 
-    pub fn base_url(&self) -> &reqwest::Url {
+    pub const fn base_url(&self) -> &reqwest::Url {
         &self.inner.base_url
     }
 
-    pub fn id(&self) -> u32 {
+    pub const fn id(&self) -> u32 {
         self.inner.client_id
     }
 
