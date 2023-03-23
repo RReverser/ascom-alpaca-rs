@@ -10,9 +10,9 @@ pub(crate) use params::{opaque_params, ActionParams};
 mod response;
 pub(crate) use response::{OpaqueResponse, Response};
 
-use crate::api::{ConfiguredDevice, DevicePath, ServerInfo};
+use crate::api::{ConfiguredDevice, DevicePath, ServerInfo, DeviceType};
 use crate::response::ValueResponse;
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult, Devices};
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use anyhow::Context;
 use futures::TryFutureExt;
 use mime::Mime;
@@ -24,13 +24,18 @@ use std::net::SocketAddr;
 use tracing::Instrument;
 
 #[derive(Debug)]
-pub(crate) struct DeviceClient {
+pub struct DeviceClient {
     pub(crate) inner: RawClient,
     pub(crate) name: String,
     pub(crate) unique_id: String,
+    ty: DeviceType,
 }
 
 impl DeviceClient {
+    pub const fn ty(&self) -> DeviceType {
+        self.ty
+    }
+
     pub(crate) async fn exec_action<Resp>(
         &self,
         action: &str,
@@ -174,18 +179,9 @@ impl Client {
         Self::new(format!("http://{}/", addr.into()))
     }
 
-    pub const fn base_url(&self) -> &reqwest::Url {
-        &self.inner.base_url
-    }
-
-    pub const fn id(&self) -> u32 {
-        self.inner.client_id
-    }
-
-    pub async fn get_devices(&self) -> anyhow::Result<Devices> {
-        let mut devices = Devices::default();
-
-        self.inner
+    pub async fn get_devices(&self) -> anyhow::Result<impl '_ + Iterator<Item = DeviceClient>> {
+        Ok(
+            self.inner
             .request::<OpaqueResponse>(
                 "management/v1/configureddevices",
                 ActionParams::Get(opaque_params! {}),
@@ -195,21 +191,19 @@ impl Client {
             .context("Couldn't parse list of devices")?
             .into()
             .into_iter()
-            .try_for_each(|device| {
-                devices.register_client(DeviceClient {
+            .map(|device| {
+                DeviceClient {
                     inner: self.inner.join_url(&format!(
                         "api/v1/{device_type}/{device_number}/",
                         device_type = DevicePath(device.ty),
                         device_number = device.number
-                    ))?,
+                    )).expect("internal error: failed to join a relative URL that is statically known to be valid to a base URL that was already checked during construction"),
                     name: device.name,
                     unique_id: device.unique_id,
-                }, device.ty);
-
-                Ok::<_, anyhow::Error>(())
-            })?;
-
-        Ok(devices)
+                    ty: device.ty,
+                }
+            })
+        )
     }
 
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {

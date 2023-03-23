@@ -260,16 +260,34 @@ macro_rules! rpc_mod {
         }
 
         #[cfg(feature = "client")]
-        impl Devices {
-            pub(crate) fn register_client(&mut self, client: $crate::client::DeviceClient, as_type: DeviceType) {
-                match as_type {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name => self.register::<dyn $trait_name>(client),
-                    )*
+        const _: () = {
+            impl Devices {
+                pub fn register_client(&mut self, client: $crate::client::DeviceClient) {
+                    match client.ty() {
+                        $(
+                            #[cfg(feature = $path)]
+                            DeviceType::$trait_name => self.register::<dyn $trait_name>(client),
+                        )*
+                    }
                 }
             }
-        }
+
+            impl Extend<$crate::client::DeviceClient> for Devices {
+                fn extend<T: IntoIterator<Item = $crate::client::DeviceClient>>(&mut self, iter: T) {
+                    for client in iter {
+                        self.register_client(client);
+                    }
+                }
+            }
+
+            impl FromIterator<$crate::client::DeviceClient> for Devices {
+                fn from_iter<T: IntoIterator<Item = $crate::client::DeviceClient>>(iter: T) -> Self {
+                    let mut devices = Self::default();
+                    devices.extend(iter);
+                    devices
+                }
+            }
+        };
 
         $(
             #[cfg(feature = $path)]
