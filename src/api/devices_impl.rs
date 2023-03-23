@@ -20,27 +20,21 @@ impl Devices {
         device.add_to(self);
     }
 
-    pub fn get<DynTrait: ?Sized + RetrieavableDevice>(
-        &self,
-        device_number: usize,
-    ) -> Option<&DynTrait> {
-        DynTrait::get_storage(self)
-            .get(device_number)
-            .map(std::sync::Arc::as_ref)
-    }
-
     #[cfg(feature = "server")]
     pub(crate) fn get_for_server<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
         device_number: usize,
     ) -> Result<&DynTrait, crate::server::Error> {
-        self.get(device_number).ok_or_else(|| {
-            crate::server::Error::NotFound(anyhow::anyhow!(
-                "Device {}#{} not found",
-                DynTrait::TYPE,
-                device_number
-            ))
-        })
+        DynTrait::get_storage(self)
+            .get(device_number)
+            .map(std::sync::Arc::as_ref)
+            .ok_or_else(|| {
+                crate::server::Error::NotFound(anyhow::anyhow!(
+                    "Device {}#{} not found",
+                    DynTrait::TYPE,
+                    device_number
+                ))
+            })
     }
 
     pub fn iter<DynTrait: ?Sized + RetrieavableDevice>(
