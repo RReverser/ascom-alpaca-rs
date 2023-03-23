@@ -317,7 +317,7 @@ macro_rules! rpc_mod {
                 })
             }
 
-            pub fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {
+            pub(crate) fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {
                 let iter = std::iter::empty();
 
                 $(
