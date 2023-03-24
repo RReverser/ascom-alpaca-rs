@@ -2,7 +2,7 @@ use crate::api::ImageArrayResponseType;
 use crate::either::Either;
 use crate::ASCOMResult;
 use bytemuck::{Pod, Zeroable};
-use serde::de::{DeserializeSeed, Visitor};
+use serde::de::{DeserializeSeed, IgnoredAny, Visitor};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -164,7 +164,8 @@ const _: () = {
 
     impl Response for ASCOMResult<ImageArrayResponse> {
         fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-            request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
+            request
+            // request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
         }
 
         fn from_reqwest(
@@ -370,16 +371,37 @@ impl<'de> DeserializeSeed<'de> for ValueVisitor<'_> {
 
 struct ResponseVisitor;
 
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[serde(field_identifier)]
+enum KnownKey {
+    Type,
+    Rank,
+    Value,
+    #[serde(other)]
+    Other,
+}
+
 fn expect_key<'de, A: serde::de::MapAccess<'de>>(
     map: &mut A,
-    expected_key: &'static str,
+    expected_key: KnownKey,
 ) -> Result<(), A::Error> {
-    match map.next_key::<&str>()? {
-        Some(key) if key == expected_key => Ok(()),
-        Some(key) => Err(serde::de::Error::custom(format!(
-            "expected field {expected_key}, got {key}"
-        ))),
-        None => Err(serde::de::Error::missing_field(expected_key)),
+    loop {
+        return match map.next_key::<KnownKey>()? {
+            Some(KnownKey::Other) => {
+                map.next_value::<IgnoredAny>()?;
+                continue;
+            }
+            Some(key) if key == expected_key => Ok(()),
+            Some(key) => Err(serde::de::Error::custom(format!(
+                "expected field {expected_key:?}, got {key:?}"
+            ))),
+            None => Err(serde::de::Error::missing_field(match expected_key {
+                KnownKey::Type => "Type",
+                KnownKey::Rank => "Rank",
+                KnownKey::Value => "Value",
+                KnownKey::Other => "(other)",
+            })),
+        };
     }
 }
 
@@ -391,7 +413,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
     }
 
     fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        expect_key(&mut map, "Type")?;
+        expect_key(&mut map, KnownKey::Type)?;
         let type_ = map.next_value::<ImageArrayResponseType>()?;
         if type_ != ImageArrayResponseType::Integer {
             return Err(serde::de::Error::custom(format!(
@@ -399,16 +421,19 @@ impl<'de> Visitor<'de> for ResponseVisitor {
             )));
         }
 
-        expect_key(&mut map, "Rank")?;
+        expect_key(&mut map, KnownKey::Rank)?;
         let rank = map.next_value::<ImageArrayResponseRank>()?;
 
-        expect_key(&mut map, "Value")?;
+        expect_key(&mut map, KnownKey::Value)?;
         let mut shape = [0, 0, 1];
         let mut ctx = ValueVisitorCtx::new();
         map.next_value_seed(ValueVisitor {
             ctx: &mut ctx,
             shape: &mut shape[..rank as usize],
         })?;
+
+        // Consume leftover fields.
+        while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
 
         Ok(ImageArrayResponse {
             data: ndarray::Array::from_shape_vec(
