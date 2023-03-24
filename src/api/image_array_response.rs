@@ -217,11 +217,24 @@ const _: () = {
                     "only Integer image element type is supported, got {}",
                     metadata.image_element_type
                 );
-                anyhow::ensure!(
-                    metadata.transmission_element_type == ImageArrayResponseType::Integer as i32,
-                    "only Integer transmission element type is supported for now, got {}",
-                    metadata.transmission_element_type
-                );
+                let data = match metadata.transmission_element_type {
+                    1_i32 /* Int16 */=> bytemuck::cast_slice::<u8, i16>(data)
+                        .iter()
+                        .copied()
+                        .map(i32::from)
+                        .collect(),
+                    2_i32/* Int32 */ => bytemuck::cast_slice::<u8, i32>(data).to_owned(),
+                    6_i32/* Byte */ => data.iter().copied().map(i32::from).collect(),
+                    8_i32 /* Uint16 */=> bytemuck::cast_slice::<u8, u16>(data)
+                        .iter()
+                        .copied()
+                        .map(i32::from)
+                        .collect(),
+                    _ => anyhow::bail!(
+                        "unsupported integer transmission type {}",
+                        metadata.transmission_element_type
+                    ),
+                };
                 let shape = ndarray::Ix3(
                     usize::try_from(metadata.dimension_1)?,
                     usize::try_from(metadata.dimension_2)?,
@@ -239,11 +252,8 @@ const _: () = {
                     },
                 );
                 Ok(ImageArrayResponse {
-                    data: ndarray::Array::from_shape_vec(
-                        shape,
-                        bytemuck::cast_vec(data.to_owned()),
-                    )
-                    .expect("couldn't match the parsed shape to the data"),
+                    data: ndarray::Array::from_shape_vec(shape, data)
+                        .expect("couldn't match the parsed shape to the data"),
                 })
             } else {
                 Err(ASCOMError::new(
