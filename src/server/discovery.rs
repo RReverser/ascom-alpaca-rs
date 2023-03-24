@@ -1,5 +1,5 @@
 use super::DEFAULT_DISCOVERY_PORT;
-use crate::discovery::{AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG, bind_socket};
+use crate::discovery::{bind_socket, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Server {
