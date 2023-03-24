@@ -30,7 +30,9 @@ pub(crate) fn bind_socket(port: u16) -> anyhow::Result<tokio::net::UdpSocket> {
     Ok(tokio::net::UdpSocket::from_std(socket.into())?)
 }
 
+#[cfg(feature = "client")]
 pub use crate::client::DiscoveryClient;
+#[cfg(feature = "server")]
 pub use crate::server::DiscoveryServer;
 
 #[cfg(test)]
