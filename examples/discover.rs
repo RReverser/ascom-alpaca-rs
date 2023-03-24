@@ -5,6 +5,8 @@ async fn main() -> anyhow::Result<()> {
     use ascom_alpaca::Client;
     use futures::TryStreamExt;
 
+    tracing_subscriber::fmt::init();
+
     println!("Searching...");
 
     DiscoveryClient::new()

@@ -33,6 +33,7 @@ tracing = "0.1.37"
 [dev-dependencies]
 nokhwa = "0.10.3"
 tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = "0.3.16"
 
 [features]
 all-devices = ["camera", "covercalibrator", "dome", "filterwheel", "focuser", "observingconditions", "rotator", "safetymonitor", "switch", "telescope"]
