@@ -18,7 +18,7 @@ use futures::TryFutureExt;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use tracing::Instrument;
@@ -182,6 +182,17 @@ impl Client {
     }
 
     pub async fn get_devices(&self) -> anyhow::Result<impl Iterator<Item = DeviceClient>> {
+        struct ConfiguredDeviceResult(anyhow::Result<ConfiguredDevice>);
+
+        impl<'de> Deserialize<'de> for ConfiguredDeviceResult {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                Ok(Self(
+                    ConfiguredDevice::deserialize(deserializer)
+                        .map_err(|err| anyhow::anyhow!("{err:#}")),
+                ))
+            }
+        }
+
         let raw_client = self.inner.clone();
 
         Ok(
@@ -191,10 +202,19 @@ impl Client {
                 ActionParams::Get(opaque_params! {}),
             )
             .await?
-            .try_as::<ValueResponse<Vec<ConfiguredDevice>>>()
+            .try_as::<ValueResponse<Vec<ConfiguredDeviceResult>>>()
             .context("Couldn't parse list of devices")?
             .into()
             .into_iter()
+            .filter_map(|device_result| {
+                match device_result.0 {
+                    Ok(device) => Some(device),
+                    Err(err) => {
+                        tracing::warn!(%err, "Skipping unsupported device");
+                        None
+                    }
+                }
+            })
             .map(move |device| {
                 DeviceClient {
                     inner: raw_client.join_url(&format!(
