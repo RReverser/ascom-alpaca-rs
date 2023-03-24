@@ -4,7 +4,9 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone, Copy)]
 pub(crate) struct RequestTransaction {
+    #[serde(rename = "ClientTransactionID")]
     pub(crate) client_transaction_id: u32,
+    #[serde(rename = "ClientID")]
     pub(crate) client_id: u32,
 }
 
