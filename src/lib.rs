@@ -50,6 +50,9 @@ pub(crate) mod macros;
 #[path = "api/mod.autogen.rs"]
 pub mod api;
 
+#[cfg(not(any(feature = "client", feature = "server")))]
+compile_error!("Enable at least one of the `client` or `server` Cargo features");
+
 #[cfg(feature = "client")]
 mod client;
 
