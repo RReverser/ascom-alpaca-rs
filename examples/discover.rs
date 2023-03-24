@@ -1,20 +1,31 @@
-#[cfg(feature = "client")]
+#[cfg(all(feature = "client", feature = "all-devices"))]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    use ascom_alpaca::discovery::DiscoveryClient;
+    use ascom_alpaca::Client;
     use futures::TryStreamExt;
 
-    let mut client = ascom_alpaca::discovery::DiscoveryClient::new();
-    client.include_ipv6 = true;
-    client
+    println!("Searching...");
+
+    DiscoveryClient::new()
         .discover_addrs()
         .try_for_each(|addr| async move {
             println!("Found Alpaca server at {addr}");
+            let client = Client::new_from_addr(addr)?;
+            let server_info = client.get_server_info().await?;
+            println!("Server info: {server_info:#?}");
+            let devices = client.get_devices().await?.collect::<Vec<_>>();
+            println!("Devices: {devices:#?}");
             Ok(())
         })
-        .await
+        .await?;
+
+    println!("Discovery completed");
+
+    Ok(())
 }
 
-#[cfg(not(feature = "client"))]
+#[cfg(not(all(feature = "client", feature = "all-devices")))]
 fn main() {
-    println!("This example requires the `client` feature");
+    eprintln!("This example requires the 'client' and 'all-devices' features");
 }

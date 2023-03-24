@@ -56,9 +56,11 @@ impl DeviceClient {
     }
 }
 
-#[derive(Debug)]
+#[derive(custom_debug::Debug)]
 pub(crate) struct RawClient {
+    #[debug(skip)]
     pub(crate) inner: reqwest::Client,
+    #[debug(format = r#""{}""#)]
     pub(crate) base_url: reqwest::Url,
     pub(crate) client_id: u32,
 }

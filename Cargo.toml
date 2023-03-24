@@ -10,6 +10,7 @@ async-trait = "0.1.64"
 axum = { version = "0.6.11", optional = true, features = ["headers"] }
 bytemuck = { version = "1.13.0", features = ["derive", "extern_crate_std"], optional = true }
 bytes = { version = "1.4.0", optional = true }
+custom_debug = "0.5.1"
 futures = "0.3.26"
 indexmap = { version = "1.9.2", features = ["serde"] }
 macro_rules_attribute = "0.1.3"
