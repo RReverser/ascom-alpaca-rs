@@ -10,7 +10,7 @@ pub(crate) use params::{opaque_params, ActionParams};
 mod response;
 pub(crate) use response::{OpaqueResponse, Response};
 
-use crate::api::{ConfiguredDevice, DevicePath, ServerInfo, DeviceType};
+use crate::api::{ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use anyhow::Context;
@@ -56,7 +56,7 @@ impl DeviceClient {
     }
 }
 
-#[derive(custom_debug::Debug)]
+#[derive(Clone, custom_debug::Debug)]
 pub(crate) struct RawClient {
     #[debug(skip)]
     pub(crate) inner: reqwest::Client,
@@ -181,9 +181,11 @@ impl Client {
         Self::new(format!("http://{}/", addr.into()))
     }
 
-    pub async fn get_devices(&self) -> anyhow::Result<impl '_ + Iterator<Item = DeviceClient>> {
+    pub async fn get_devices(&self) -> anyhow::Result<impl Iterator<Item = DeviceClient>> {
+        let raw_client = self.inner.clone();
+
         Ok(
-            self.inner
+            raw_client
             .request::<OpaqueResponse>(
                 "management/v1/configureddevices",
                 ActionParams::Get(opaque_params! {}),
@@ -193,9 +195,9 @@ impl Client {
             .context("Couldn't parse list of devices")?
             .into()
             .into_iter()
-            .map(|device| {
+            .map(move |device| {
                 DeviceClient {
-                    inner: self.inner.join_url(&format!(
+                    inner: raw_client.join_url(&format!(
                         "api/v1/{device_type}/{device_number}/",
                         device_type = DevicePath(device.ty),
                         device_number = device.number
