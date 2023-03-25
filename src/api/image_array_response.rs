@@ -164,8 +164,7 @@ const _: () = {
 
     impl Response for ASCOMResult<ImageArrayResponse> {
         fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-            request
-            // request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
+            request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
         }
 
         fn from_reqwest(
