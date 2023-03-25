@@ -6,8 +6,43 @@ use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
+use std::collections::VecDeque;
+
+struct FpsCounter {
+    frames: VecDeque<Instant>,
+}
+
+impl FpsCounter {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            frames: VecDeque::with_capacity(capacity),
+        }
+    }
+
+    pub fn tick(&mut self) {
+        if self.frames.len() == self.frames.capacity() {
+            self.frames.pop_front();
+        }
+        self.frames.push_back(Instant::now());
+    }
+
+    pub fn rate(&self) -> f64 {
+        let frame_count = self.frames.len().saturating_sub(1);
+        if frame_count == 0 {
+            return 0.0;
+        }
+        let oldest = *self.frames.front().unwrap();
+        let newest = *self.frames.back().unwrap();
+        let duration = newest - oldest;
+        frame_count as f64 / duration.as_secs_f64()
+    }
+
+    pub fn reset(&mut self) {
+        self.frames.clear();
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,6 +76,7 @@ enum State {
         image_loop: JoinHandle<()>,
         rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
         img: Option<TextureHandle>,
+        fps_counter: FpsCounter,
     },
     Error(String),
 }
@@ -269,6 +305,7 @@ impl<'a> StateCtxGuard<'a> {
                             image_loop,
                             rx,
                             img: None,
+                            fps_counter: FpsCounter::new(10),
                         })
                     });
                 }
@@ -286,6 +323,7 @@ impl<'a> StateCtxGuard<'a> {
                 image_loop,
                 rx,
                 img,
+                fps_counter,
             } => {
                 ui.label(format!("Connected to camera: {}", camera_name));
                 let mut duration_ms_copy = duration_ms.load(Ordering::Relaxed);
@@ -294,13 +332,16 @@ impl<'a> StateCtxGuard<'a> {
                     .changed()
                 {
                     duration_ms.store(duration_ms_copy, Ordering::Relaxed);
+                    fps_counter.reset();
                 }
                 let disconnect_btn = ui.button("Disconnect");
                 if let Ok(new_img) = rx.try_recv() {
+                    fps_counter.tick();
                     *img = Some(ui.ctx().load_texture("img", new_img?, Default::default()));
                 }
                 match &*img {
                     Some(img) => {
+                        ui.label(format!("Rendering at {:.1} fps vs capture set to {:.1}", fps_counter.rate(), 1000.0 / f64::from(duration_ms_copy)));
                         let available_size = ui.available_size();
                         let mut img_size = Vec2::from(img.size().map(|x| x as f32));
                         // Fit the image to the available space while preserving aspect ratio.
