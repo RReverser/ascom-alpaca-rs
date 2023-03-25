@@ -1,3 +1,4 @@
+use crate::client::OpaqueResponse;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use thiserror::Error;
@@ -22,7 +23,7 @@ impl ASCOMErrorCode {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Error)]
+#[derive(Debug, Clone, Serialize, Error)]
 #[error("ASCOM error {code}: {message}")]
 pub struct ASCOMError {
     #[serde(rename = "ErrorNumber")]
@@ -36,6 +37,29 @@ impl ASCOMError {
         Self {
             code,
             message: message.into(),
+        }
+    }
+
+    fn extract_impl(response: &mut OpaqueResponse) -> anyhow::Result<Self> {
+        let code = response.extract("ErrorNumber")?;
+        let message = response.extract("ErrorMessage")?;
+
+        Ok(Self { code, message })
+    }
+
+    pub(crate) fn extract_status(response: &mut OpaqueResponse) -> ASCOMResult<()> {
+        match Self::extract_impl(response) {
+            Ok(error) => {
+                if error.code.0 == 0 {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
+            }
+            Err(parsing_err) => Err(Self::new(
+                ASCOMErrorCode::UNSPECIFIED,
+                format!("Couldn't parse response status: {parsing_err:#}"),
+            )),
         }
     }
 }

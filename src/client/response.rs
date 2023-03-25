@@ -1,5 +1,5 @@
 use super::ResponseWithTransaction;
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+use crate::{ASCOMError, ASCOMResult};
 use anyhow::Context;
 use bytes::Bytes;
 use mime::Mime;
@@ -21,6 +21,11 @@ impl OpaqueResponse {
             .map(serde_json::from_value)
             .transpose()
             .with_context(|| format!("couldn't parse {name}"))
+    }
+
+    pub(crate) fn extract<T: DeserializeOwned>(&mut self, name: &str) -> anyhow::Result<T> {
+        self.maybe_extract(name)?
+            .ok_or_else(|| anyhow::anyhow!("Missing parameter {name}"))
     }
 
     pub(crate) fn try_as<T: DeserializeOwned>(self) -> serde_json::Result<T> {
@@ -61,20 +66,9 @@ impl Response for ASCOMResult<OpaqueResponse> {
         bytes: Bytes,
     ) -> anyhow::Result<ResponseWithTransaction<Self>> {
         Ok(
-            OpaqueResponse::from_reqwest(mime_type, bytes)?.map(|response| {
-                match response.0.get("ErrorNumber") {
-                    Some(error_number) if error_number != 0_i32 => {
-                        Err(response.try_as::<ASCOMError>().unwrap_or_else(|err| {
-                            ASCOMError::new(
-                                ASCOMErrorCode::UNSPECIFIED,
-                                format!(
-                                    "Server returned an error but it couldn't be parsed: {err:#}"
-                                ),
-                            )
-                        }))
-                    }
-                    _ => Ok(response),
-                }
+            OpaqueResponse::from_reqwest(mime_type, bytes)?.map(|mut response| {
+                let status = ASCOMError::extract_status(&mut response);
+                status.map(|_| response)
             }),
         )
     }
