@@ -387,7 +387,7 @@ fn expect_key<'de, A: serde::de::MapAccess<'de>>(
     loop {
         return match map.next_key::<KnownKey>()? {
             Some(KnownKey::Other) => {
-                map.next_value::<IgnoredAny>()?;
+                let _ = map.next_value::<IgnoredAny>()?;
                 continue;
             }
             Some(key) if key == expected_key => Ok(()),
