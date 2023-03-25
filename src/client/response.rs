@@ -68,7 +68,7 @@ impl Response for ASCOMResult<OpaqueResponse> {
                             ASCOMError::new(
                                 ASCOMErrorCode::UNSPECIFIED,
                                 format!(
-                                    "Server returned an error but it couldn't be parsed: {err}"
+                                    "Server returned an error but it couldn't be parsed: {err:#}"
                                 ),
                             )
                         }))
