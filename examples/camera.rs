@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::task::JoinHandle;
 use std::sync::atomic::{Ordering, AtomicU32};
-use with_drop::WithDrop;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -155,26 +154,8 @@ impl<'a> StateCtxGuard<'a> {
                     let ctx = self.ctx.clone();
                     self.spawn(State::Connecting, async move {
                         device.set_connected(true).await?;
-                        let device = WithDrop::new(device, |device| {
-                            // Do a best-attempt disconnect when device is dropped due to application state change.
-                            tokio::spawn(async move {
-                                match device.set_connected(false).await {
-                                    Ok(_) => tracing::debug!("Disconnected from camera"),
-                                    Err(err) => tracing::warn!(%err, "Failed to disconnect from camera"),
-                                }
-                            });
-                        });
                         let camera_name = device.name().await?;
-                        let sensor_type = match device.sensor_type().await {
-                            Ok(sensor_type) => sensor_type,
-                            Err(err) => {
-                                tracing::error!(
-                                    "Failed to get sensor type: {}, falling back to Monochrome",
-                                    err
-                                );
-                                SensorTypeResponse::Monochrome
-                            }
-                        };
+                        let sensor_type = device.sensor_type().await?;
                         let (tx, rx) = tokio::sync::mpsc::channel(1);
                         let duration_ms = Arc::new(AtomicU32::new(100));
                         let duration_ms_clone = Arc::clone(&duration_ms);
@@ -279,6 +260,10 @@ impl<'a> StateCtxGuard<'a> {
                                     break;
                                 }
                                 ctx.request_repaint();
+                            }
+                            // Channel is closed, cleanup.
+                            if let Err(err) = device.set_connected(false).await {
+                                tracing::warn!(%err, "Failed to disconnect from the camera");
                             }
                         });
                         Ok(State::Connected {
