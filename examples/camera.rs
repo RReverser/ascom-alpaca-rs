@@ -4,10 +4,10 @@ use ascom_alpaca::{Client, DeviceClient};
 use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::task::JoinHandle;
-use std::sync::atomic::{Ordering, AtomicU32};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -105,11 +105,9 @@ impl<'a> StateCtxGuard<'a> {
                 self.spawn(State::Discovering, async move {
                     let devices = DiscoveryClient::new()
                         .discover_addrs()
-                        .and_then(|addr| async move {
-                            Client::new_from_addr(addr)?
-                                .get_devices()
-                                .await
-                        })
+                        .and_then(
+                            |addr| async move { Client::new_from_addr(addr)?.get_devices().await },
+                        )
                         .try_fold(Vec::new(), |mut devices, new_devices| async move {
                             devices.extend(new_devices);
                             Ok(devices)
@@ -233,11 +231,10 @@ impl<'a> StateCtxGuard<'a> {
 
                                             let mut rgb_buf = vec![0; width * height * 3];
 
-                                            bayer::run_demosaic(
-                                                &mut ReadIter(stretched_iter),
+                                            bayer::demosaic::linear::run(
+                                                &mut ReadIter(raw_img.data.iter().map(|&x| x as u8)),
                                                 bayer::BayerDepth::Depth8,
                                                 bayer::CFA::RGGB,
-                                                bayer::Demosaic::None,
                                                 &mut bayer::RasterMut::new(
                                                     width,
                                                     height,
@@ -292,7 +289,10 @@ impl<'a> StateCtxGuard<'a> {
             } => {
                 ui.label(format!("Connected to camera: {}", camera_name));
                 let mut duration_ms_copy = duration_ms.load(Ordering::Relaxed);
-                if ui.add(egui::Slider::new(&mut duration_ms_copy, 2..=1000).text("Exposure (ms)")).changed() {
+                if ui
+                    .add(egui::Slider::new(&mut duration_ms_copy, 2..=1000).text("Exposure (ms)"))
+                    .changed()
+                {
                     duration_ms.store(duration_ms_copy, Ordering::Relaxed);
                 }
                 let disconnect_btn = ui.button("Disconnect");
@@ -306,7 +306,7 @@ impl<'a> StateCtxGuard<'a> {
                         // Fit the image to the available space while preserving aspect ratio.
                         img_size *= (available_size / img_size).min_elem();
                         ui.image(img, img_size)
-                    },
+                    }
                     None => ui.label("Starting capture stream..."),
                 };
                 if let Some(result) = image_loop.now_or_never() {
