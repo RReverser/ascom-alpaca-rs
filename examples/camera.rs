@@ -4,11 +4,11 @@ use ascom_alpaca::{Client, DeviceClient};
 use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
-use std::collections::VecDeque;
 
 struct FpsCounter {
     frames: VecDeque<Instant>,
@@ -341,7 +341,11 @@ impl<'a> StateCtxGuard<'a> {
                 }
                 match &*img {
                     Some(img) => {
-                        ui.label(format!("Rendering at {:.1} fps vs capture set to {:.1}", fps_counter.rate(), 1000.0 / f64::from(duration_ms_copy)));
+                        ui.label(format!(
+                            "Rendering at {:.1} fps vs capture set to {:.1}",
+                            fps_counter.rate(),
+                            1000.0 / f64::from(duration_ms_copy)
+                        ));
                         let available_size = ui.available_size();
                         let mut img_size = Vec2::from(img.size().map(|x| x as f32));
                         // Fit the image to the available space while preserving aspect ratio.

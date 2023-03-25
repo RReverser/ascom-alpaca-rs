@@ -1,10 +1,9 @@
-#[cfg(all(feature = "client", feature = "all-devices"))]
+use ascom_alpaca::discovery::DiscoveryClient;
+use ascom_alpaca::Client;
+use futures::TryStreamExt;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    use ascom_alpaca::discovery::DiscoveryClient;
-    use ascom_alpaca::Client;
-    use futures::TryStreamExt;
-
     tracing_subscriber::fmt::init();
 
     println!("Searching...");
@@ -25,9 +24,4 @@ async fn main() -> anyhow::Result<()> {
     println!("Discovery completed");
 
     Ok(())
-}
-
-#[cfg(not(all(feature = "client", feature = "all-devices")))]
-fn main() {
-    eprintln!("This example requires the 'client' and 'all-devices' features");
 }
