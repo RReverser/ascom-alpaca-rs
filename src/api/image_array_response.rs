@@ -1,4 +1,5 @@
 use crate::api::ImageArrayResponseType;
+use crate::client::ResponseTransaction;
 use crate::either::Either;
 use crate::ASCOMResult;
 use bytemuck::{Pod, Zeroable};
@@ -66,8 +67,7 @@ If you have a real-world use case for big-endian support, please open an issue o
 struct ImageBytesMetadata {
     metadata_version: i32,
     error_number: i32,
-    client_transaction_id: u32,
-    server_transaction_id: u32,
+    transaction: ResponseTransaction,
     data_start: i32,
     image_element_type: i32,
     transmission_element_type: i32,
@@ -114,8 +114,10 @@ impl crate::server::Response for ASCOMResult<ImageBytesResponse> {
             metadata_version: 1,
             data_start: i32::try_from(std::mem::size_of::<ImageBytesMetadata>())
                 .expect("internal error: metadata size is too large"),
-            client_transaction_id: transaction.client_transaction_id.unwrap_or(0),
-            server_transaction_id: transaction.server_transaction_id,
+            transaction: ResponseTransaction {
+                client_transaction_id: transaction.client_transaction_id,
+                server_transaction_id: Some(transaction.server_transaction_id),
+            },
             ..Zeroable::zeroed()
         };
         let data = match &self {
@@ -157,7 +159,7 @@ impl crate::server::Response for ASCOMResult<ImageBytesResponse> {
 
 #[cfg(feature = "client")]
 const _: () = {
-    use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
+    use crate::client::{Response, ResponseWithTransaction};
     use crate::{ASCOMError, ASCOMErrorCode};
     use bytes::Bytes;
     use mime::Mime;
@@ -192,18 +194,7 @@ const _: () = {
             let data = bytes
                 .get(data_start..)
                 .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
-            let transaction = ResponseTransaction {
-                client_transaction_id: if metadata.client_transaction_id == 0 {
-                    None
-                } else {
-                    Some(metadata.client_transaction_id)
-                },
-                server_transaction_id: if metadata.server_transaction_id == 0 {
-                    None
-                } else {
-                    Some(metadata.server_transaction_id)
-                },
-            };
+            let transaction = metadata.transaction;
             let ascom_result = if metadata.error_number == 0_i32 {
                 anyhow::ensure!(
                     metadata.image_element_type == ImageArrayResponseType::Integer as i32,

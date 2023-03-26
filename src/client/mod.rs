@@ -23,6 +23,7 @@ use reqwest::{IntoUrl, RequestBuilder};
 use serde::Serialize;
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::num::NonZeroU32;
 use tracing::Instrument;
 
 #[derive(Debug)]
@@ -64,7 +65,7 @@ pub(crate) struct RawClient {
     pub(crate) inner: reqwest::Client,
     #[debug(format = r#""{}""#)]
     pub(crate) base_url: reqwest::Url,
-    pub(crate) client_id: u32,
+    pub(crate) client_id: NonZeroU32,
 }
 
 impl RawClient {
