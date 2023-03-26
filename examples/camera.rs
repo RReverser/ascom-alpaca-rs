@@ -406,7 +406,7 @@ impl CaptureState {
                 let mut rgb_buf = vec![0; width * height * 3];
 
                 bayer::demosaic::linear::run(
-                    &mut ReadIter(raw_img.data.iter().map(|&x| x as u8)),
+                    &mut ReadIter(stretched_iter),
                     bayer::BayerDepth::Depth8,
                     bayer::CFA::RGGB,
                     &mut bayer::RasterMut::new(
