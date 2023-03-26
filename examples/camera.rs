@@ -67,21 +67,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 enum State {
     Init,
-    Discovering(JoinHandle<()>),
+    Discovering(ChildTask),
     Discovered {
         devices: Vec<DeviceClient>,
         selected_index: Option<usize>,
     },
-    Connecting(JoinHandle<()>),
+    Connecting(ChildTask),
     Connected {
-        duration_sec: Arc<AtomicF64>,
         camera_name: String,
-        image_loop: JoinHandle<()>,
         rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
         img: Option<TextureHandle>,
         fps_counter: FpsCounter,
         exposure_range: std::ops::RangeInclusive<f64>,
-        cancellation: Arc<Notify>,
+        capture_state: Arc<CaptureState>,
+        image_loop: JoinHandle<()>, // not `ChildTask` because it has its own cancellation mechanism
     },
     Error(String),
 }
@@ -108,6 +107,14 @@ impl StateCtx {
     }
 }
 
+struct ChildTask(JoinHandle<()>);
+
+impl Drop for ChildTask {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 struct StateCtxGuard<'a> {
     state_ctx: &'a StateCtx,
     state: MutexGuard<'a, State>,
@@ -126,18 +133,18 @@ impl<'a> StateCtxGuard<'a> {
 
     fn spawn(
         &mut self,
-        as_new_state: impl FnOnce(JoinHandle<()>) -> State,
+        as_new_state: impl FnOnce(ChildTask) -> State,
         update: impl Future<Output = anyhow::Result<State>> + Send + 'static,
     ) {
         let state_ctx = self.state_ctx.clone();
-        self.set_state(as_new_state(tokio::spawn(async move {
+        self.set_state(as_new_state(ChildTask(tokio::spawn(async move {
             let result = update.await;
             let mut state_ctx = state_ctx.lock();
             match result {
                 Ok(state) => state_ctx.set_state(state),
                 Err(err) => state_ctx.set_error(err),
             }
-        })));
+        }))));
     }
 
     fn try_update(&mut self, ui: &mut Ui) -> anyhow::Result<()> {
@@ -194,152 +201,29 @@ impl<'a> StateCtxGuard<'a> {
                     self.spawn(State::Connecting, async move {
                         device.set_connected(true).await?;
                         let camera_name = device.name().await?;
-                        let sensor_type = device.sensor_type().await?;
                         let exposure_min = device.exposure_min().await?;
                         let exposure_max = device.exposure_max().await?;
                         let (tx, rx) = tokio::sync::mpsc::channel(1);
-                        let duration_sec = Arc::new(AtomicF64::new(exposure_min));
-                        let cancellation = Arc::new(Notify::new());
+                        let capture_state = Arc::new(CaptureState {
+                            duration_sec: AtomicF64::new(exposure_min),
+                            params_change: Notify::new(),
+                            tx,
+                            sensor_type: device.sensor_type().await?,
+                            device,
+                            ctx,
+                        });
                         let image_loop = {
-                            let duration_sec = Arc::clone(&duration_sec);
-                            let cancellation = Arc::clone(&cancellation);
-
-                            tokio::spawn(async move {
-                                loop {
-                                    let capture_future =
-                                        async {
-                                            let duration_sec_value =
-                                                duration_sec.load(Ordering::Relaxed);
-                                            device.start_exposure(duration_sec_value, true).await?;
-                                            while !device.image_ready().await? {
-                                                tokio::time::sleep(Duration::from_millis(50)).await;
-                                            }
-                                            let mut raw_img = device.image_array().await?;
-                                            let (width, height, depth) = raw_img.data.dim();
-                                            tracing::debug!(width, height, depth, "Got image");
-                                            // Convert from standard row-major layout used by encoding to column-major layout used by graphics.
-                                            raw_img.data.swap_axes(0, 1);
-                                            let mut min = i32::MAX;
-                                            let mut max = i32::MIN;
-                                            for &x in &raw_img.data {
-                                                min = min.min(x);
-                                                max = max.max(x);
-                                            }
-                                            let mut diff = i64::from(max - min);
-                                            if diff == 0 {
-                                                diff = 1;
-                                            }
-                                            let stretched_iter = raw_img.data.iter().map(|&x| {
-                                                // Stretch the image.
-                                                (i64::from(x - min) * i64::from(u8::MAX) / diff)
-                                                    .try_into()
-                                                    .unwrap()
-                                            });
-                                            let rgb_buf: Vec<u8> = match sensor_type {
-                                                SensorTypeResponse::Color => {
-                                                    anyhow::ensure!(
-                                                        depth == 3,
-                                                        "Expected 3 channels for color image"
-                                                    );
-                                                    stretched_iter.collect()
-                                                }
-                                                SensorTypeResponse::Monochrome => {
-                                                    anyhow::ensure!(
-                                                        depth == 1,
-                                                        "Expected 1 channel for monochrome image"
-                                                    );
-                                                    stretched_iter
-                                                        // Repeat each gray pixel 3 times to make it RGB.
-                                                        .flat_map(|color| {
-                                                            std::iter::repeat(color).take(3)
-                                                        })
-                                                        .collect()
-                                                }
-                                                SensorTypeResponse::RGGB => {
-                                                    struct ReadIter<I>(I);
-
-                                                    impl<I: ExactSizeIterator<Item = u8>>
-                                                        std::io::Read for ReadIter<I>
-                                                    {
-                                                        fn read(
-                                                            &mut self,
-                                                            buf: &mut [u8],
-                                                        ) -> std::io::Result<usize>
-                                                        {
-                                                            let merged_iter =
-                                                                buf.iter_mut().zip(&mut self.0);
-                                                            let len = merged_iter.len();
-                                                            for (dst, src) in merged_iter {
-                                                                *dst = src;
-                                                            }
-                                                            Ok(len)
-                                                        }
-                                                    }
-
-                                                    anyhow::ensure!(
-                                                        depth == 1,
-                                                        "Expected 1 channel for RGGB image"
-                                                    );
-
-                                                    let mut rgb_buf = vec![0; width * height * 3];
-
-                                                    bayer::demosaic::linear::run(
-                                                        &mut ReadIter(
-                                                            raw_img.data.iter().map(|&x| x as u8),
-                                                        ),
-                                                        bayer::BayerDepth::Depth8,
-                                                        bayer::CFA::RGGB,
-                                                        &mut bayer::RasterMut::new(
-                                                            width,
-                                                            height,
-                                                            bayer::RasterDepth::Depth8,
-                                                            &mut rgb_buf,
-                                                        ),
-                                                    )?;
-
-                                                    rgb_buf
-                                                }
-                                                other => {
-                                                    anyhow::bail!(
-                                                        "Unsupported sensor type: {:?}",
-                                                        other
-                                                    )
-                                                }
-                                            };
-                                            let color_img =
-                                                ColorImage::from_rgb([width, height], &rgb_buf);
-                                            Ok(color_img)
-                                        };
-
-                                    tokio::select! {
-                                        _ = cancellation.notified() => {
-                                            // ignore error if exposure has already stopped
-                                            let _ = device.abort_exposure().await;
-                                            continue;
-                                        }
-                                        result = capture_future => {
-                                            if tx.send(result).await.is_err() {
-                                                break;
-                                            }
-                                            ctx.request_repaint();
-                                        }
-                                    };
-                                }
-                                // Channel is closed, cleanup.
-                                if let Err(err) = device.set_connected(false).await {
-                                    tracing::warn!(%err, "Failed to disconnect from the camera");
-                                }
-                            })
+                            let capture_state = Arc::clone(&capture_state);
+                            tokio::spawn(async move { capture_state.start_capture_loop().await })
                         };
                         Ok(State::Connected {
-                            duration_sec,
+                            capture_state,
                             camera_name,
                             image_loop,
                             rx,
                             img: None,
                             fps_counter: FpsCounter::new(10),
                             exposure_range: exposure_min..=exposure_max,
-                            cancellation,
                         })
                     });
                 }
@@ -352,27 +236,25 @@ impl<'a> StateCtxGuard<'a> {
                 ui.label("Connecting to camera...");
             }
             State::Connected {
-                duration_sec,
+                capture_state,
                 camera_name,
-                image_loop,
                 rx,
                 img,
                 fps_counter,
                 exposure_range,
-                cancellation,
+                image_loop,
             } => {
                 ui.label(format!("Connected to camera: {}", camera_name));
-                let mut duration_sec_value = duration_sec.load(Ordering::Relaxed);
+                let mut duration_sec = capture_state.get_duration_sec();
                 if ui
                     .add(
-                        egui::Slider::new(&mut duration_sec_value, exposure_range.clone())
+                        egui::Slider::new(&mut duration_sec, exposure_range.clone())
                             .logarithmic(true)
                             .text("Exposure (sec)"),
                     )
                     .changed()
                 {
-                    duration_sec.store(duration_sec_value, Ordering::Relaxed);
-                    cancellation.notify_waiters();
+                    capture_state.set_duration_sec(duration_sec);
                     fps_counter.reset();
                 }
                 let disconnect_btn = ui.button("Disconnect");
@@ -385,7 +267,7 @@ impl<'a> StateCtxGuard<'a> {
                         ui.label(format!(
                             "Rendering at {:.1} fps vs capture set to {:.1}",
                             fps_counter.rate(),
-                            1.0 / duration_sec_value
+                            1.0 / duration_sec
                         ));
                         let available_size = ui.available_size();
                         let mut img_size = Vec2::from(img.size().map(|x| x as f32));
@@ -411,6 +293,137 @@ impl<'a> StateCtxGuard<'a> {
             }
         }
         Ok(())
+    }
+}
+
+struct CaptureState {
+    duration_sec: atomic::Atomic<f64>,
+    params_change: Notify,
+    tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
+    device: DeviceClient,
+    sensor_type: SensorTypeResponse,
+    ctx: egui::Context,
+}
+
+impl CaptureState {
+    fn get_duration_sec(&self) -> f64 {
+        self.duration_sec.load(Ordering::Relaxed)
+    }
+
+    fn set_duration_sec(&self, duration_sec: f64) {
+        self.duration_sec.store(duration_sec, Ordering::Relaxed);
+        // Abort current exposure.
+        self.params_change.notify_waiters();
+    }
+
+    async fn start_capture_loop(&self) {
+        while self.capture_image().await {}
+        // Channel is closed, cleanup.
+        if let Err(err) = self.device.set_connected(false).await {
+            tracing::warn!(%err, "Failed to disconnect from the camera");
+        }
+    }
+
+    async fn capture_image(&self) -> bool {
+        tokio::select! {
+            _ = self.tx.closed() => {
+                // the receiver was dropped due to app state change
+                // gracefully abort the exposure and stop the loop
+                let _ = self.device.abort_exposure().await;
+                false
+            }
+            _ = self.params_change.notified() => {
+                // the exposure parameters were changed
+                // gracefully abort the exposure and continue the loop
+                let _ = self.device.abort_exposure().await;
+                true
+            }
+            result = self.capture_image_without_cancellation() => {
+                if self.tx.send(result).await.is_err() {
+                    // couldn't send as the received was dropped, stop the loop
+                    return false;
+                }
+                self.ctx.request_repaint();
+                true
+            }
+        }
+    }
+
+    async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
+        let duration_sec = self.get_duration_sec();
+        self.device.start_exposure(duration_sec, true).await?;
+        while !self.device.image_ready().await? {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let mut raw_img = self.device.image_array().await?;
+        let (width, height, depth) = raw_img.data.dim();
+        tracing::debug!(width, height, depth, "Got image");
+        raw_img.data.swap_axes(0, 1);
+        let mut min = i32::MAX;
+        let mut max = i32::MIN;
+        for &x in &raw_img.data {
+            min = min.min(x);
+            max = max.max(x);
+        }
+        let mut diff = i64::from(max - min);
+        if diff == 0 {
+            diff = 1;
+        }
+        let stretched_iter = raw_img.data.iter().map(|&x| {
+            // Stretch the image.
+            (i64::from(x - min) * i64::from(u8::MAX) / diff)
+                .try_into()
+                .unwrap()
+        });
+        let rgb_buf: Vec<u8> = match self.sensor_type {
+            SensorTypeResponse::Color => {
+                anyhow::ensure!(depth == 3, "Expected 3 channels for color image");
+                stretched_iter.collect()
+            }
+            SensorTypeResponse::Monochrome => {
+                anyhow::ensure!(depth == 1, "Expected 1 channel for monochrome image");
+                stretched_iter
+                    // Repeat each gray pixel 3 times to make it RGB.
+                    .flat_map(|color| std::iter::repeat(color).take(3))
+                    .collect()
+            }
+            SensorTypeResponse::RGGB => {
+                struct ReadIter<I>(I);
+
+                impl<I: ExactSizeIterator<Item = u8>> std::io::Read for ReadIter<I> {
+                    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                        let merged_iter = buf.iter_mut().zip(&mut self.0);
+                        let len = merged_iter.len();
+                        for (dst, src) in merged_iter {
+                            *dst = src;
+                        }
+                        Ok(len)
+                    }
+                }
+
+                anyhow::ensure!(depth == 1, "Expected 1 channel for RGGB image");
+
+                let mut rgb_buf = vec![0; width * height * 3];
+
+                bayer::demosaic::linear::run(
+                    &mut ReadIter(raw_img.data.iter().map(|&x| x as u8)),
+                    bayer::BayerDepth::Depth8,
+                    bayer::CFA::RGGB,
+                    &mut bayer::RasterMut::new(
+                        width,
+                        height,
+                        bayer::RasterDepth::Depth8,
+                        &mut rgb_buf,
+                    ),
+                )?;
+
+                rgb_buf
+            }
+            other => {
+                anyhow::bail!("Unsupported sensor type: {:?}", other)
+            }
+        };
+        Ok(ColorImage::from_rgb([width, height], &rgb_buf))
     }
 }
 
