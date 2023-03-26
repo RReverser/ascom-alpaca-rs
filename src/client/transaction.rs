@@ -1,6 +1,6 @@
-use super::{ActionParams, OpaqueResponse};
+use super::ActionParams;
 use crate::macros::auto_increment;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Clone, Copy)]
 pub(crate) struct RequestTransaction {
@@ -27,19 +27,12 @@ pub(crate) struct RequestWithTransaction<T> {
     pub(crate) params: ActionParams<T>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub(crate) struct ResponseTransaction {
+    #[serde(rename = "ClientTransactionID")]
     pub(crate) client_transaction_id: Option<u32>,
+    #[serde(rename = "ClientID")]
     pub(crate) server_transaction_id: Option<u32>,
-}
-
-impl ResponseTransaction {
-    pub(crate) fn extract(response: &mut OpaqueResponse) -> anyhow::Result<Self> {
-        Ok(Self {
-            client_transaction_id: response.maybe_extract("ClientTransactionID")?,
-            server_transaction_id: response.maybe_extract("ServerTransactionID")?,
-        })
-    }
 }
 
 #[derive(Debug)]
@@ -54,18 +47,5 @@ impl<T> ResponseWithTransaction<T> {
             transaction: self.transaction,
             response: f(self.response),
         }
-    }
-}
-
-impl TryFrom<OpaqueResponse> for ResponseWithTransaction<OpaqueResponse> {
-    type Error = anyhow::Error;
-
-    fn try_from(mut response: OpaqueResponse) -> anyhow::Result<Self> {
-        let transaction = ResponseTransaction::extract(&mut response)?;
-
-        Ok(Self {
-            transaction,
-            response,
-        })
     }
 }

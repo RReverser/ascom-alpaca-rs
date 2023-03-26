@@ -15,7 +15,7 @@ pub(crate) use error::Error;
 
 #[cfg(feature = "camera")]
 use crate::api::{Camera, DeviceType};
-use crate::api::{CargoServerInfo, ConfiguredDevice, DevicePath, ServerInfo};
+use crate::api::{CargoServerInfo, DevicePath, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::{ASCOMResult, Devices};
@@ -132,7 +132,7 @@ impl Server {
 
                 axum::routing::get(|params| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
-                        let devices = this.iter_all_configured().collect::<Vec<ConfiguredDevice>>();
+                        let devices = this.iter_all_configured().collect::<Vec<_>>();
                         Ok(ValueResponse::from(devices))
                     })
                 })

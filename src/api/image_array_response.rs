@@ -157,7 +157,7 @@ impl crate::server::Response for ASCOMResult<ImageBytesResponse> {
 
 #[cfg(feature = "client")]
 const _: () = {
-    use crate::client::{OpaqueResponse, Response, ResponseTransaction, ResponseWithTransaction};
+    use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
     use crate::{ASCOMError, ASCOMErrorCode};
     use bytes::Bytes;
     use mime::Mime;
@@ -172,15 +172,8 @@ const _: () = {
             bytes: Bytes,
         ) -> anyhow::Result<ResponseWithTransaction<Self>> {
             if mime_type.essence_str() != IMAGE_BYTES_TYPE {
-                return Ok(
-                    <ASCOMResult<OpaqueResponse>>::from_reqwest(mime_type, bytes)?.map(
-                        |opaque_result| {
-                            opaque_result?.try_as().map_err(|err| {
-                                ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, format!("{err:#}"))
-                            })
-                        },
-                    ),
-                );
+                return <ASCOMResult<JsonImageArrayResponse>>::from_reqwest(mime_type, bytes)
+                    .map(|response| response.map(|response| response.map(|json| json.0)));
             }
             let metadata = bytes
                 .get(..std::mem::size_of::<ImageBytesMetadata>())
@@ -444,8 +437,10 @@ impl<'de> Visitor<'de> for ResponseVisitor {
     }
 }
 
-impl<'de> Deserialize<'de> for ImageArrayResponse {
+struct JsonImageArrayResponse(ImageArrayResponse);
+
+impl<'de> Deserialize<'de> for JsonImageArrayResponse {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(ResponseVisitor)
+        deserializer.deserialize_map(ResponseVisitor).map(Self)
     }
 }

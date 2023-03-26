@@ -8,9 +8,11 @@ mod params;
 pub(crate) use params::{opaque_params, ActionParams};
 
 mod response;
-pub(crate) use response::{OpaqueResponse, Response};
+pub(crate) use response::Response;
 
-use crate::api::{ConfiguredDevice, DevicePath, DeviceType, ServerInfo};
+mod parse_flattened;
+
+use crate::api::{ConfiguredDevice, DevicePath, DeviceType, FallibleDeviceType, ServerInfo};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use anyhow::Context;
@@ -18,7 +20,7 @@ use futures::TryFutureExt;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::Serialize;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use tracing::Instrument;
@@ -182,35 +184,27 @@ impl Client {
     }
 
     pub async fn get_devices(&self) -> anyhow::Result<impl Iterator<Item = DeviceClient>> {
-        struct ConfiguredDeviceResult(anyhow::Result<ConfiguredDevice>);
-
-        impl<'de> Deserialize<'de> for ConfiguredDeviceResult {
-            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                Ok(Self(
-                    ConfiguredDevice::deserialize(deserializer)
-                        .map_err(|err| anyhow::anyhow!("{err:#}")),
-                ))
-            }
-        }
-
         let raw_client = self.inner.clone();
 
         Ok(
             raw_client
-            .request::<OpaqueResponse>(
+            .request::<ValueResponse<Vec<ConfiguredDevice<FallibleDeviceType>>>>(
                 "management/v1/configureddevices",
                 ActionParams::Get(opaque_params! {}),
             )
             .await?
-            .try_as::<ValueResponse<Vec<ConfiguredDeviceResult>>>()
-            .context("Couldn't parse list of devices")?
-            .into()
+            .into_inner()
             .into_iter()
             .filter_map(|device_result| {
-                match device_result.0 {
-                    Ok(device) => Some(device),
-                    Err(err) => {
-                        tracing::warn!(%err, "Skipping unsupported device");
+                match device_result.ty.0 {
+                    Ok(device_type) => Some(ConfiguredDevice {
+                        name: device_result.name,
+                        unique_id: device_result.unique_id,
+                        ty: device_type,
+                        number: device_result.number,
+                    }),
+                    Err(device_type) => {
+                        tracing::warn!(%device_type, "Skipping device with unsupported type");
                         None
                     }
                 }
@@ -231,14 +225,13 @@ impl Client {
     }
 
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
-        self.inner
-            .request::<OpaqueResponse>(
+        Ok(self
+            .inner
+            .request::<ValueResponse<ServerInfo>>(
                 "management/v1/description",
                 ActionParams::Get(opaque_params! {}),
             )
             .await?
-            .try_as::<ValueResponse<ServerInfo>>()
-            .map(ValueResponse::into)
-            .context("Couldn't parse server info")
+            .into_inner())
     }
 }

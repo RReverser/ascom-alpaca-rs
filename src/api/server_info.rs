@@ -1,8 +1,7 @@
-use super::DeviceType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct ConfiguredDevice {
+pub(crate) struct ConfiguredDevice<DeviceType> {
     #[serde(rename = "DeviceName")]
     pub(crate) name: String,
     #[serde(rename = "DeviceType")]

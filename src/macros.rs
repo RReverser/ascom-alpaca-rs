@@ -20,26 +20,6 @@ macro_rules! rpc_trait {
 
     (@params_pat $scope:ident, $self:ident $inner:tt) => ($crate::$scope::ActionParams::Get $inner);
 
-    (@decode_response $resp:expr => ImageArrayResponse) => {
-        Ok(std::convert::identity::<ImageArrayResponse>($resp))
-    };
-
-    (@decode_response $resp:expr => $return_type:ty as $via:ident) => {
-        rpc_trait!(@decode_response $resp => $via::<$return_type>)
-        .map($via::into)
-    };
-
-    (@decode_response $resp:expr => $return_type:ty) => {
-        std::convert::identity::<$crate::client::OpaqueResponse>($resp)
-        .try_as::<$return_type>()
-        .map_err(|err| $crate::ASCOMError::new($crate::ASCOMErrorCode::UNSPECIFIED, format!("{err:#}")))
-    };
-
-    (@decode_response $resp:expr) => {{
-        let _: $crate::client::OpaqueResponse = $resp;
-        Ok(())
-    }};
-
     (
         $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
@@ -139,13 +119,10 @@ macro_rules! rpc_trait {
                     let opaque_params = $crate::client::opaque_params! {
                         $($param_query: $param,)*
                     };
-                    rpc_trait!(@decode_response
-                        self
-                        .exec_action($method_path, rpc_trait!(@params_pat client, $($mut_self)* (opaque_params)))
-                        .await?
-                        $(=> $return_type)?
-                        $(as $via)?
-                    )
+                    self
+                    .exec_action($method_path, rpc_trait!(@params_pat client, $($mut_self)* (opaque_params)))
+                    .await
+                    $(.map($via::into_inner))?
                 }
             )*
         }
@@ -159,12 +136,39 @@ macro_rules! rpc_mod {
         #[cfg(not(any( $(feature = $path),* )))]
         compile_error!(concat!("At least one device type must be enabled via Cargo features:" $(, "\n - ", $path)*));
 
-        #[derive(Deserialize, PartialEq, Eq, Clone, Copy)]
+        #[derive(PartialEq, Eq, Clone, Copy)]
         pub enum DeviceType {
             $(
                 #[cfg(feature = $path)]
                 $trait_name,
             )*
+        }
+
+        #[derive(Debug)]
+        pub(crate) struct FallibleDeviceType(
+            pub(crate) Result<DeviceType, String>,
+        );
+
+        impl<'de> Deserialize<'de> for FallibleDeviceType {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                #[derive(Deserialize)]
+                #[serde(field_identifier)]
+                enum MaybeDeviceType {
+                    $(
+                        #[cfg(feature = $path)]
+                        $trait_name,
+                    )*
+                    Unknown(String),
+                }
+
+                Ok(FallibleDeviceType(match MaybeDeviceType::deserialize(deserializer)? {
+                    $(
+                        #[cfg(feature = $path)]
+                        MaybeDeviceType::$trait_name => Ok(DeviceType::$trait_name),
+                    )*
+                    MaybeDeviceType::Unknown(s) => Err(s),
+                }))
+            }
         }
 
         impl DeviceType {
@@ -335,7 +339,7 @@ macro_rules! rpc_mod {
                 })
             }
 
-            pub(crate) fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice> {
+            pub(crate) fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice<DeviceType>> {
                 let iter = std::iter::empty();
 
                 $(
