@@ -14,36 +14,39 @@ use tokio::task::JoinHandle;
 type AtomicF64 = atomic::Atomic<f64>;
 
 struct FpsCounter {
-    frames: VecDeque<Instant>,
+    total_count: u32,
+    timings: VecDeque<Instant>,
 }
 
 impl FpsCounter {
     pub fn new(capacity: usize) -> Self {
         Self {
-            frames: VecDeque::with_capacity(capacity),
+            total_count: 0,
+            timings: VecDeque::with_capacity(capacity),
         }
     }
 
     pub fn tick(&mut self) {
-        if self.frames.len() == self.frames.capacity() {
-            self.frames.pop_front();
+        if self.timings.len() == self.timings.capacity() {
+            self.timings.pop_front();
         }
-        self.frames.push_back(Instant::now());
+        self.timings.push_back(Instant::now());
+        self.total_count += 1;
     }
 
     pub fn rate(&self) -> f64 {
-        let frame_count = self.frames.len().saturating_sub(1);
+        let frame_count = self.timings.len().saturating_sub(1);
         if frame_count == 0 {
             return 0.0;
         }
-        let oldest = *self.frames.front().unwrap();
-        let newest = *self.frames.back().unwrap();
+        let oldest = *self.timings.front().unwrap();
+        let newest = *self.timings.back().unwrap();
         let duration = newest - oldest;
         frame_count as f64 / duration.as_secs_f64()
     }
 
     pub fn reset(&mut self) {
-        self.frames.clear();
+        self.timings.clear();
     }
 }
 
@@ -265,7 +268,8 @@ impl<'a> StateCtxGuard<'a> {
                 match &*img {
                     Some(img) => {
                         ui.label(format!(
-                            "Rendering at {:.1} fps vs capture set to {:.1}",
+                            "Frame #{}. Rendering at {:.1} fps vs capture set to {:.1}",
+                            fps_counter.total_count,
                             fps_counter.rate(),
                             1.0 / duration_sec
                         ));
