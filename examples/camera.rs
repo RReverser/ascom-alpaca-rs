@@ -361,7 +361,7 @@ impl CaptureState {
         }
         let mut raw_img = self.device.image_array().await?;
         let (width, height, depth) = raw_img.data.dim();
-        tracing::debug!(width, height, depth, "Got image");
+        // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
         raw_img.data.swap_axes(0, 1);
         let mut min = i32::MAX;
         let mut max = i32::MIN;
