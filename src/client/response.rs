@@ -2,7 +2,7 @@ use super::parse_flattened::Flattened;
 use super::ResponseWithTransaction;
 use crate::client::ResponseTransaction;
 use crate::response::ValueResponse;
-use crate::{ASCOMError, ASCOMResult};
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytes::Bytes;
 use mime::Mime;
 use serde::de::DeserializeOwned;
@@ -50,7 +50,7 @@ impl<T: DeserializeOwned> Response for ASCOMResult<T> {
         Ok(
             JsonResponse::<Flattened<ASCOMError, T>>::from_reqwest(mime_type, bytes)?.map(
                 |JsonResponse(Flattened(ascom_error, response))| {
-                    if ascom_error.code.0 == 0 {
+                    if ascom_error.code == ASCOMErrorCode::OK {
                         Ok(response)
                     } else {
                         Err(ascom_error)

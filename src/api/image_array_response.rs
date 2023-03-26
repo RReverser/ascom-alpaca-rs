@@ -142,7 +142,7 @@ impl crate::server::Response for ASCOMResult<ImageBytesResponse> {
                 )
             }
             Err(err) => {
-                metadata.error_number = err.code.0.into();
+                metadata.error_number = err.code.raw().into();
                 err.message.as_bytes()
             }
         };
@@ -241,7 +241,7 @@ const _: () = {
                 })
             } else {
                 Err(ASCOMError::new(
-                    ASCOMErrorCode(u16::try_from(metadata.error_number)?),
+                    ASCOMErrorCode::try_from(u16::try_from(metadata.error_number)?)?,
                     std::str::from_utf8(data)?.to_owned(),
                 ))
             };

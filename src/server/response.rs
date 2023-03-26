@@ -1,5 +1,5 @@
 use super::{ResponseTransaction, ResponseWithTransaction};
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+use crate::{ASCOMError, ASCOMResult};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::Serialize;
@@ -23,7 +23,7 @@ impl<T: Serialize> Response for ASCOMResult<T> {
             transaction,
             response: match self {
                 Ok(value) => Repr {
-                    error: ASCOMError::new(ASCOMErrorCode(0), ""),
+                    error: ASCOMError::OK,
                     value: Some(value),
                 },
                 Err(error) => {

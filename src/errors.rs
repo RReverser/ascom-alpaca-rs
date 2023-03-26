@@ -4,21 +4,57 @@ use thiserror::Error;
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ASCOMErrorCode(pub u16);
+pub struct ASCOMErrorCode(u16);
 
+impl TryFrom<u16> for ASCOMErrorCode {
+    type Error = anyhow::Error;
+
+    /// Convert a raw error code into an `ASCOMErrorCode` if it's in the valid range.
+    fn try_from(raw: u16) -> anyhow::Result<Self> {
+        let range = BASE..=MAX;
+        anyhow::ensure!(
+            range.contains(&raw),
+            "Error code {raw:#X} is out of valid range ({range:#X?})",
+        );
+        Ok(Self(raw))
+    }
+}
+
+/// The starting value for error numbers.
+const BASE: u16 = 0x400;
 /// The starting value for driver-specific error numbers.
 const DRIVER_BASE: u16 = 0x500;
-/// The maximum value for driver-specific error numbers.
-const DRIVER_MAX: u16 = 0xFFF;
+/// The maximum value for error numbers.
+const MAX: u16 = 0xFFF;
 
 impl ASCOMErrorCode {
-    /// Generate a driver-specific error code.
-    pub const fn new_for_driver(code: u16) -> Self {
-        assert!(
-            code <= DRIVER_MAX - DRIVER_BASE,
-            "Driver error code out of range"
-        );
-        Self(DRIVER_BASE + code)
+    /// Generate a driver-specific error code (supply code starting from `0`).
+    ///
+    /// This is intentionally limited to be usable only in `const` contexts
+    /// so that you don't accidentally supply invalid values.
+    pub const fn new_for_driver<const CODE: u16>() -> Self {
+        let raw = match CODE.checked_add(DRIVER_BASE) {
+            Some(raw) if raw <= MAX => raw,
+            _ => panic!("Driver error code is too large"),
+        };
+        Self(raw)
+    }
+
+    /// Get the driver-specific error code.
+    ///
+    /// Returns `Ok` with `0`-based driver error code if this is a driver error.
+    /// Returns `Err` with raw error code if not a driver error.
+    pub const fn as_driver_error(self) -> Result<u16, u16> {
+        if let Some(driver_code) = self.0.checked_sub(DRIVER_BASE) {
+            Ok(driver_code)
+        } else {
+            Err(self.0)
+        }
+    }
+
+    /// Get the raw error code.
+    pub const fn raw(self) -> u16 {
+        self.0
     }
 }
 
@@ -57,8 +93,10 @@ macro_rules! ascom_error_codes {
           $(
             Self::$name => write!(f, "{}", stringify!($name)),
           )*
-          Self(code @ DRIVER_BASE..=DRIVER_MAX) => write!(f, "DRIVER_ERROR[{}]", code - DRIVER_BASE),
-          Self(code) => write!(f, "{:#X}", code),
+          _ => match self.as_driver_error() {
+            Ok(driver_code) => write!(f, "DRIVER_ERROR[{driver_code}]"),
+            Err(raw_code) => write!(f, "{raw_code:#X}"),
+          },
         }
       }
     }
@@ -82,6 +120,8 @@ macro_rules! ascom_error_codes {
 }
 
 ascom_error_codes! {
+  #[doc = ""]
+  OK = 0,
   #[doc = "The requested action is not implemented in this driver."]
   ACTION_NOT_IMPLEMENTED = 0x40C,
   #[doc = "The requested operation can not be undertaken at this time."]
