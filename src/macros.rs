@@ -145,10 +145,18 @@ macro_rules! rpc_mod {
             )*
         }
 
-        #[derive(Debug)]
         pub(crate) struct FallibleDeviceType(
             pub(crate) Result<DeviceType, String>,
         );
+
+        impl std::fmt::Debug for FallibleDeviceType {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match &self.0 {
+                    Ok(ty) => ty.fmt(f),
+                    Err(ty) => write!(f, "Unsupported({})", ty),
+                }
+            }
+        }
 
         impl<'de> Deserialize<'de> for FallibleDeviceType {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {

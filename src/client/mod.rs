@@ -196,16 +196,16 @@ impl Client {
             .await?
             .into_inner()
             .into_iter()
-            .filter_map(|device_result| {
-                match device_result.ty.0 {
+            .filter_map(|device| {
+                match device.ty.0 {
                     Ok(device_type) => Some(ConfiguredDevice {
-                        name: device_result.name,
-                        unique_id: device_result.unique_id,
+                        name: device.name,
+                        unique_id: device.unique_id,
                         ty: device_type,
-                        number: device_result.number,
+                        number: device.number,
                     }),
-                    Err(device_type) => {
-                        tracing::warn!(%device_type, "Skipping device with unsupported type");
+                    Err(_) => {
+                        tracing::warn!(?device, "Skipping device with unsupported type");
                         None
                     }
                 }
