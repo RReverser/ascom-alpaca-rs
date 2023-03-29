@@ -1,4 +1,5 @@
 use crate::api::ImageArrayResponseType;
+#[cfg(any(feature = "client", feature = "server"))]
 use crate::client::ResponseTransaction;
 use crate::either::Either;
 use crate::ASCOMResult;
@@ -62,6 +63,7 @@ compile_error!(
 If you have a real-world use case for big-endian support, please open an issue on GitHub."
 );
 
+#[cfg(any(feature = "client", feature = "server"))]
 #[repr(C)]
 #[derive(Clone, Copy, Zeroable, Pod)]
 struct ImageBytesMetadata {

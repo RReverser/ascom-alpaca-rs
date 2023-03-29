@@ -28,7 +28,7 @@ serde_json = { version = "1.0.86" }
 serde_repr = "0.1.9"
 socket2 = "0.5.1"
 thiserror = "1.0.37"
-tokio = { version = "1.25.0", features = ["sync"] }
+tokio = { version = "1.25.0", features = ["net"] }
 tracing = "0.1.37"
 
 [dev-dependencies]
@@ -37,8 +37,6 @@ bayer = "0.1.5"
 criterion = { version = "0.4.0", features = ["async_tokio"] }
 eframe = "0.21.3"
 nokhwa = "0.10.3"
-parking_lot = "0.12.1"
-tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = "0.3.16"
 
 [[bench]]
@@ -62,7 +60,7 @@ telescope = []
 client = ["dep:reqwest", "dep:bytes", "dep:mime", "dep:rand"]
 server = ["dep:axum", "tokio/macros"]
 
-test = ["client", "server", "camera", "anyhow/backtrace"]
+test = ["client", "server", "camera", "anyhow/backtrace", "tokio/macros", "tokio/rt-multi-thread"]
 
 nightly = []
 
