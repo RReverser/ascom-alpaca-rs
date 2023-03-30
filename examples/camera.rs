@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
-        "My egui App",
+        "ascom-alpaca-rs camera demo",
         native_options,
         Box::new(|cc| {
             Box::new(StateCtx {
