@@ -36,7 +36,6 @@ ascom-alpaca = { path = ".", features = ["test"] }
 bayer = "0.1.5"
 criterion = { version = "0.4.0", features = ["async_tokio"] }
 eframe = "0.21.3"
-nokhwa = "0.10.3"
 tracing-subscriber = "0.3.16"
 
 [[bench]]
