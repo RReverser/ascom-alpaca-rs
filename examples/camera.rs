@@ -1,4 +1,4 @@
-use ascom_alpaca::api::{Camera, Device, DeviceType, SensorTypeResponse};
+use ascom_alpaca::api::{Camera, Device, SensorTypeResponse};
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::{Client, DeviceClient};
 use eframe::egui::{self, Ui};
@@ -71,10 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 enum State {
     Init,
     Discovering(ChildTask),
-    Discovered {
-        devices: Vec<DeviceClient>,
-        selected_index: Option<usize>,
-    },
+    Discovered(Vec<DeviceClient>),
     Connecting(ChildTask),
     Connected {
         camera_name: String,
@@ -165,41 +162,20 @@ impl<'a> StateCtxGuard<'a> {
                         })
                         .await?;
 
-                    Ok::<_, anyhow::Error>(State::Discovered {
-                        devices,
-                        selected_index: None,
-                    })
+                    Ok::<_, anyhow::Error>(State::Discovered(devices))
                 });
             }
             State::Discovering(_task) => {
                 ui.label("Discovering cameras...");
             }
-            State::Discovered {
-                devices,
-                selected_index,
-            } => {
+            State::Discovered(devices) => {
                 ui.label("Discovered cameras:");
-                egui::ComboBox::from_label("")
-                    .selected_text(
-                        selected_index
-                            .map(|i| devices[i].static_name())
-                            .unwrap_or("(none)"),
-                    )
-                    .show_ui(ui, |ui| {
-                        for (i, device) in devices
-                            .iter()
-                            .filter(|device| device.ty() == DeviceType::Camera)
-                            .enumerate()
-                        {
-                            ui.selectable_value(selected_index, Some(i), device.static_name());
-                        }
-                    });
-                // ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(selected_index.is_some(), egui::Button::new("Connect"))
-                    .clicked()
+
+                if let Some(clicked_index) = devices
+                    .iter()
+                    .position(|device| ui.button(device.static_name()).clicked())
                 {
-                    let device = devices.swap_remove(selected_index.unwrap());
+                    let device = devices.swap_remove(clicked_index);
                     let ctx = self.ctx.clone();
                     self.spawn(State::Connecting, async move {
                         device.set_connected(true).await?;
@@ -230,7 +206,7 @@ impl<'a> StateCtxGuard<'a> {
                         })
                     });
                 }
-                if ui.button("Refresh").clicked() {
+                if ui.button("↻ Refresh").clicked() {
                     self.set_state(State::Init);
                 }
                 // });
@@ -248,6 +224,7 @@ impl<'a> StateCtxGuard<'a> {
                 image_loop,
             } => {
                 ui.label(format!("Connected to camera: {}", camera_name));
+                let disconnect_btn = ui.button("⏹ Disconnect");
                 let mut duration_sec = capture_state.get_duration_sec();
                 if ui
                     .add(
@@ -260,7 +237,6 @@ impl<'a> StateCtxGuard<'a> {
                     capture_state.set_duration_sec(duration_sec);
                     fps_counter.reset();
                 }
-                let disconnect_btn = ui.button("Disconnect");
                 if let Ok(new_img) = rx.try_recv() {
                     fps_counter.tick();
                     *img = Some(ui.ctx().load_texture("img", new_img?, Default::default()));
