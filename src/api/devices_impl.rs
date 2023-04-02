@@ -36,12 +36,4 @@ impl Devices {
                 ))
             })
     }
-
-    pub fn iter<DynTrait: ?Sized + RetrieavableDevice>(
-        &self,
-    ) -> impl '_ + Iterator<Item = &DynTrait> {
-        DynTrait::get_storage(self)
-            .iter()
-            .map(std::sync::Arc::as_ref)
-    }
 }

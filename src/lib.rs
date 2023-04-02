@@ -64,7 +64,7 @@ mod response;
 
 pub use api::Devices;
 #[cfg(feature = "client")]
-pub use client::{Client, DeviceClient};
+pub use client::Client;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 #[cfg(feature = "server")]
 pub use server::Server;

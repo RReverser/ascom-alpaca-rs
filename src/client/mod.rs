@@ -12,7 +12,7 @@ pub(crate) use response::Response;
 
 mod parse_flattened;
 
-use crate::api::{ConfiguredDevice, DevicePath, DeviceType, FallibleDeviceType, ServerInfo};
+use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use anyhow::Context;
@@ -24,21 +24,17 @@ use serde::Serialize;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
+use std::sync::Arc;
 use tracing::Instrument;
 
 #[derive(Debug)]
-pub struct DeviceClient {
+pub(crate) struct RawDeviceClient {
     pub(crate) inner: RawClient,
     pub(crate) name: String,
     pub(crate) unique_id: String,
-    ty: DeviceType,
 }
 
-impl DeviceClient {
-    pub const fn ty(&self) -> DeviceType {
-        self.ty
-    }
-
+impl RawDeviceClient {
     pub(crate) async fn exec_action<Resp>(
         &self,
         action: &str,
@@ -184,11 +180,11 @@ impl Client {
         Self::new(format!("http://{}/", addr.into()))
     }
 
-    pub async fn get_devices(&self) -> anyhow::Result<impl Iterator<Item = DeviceClient>> {
-        let raw_client = self.inner.clone();
+    pub async fn get_devices(&self) -> anyhow::Result<impl Iterator<Item = TypedDevice>> {
+        let api_client = self.inner.join_url("api/v1/")?;
 
-        Ok(
-            raw_client
+        Ok(self
+            .inner
             .request::<ValueResponse<Vec<ConfiguredDevice<FallibleDeviceType>>>>(
                 "management/v1/configureddevices",
                 ActionParams::Get(opaque_params! {}),
@@ -196,33 +192,26 @@ impl Client {
             .await?
             .into_inner()
             .into_iter()
-            .filter_map(|device| {
-                match device.ty.0 {
-                    Ok(device_type) => Some(ConfiguredDevice {
+            .filter_map(move |device| match device.ty.0 {
+                Ok(device_type) => Some(
+                    Arc::new(RawDeviceClient {
+                        inner: api_client
+                            .join_url(&format!(
+                                "{device_type}/{device_number}/",
+                                device_type = DevicePath(device_type),
+                                device_number = device.number
+                            ))
+                            .expect("internal error: failed to join device URL"),
                         name: device.name,
                         unique_id: device.unique_id,
-                        ty: device_type,
-                        number: device.number,
-                    }),
-                    Err(_) => {
-                        tracing::warn!(?device, "Skipping device with unsupported type");
-                        None
-                    }
+                    })
+                    .into_typed_client(device_type),
+                ),
+                Err(_) => {
+                    tracing::warn!(?device, "Skipping device with unsupported type");
+                    None
                 }
-            })
-            .map(move |device| {
-                DeviceClient {
-                    inner: raw_client.join_url(&format!(
-                        "api/v1/{device_type}/{device_number}/",
-                        device_type = DevicePath(device.ty),
-                        device_number = device.number
-                    )).expect("internal error: failed to join a relative URL that is statically known to be valid to a base URL that was already checked during construction"),
-                    name: device.name,
-                    unique_id: device.unique_id,
-                    ty: device.ty,
-                }
-            })
-        )
+            }))
     }
 
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {

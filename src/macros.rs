@@ -108,7 +108,7 @@ macro_rules! rpc_trait {
 
         #[cfg(feature = "client")]
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
-        impl $trait_name for $crate::client::DeviceClient {
+        impl $trait_name for $crate::client::RawDeviceClient {
             $(
                 fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)? {
                     $client_impl
@@ -143,6 +143,43 @@ macro_rules! rpc_mod {
                 #[cfg(feature = $path)]
                 $trait_name,
             )*
+        }
+
+        #[derive(Clone, Debug)]
+        pub enum TypedDevice {
+            $(
+                #[cfg(feature = $path)]
+                $trait_name(std::sync::Arc<dyn $trait_name>),
+            )*
+        }
+
+        #[cfg(feature = "server")]
+        impl TypedDevice {
+            pub(crate) fn to_configured_device(&self, as_number: usize) -> $crate::api::ConfiguredDevice<DeviceType> {
+                match self {
+                    $(
+                        #[cfg(feature = $path)]
+                        Self::$trait_name(device) => $crate::api::ConfiguredDevice {
+                            name: device.static_name().to_owned(),
+                            ty: DeviceType::$trait_name,
+                            number: as_number,
+                            unique_id: device.unique_id().to_owned(),
+                        },
+                    )*
+                }
+            }
+        }
+
+        #[cfg(feature = "client")]
+        impl $crate::client::RawDeviceClient {
+            pub(crate) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
+                match device_type {
+                    $(
+                        #[cfg(feature = $path)]
+                        DeviceType::$trait_name => TypedDevice::$trait_name(self),
+                    )*
+                }
+            }
         }
 
         pub(crate) struct FallibleDeviceType(
@@ -272,35 +309,58 @@ macro_rules! rpc_mod {
             }
         }
 
-        #[cfg(feature = "client")]
-        const _: () = {
-            impl Devices {
-                pub fn register_client(&mut self, client: $crate::client::DeviceClient) {
-                    match client.ty() {
-                        $(
-                            #[cfg(feature = $path)]
-                            DeviceType::$trait_name => self.register::<dyn $trait_name>(client),
-                        )*
-                    }
+        impl Devices {
+            pub fn register_typed(&mut self, device: TypedDevice) {
+                match device {
+                    $(
+                        #[cfg(feature = $path)]
+                        TypedDevice::$trait_name(device) => {
+                            self.$trait_name.push(device);
+                        }
+                    )*
                 }
             }
+        }
 
-            impl Extend<$crate::client::DeviceClient> for Devices {
-                fn extend<T: IntoIterator<Item = $crate::client::DeviceClient>>(&mut self, iter: T) {
-                    for client in iter {
-                        self.register_client(client);
-                    }
+        impl Extend<TypedDevice> for Devices {
+            fn extend<T: IntoIterator<Item = TypedDevice>>(&mut self, iter: T) {
+                for client in iter {
+                    self.register_typed(client);
                 }
             }
+        }
 
-            impl FromIterator<$crate::client::DeviceClient> for Devices {
-                fn from_iter<T: IntoIterator<Item = $crate::client::DeviceClient>>(iter: T) -> Self {
-                    let mut devices = Self::default();
-                    devices.extend(iter);
-                    devices
-                }
+        impl FromIterator<TypedDevice> for Devices {
+            fn from_iter<T: IntoIterator<Item = TypedDevice>>(iter: T) -> Self {
+                let mut devices = Self::default();
+                devices.extend(iter);
+                devices
             }
-        };
+        }
+
+        impl Devices {
+            // TODO: make this IntoIterator (although the type is going to be ugly-looking).
+            // The usize is returned as 2nd arg just to attract attention to it not being
+            // a normal whole-iteration index.
+            pub fn iter(&self) -> impl '_ + Iterator<Item = (TypedDevice, usize)> {
+                let iter = std::iter::empty();
+
+                $(
+                    #[cfg(feature = $path)]
+                    let iter = iter.chain(
+                        self.$trait_name.iter()
+                        .enumerate()
+                        .map(|(typed_index, device)| {
+                            let device = std::sync::Arc::clone(&device);
+                            let device = TypedDevice::$trait_name(device);
+                            (device, typed_index)
+                        })
+                    );
+                )*
+
+                iter
+            }
+        }
 
         $(
             #[cfg(feature = $path)]
@@ -346,22 +406,6 @@ macro_rules! rpc_mod {
                         }
                     )*
                 })
-            }
-
-            pub(crate) fn iter_all_configured(&self) -> impl '_ + Iterator<Item = ConfiguredDevice<DeviceType>> {
-                let iter = std::iter::empty();
-
-                $(
-                    #[cfg(feature = $path)]
-                    let iter = iter.chain(self.$trait_name.iter().enumerate().map(|(number, device)| ConfiguredDevice {
-                        name: device.static_name().to_owned(),
-                        ty: DeviceType::$trait_name,
-                        number,
-                        unique_id: device.unique_id().to_owned(),
-                    }));
-                )*
-
-                iter
             }
         }
     };

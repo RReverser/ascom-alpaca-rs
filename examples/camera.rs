@@ -1,6 +1,6 @@
-use ascom_alpaca::api::{Camera, Device, SensorTypeResponse};
+use ascom_alpaca::api::{Camera, SensorTypeResponse, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
-use ascom_alpaca::{Client, DeviceClient};
+use ascom_alpaca::Client;
 use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 enum State {
     Init,
     Discovering(ChildTask),
-    Discovered(Vec<DeviceClient>),
+    Discovered(Vec<Arc<dyn Camera>>),
     Connecting(ChildTask),
     Connected {
         camera_name: String,
@@ -151,44 +151,47 @@ impl<'a> StateCtxGuard<'a> {
         match &mut *self.state {
             State::Init => {
                 self.spawn(State::Discovering, async move {
-                    let devices = DiscoveryClient::new()
+                    let cameras = DiscoveryClient::new()
                         .discover_addrs()
                         .and_then(
                             |addr| async move { Client::new_from_addr(addr)?.get_devices().await },
                         )
-                        .try_fold(Vec::new(), |mut devices, new_devices| async move {
-                            devices.extend(new_devices);
-                            Ok(devices)
+                        .try_fold(Vec::new(), |mut cameras, new_devices| async move {
+                            cameras.extend(new_devices.filter_map(|device| match device {
+                                TypedDevice::Camera(camera) => Some(camera),
+                                _ => None,
+                            }));
+                            Ok(cameras)
                         })
                         .await?;
 
-                    Ok::<_, anyhow::Error>(State::Discovered(devices))
+                    Ok::<_, anyhow::Error>(State::Discovered(cameras))
                 });
             }
             State::Discovering(_task) => {
                 ui.label("Discovering cameras...");
             }
-            State::Discovered(devices) => {
+            State::Discovered(cameras) => {
                 ui.label("Discovered cameras:");
 
-                if let Some(clicked_index) = devices
+                if let Some(clicked_index) = cameras
                     .iter()
-                    .position(|device| ui.button(device.static_name()).clicked())
+                    .position(|camera| ui.button(camera.static_name()).clicked())
                 {
-                    let device = devices.swap_remove(clicked_index);
+                    let camera = cameras.swap_remove(clicked_index);
                     let ctx = self.ctx.clone();
                     self.spawn(State::Connecting, async move {
-                        device.set_connected(true).await?;
-                        let camera_name = device.name().await?;
-                        let exposure_min = device.exposure_min().await?;
-                        let exposure_max = device.exposure_max().await?;
+                        camera.set_connected(true).await?;
+                        let camera_name = camera.name().await?;
+                        let exposure_min = camera.exposure_min().await?;
+                        let exposure_max = camera.exposure_max().await?;
                         let (tx, rx) = tokio::sync::mpsc::channel(1);
                         let capture_state = Arc::new(CaptureState {
                             duration_sec: AtomicF64::new(exposure_min),
                             params_change: Notify::new(),
                             tx,
-                            sensor_type: device.sensor_type().await?,
-                            device,
+                            sensor_type: camera.sensor_type().await?,
+                            camera,
                             ctx,
                         });
                         let image_loop = {
@@ -280,7 +283,7 @@ struct CaptureState {
     duration_sec: atomic::Atomic<f64>,
     params_change: Notify,
     tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
-    device: DeviceClient,
+    camera: Arc<dyn Camera>,
     sensor_type: SensorTypeResponse,
     ctx: egui::Context,
 }
@@ -299,7 +302,7 @@ impl CaptureState {
     async fn start_capture_loop(&self) {
         while self.capture_image().await {}
         // Channel is closed, cleanup.
-        if let Err(err) = self.device.set_connected(false).await {
+        if let Err(err) = self.camera.set_connected(false).await {
             tracing::warn!(%err, "Failed to disconnect from the camera");
         }
     }
@@ -309,13 +312,13 @@ impl CaptureState {
             _ = self.tx.closed() => {
                 // the receiver was dropped due to app state change
                 // gracefully abort the exposure and stop the loop
-                let _ = self.device.abort_exposure().await;
+                let _ = self.camera.abort_exposure().await;
                 false
             }
             _ = self.params_change.notified() => {
                 // the exposure parameters were changed
                 // gracefully abort the exposure and continue the loop
-                let _ = self.device.abort_exposure().await;
+                let _ = self.camera.abort_exposure().await;
                 true
             }
             result = self.capture_image_without_cancellation() => {
@@ -331,11 +334,11 @@ impl CaptureState {
 
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
         let duration_sec = self.get_duration_sec();
-        self.device.start_exposure(duration_sec, true).await?;
-        while !self.device.image_ready().await? {
+        self.camera.start_exposure(duration_sec, true).await?;
+        while !self.camera.image_ready().await? {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        let mut raw_img = self.device.image_array().await?;
+        let mut raw_img = self.camera.image_array().await?;
         let (width, height, depth) = raw_img.data.dim();
         // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
         raw_img.data.swap_axes(0, 1);

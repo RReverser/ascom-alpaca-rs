@@ -1,5 +1,5 @@
 use anyhow::Context;
-use ascom_alpaca::api::{Camera, Device, DeviceType};
+use ascom_alpaca::api::TypedDevice;
 use ascom_alpaca::Client;
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::time::Duration;
@@ -14,7 +14,10 @@ fn download_image_array(c: &mut Criterion) {
                 let camera = client
                     .get_devices()
                     .await?
-                    .find(|device| device.ty() == DeviceType::Camera)
+                    .find_map(|device| match device {
+                        TypedDevice::Camera(camera) => Some(camera),
+                        _ => None,
+                    })
                     .context("No camera found")?;
                 camera.set_connected(true).await?;
                 camera.start_exposure(0.001, true).await?;
