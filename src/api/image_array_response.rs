@@ -1,12 +1,11 @@
 use crate::api::ImageArrayResponseType;
-#[cfg(any(feature = "client", feature = "server"))]
-use crate::client::ResponseTransaction;
 use crate::ASCOMResult;
 use bytemuck::{Pod, Zeroable};
-use ndarray::{Array2, Array3, Axis, Ix3};
+use ndarray::{Array2, Array3, Axis};
 use serde::de::{DeserializeOwned, IgnoredAny, Visitor};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use std::num::NonZeroU32;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
@@ -59,7 +58,8 @@ If you have a real-world use case for big-endian support, please open an issue o
 struct ImageBytesMetadata {
     metadata_version: i32,
     error_number: i32,
-    transaction: ResponseTransaction,
+    client_transaction_id: Option<NonZeroU32>,
+    server_transaction_id: Option<NonZeroU32>,
     data_start: i32,
     image_element_type: i32,
     transmission_element_type: i32,
@@ -106,10 +106,8 @@ impl crate::server::Response for ASCOMResult<ImageBytesResponse> {
             metadata_version: 1,
             data_start: i32::try_from(std::mem::size_of::<ImageBytesMetadata>())
                 .expect("internal error: metadata size is too large"),
-            transaction: ResponseTransaction {
-                client_transaction_id: transaction.client_transaction_id,
-                server_transaction_id: Some(transaction.server_transaction_id),
-            },
+            client_transaction_id: transaction.client_transaction_id,
+            server_transaction_id: Some(transaction.server_transaction_id),
             ..Zeroable::zeroed()
         };
         let data = match &self {
@@ -153,7 +151,7 @@ impl crate::server::Response for ASCOMResult<ImageBytesResponse> {
 
 #[cfg(feature = "client")]
 const _: () = {
-    use crate::client::{Response, ResponseWithTransaction};
+    use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
     use crate::{ASCOMError, ASCOMErrorCode};
     use bytes::Bytes;
     use mime::Mime;
@@ -188,7 +186,10 @@ const _: () = {
             let data = bytes
                 .get(data_start..)
                 .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
-            let transaction = metadata.transaction;
+            let transaction = ResponseTransaction {
+                client_transaction_id: metadata.client_transaction_id,
+                server_transaction_id: metadata.server_transaction_id,
+            };
             let ascom_result = if metadata.error_number == 0_i32 {
                 anyhow::ensure!(
                     metadata.image_element_type == ImageArrayResponseType::Integer as i32,
@@ -213,7 +214,7 @@ const _: () = {
                         metadata.transmission_element_type
                     ),
                 };
-                let shape = Ix3(
+                let shape = ndarray::Ix3(
                     usize::try_from(metadata.dimension_1)?,
                     usize::try_from(metadata.dimension_2)?,
                     match metadata.rank {
