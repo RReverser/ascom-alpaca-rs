@@ -132,7 +132,7 @@ impl Server {
 
                 axum::routing::get(|params| {
                     server_handler("/management/v1/configureddevices",  params, |_params| async move {
-                        let devices = this.iter().map(|(device, number)| device.to_configured_device(number)).collect::<Vec<_>>();
+                        let devices = this.iter_all().map(|(device, number)| device.to_configured_device(number)).collect::<Vec<_>>();
                         Ok(ValueResponse::from(devices))
                     })
                 })

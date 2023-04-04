@@ -153,6 +153,17 @@ macro_rules! rpc_mod {
             )*
         }
 
+        impl $crate::api::devices_impl::RegistrableDevice<dyn Device> for TypedDevice {
+            fn add_to(self, storage: &mut Devices) {
+                match self {
+                    $(
+                        #[cfg(feature = $path)]
+                        Self::$trait_name(device) => storage.$trait_name.push(device),
+                    )*
+                }
+            }
+        }
+
         #[cfg(feature = "server")]
         impl TypedDevice {
             pub(crate) fn to_configured_device(&self, as_number: usize) -> $crate::api::ConfiguredDevice<DeviceType> {
@@ -309,23 +320,10 @@ macro_rules! rpc_mod {
             }
         }
 
-        impl Devices {
-            pub fn register_typed(&mut self, device: TypedDevice) {
-                match device {
-                    $(
-                        #[cfg(feature = $path)]
-                        TypedDevice::$trait_name(device) => {
-                            self.$trait_name.push(device);
-                        }
-                    )*
-                }
-            }
-        }
-
         impl Extend<TypedDevice> for Devices {
             fn extend<T: IntoIterator<Item = TypedDevice>>(&mut self, iter: T) {
                 for client in iter {
-                    self.register_typed(client);
+                    self.register(client);
                 }
             }
         }
@@ -339,22 +337,23 @@ macro_rules! rpc_mod {
         }
 
         impl Devices {
+            pub fn iter<DynTrait: ?Sized + $crate::api::devices_impl::RetrieavableDevice>(&self) -> impl '_ + Iterator<Item = std::sync::Arc<DynTrait>> {
+                DynTrait::get_storage(self).iter().map(|device| std::sync::Arc::clone(device))
+            }
+
             // TODO: make this IntoIterator (although the type is going to be ugly-looking).
             // The usize is returned as 2nd arg just to attract attention to it not being
             // a normal whole-iteration index.
-            pub fn iter(&self) -> impl '_ + Iterator<Item = (TypedDevice, usize)> {
+            pub fn iter_all(&self) -> impl '_ + Iterator<Item = (TypedDevice, usize)> {
                 let iter = std::iter::empty();
 
                 $(
                     #[cfg(feature = $path)]
                     let iter = iter.chain(
-                        self.$trait_name.iter()
+                        self.iter::<dyn $trait_name>()
+                        .map(TypedDevice::$trait_name)
                         .enumerate()
-                        .map(|(typed_index, device)| {
-                            let device = std::sync::Arc::clone(&device);
-                            let device = TypedDevice::$trait_name(device);
-                            (device, typed_index)
-                        })
+                        .map(|(typed_index, device)| (device, typed_index))
                     );
                 )*
 
