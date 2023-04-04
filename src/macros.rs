@@ -338,7 +338,7 @@ macro_rules! rpc_mod {
 
         impl Devices {
             pub fn iter<DynTrait: ?Sized + $crate::api::devices_impl::RetrieavableDevice>(&self) -> impl '_ + Iterator<Item = std::sync::Arc<DynTrait>> {
-                DynTrait::get_storage(self).iter().map(|device| std::sync::Arc::clone(device))
+                DynTrait::get_storage(self).iter().map(std::sync::Arc::clone)
             }
 
             // TODO: make this IntoIterator (although the type is going to be ugly-looking).
