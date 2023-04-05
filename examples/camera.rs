@@ -1,4 +1,4 @@
-use ascom_alpaca::api::{Camera, SensorTypeResponse, TypedDevice};
+use ascom_alpaca::api::{Camera, SensorType, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
 use eframe::egui::{self, Ui};
@@ -285,7 +285,7 @@ struct CaptureState {
     params_change: Notify,
     tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
     camera: Arc<dyn Camera>,
-    sensor_type: SensorTypeResponse,
+    sensor_type: SensorType,
     ctx: egui::Context,
 }
 
@@ -360,18 +360,18 @@ impl CaptureState {
                 .unwrap()
         });
         let rgb_buf: Vec<u8> = match self.sensor_type {
-            SensorTypeResponse::Color => {
+            SensorType::Color => {
                 anyhow::ensure!(depth == 3, "Expected 3 channels for color image");
                 stretched_iter.collect()
             }
-            SensorTypeResponse::Monochrome => {
+            SensorType::Monochrome => {
                 anyhow::ensure!(depth == 1, "Expected 1 channel for monochrome image");
                 stretched_iter
                     // Repeat each gray pixel 3 times to make it RGB.
                     .flat_map(|color| std::iter::repeat(color).take(3))
                     .collect()
             }
-            SensorTypeResponse::RGGB => {
+            SensorType::RGGB => {
                 struct ReadIter<I>(I);
 
                 impl<I: ExactSizeIterator<Item = u8>> std::io::Read for ReadIter<I> {
