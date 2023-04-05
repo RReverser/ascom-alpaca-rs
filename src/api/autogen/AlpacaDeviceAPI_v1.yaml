@@ -5070,7 +5070,7 @@ paths:
         - Telescope Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/IntResponse'
+          $ref: '#/components/responses/DriveRateResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -6086,6 +6086,16 @@ components:
                     uniqueItems: true
                     items:
                       $ref: '#/components/schemas/AxisRate'
+    DriveRateResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/DriveRate'
     DriveRatesResponse:
       description: Transaction complete or exception.
       content:

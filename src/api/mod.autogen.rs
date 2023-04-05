@@ -1551,7 +1551,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The current tracking rate of the telescope's sidereal drive.
     #[http("trackingrate", via = ValueResponse)]
-    fn tracking_rate(&self) -> i32;
+    fn tracking_rate(&self) -> DriveRate;
 
     /// Sets the tracking rate of the telescope's sidereal drive.
     #[http("trackingrate")]
