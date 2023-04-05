@@ -70,7 +70,7 @@ pub use server_info::*;
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum CameraStateResponse {
+pub enum CameraState {
     Idle = 0,
 
     Waiting = 1,
@@ -99,7 +99,7 @@ pub enum CameraStateResponse {
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum ImageArrayResponseType {
+pub enum ImageArrayType {
     Unknown = 0,
 
     /// int16
@@ -113,10 +113,10 @@ pub enum ImageArrayResponseType {
 }
 
 #[cfg(feature = "camera")]
-mod image_array_response;
+mod image_array;
 
 #[cfg(feature = "camera")]
-pub use image_array_response::*;
+pub use image_array::*;
 
 /// Returned sensor type
 #[cfg(feature = "camera")]
@@ -134,7 +134,7 @@ pub use image_array_response::*;
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum SensorTypeResponse {
+pub enum SensorType {
     /// Camera produces monochrome array with no Bayer encoding
     Monochrome = 0,
 
@@ -196,7 +196,7 @@ pub enum PutPulseGuideDirection {
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum CalibratorStatusResponse {
+pub enum CalibratorStatus {
     /// This device does not have a calibration capability.
     NotPresent = 0,
 
@@ -232,7 +232,7 @@ pub enum CalibratorStatusResponse {
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum CoverStatusResponse {
+pub enum CoverStatus {
     /// This device does not have a cover that can be closed independently.
     NotPresent = 0,
 
@@ -268,7 +268,7 @@ pub enum CoverStatusResponse {
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum DomeShutterStatusResponse {
+pub enum DomeShutterStatus {
     Open = 0,
 
     Closed = 1,
@@ -296,7 +296,7 @@ pub enum DomeShutterStatusResponse {
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum AlignmentModeResponse {
+pub enum AlignmentMode {
     /// Altitude-Azimuth alignment.
     AltAz = 0,
 
@@ -323,7 +323,7 @@ pub enum AlignmentModeResponse {
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum EquatorialSystemResponse {
+pub enum EquatorialSystem {
     /// Custom or unknown equinox and/or reference frame.
     Other = 0,
 
@@ -356,7 +356,7 @@ pub enum EquatorialSystemResponse {
 #[macro_rules_derive(ASCOMEnumParam)]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum SideOfPierResponse {
+pub enum SideOfPier {
     /// Normal pointing state - Mount on the East side of pier (looking West).
     East = 0,
 
@@ -365,30 +365,6 @@ pub enum SideOfPierResponse {
 
     /// Unknown or indeterminate.
     Unknown = -1,
-}
-
-/// New pointing state.
-#[cfg(feature = "telescope")]
-#[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Serialize_repr,
-    Deserialize_repr,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-#[macro_rules_derive(ASCOMEnumParam)]
-#[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-pub enum TelescopeSetSideOfPierRequestSideOfPier {
-    /// Normal pointing state - Mount on the East side of pier (looking West).
-    East = 0,
-
-    /// Through the pole pointing state - Mount on the West side of pier (looking East).
-    West = 1,
 }
 
 /// DriveRate enum corresponding to one of the standard drive rates.
@@ -571,7 +547,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the current camera operational state.
     #[http("camerastate", via = ValueResponse)]
-    fn camera_state(&self) -> CameraStateResponse;
+    fn camera_state(&self) -> CameraState;
 
     /// Returns the width of the CCD camera chip in unbinned pixels.
     #[http("cameraxsize", via = ValueResponse)]
@@ -739,7 +715,7 @@ pub trait Camera: Device + Send + Sync {
     Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
     */
     #[http("imagearray")]
-    fn image_array(&self) -> ImageArrayResponse;
+    fn image_array(&self) -> ImageArray;
 
     /// Returns a flag indicating whether the image is ready to be downloaded from the camera.
     #[http("imageready", via = ValueResponse)]
@@ -835,7 +811,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns a value indicating whether the sensor is monochrome, or what Bayer matrix it encodes.
     #[http("sensortype", via = ValueResponse)]
-    fn sensor_type(&self) -> SensorTypeResponse;
+    fn sensor_type(&self) -> SensorType;
 
     /// Returns the current camera cooler setpoint in degrees Celsius.
     #[http("setccdtemperature", via = ValueResponse)]
@@ -903,11 +879,11 @@ pub trait CoverCalibrator: Device + Send + Sync {
 
     /// Returns the state of the calibration device, if present, otherwise returns "NotPresent". The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
     #[http("calibratorstate", via = ValueResponse)]
-    fn calibrator_state(&self) -> CalibratorStatusResponse;
+    fn calibrator_state(&self) -> CalibratorStatus;
 
     /// Returns the state of the device cover, if present, otherwise returns "NotPresent". The cover state mode is specified as an integer value from the CoverStatus Enum.
     #[http("coverstate", via = ValueResponse)]
-    fn cover_state(&self) -> CoverStatusResponse;
+    fn cover_state(&self) -> CoverStatus;
 
     /// The Brightness value that makes the calibrator deliver its maximum illumination.
     #[http("maxbrightness", via = ValueResponse)]
@@ -988,7 +964,7 @@ pub trait Dome: Device + Send + Sync {
 
     /// Returns the status of the dome shutter or roll-off roof.
     #[http("shutterstatus", via = ValueResponse)]
-    fn shutter_status(&self) -> DomeShutterStatusResponse;
+    fn shutter_status(&self) -> DomeShutterStatus;
 
     /// True if the dome is slaved to the telescope in its hardware, else False.
     #[http("slaved", via = ValueResponse)]
@@ -1315,7 +1291,7 @@ pub trait Switch: Device + Send + Sync {
 pub trait Telescope: Device + Send + Sync {
     /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
     #[http("alignmentmode", via = ValueResponse)]
-    fn alignment_mode(&self) -> AlignmentModeResponse;
+    fn alignment_mode(&self) -> AlignmentMode;
 
     /// The altitude above the local horizon of the mount's current position (degrees, positive up)
     #[http("altitude", via = ValueResponse)]
@@ -1427,7 +1403,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
     #[http("equatorialsystem", via = ValueResponse)]
-    fn equatorial_system(&self) -> EquatorialSystemResponse;
+    fn equatorial_system(&self) -> EquatorialSystem;
 
     /// The telescope's focal length in meters
     #[http("focallength", via = ValueResponse)]
@@ -1473,14 +1449,11 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Indicates the pointing state of the mount.
     #[http("sideofpier", via = ValueResponse)]
-    fn side_of_pier(&self) -> SideOfPierResponse;
+    fn side_of_pier(&self) -> SideOfPier;
 
     /// Sets the pointing state of the mount.
     #[http("sideofpier")]
-    fn set_side_of_pier(
-        &mut self,
-        #[http(SideOfPier)] side_of_pier: TelescopeSetSideOfPierRequestSideOfPier,
-    );
+    fn set_side_of_pier(&mut self, #[http(SideOfPier)] side_of_pier: SideOfPier);
 
     /// The local apparent sidereal time from the telescope's internal clock (hours, sidereal).
     #[http("siderealtime", via = ValueResponse)]
@@ -1587,7 +1560,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
         #[http(RightAscension)] right_ascension: f64,
         #[http(Declination)] declination: f64,
-    ) -> SideOfPierResponse;
+    ) -> SideOfPier;
 
     /// Locates the telescope's "home" position (synchronous)
     #[http("findhome")]

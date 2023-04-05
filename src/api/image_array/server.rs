@@ -1,11 +1,11 @@
-use super::{ImageArrayResponse, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
-use crate::api::{ImageArrayResponseRank, ImageArrayResponseType};
+use super::{ImageArray, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
+use crate::api::{ImageArrayRank, ImageArrayType};
 use crate::server::Response;
 use crate::ASCOMResult;
 use bytemuck::Zeroable;
 use serde::{Serialize, Serializer};
 
-pub(crate) struct ImageBytesResponse(pub(crate) ImageArrayResponse);
+pub(crate) struct ImageBytesResponse(pub(crate) ImageArray);
 
 impl Response for ASCOMResult<ImageBytesResponse> {
     fn into_axum(
@@ -23,9 +23,9 @@ impl Response for ASCOMResult<ImageBytesResponse> {
             ..Zeroable::zeroed()
         };
         let data = match &self {
-            Ok(ImageBytesResponse(ImageArrayResponse { data })) => {
-                metadata.image_element_type = ImageArrayResponseType::Integer as i32;
-                metadata.transmission_element_type = ImageArrayResponseType::Integer as i32;
+            Ok(ImageBytesResponse(ImageArray { data })) => {
+                metadata.image_element_type = ImageArrayType::Integer as i32;
+                metadata.transmission_element_type = ImageArrayType::Integer as i32;
                 let dims = {
                     let (dim0, dim1, dim2) = data.dim();
                     [dim0, dim1, dim2]
@@ -61,14 +61,14 @@ impl Response for ASCOMResult<ImageBytesResponse> {
     }
 }
 
-impl Serialize for ImageArrayResponse {
+impl Serialize for ImageArray {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         #[derive(Serialize)]
         #[serde(rename_all = "PascalCase")]
-        struct JsonImageArrayResponse<'img> {
+        struct JsonImageArray<'img> {
             #[serde(rename = "Type")]
-            type_: ImageArrayResponseType,
-            rank: ImageArrayResponseRank,
+            type_: ImageArrayType,
+            rank: ImageArrayRank,
             value: Value<'img>,
         }
 
@@ -81,19 +81,19 @@ impl Serialize for ImageArrayResponse {
 
         let view = self.data.view();
 
-        JsonImageArrayResponse {
-            type_: ImageArrayResponseType::Integer,
+        JsonImageArray {
+            type_: ImageArrayType::Integer,
             rank: self.rank(),
             value: match self.rank() {
-                ImageArrayResponseRank::Rank2 => Value::Rank2(view.remove_axis(COLOUR_AXIS)),
-                ImageArrayResponseRank::Rank3 => Value::Rank3(view),
+                ImageArrayRank::Rank2 => Value::Rank2(view.remove_axis(COLOUR_AXIS)),
+                ImageArrayRank::Rank3 => Value::Rank3(view),
             },
         }
         .serialize(serializer)
     }
 }
 
-impl ImageArrayResponse {
+impl ImageArray {
     pub(crate) fn is_accepted(headers: &axum::headers::HeaderMap) -> bool {
         use mediatype::{MediaType, MediaTypeList};
 

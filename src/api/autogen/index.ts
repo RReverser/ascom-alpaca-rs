@@ -364,6 +364,9 @@ function handleContent(
       return rusty('()');
     }
     ({ name = name, target: schema } = nameAndTarget(schema));
+    if (name.endsWith(baseKind)) {
+      name = name.slice(0, -baseKind.length);
+    }
     return registerType(devicePath, schema, schema => {
       doc = getDoc(schema) ?? doc;
       let {
@@ -621,14 +624,14 @@ ${stringifyIter(types, ({features, type}) => {
       cfg = `#[cfg(${cfgs})]`;
   }
 
-  if (type.name === 'ImageArrayResponse') {
+  if (type.name === 'ImageArray') {
     // Override with a better implementation.
     return `
       ${cfg}
-      mod image_array_response;
+      mod image_array;
 
       ${cfg}
-      pub use image_array_response::*;
+      pub use image_array::*;
     `;
   }
 

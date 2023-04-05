@@ -169,7 +169,7 @@ impl Server {
 
                             if matches!(params, ActionParams::Get { .. })
                                 && action == "imagearray"
-                                && crate::api::ImageArrayResponse::is_accepted(&headers)
+                                && crate::api::ImageArray::is_accepted(&headers)
                             {
                                 return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
                                     Ok(crate::api::ImageBytesResponse(devices.get_for_server::<dyn Camera>(device_number)?.image_array().await?))

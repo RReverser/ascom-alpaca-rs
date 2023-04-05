@@ -4682,18 +4682,7 @@ paths:
                 - $ref: '#/components/schemas/AlpacaRequest'
                 - properties:
                     SideOfPier:
-                      description: New pointing state.
-                      type: integer
-                      format: int32
-                      enum:
-                        - 0
-                        - 1
-                      x-enum-varnames:
-                        - East
-                        - West
-                      x-enum-descriptions:
-                      - Normal pointing state - Mount on the East side of pier (looking West).
-                      - Through the pole pointing state - Mount on the West side of pier (looking East).
+                      $ref: '#/components/schemas/SideOfPier'
                   required:
                     - SideOfPier
   '/telescope/{device_number}/siderealtime':
@@ -5898,21 +5887,7 @@ components:
               - $ref: '#/components/schemas/AlpacaResponse'
               - properties:
                   Value:
-                    type: integer
-                    format: int32
-                    description: Returned side of pier
-                    enum:
-                      - 0
-                      - 1
-                      - -1
-                    x-enum-varnames:
-                      - East
-                      - West
-                      - Unknown
-                    x-enum-descriptions:
-                      - Normal pointing state - Mount on the East side of pier (looking West).
-                      - Through the pole pointing state - Mount on the West side of pier (looking East).
-                      - Unknown or indeterminate.
+                    $ref: '#/components/schemas/SideOfPier'
     CalibratorStatusResponse:
       description: Transaction complete or exception.
       content:
@@ -6195,6 +6170,22 @@ components:
         - 14.685 arcseconds per second
         - 15.0 arcseconds per second
         - 15.0369 arcseconds per second
+    SideOfPier:
+      type: integer
+      format: int32
+      description: Returned side of pier
+      enum:
+        - 0
+        - 1
+        - -1
+      x-enum-varnames:
+        - East
+        - West
+        - Unknown
+      x-enum-descriptions:
+        - Normal pointing state - Mount on the East side of pier (looking West).
+        - Through the pole pointing state - Mount on the West side of pier (looking East).
+        - Unknown or indeterminate.
     Axis:
       description: The axis of mount rotation.
       type: integer

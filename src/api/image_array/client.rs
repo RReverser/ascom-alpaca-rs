@@ -1,7 +1,5 @@
-use super::{
-    ImageArrayResponse, ImageArrayResponseRank, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE,
-};
-use crate::api::ImageArrayResponseType;
+use super::{ImageArray, ImageArrayRank, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
+use crate::api::ImageArrayType;
 use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytes::Bytes;
@@ -48,7 +46,7 @@ where
 struct ResponseVisitor;
 
 impl<'de> Visitor<'de> for ResponseVisitor {
-    type Value = ImageArrayResponse;
+    type Value = ImageArray;
 
     fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.write_str("a map")
@@ -56,41 +54,41 @@ impl<'de> Visitor<'de> for ResponseVisitor {
 
     fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         expect_key(&mut map, KnownKey::Type)?;
-        let type_ = map.next_value::<ImageArrayResponseType>()?;
-        if type_ != ImageArrayResponseType::Integer {
+        let type_ = map.next_value::<ImageArrayType>()?;
+        if type_ != ImageArrayType::Integer {
             return Err(serde::de::Error::custom(format!(
                 r"expected Type == Integer, got {type_:?}",
             )));
         }
 
         expect_key(&mut map, KnownKey::Rank)?;
-        let rank = map.next_value::<ImageArrayResponseRank>()?;
+        let rank = map.next_value::<ImageArrayRank>()?;
 
         expect_key(&mut map, KnownKey::Value)?;
         let data = match rank {
-            ImageArrayResponseRank::Rank2 => map
+            ImageArrayRank::Rank2 => map
                 .next_value::<ResponseData<Array2<i32>>>()?
                 .0
                 .insert_axis(COLOUR_AXIS),
-            ImageArrayResponseRank::Rank3 => map.next_value::<ResponseData<Array3<i32>>>()?.0,
+            ImageArrayRank::Rank3 => map.next_value::<ResponseData<Array3<i32>>>()?.0,
         };
 
         // Consume leftover fields.
         let _ = IgnoredAny.visit_map(map)?;
 
-        Ok(ImageArrayResponse { data })
+        Ok(ImageArray { data })
     }
 }
 
-struct JsonImageArrayResponse(ImageArrayResponse);
+struct JsonImageArray(ImageArray);
 
-impl<'de> Deserialize<'de> for JsonImageArrayResponse {
+impl<'de> Deserialize<'de> for JsonImageArray {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_map(ResponseVisitor).map(Self)
     }
 }
 
-impl Response for ASCOMResult<ImageArrayResponse> {
+impl Response for ASCOMResult<ImageArray> {
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
     }
@@ -100,7 +98,7 @@ impl Response for ASCOMResult<ImageArrayResponse> {
         bytes: Bytes,
     ) -> anyhow::Result<ResponseWithTransaction<Self>> {
         if mime_type.essence_str() != IMAGE_BYTES_TYPE {
-            return <ASCOMResult<JsonImageArrayResponse>>::from_reqwest(mime_type, bytes)
+            return <ASCOMResult<JsonImageArray>>::from_reqwest(mime_type, bytes)
                 .map(|response| response.map(|response| response.map(|json| json.0)));
         }
         let metadata = bytes
@@ -126,7 +124,7 @@ impl Response for ASCOMResult<ImageArrayResponse> {
         };
         let ascom_result = if metadata.error_number == 0_i32 {
             anyhow::ensure!(
-                metadata.image_element_type == ImageArrayResponseType::Integer as i32,
+                metadata.image_element_type == ImageArrayType::Integer as i32,
                 "only Integer image element type is supported, got {}",
                 metadata.image_element_type
             );
@@ -164,7 +162,7 @@ impl Response for ASCOMResult<ImageArrayResponse> {
                     rank => anyhow::bail!("unsupported rank {}, expected 2 or 3", rank),
                 },
             );
-            Ok(ImageArrayResponse {
+            Ok(ImageArray {
                 data: ndarray::Array::from_shape_vec(shape, data)
                     .expect("couldn't match the parsed shape to the data"),
             })

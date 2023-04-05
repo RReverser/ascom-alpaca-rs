@@ -13,23 +13,23 @@ use std::num::NonZeroU32;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
-pub enum ImageArrayResponseRank {
+pub enum ImageArrayRank {
     Rank2 = 2,
     Rank3 = 3,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct ImageArrayResponse {
+pub struct ImageArray {
     pub data: Array3<i32>,
 }
 
 const COLOUR_AXIS: Axis = Axis(2);
 
-impl ImageArrayResponse {
-    pub fn rank(&self) -> ImageArrayResponseRank {
+impl ImageArray {
+    pub fn rank(&self) -> ImageArrayRank {
         match self.data.len_of(COLOUR_AXIS) {
-            1 => ImageArrayResponseRank::Rank2,
-            _ => ImageArrayResponseRank::Rank3,
+            1 => ImageArrayRank::Rank2,
+            _ => ImageArrayRank::Rank3,
         }
     }
 }
