@@ -69,6 +69,7 @@ macro_rules! rpc_trait {
             #[allow(non_camel_case_types)]
             async fn handle_action(device: &(impl ?Sized + $trait_name), action: &str, params: $crate::server::ActionParams) -> Result<impl Serialize, $crate::server::Error> {
                 #[derive(Serialize)]
+                #[serde(untagged)]
                 enum ResponseRepr<$($method_name),*> {
                     $($method_name($method_name),)*
                 }

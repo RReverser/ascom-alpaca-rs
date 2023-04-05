@@ -159,6 +159,7 @@ impl<'a> StateCtxGuard<'a> {
                         .try_fold(Vec::new(), |mut cameras, new_devices| async move {
                             cameras.extend(new_devices.filter_map(|device| match device {
                                 TypedDevice::Camera(camera) => Some(camera),
+                                #[allow(unreachable_patterns)]
                                 _ => None,
                             }));
                             Ok(cameras)

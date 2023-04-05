@@ -13,9 +13,7 @@ use std::hash::Hash;
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
 #[serde(bound(deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"))]
-pub(crate) struct OpaqueParams<ParamStr: ?Sized + Debug>(
-    pub(crate) IndexMap<Box<ParamStr>, String>,
-);
+pub(crate) struct OpaqueParams<ParamStr: ?Sized + Debug>(IndexMap<Box<ParamStr>, String>);
 
 impl<ParamStr: ?Sized + Debug> Drop for OpaqueParams<ParamStr> {
     fn drop(&mut self) {

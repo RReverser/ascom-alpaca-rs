@@ -112,7 +112,7 @@ macro_rules! ascom_error_codes {
         #[doc = $doc]
         pub const $name: Self = Self {
           code: ASCOMErrorCode::$name,
-          message: Cow::Borrowed(stringify!($doc)),
+          message: Cow::Borrowed($doc),
         };
       )*
     }

@@ -16,6 +16,7 @@ fn download_image_array(c: &mut Criterion) {
                     .await?
                     .find_map(|device| match device {
                         TypedDevice::Camera(camera) => Some(camera),
+                        #[allow(unreachable_patterns)]
                         _ => None,
                     })
                     .context("No camera found")?;
