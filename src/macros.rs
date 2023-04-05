@@ -138,13 +138,17 @@ macro_rules! rpc_mod {
         #[cfg(not(any( $(feature = $path),* )))]
         compile_error!(concat!("At least one device type must be enabled via Cargo features:" $(, "\n - ", $path)*));
 
-        #[derive(PartialEq, Eq, Clone, Copy)]
-        pub enum DeviceType {
-            $(
-                #[cfg(feature = $path)]
-                $trait_name,
-            )*
+        pub(crate) mod internal {
+            // Not really public, needed for a Voldemort trait RetrieavableDevice.
+            #[derive(PartialEq, Eq, Clone, Copy)]
+            pub enum DeviceType {
+                $(
+                    #[cfg(feature = $path)]
+                    $trait_name,
+                )*
+            }
         }
+        pub(crate) use internal::DeviceType;
 
         #[derive(Clone, Debug)]
         pub enum TypedDevice {
