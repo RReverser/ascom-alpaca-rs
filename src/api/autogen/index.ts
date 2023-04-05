@@ -49,6 +49,8 @@ function assertEmpty(obj: object, msg: string) {
 }
 
 function toPropName(name: string) {
+  // fixup acronyms so that they're not all-caps
+  name = name.replaceAll(/([A-Z])([A-Z]*)([A-Z][a-z]+)/g, (_, a, b, c) => `${a}${b.toLowerCase()}${c}`);
   name = toSnakeCase(name);
   if (rustKeywords.has(name)) name += '_';
   return name;
@@ -648,7 +650,7 @@ ${stringifyIter(types, ({features, type}) => {
               ${stringifyDoc(prop.doc)}
               ${
                 toPascalCase(prop.name) === prop.originalName &&
-                toSnakeCase(prop.originalName) === prop.name
+                toPropName(prop.originalName) === prop.name
                   ? ''
                   : `#[serde(rename = "${prop.originalName}")]`
               }

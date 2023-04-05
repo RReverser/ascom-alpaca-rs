@@ -603,7 +603,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns a flag indicatig whether this camera supports setting the CCD temperature
     #[http("cansetccdtemperature", via = ValueResponse)]
-    fn can_set_ccdtemperature(&self) -> bool;
+    fn can_set_ccd_temperature(&self) -> bool;
 
     /// Returns a flag indicating whether this camera can stop an exposure that is in progress
     #[http("canstopexposure", via = ValueResponse)]
@@ -611,7 +611,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the current CCD temperature in degrees Celsius.
     #[http("ccdtemperature", via = ValueResponse)]
-    fn ccdtemperature(&self) -> f64;
+    fn ccd_temperature(&self) -> f64;
 
     /// Returns the current cooler on/off state.
     #[http("cooleron", via = ValueResponse)]
@@ -839,11 +839,11 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the current camera cooler setpoint in degrees Celsius.
     #[http("setccdtemperature", via = ValueResponse)]
-    fn set_ccdtemperature(&self) -> f64;
+    fn set_ccd_temperature(&self) -> f64;
 
     /// Set's the camera's cooler setpoint in degrees Celsius.
     #[http("setccdtemperature")]
-    fn set_set_ccdtemperature(&mut self, #[http(SetCCDTemperature)] set_ccdtemperature: f64);
+    fn set_set_ccd_temperature(&mut self, #[http(SetCCDTemperature)] set_ccd_temperature: f64);
 
     /// Sets the subframe start position for the X axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
     #[http("startx", via = ValueResponse)]
@@ -1563,11 +1563,11 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
     #[http("utcdate", via = ValueResponse)]
-    fn utcdate(&self) -> String;
+    fn utc_date(&self) -> String;
 
     /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
     #[http("utcdate")]
-    fn set_utcdate(&mut self, #[http(UTCDate)] utcdate: String);
+    fn set_utc_date(&mut self, #[http(UTCDate)] utc_date: String);
 
     /// Immediately Stops a slew in progress.
     #[http("abortslew")]
