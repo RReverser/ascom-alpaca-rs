@@ -20,6 +20,7 @@ use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::{ASCOMResult, Devices};
 use axum::extract::Path;
+use axum::http::Uri;
 use axum::routing::MethodFilter;
 use axum::Router;
 use futures::TryFutureExt;
@@ -49,7 +50,7 @@ impl Default for Server {
 }
 
 async fn server_handler<Resp, RespFut: Future<Output = Result<Resp, Error>> + Send>(
-    path: &str,
+    uri: Uri,
     mut raw_opaque_params: ActionParams,
     make_response: impl FnOnce(ActionParams) -> RespFut + Send,
 ) -> Result<axum::response::Response, (axum::http::StatusCode, String)>
@@ -62,7 +63,7 @@ where
 
     let span = tracing::debug_span!(
         "Alpaca transaction",
-        path,
+        path = uri.path(),
         params = ?raw_opaque_params,
         client_id = request_transaction.client_id,
         client_transaction_id = request_transaction.client_transaction_id,
@@ -121,8 +122,8 @@ impl Server {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|params| {
-                    server_handler("/management/apiversions",  params, |_params| async move {
+                axum::routing::get(|uri, params| {
+                    server_handler(uri,  params, |_params| async move {
                         Ok(ValueResponse::from([1_u32]))
                     })
                 }),
@@ -130,16 +131,16 @@ impl Server {
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&devices);
 
-                axum::routing::get(|params| {
-                    server_handler("/management/v1/configureddevices",  params, |_params| async move {
+                axum::routing::get(|uri, params| {
+                    server_handler(uri,  params, |_params| async move {
                         let devices = this.iter_all().map(|(device, number)| device.to_configured_device(number)).collect::<Vec<_>>();
                         Ok(ValueResponse::from(devices))
                     })
                 })
             })
             .route("/management/v1/description",
-                axum::routing::get(move |params| {
-                    server_handler("/management/v1/serverinfo", params, |_params| async move {
+                axum::routing::get(move |uri, params| {
+                    server_handler(uri, params, |_params| async move {
                         Ok(ValueResponse::from(Arc::clone(&server_info)))
                     })
                 })
@@ -149,6 +150,7 @@ impl Server {
                 axum::routing::on(
                     MethodFilter::GET | MethodFilter::PUT,
                     move |
+                        uri,
                         #[cfg_attr(not(feature = "camera"), allow(unused_mut))]
                         Path((DevicePath(device_type), device_number, mut action)): Path<(
                             DevicePath,
@@ -171,13 +173,13 @@ impl Server {
                                 && action == "imagearray"
                                 && crate::api::ImageArray::is_accepted(&headers)
                             {
-                                return server_handler(&format!("/api/v1/{device_type}/{device_number}/{action} with ImageBytes"), params, |_params| async move {
+                                return server_handler(uri, params, |_params| async move {
                                     Ok(crate::api::ImageBytesResponse(devices.get_for_server::<dyn Camera>(device_number)?.image_array().await?))
                                 }).await;
                             }
                         }
 
-                        server_handler(&format!("/api/v1/{device_type}/{device_number}/{action}"),  params, |params| {
+                        server_handler(uri,  params, |params| {
                             devices.handle_action(
                                 device_type,
                                 device_number,
