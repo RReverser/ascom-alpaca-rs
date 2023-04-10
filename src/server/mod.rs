@@ -18,9 +18,10 @@ use crate::api::{Camera, DeviceType};
 use crate::api::{CargoServerInfo, DevicePath, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
-use crate::{ASCOMResult, Devices};
+use crate::Devices;
 use axum::extract::Path;
 use axum::http::Uri;
+use axum::response::IntoResponse;
 use axum::routing::MethodFilter;
 use axum::Router;
 use futures::TryFutureExt;
@@ -49,16 +50,17 @@ impl Default for Server {
     }
 }
 
-async fn server_handler<Resp, RespFut: Future<Output = Result<Resp, Error>> + Send>(
+async fn server_handler<Resp: Response, RespFut: Future<Output = Resp> + Send>(
     uri: Uri,
     mut raw_opaque_params: ActionParams,
     make_response: impl FnOnce(ActionParams) -> RespFut + Send,
-) -> Result<axum::response::Response, (axum::http::StatusCode, String)>
-where
-    ASCOMResult<Resp>: Response,
-{
-    let request_transaction = RequestTransaction::extract(&mut raw_opaque_params)
-        .map_err(|err| (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")))?;
+) -> axum::response::Response {
+    let request_transaction = match RequestTransaction::extract(&mut raw_opaque_params) {
+        Ok(transaction) => transaction,
+        Err(err) => {
+            return (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")).into_response();
+        }
+    };
     let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
 
     let span = tracing::debug_span!(
@@ -71,17 +73,9 @@ where
     );
 
     async move {
-        let ascom_result = match make_response(raw_opaque_params).await {
-            Ok(response) => Ok(response),
-            Err(Error::Ascom(err)) => Err(err),
-            Err(Error::BadRequest(err)) => {
-                return Err((axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")));
-            }
-            Err(Error::NotFound(err)) => {
-                return Err((axum::http::StatusCode::NOT_FOUND, format!("{err:#}")));
-            }
-        };
-        Ok(ascom_result.into_axum(response_transaction))
+        make_response(raw_opaque_params)
+            .await
+            .into_axum(response_transaction)
     }
     .instrument(span)
     .await
@@ -124,7 +118,7 @@ impl Server {
                 "/management/apiversions",
                 axum::routing::get(|uri, params| {
                     server_handler(uri,  params, |_params| async move {
-                        Ok(ValueResponse::from([1_u32]))
+                        ValueResponse::from([1_u32])
                     })
                 }),
             )
@@ -134,14 +128,14 @@ impl Server {
                 axum::routing::get(|uri, params| {
                     server_handler(uri,  params, |_params| async move {
                         let devices = this.iter_all().map(|(device, number)| device.to_configured_device(number)).collect::<Vec<_>>();
-                        Ok(ValueResponse::from(devices))
+                        ValueResponse::from(devices)
                     })
                 })
             })
             .route("/management/v1/description",
                 axum::routing::get(move |uri, params| {
                     server_handler(uri, params, |_params| async move {
-                        Ok(ValueResponse::from(Arc::clone(&server_info)))
+                        ValueResponse::from(Arc::clone(&server_info))
                     })
                 })
             )
@@ -174,7 +168,7 @@ impl Server {
                                 && crate::api::ImageArray::is_accepted(&headers)
                             {
                                 return server_handler(uri, params, |_params| async move {
-                                    Ok(crate::api::ImageBytesResponse(devices.get_for_server::<dyn Camera>(device_number)?.image_array().await?))
+                                    Ok::<_, Error>(crate::api::ImageBytesResponse(devices.get_for_server::<dyn Camera>(device_number)?.image_array().await?))
                                 }).await;
                             }
                         }
