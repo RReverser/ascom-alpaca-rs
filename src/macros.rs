@@ -35,7 +35,7 @@ macro_rules! rpc_trait {
 
             $(
                 #[http($method_path:literal $(, via = $via:ident)?)]
-                fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:ident)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
+                fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
 
                 $(#[doc = $docs_after_method:literal])*
             )*
@@ -118,9 +118,16 @@ macro_rules! rpc_trait {
 
             $(
                 async fn $method_name(&self $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
-                    let opaque_params = $crate::client::opaque_params! {
-                        $($param_query: $param,)*
-                    };
+                    #[derive(Debug, Serialize)]
+                    struct OpaqueParams {
+                        $(
+                            #[serde(rename = $param_query)]
+                            $param: $param_ty,
+                        )*
+                    }
+
+                    let opaque_params = OpaqueParams { $($param),* };
+
                     self
                     .exec_action($method_path, rpc_trait!(@params_pat client, $($mut_self)* (opaque_params)))
                     .await

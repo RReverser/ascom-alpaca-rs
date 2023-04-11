@@ -5,7 +5,7 @@ mod transaction;
 pub(crate) use transaction::*;
 
 mod params;
-pub(crate) use params::{opaque_params, ActionParams};
+pub(crate) use params::ActionParams;
 
 mod response;
 pub(crate) use response::Response;
@@ -187,7 +187,7 @@ impl Client {
             .inner
             .request::<ValueResponse<Vec<ConfiguredDevice<FallibleDeviceType>>>>(
                 "management/v1/configureddevices",
-                ActionParams::Get(opaque_params! {}),
+                ActionParams::Get(()),
             )
             .await?
             .into_inner()
@@ -219,7 +219,7 @@ impl Client {
             .inner
             .request::<ValueResponse<ServerInfo>>(
                 "management/v1/description",
-                ActionParams::Get(opaque_params! {}),
+                ActionParams::Get(()),
             )
             .await?
             .into_inner())

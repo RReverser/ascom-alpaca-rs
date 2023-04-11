@@ -714,7 +714,7 @@ ${stringifyIter(
             ${stringifyIter(
               method.resolvedArgs,
               arg =>
-                `#[http(${arg.originalName})] ${arg.name}: ${arg.type},`
+                `#[http("${arg.originalName}")] ${arg.name}: ${arg.type},`
             )}
           )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
 

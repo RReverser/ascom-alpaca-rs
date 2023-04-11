@@ -465,24 +465,28 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     #[http("action", via = ValueResponse)]
     fn action(
         &mut self,
-        #[http(Action)] action: String,
-        #[http(Parameters)] parameters: String,
+        #[http("Action")] action: String,
+        #[http("Parameters")] parameters: String,
     ) -> String;
 
     /// Transmits an arbitrary string to the device and does not wait for a response. Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandblind")]
-    fn command_blind(&mut self, #[http(Command)] command: String, #[http(Raw)] raw: String);
+    fn command_blind(&mut self, #[http("Command")] command: String, #[http("Raw")] raw: String);
 
     /// Transmits an arbitrary string to the device and waits for a boolean response. Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandbool", via = ValueResponse)]
-    fn command_bool(&mut self, #[http(Command)] command: String, #[http(Raw)] raw: String) -> bool;
+    fn command_bool(
+        &mut self,
+        #[http("Command")] command: String,
+        #[http("Raw")] raw: String,
+    ) -> bool;
 
     /// Transmits an arbitrary string to the device and waits for a string response. Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandstring", via = ValueResponse)]
     fn command_string(
         &mut self,
-        #[http(Command)] command: String,
-        #[http(Raw)] raw: String,
+        #[http("Command")] command: String,
+        #[http("Raw")] raw: String,
     ) -> String;
 
     /// Retrieves the connected state of the device
@@ -491,7 +495,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 
     /// Sets the connected state of the device
     #[http("connected")]
-    fn set_connected(&mut self, #[http(Connected)] connected: bool);
+    fn set_connected(&mut self, #[http("Connected")] connected: bool);
 
     /// The description of the device
     #[http("description", via = ValueResponse)]
@@ -536,7 +540,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the binning factor for the X axis.
     #[http("binx")]
-    fn set_bin_x(&mut self, #[http(BinX)] bin_x: i32);
+    fn set_bin_x(&mut self, #[http("BinX")] bin_x: i32);
 
     /// Returns the binning factor for the Y axis.
     #[http("biny", via = ValueResponse)]
@@ -544,7 +548,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the binning factor for the Y axis.
     #[http("biny")]
-    fn set_bin_y(&mut self, #[http(BinY)] bin_y: i32);
+    fn set_bin_y(&mut self, #[http("BinY")] bin_y: i32);
 
     /// Returns the current camera operational state.
     #[http("camerastate", via = ValueResponse)]
@@ -596,7 +600,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Turns on and off the camera cooler. True = cooler on, False = cooler off
     #[http("cooleron")]
-    fn set_cooler_on(&mut self, #[http(CoolerOn)] cooler_on: bool);
+    fn set_cooler_on(&mut self, #[http("CoolerOn")] cooler_on: bool);
 
     /// Returns the present cooler power level, in percent.
     #[http("coolerpower", via = ValueResponse)]
@@ -624,7 +628,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets whether Fast Readout Mode is enabled.
     #[http("fastreadout")]
-    fn set_fast_readout(&mut self, #[http(FastReadout)] fast_readout: bool);
+    fn set_fast_readout(&mut self, #[http("FastReadout")] fast_readout: bool);
 
     /// Reports the full well capacity of the camera in electrons, at the current camera settings (binning, SetupDialog settings, etc.).
     #[http("fullwellcapacity", via = ValueResponse)]
@@ -636,7 +640,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// The camera's gain (GAIN VALUE MODE) OR the index of the selected camera gain description in the Gains array (GAINS INDEX MODE).
     #[http("gain")]
-    fn set_gain(&mut self, #[http(Gain)] gain: i32);
+    fn set_gain(&mut self, #[http("Gain")] gain: i32);
 
     /// Returns the maximum value of Gain.
     #[http("gainmax", via = ValueResponse)]
@@ -752,7 +756,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe width.
     #[http("numx")]
-    fn set_num_x(&mut self, #[http(NumX)] num_x: i32);
+    fn set_num_x(&mut self, #[http("NumX")] num_x: i32);
 
     /// Returns the current subframe height, if binning is active, value is in binned pixels.
     #[http("numy", via = ValueResponse)]
@@ -760,7 +764,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe height.
     #[http("numy")]
-    fn set_num_y(&mut self, #[http(NumY)] num_y: i32);
+    fn set_num_y(&mut self, #[http("NumY")] num_y: i32);
 
     /// Returns the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
     #[http("offset", via = ValueResponse)]
@@ -768,7 +772,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
     #[http("offset")]
-    fn set_offset(&mut self, #[http(Offset)] offset: i32);
+    fn set_offset(&mut self, #[http("Offset")] offset: i32);
 
     /// Returns the maximum value of offset.
     #[http("offsetmax", via = ValueResponse)]
@@ -800,7 +804,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the ReadoutMode as an index into the array ReadoutModes.
     #[http("readoutmode")]
-    fn set_readout_mode(&mut self, #[http(ReadoutMode)] readout_mode: i32);
+    fn set_readout_mode(&mut self, #[http("ReadoutMode")] readout_mode: i32);
 
     /// This property provides an array of strings, each of which describes an available readout mode of the camera. At least one string must be present in the list.
     #[http("readoutmodes", via = ValueResponse)]
@@ -820,7 +824,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Set's the camera's cooler setpoint in degrees Celsius.
     #[http("setccdtemperature")]
-    fn set_set_ccd_temperature(&mut self, #[http(SetCCDTemperature)] set_ccd_temperature: f64);
+    fn set_set_ccd_temperature(&mut self, #[http("SetCCDTemperature")] set_ccd_temperature: f64);
 
     /// Sets the subframe start position for the X axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
     #[http("startx", via = ValueResponse)]
@@ -828,7 +832,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe X axis start position in binned pixels.
     #[http("startx")]
-    fn set_start_x(&mut self, #[http(StartX)] start_x: i32);
+    fn set_start_x(&mut self, #[http("StartX")] start_x: i32);
 
     /// Sets the subframe start position for the Y axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
     #[http("starty", via = ValueResponse)]
@@ -836,7 +840,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe Y axis start position in binned pixels.
     #[http("starty")]
-    fn set_start_y(&mut self, #[http(StartY)] start_y: i32);
+    fn set_start_y(&mut self, #[http("StartY")] start_y: i32);
 
     /// The Camera's sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
     #[http("subexposureduration", via = ValueResponse)]
@@ -846,7 +850,7 @@ pub trait Camera: Device + Send + Sync {
     #[http("subexposureduration")]
     fn set_sub_exposure_duration(
         &mut self,
-        #[http(SubExposureDuration)] sub_exposure_duration: f64,
+        #[http("SubExposureDuration")] sub_exposure_duration: f64,
     );
 
     /// Aborts the current exposure, if any, and returns the camera to Idle state.
@@ -857,13 +861,13 @@ pub trait Camera: Device + Send + Sync {
     #[http("pulseguide")]
     fn pulse_guide(
         &mut self,
-        #[http(Direction)] direction: PutPulseGuideDirection,
-        #[http(Duration)] duration: i32,
+        #[http("Direction")] direction: PutPulseGuideDirection,
+        #[http("Duration")] duration: i32,
     );
 
     /// Starts an exposure. Use ImageReady to check when the exposure is complete.
     #[http("startexposure")]
-    fn start_exposure(&mut self, #[http(Duration)] duration: f64, #[http(Light)] light: bool);
+    fn start_exposure(&mut self, #[http("Duration")] duration: f64, #[http("Light")] light: bool);
 
     /// Stops the current exposure, if any. If an exposure is in progress, the readout process is initiated. Ignored if readout is already in process.
     #[http("stopexposure")]
@@ -896,7 +900,7 @@ pub trait CoverCalibrator: Device + Send + Sync {
 
     /// Turns the calibrator on at the specified brightness if the device has calibration capability.
     #[http("calibratoron")]
-    fn calibrator_on(&mut self, #[http(Brightness)] brightness: i32);
+    fn calibrator_on(&mut self, #[http("Brightness")] brightness: i32);
 
     /// Initiates cover closing if a cover is present.
     #[http("closecover")]
@@ -973,7 +977,7 @@ pub trait Dome: Device + Send + Sync {
 
     /// Sets the current subframe height.
     #[http("slaved")]
-    fn set_slaved(&mut self, #[http(Slaved)] slaved: bool);
+    fn set_slaved(&mut self, #[http("Slaved")] slaved: bool);
 
     /// True if any part of the dome is currently moving, False if all dome components are steady.
     #[http("slewing", via = ValueResponse)]
@@ -1005,15 +1009,15 @@ pub trait Dome: Device + Send + Sync {
 
     /// Slew the dome to the given altitude position.
     #[http("slewtoaltitude")]
-    fn slew_to_altitude(&mut self, #[http(Altitude)] altitude: f64);
+    fn slew_to_altitude(&mut self, #[http("Altitude")] altitude: f64);
 
     /// Slew the dome to the given azimuth position.
     #[http("slewtoazimuth")]
-    fn slew_to_azimuth(&mut self, #[http(Azimuth)] azimuth: f64);
+    fn slew_to_azimuth(&mut self, #[http("Azimuth")] azimuth: f64);
 
     /// Synchronize the current position of the dome to the given azimuth.
     #[http("synctoazimuth")]
-    fn sync_to_azimuth(&mut self, #[http(Azimuth)] azimuth: f64);
+    fn sync_to_azimuth(&mut self, #[http("Azimuth")] azimuth: f64);
 }
 
 /// FilterWheel Specific Methods
@@ -1034,7 +1038,7 @@ pub trait FilterWheel: Device + Send + Sync {
 
     /// Sets the filter wheel position
     #[http("position")]
-    fn set_position(&mut self, #[http(Position)] position: i32);
+    fn set_position(&mut self, #[http("Position")] position: i32);
 }
 
 /// Focuser Specific Methods
@@ -1071,7 +1075,7 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Sets the state of temperature compensation mode.
     #[http("tempcomp")]
-    fn set_temp_comp(&mut self, #[http(TempComp)] temp_comp: bool);
+    fn set_temp_comp(&mut self, #[http("TempComp")] temp_comp: bool);
 
     /// True if focuser has temperature compensation available.
     #[http("tempcompavailable", via = ValueResponse)]
@@ -1087,7 +1091,7 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Moves the focuser by the specified amount or to the specified position depending on the value of the Absolute property.
     #[http("move")]
-    fn move_(&mut self, #[http(Position)] position: i32);
+    fn move_(&mut self, #[http("Position")] position: i32);
 }
 
 /// ObservingConditions Specific Methods
@@ -1100,7 +1104,7 @@ pub trait ObservingConditions: Device + Send + Sync {
 
     /// Sets the time period over which observations will be averaged
     #[http("averageperiod")]
-    fn set_average_period(&mut self, #[http(AveragePeriod)] average_period: f64);
+    fn set_average_period(&mut self, #[http("AveragePeriod")] average_period: f64);
 
     /// Gets the percentage of the sky obscured by cloud
     #[http("cloudcover", via = ValueResponse)]
@@ -1160,11 +1164,11 @@ pub trait ObservingConditions: Device + Send + Sync {
 
     /// Gets a description of the sensor with the name specified in the SensorName parameter
     #[http("sensordescription", via = ValueResponse)]
-    fn sensor_description(&self, #[http(SensorName)] sensor_name: String) -> String;
+    fn sensor_description(&self, #[http("SensorName")] sensor_name: String) -> String;
 
     /// Gets the time since the sensor specified in the SensorName parameter was last updated
     #[http("timesincelastupdate", via = ValueResponse)]
-    fn time_since_last_update(&self, #[http(SensorName)] sensor_name: String) -> f64;
+    fn time_since_last_update(&self, #[http("SensorName")] sensor_name: String) -> f64;
 }
 
 /// Rotator Specific Methods
@@ -1193,7 +1197,7 @@ pub trait Rotator: Device + Send + Sync {
 
     /// Sets the rotator’s Reverse state.
     #[http("reverse")]
-    fn set_reverse(&mut self, #[http(Reverse)] reverse: bool);
+    fn set_reverse(&mut self, #[http("Reverse")] reverse: bool);
 
     /// The minimum StepSize, in degrees.
     #[http("stepsize", via = ValueResponse)]
@@ -1209,19 +1213,19 @@ pub trait Rotator: Device + Send + Sync {
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
     #[http("move")]
-    fn move_(&mut self, #[http(Position)] position: f64);
+    fn move_(&mut self, #[http("Position")] position: f64);
 
     /// Causes the rotator to move the absolute position of Position degrees.
     #[http("moveabsolute")]
-    fn move_absolute(&mut self, #[http(Position)] position: f64);
+    fn move_absolute(&mut self, #[http("Position")] position: f64);
 
     /// Causes the rotator to move the mechanical position of Position degrees.
     #[http("movemechanical")]
-    fn move_mechanical(&mut self, #[http(Position)] position: f64);
+    fn move_mechanical(&mut self, #[http("Position")] position: f64);
 
     /// Causes the rotator to sync to the position of Position degrees.
     #[http("sync")]
-    fn sync(&mut self, #[http(Position)] position: f64);
+    fn sync(&mut self, #[http("Position")] position: f64);
 }
 
 /// SafetyMonitor Specific Methods
@@ -1243,47 +1247,47 @@ pub trait Switch: Device + Send + Sync {
 
     /// Reports if the specified switch device can be written to, default true. This is false if the device cannot be written to, for example a limit switch or a sensor.  Devices are numbered from 0 to MaxSwitch - 1
     #[http("canwrite", via = ValueResponse)]
-    fn can_write(&self, #[http(Id)] id: u32) -> bool;
+    fn can_write(&self, #[http("Id")] id: u32) -> bool;
 
     /// Return the state of switch device id as a boolean.  Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitch", via = ValueResponse)]
-    fn get_switch(&self, #[http(Id)] id: u32) -> bool;
+    fn get_switch(&self, #[http("Id")] id: u32) -> bool;
 
     /// Gets the description of the specified switch device. This is to allow a fuller description of the device to be returned, for example for a tool tip. Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitchdescription", via = ValueResponse)]
-    fn get_switch_description(&self, #[http(Id)] id: u32) -> String;
+    fn get_switch_description(&self, #[http("Id")] id: u32) -> String;
 
     /// Gets the name of the specified switch device. Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitchname", via = ValueResponse)]
-    fn get_switch_name(&self, #[http(Id)] id: u32) -> String;
+    fn get_switch_name(&self, #[http("Id")] id: u32) -> String;
 
     /// Gets the value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1, The value of this switch is expected to be between MinSwitchValue and MaxSwitchValue.
     #[http("getswitchvalue", via = ValueResponse)]
-    fn get_switch_value(&self, #[http(Id)] id: u32) -> f64;
+    fn get_switch_value(&self, #[http("Id")] id: u32) -> f64;
 
     /// Gets the minimum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
     #[http("minswitchvalue", via = ValueResponse)]
-    fn min_switch_value(&self, #[http(Id)] id: u32) -> f64;
+    fn min_switch_value(&self, #[http("Id")] id: u32) -> f64;
 
     /// Gets the maximum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
     #[http("maxswitchvalue", via = ValueResponse)]
-    fn max_switch_value(&self, #[http(Id)] id: u32) -> f64;
+    fn max_switch_value(&self, #[http("Id")] id: u32) -> f64;
 
     /// Sets a switch controller device to the specified state, true or false.
     #[http("setswitch")]
-    fn set_switch(&mut self, #[http(Id)] id: u32, #[http(State)] state: bool);
+    fn set_switch(&mut self, #[http("Id")] id: u32, #[http("State")] state: bool);
 
     /// Sets a switch device name to the specified value.
     #[http("setswitchname")]
-    fn set_switch_name(&mut self, #[http(Id)] id: u32, #[http(Name)] name: String);
+    fn set_switch_name(&mut self, #[http("Id")] id: u32, #[http("Name")] name: String);
 
     /// Sets a switch device value to the specified value.
     #[http("setswitchvalue")]
-    fn set_switch_value(&mut self, #[http(Id)] id: u32, #[http(Value)] value: f64);
+    fn set_switch_value(&mut self, #[http("Id")] id: u32, #[http("Value")] value: f64);
 
     /// Returns the step size that this device supports (the difference between successive values of the device). Devices are numbered from 0 to MaxSwitch - 1.
     #[http("switchstep", via = ValueResponse)]
-    fn switch_step(&self, #[http(Id)] id: u32) -> f64;
+    fn switch_step(&self, #[http("Id")] id: u32) -> f64;
 }
 
 /// Telescope Specific Methods
@@ -1392,7 +1396,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the declination tracking rate (arcseconds per second)
     #[http("declinationrate")]
-    fn set_declination_rate(&mut self, #[http(DeclinationRate)] declination_rate: f64);
+    fn set_declination_rate(&mut self, #[http("DeclinationRate")] declination_rate: f64);
 
     /// True if the telescope or driver applies atmospheric refraction to coordinates.
     #[http("doesrefraction", via = ValueResponse)]
@@ -1400,7 +1404,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
     #[http("doesrefraction")]
-    fn set_does_refraction(&mut self, #[http(DoesRefraction)] does_refraction: bool);
+    fn set_does_refraction(&mut self, #[http("DoesRefraction")] does_refraction: bool);
 
     /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
     #[http("equatorialsystem", via = ValueResponse)]
@@ -1418,7 +1422,7 @@ pub trait Telescope: Device + Send + Sync {
     #[http("guideratedeclination")]
     fn set_guide_rate_declination(
         &mut self,
-        #[http(GuideRateDeclination)] guide_rate_declination: f64,
+        #[http("GuideRateDeclination")] guide_rate_declination: f64,
     );
 
     /// The current RightAscension movement rate offset for telescope guiding (degrees/sec)
@@ -1429,7 +1433,7 @@ pub trait Telescope: Device + Send + Sync {
     #[http("guideraterightascension")]
     fn set_guide_rate_right_ascension(
         &mut self,
-        #[http(GuideRateRightAscension)] guide_rate_right_ascension: f64,
+        #[http("GuideRateRightAscension")] guide_rate_right_ascension: f64,
     );
 
     /// True if a PulseGuide(GuideDirections, Int32) command is in progress, False otherwise
@@ -1446,7 +1450,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the right ascension tracking rate (arcseconds per second)
     #[http("rightascensionrate")]
-    fn set_right_ascension_rate(&mut self, #[http(RightAscensionRate)] right_ascension_rate: f64);
+    fn set_right_ascension_rate(&mut self, #[http("RightAscensionRate")] right_ascension_rate: f64);
 
     /// Indicates the pointing state of the mount.
     #[http("sideofpier", via = ValueResponse)]
@@ -1454,7 +1458,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the pointing state of the mount.
     #[http("sideofpier")]
-    fn set_side_of_pier(&mut self, #[http(SideOfPier)] side_of_pier: SideOfPier);
+    fn set_side_of_pier(&mut self, #[http("SideOfPier")] side_of_pier: SideOfPier);
 
     /// The local apparent sidereal time from the telescope's internal clock (hours, sidereal).
     #[http("siderealtime", via = ValueResponse)]
@@ -1466,7 +1470,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the elevation above mean sea level (metres) of the site at which the telescope is located.
     #[http("siteelevation")]
-    fn set_site_elevation(&mut self, #[http(SiteElevation)] site_elevation: f64);
+    fn set_site_elevation(&mut self, #[http("SiteElevation")] site_elevation: f64);
 
     /// The geodetic(map) latitude (degrees, positive North, WGS84) of the site at which the telescope is located.
     #[http("sitelatitude", via = ValueResponse)]
@@ -1474,7 +1478,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the observing site's latitude (degrees).
     #[http("sitelatitude")]
-    fn set_site_latitude(&mut self, #[http(SiteLatitude)] site_latitude: f64);
+    fn set_site_latitude(&mut self, #[http("SiteLatitude")] site_latitude: f64);
 
     /// The longitude (degrees, positive East, WGS84) of the site at which the telescope is located.
     #[http("sitelongitude", via = ValueResponse)]
@@ -1482,7 +1486,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the observing site's longitude (degrees, positive East, WGS84).
     #[http("sitelongitude")]
-    fn set_site_longitude(&mut self, #[http(SiteLongitude)] site_longitude: f64);
+    fn set_site_longitude(&mut self, #[http("SiteLongitude")] site_longitude: f64);
 
     /// True if telescope is currently moving in response to one of the Slew methods or the MoveAxis(TelescopeAxes, Double) method, False at all other times.
     #[http("slewing", via = ValueResponse)]
@@ -1494,7 +1498,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the  post-slew settling time (integer sec.).
     #[http("slewsettletime")]
-    fn set_slew_settle_time(&mut self, #[http(SlewSettleTime)] slew_settle_time: i32);
+    fn set_slew_settle_time(&mut self, #[http("SlewSettleTime")] slew_settle_time: i32);
 
     /// The declination (degrees, positive North) for the target of an equatorial slew or sync operation
     #[http("targetdeclination", via = ValueResponse)]
@@ -1502,7 +1506,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the declination (degrees, positive North) for the target of an equatorial slew or sync operation
     #[http("targetdeclination")]
-    fn set_target_declination(&mut self, #[http(TargetDeclination)] target_declination: f64);
+    fn set_target_declination(&mut self, #[http("TargetDeclination")] target_declination: f64);
 
     /// The right ascension (hours) for the target of an equatorial slew or sync operation
     #[http("targetrightascension", via = ValueResponse)]
@@ -1512,7 +1516,7 @@ pub trait Telescope: Device + Send + Sync {
     #[http("targetrightascension")]
     fn set_target_right_ascension(
         &mut self,
-        #[http(TargetRightAscension)] target_right_ascension: f64,
+        #[http("TargetRightAscension")] target_right_ascension: f64,
     );
 
     /// Returns the state of the telescope's sidereal tracking drive.
@@ -1521,7 +1525,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the state of the telescope's sidereal tracking drive.
     #[http("tracking")]
-    fn set_tracking(&mut self, #[http(Tracking)] tracking: bool);
+    fn set_tracking(&mut self, #[http("Tracking")] tracking: bool);
 
     /// The current tracking rate of the telescope's sidereal drive.
     #[http("trackingrate", via = ValueResponse)]
@@ -1529,7 +1533,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the tracking rate of the telescope's sidereal drive.
     #[http("trackingrate")]
-    fn set_tracking_rate(&mut self, #[http(TrackingRate)] tracking_rate: DriveRate);
+    fn set_tracking_rate(&mut self, #[http("TrackingRate")] tracking_rate: DriveRate);
 
     /// Returns an array of supported DriveRates values that describe the permissible values of the TrackingRate property for this telescope type.
     #[http("trackingrates", via = ValueResponse)]
@@ -1541,7 +1545,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
     #[http("utcdate")]
-    fn set_utc_date(&mut self, #[http(UTCDate)] utc_date: String);
+    fn set_utc_date(&mut self, #[http("UTCDate")] utc_date: String);
 
     /// Immediately Stops a slew in progress.
     #[http("abortslew")]
@@ -1549,18 +1553,18 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The rates at which the telescope may be moved about the specified axis by the MoveAxis(TelescopeAxes, Double) method.
     #[http("axisrates", via = ValueResponse)]
-    fn axis_rates(&self, #[http(Axis)] axis: Axis) -> Vec<AxisRate>;
+    fn axis_rates(&self, #[http("Axis")] axis: Axis) -> Vec<AxisRate>;
 
     /// True if this telescope can move the requested axis.
     #[http("canmoveaxis", via = ValueResponse)]
-    fn can_move_axis(&self, #[http(Axis)] axis: Axis) -> bool;
+    fn can_move_axis(&self, #[http("Axis")] axis: Axis) -> bool;
 
     /// Predicts the pointing state that a German equatorial mount will be in if it slews to the given coordinates.
     #[http("destinationsideofpier", via = ValueResponse)]
     fn destination_side_of_pier(
         &self,
-        #[http(RightAscension)] right_ascension: f64,
-        #[http(Declination)] declination: f64,
+        #[http("RightAscension")] right_ascension: f64,
+        #[http("Declination")] declination: f64,
     ) -> SideOfPier;
 
     /// Locates the telescope's "home" position (synchronous)
@@ -1569,7 +1573,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Move the telescope in one axis at the given rate.
     #[http("moveaxis")]
-    fn move_axis(&mut self, #[http(Axis)] axis: Axis, #[http(Rate)] rate: f64);
+    fn move_axis(&mut self, #[http("Axis")] axis: Axis, #[http("Rate")] rate: f64);
 
     /// Move the telescope to its park position, stop all motion (or restrict to a small safe range), and set AtPark to True. )
     #[http("park")]
@@ -1579,8 +1583,8 @@ pub trait Telescope: Device + Send + Sync {
     #[http("pulseguide")]
     fn pulse_guide(
         &mut self,
-        #[http(Direction)] direction: PutPulseGuideDirection,
-        #[http(Duration)] duration: i32,
+        #[http("Direction")] direction: PutPulseGuideDirection,
+        #[http("Duration")] duration: i32,
     );
 
     /// Sets the telescope's park position to be its current position.
@@ -1589,30 +1593,34 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Move the telescope to the given local horizontal coordinates, return when slew is complete
     #[http("slewtoaltaz")]
-    fn slew_to_alt_az(&mut self, #[http(Azimuth)] azimuth: f64, #[http(Altitude)] altitude: f64);
+    fn slew_to_alt_az(
+        &mut self,
+        #[http("Azimuth")] azimuth: f64,
+        #[http("Altitude")] altitude: f64,
+    );
 
     /// Move the telescope to the given local horizontal coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
     #[http("slewtoaltazasync")]
     fn slew_to_alt_az_async(
         &mut self,
-        #[http(Azimuth)] azimuth: f64,
-        #[http(Altitude)] altitude: f64,
+        #[http("Azimuth")] azimuth: f64,
+        #[http("Altitude")] altitude: f64,
     );
 
     /// Move the telescope to the given equatorial coordinates, return when slew is complete
     #[http("slewtocoordinates")]
     fn slew_to_coordinates(
         &mut self,
-        #[http(RightAscension)] right_ascension: f64,
-        #[http(Declination)] declination: f64,
+        #[http("RightAscension")] right_ascension: f64,
+        #[http("Declination")] declination: f64,
     );
 
     /// Move the telescope to the given equatorial coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
     #[http("slewtocoordinatesasync")]
     fn slew_to_coordinates_async(
         &mut self,
-        #[http(RightAscension)] right_ascension: f64,
-        #[http(Declination)] declination: f64,
+        #[http("RightAscension")] right_ascension: f64,
+        #[http("Declination")] declination: f64,
     );
 
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete
@@ -1625,14 +1633,18 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Matches the scope's local horizontal coordinates to the given local horizontal coordinates.
     #[http("synctoaltaz")]
-    fn sync_to_alt_az(&mut self, #[http(Azimuth)] azimuth: f64, #[http(Altitude)] altitude: f64);
+    fn sync_to_alt_az(
+        &mut self,
+        #[http("Azimuth")] azimuth: f64,
+        #[http("Altitude")] altitude: f64,
+    );
 
     /// Matches the scope's equatorial coordinates to the given equatorial coordinates.
     #[http("synctocoordinates")]
     fn sync_to_coordinates(
         &mut self,
-        #[http(RightAscension)] right_ascension: f64,
-        #[http(Declination)] declination: f64,
+        #[http("RightAscension")] right_ascension: f64,
+        #[http("Declination")] declination: f64,
     );
 
     /// Matches the scope's equatorial coordinates to the TargetRightAscension and TargetDeclination equatorial coordinates.
