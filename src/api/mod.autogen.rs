@@ -71,6 +71,7 @@ pub use server_info::*;
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum CameraState {
     Idle = 0,
 
@@ -100,6 +101,7 @@ pub enum CameraState {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum ImageArrayType {
     Unknown = 0,
 
@@ -135,6 +137,7 @@ pub use image_array::*;
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum SensorType {
     /// Camera produces monochrome array with no Bayer encoding
     Monochrome = 0,
@@ -171,6 +174,7 @@ pub enum SensorType {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum PutPulseGuideDirection {
     North = 0,
 
@@ -197,6 +201,7 @@ pub enum PutPulseGuideDirection {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum CalibratorStatus {
     /// This device does not have a calibration capability.
     NotPresent = 0,
@@ -233,6 +238,7 @@ pub enum CalibratorStatus {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum CoverStatus {
     /// This device does not have a cover that can be closed independently.
     NotPresent = 0,
@@ -269,6 +275,7 @@ pub enum CoverStatus {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum DomeShutterStatus {
     Open = 0,
 
@@ -297,6 +304,7 @@ pub enum DomeShutterStatus {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum AlignmentMode {
     /// Altitude-Azimuth alignment.
     AltAz = 0,
@@ -324,6 +332,7 @@ pub enum AlignmentMode {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum EquatorialSystem {
     /// Custom or unknown equinox and/or reference frame.
     Other = 0,
@@ -357,6 +366,7 @@ pub enum EquatorialSystem {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum SideOfPier {
     /// Normal pointing state - Mount on the East side of pier (looking West).
     East = 0,
@@ -384,6 +394,7 @@ pub enum SideOfPier {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum DriveRate {
     /// 15.041 arcseconds per second
     Sidereal = 0,
@@ -414,6 +425,7 @@ pub enum DriveRate {
 #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+#[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum Axis {
     Primary = 0,
 

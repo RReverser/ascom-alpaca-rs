@@ -155,6 +155,7 @@ macro_rules! rpc_mod {
         }
         pub(crate) use internal::DeviceType;
 
+        #[allow(missing_docs)]
         #[derive(Clone, Debug)]
         pub enum TypedDevice {
             $(
@@ -308,6 +309,10 @@ macro_rules! rpc_mod {
             }
         }
 
+        /// Devices collection.
+        ///
+        /// This data structure holds devices of arbitrary categories (cameras, telescopes, etc.)
+        /// and allows to register and access them by their kind and index.
         #[allow(non_snake_case)]
         #[derive(Default)]
         pub struct Devices {
@@ -347,10 +352,16 @@ macro_rules! rpc_mod {
         }
 
         impl Devices {
+            /// Iterate over all devices of a given type.
             pub fn iter<DynTrait: ?Sized + $crate::api::devices_impl::RetrieavableDevice>(&self) -> impl '_ + Iterator<Item = std::sync::Arc<DynTrait>> {
                 DynTrait::get_storage(self).iter().map(std::sync::Arc::clone)
             }
 
+            /// Iterate over all registered devices.
+            ///
+            /// The second element of the tuple is the index of the device within its category
+            /// (not the whole collection).
+            //
             // TODO: make this IntoIterator (although the type is going to be ugly-looking).
             // The usize is returned as 2nd arg just to attract attention to it not being
             // a normal whole-iteration index.

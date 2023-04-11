@@ -1,3 +1,5 @@
+//! Discovery of Alpaca devices on the local network.
+
 use net_literals::ipv6;
 use serde::{Deserialize, Serialize};
 use std::net::{Ipv6Addr, SocketAddr};
@@ -42,7 +44,7 @@ async fn test_discovery() -> anyhow::Result<()> {
     use std::net::SocketAddr;
 
     tokio::select!(
-        result = DiscoveryServer::new(8378).start_server() => result,
+        result = DiscoveryServer::new(8378).start() => result,
         addrs = DiscoveryClient::new().discover_addrs().try_collect::<Vec<_>>() => {
             let addrs = addrs?;
             anyhow::ensure!(

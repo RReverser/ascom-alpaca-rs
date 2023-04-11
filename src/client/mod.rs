@@ -168,20 +168,24 @@ impl RawClient {
     }
 }
 
+/// Alpaca client.
 #[derive(Debug)]
 pub struct Client {
     inner: RawClient,
 }
 
 impl Client {
+    /// Create a new client with given server URL.
     pub fn new(base_url: impl IntoUrl) -> anyhow::Result<Self> {
         RawClient::new(base_url.into_url()?).map(|inner| Self { inner })
     }
 
+    /// Create a new client with given server address.
     pub fn new_from_addr(addr: impl Into<SocketAddr>) -> anyhow::Result<Self> {
         Self::new(format!("http://{}/", addr.into()))
     }
 
+    /// Get a list of all devices registered on the server.
     pub async fn get_devices(&self) -> anyhow::Result<impl Iterator<Item = TypedDevice>> {
         let api_client = self.inner.join_url("api/v1/")?;
 
@@ -217,6 +221,7 @@ impl Client {
             }))
     }
 
+    /// Get general server information.
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
         Ok(self
             .inner

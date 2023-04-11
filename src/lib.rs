@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 #![cfg_attr(
     all(doc, feature = "nightly"),
     feature(doc_auto_cfg, async_fn_in_trait),
@@ -22,7 +23,7 @@
     meta_variable_misuse,
     missing_copy_implementations,
     missing_debug_implementations,
-    // missing_docs,
+    missing_docs,
     // clippy::cargo,
     noop_method_call,
     single_use_lifetimes,

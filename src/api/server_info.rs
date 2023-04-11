@@ -12,12 +12,17 @@ pub(crate) struct ConfiguredDevice<DeviceType> {
     pub(crate) unique_id: String,
 }
 
+/// General information about the server.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ServerInfo {
+    /// Server name.
     pub server_name: String,
+    /// Manufacturer name.
     pub manufacturer: String,
+    /// Manufacturer version.
     pub manufacturer_version: String,
+    /// Server location.
     pub location: String,
 }
 

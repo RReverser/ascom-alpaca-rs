@@ -34,11 +34,16 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
 
+/// The Alpaca server.
 #[derive(Debug)]
 pub struct Server {
+    /// Registered devices.
     pub devices: Devices,
+    /// General server information.
     pub info: ServerInfo,
+    /// Address for the server to listen on.
     pub listen_addr: SocketAddr,
+    /// Port for the discovery server to listen on.
     pub discovery_port: u16,
 }
 
@@ -109,7 +114,13 @@ impl ServerHandler {
 }
 
 impl Server {
-    pub async fn start_server(self) -> anyhow::Result<()> {
+    /// Starts the Alpaca and discovery servers.
+    ///
+    /// The discovery server will be started only after the Alpaca server is bound to a port successfully.
+    ///
+    /// Note: this function starts an infinite async loop and it's your responsibility to spawn it off
+    /// via [`tokio::spawn`] if necessary.
+    pub async fn start(self) -> anyhow::Result<()> {
         let mut addr = self.listen_addr;
 
         tracing::debug!(%addr, "Binding Alpaca server");
@@ -130,13 +141,13 @@ impl Server {
         // Start the discovery server only once we ensured that the Alpaca server is bound to a port successfully.
         tokio::try_join!(
             server.map_err(Into::into),
-            DiscoveryServer::new(addr.port()).start_server()
+            DiscoveryServer::new(addr.port()).start()
         )?;
 
         Ok(())
     }
 
-    pub fn into_router(self) -> Router {
+    fn into_router(self) -> Router {
         let devices = Arc::new(self.devices);
         let server_info = Arc::new(self.info);
 

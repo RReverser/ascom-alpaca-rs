@@ -11,21 +11,32 @@ use ndarray::{Array3, Axis};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::num::NonZeroU32;
 
+/// Rank of an image array.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum ImageArrayRank {
+    /// 2D
     Rank2 = 2,
+    /// 3D
     Rank3 = 3,
 }
 
+/// Image array.
+///
+/// Image is represented as a 3D array regardless of its actual rank.
+/// If the image is a 2D image, the third dimension will have length 1.
+///
+/// You can retrieve rank as an enum via the [`ImageArray::rank`] method.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ImageArray {
+    /// Image data.
     pub data: Array3<i32>,
 }
 
 const COLOUR_AXIS: Axis = Axis(2);
 
 impl ImageArray {
+    /// Retrieve actual rank of the image.
     pub fn rank(&self) -> ImageArrayRank {
         match self.data.len_of(COLOUR_AXIS) {
             1 => ImageArrayRank::Rank2,

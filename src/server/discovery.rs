@@ -1,6 +1,7 @@
 use super::DEFAULT_DISCOVERY_PORT;
 use crate::discovery::{bind_socket, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
 
+/// Alpaca discovery server.
 #[derive(Debug, Clone, Copy)]
 pub struct Server {
     /// Port of the running server.
@@ -21,8 +22,11 @@ impl Server {
     }
 
     /// Starts a discovery server on the local network.
+    ///
+    /// Note: this function starts an infinite async loop and it's your responsibility
+    /// to spawn it off via [`tokio::spawn`] if necessary.
     #[tracing::instrument(err)]
-    pub async fn start_server(self) -> anyhow::Result<()> {
+    pub async fn start(self) -> anyhow::Result<()> {
         tracing::debug!("Starting Alpaca discovery server");
         let response_msg = serde_json::to_string(&AlpacaPort {
             alpaca_port: self.alpaca_port,

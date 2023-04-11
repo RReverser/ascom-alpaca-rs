@@ -19,10 +19,16 @@ pub trait RegistrableDevice<DynTrait: ?Sized> {
 }
 
 impl Devices {
+    /// Register a device in the storage.
+    ///
+    /// `device` can be an instance of any of the category traits (`Camera`, `Telescope`, etc.).
     pub fn register<DynTrait: ?Sized>(&mut self, device: impl RegistrableDevice<DynTrait>) {
         device.add_to(self);
     }
 
+    /// Retrieve a device by its category trait and an index within that category.
+    ///
+    /// Example: `devices.get::<dyn Camera>(0)` returns the first camera in the storage.
     pub fn get<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
         device_number: usize,

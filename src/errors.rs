@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use thiserror::Error;
 
+/// Alpaca representation of an ASCOM error code.
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ASCOMErrorCode(u16);
@@ -58,16 +59,20 @@ impl ASCOMErrorCode {
     }
 }
 
+/// ASCOM error.
 #[derive(Debug, Clone, Serialize, Deserialize, Error)]
 #[error("ASCOM error {code}: {message}")]
 pub struct ASCOMError {
+    /// Error number.
     #[serde(rename = "ErrorNumber")]
     pub code: ASCOMErrorCode,
+    /// Error message.
     #[serde(rename = "ErrorMessage")]
     pub message: Cow<'static, str>,
 }
 
 impl ASCOMError {
+    /// Create a new `ASCOMError` from given error code and a message.
     pub fn new(code: ASCOMErrorCode, message: impl Into<Cow<'static, str>>) -> Self {
         Self {
             code,
@@ -76,72 +81,73 @@ impl ASCOMError {
     }
 }
 
+/// Result type for ASCOM methods.
 pub type ASCOMResult<T = ()> = Result<T, ASCOMError>;
 
 macro_rules! ascom_error_codes {
-  ($(#[doc = $doc:literal] $name:ident = $value:literal,)*) => {
-    impl ASCOMErrorCode {
-      $(
-        #[doc = $doc]
-        pub const $name: Self = Self($value);
-      )*
-    }
-
-    impl std::fmt::Debug for ASCOMErrorCode {
-      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-          $(
-            Self::$name => write!(f, "{}", stringify!($name)),
-          )*
-          _ => match self.as_driver_error() {
-            Ok(driver_code) => write!(f, "DRIVER_ERROR[{driver_code}]"),
-            Err(raw_code) => write!(f, "{raw_code:#X}"),
-          },
+    ($(#[doc = $doc:literal] $name:ident = $value:literal,)*) => {
+        impl ASCOMErrorCode {
+            $(
+                #[doc = $doc]
+                pub const $name: Self = Self($value);
+            )*
         }
-      }
-    }
 
-    impl std::fmt::Display for ASCOMErrorCode {
-      fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
-      }
-    }
+        impl std::fmt::Debug for ASCOMErrorCode {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match *self {
+                    $(
+                        Self::$name => write!(f, "{}", stringify!($name)),
+                    )*
+                    _ => match self.as_driver_error() {
+                        Ok(driver_code) => write!(f, "DRIVER_ERROR[{driver_code}]"),
+                        Err(raw_code) => write!(f, "{raw_code:#X}"),
+                    },
+                }
+            }
+        }
 
-    impl ASCOMError {
-      $(
-        #[doc = $doc]
-        pub const $name: Self = Self {
-          code: ASCOMErrorCode::$name,
-          message: Cow::Borrowed($doc),
-        };
-      )*
-    }
-  };
+        impl std::fmt::Display for ASCOMErrorCode {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Debug::fmt(self, f)
+            }
+        }
+
+        impl ASCOMError {
+            $(
+                #[doc = $doc]
+                pub const $name: Self = Self {
+                    code: ASCOMErrorCode::$name,
+                    message: Cow::Borrowed($doc),
+                };
+            )*
+        }
+    };
 }
 
 ascom_error_codes! {
-  #[doc = ""]
-  OK = 0,
-  #[doc = "The requested action is not implemented in this driver."]
-  ACTION_NOT_IMPLEMENTED = 0x40C,
-  #[doc = "The requested operation can not be undertaken at this time."]
-  INVALID_OPERATION = 0x40B,
-  #[doc = "Invalid value."]
-  INVALID_VALUE = 0x401,
-  #[doc = "The attempted operation is invalid because the mount is currently in a Parked state."]
-  INVALID_WHILE_PARKED = 0x408,
-  #[doc = "The attempted operation is invalid because the mount is currently in a Slaved state."]
-  INVALID_WHILE_SLAVED = 0x409,
-  #[doc = "The communications channel is not connected."]
-  NOT_CONNECTED = 0x407,
-  #[doc = "Property or method not implemented."]
-  NOT_IMPLEMENTED = 0x400,
-  #[doc = "The requested item is not present in the ASCOM cache."]
-  NOT_IN_CACHE = 0x40D,
-  #[doc = "Settings error."]
-  SETTINGS = 0x40A,
-  #[doc = "'catch-all' error code used when nothing else was specified."]
-  UNSPECIFIED = 0x4FF,
-  #[doc = "A value has not been set."]
-  VALUE_NOT_SET = 0x402,
+    #[doc = ""]
+    OK = 0,
+    #[doc = "The requested action is not implemented in this driver."]
+    ACTION_NOT_IMPLEMENTED = 0x40C,
+    #[doc = "The requested operation can not be undertaken at this time."]
+    INVALID_OPERATION = 0x40B,
+    #[doc = "Invalid value."]
+    INVALID_VALUE = 0x401,
+    #[doc = "The attempted operation is invalid because the mount is currently in a Parked state."]
+    INVALID_WHILE_PARKED = 0x408,
+    #[doc = "The attempted operation is invalid because the mount is currently in a Slaved state."]
+    INVALID_WHILE_SLAVED = 0x409,
+    #[doc = "The communications channel is not connected."]
+    NOT_CONNECTED = 0x407,
+    #[doc = "Property or method not implemented."]
+    NOT_IMPLEMENTED = 0x400,
+    #[doc = "The requested item is not present in the ASCOM cache."]
+    NOT_IN_CACHE = 0x40D,
+    #[doc = "Settings error."]
+    SETTINGS = 0x40A,
+    #[doc = "'catch-all' error code used when nothing else was specified."]
+    UNSPECIFIED = 0x4FF,
+    #[doc = "A value has not been set."]
+    VALUE_NOT_SET = 0x402,
 }

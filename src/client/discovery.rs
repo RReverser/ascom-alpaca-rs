@@ -4,6 +4,7 @@ use crate::discovery::{
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
+/// Discovery client.
 #[derive(Debug, Clone, Copy)]
 pub struct Client {
     /// Number of discovery requests to send.
