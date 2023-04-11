@@ -462,63 +462,59 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 
     This method should return an error message and NotImplementedException error number (0x400) if the driver just implements the standard ASCOM device methods and has no bespoke, unique, functionality.
     */
-    #[http("action", via = ValueResponse)]
+    #[http("action", method = Put, via = ValueResponse)]
     fn action(
-        &mut self,
+        &self,
         #[http("Action")] action: String,
         #[http("Parameters")] parameters: String,
     ) -> String;
 
     /// Transmits an arbitrary string to the device and does not wait for a response. Optionally, protocol framing characters may be added to the string before transmission.
-    #[http("commandblind")]
-    fn command_blind(&mut self, #[http("Command")] command: String, #[http("Raw")] raw: String);
+    #[http("commandblind", method = Put)]
+    fn command_blind(&self, #[http("Command")] command: String, #[http("Raw")] raw: String);
 
     /// Transmits an arbitrary string to the device and waits for a boolean response. Optionally, protocol framing characters may be added to the string before transmission.
-    #[http("commandbool", via = ValueResponse)]
-    fn command_bool(
-        &mut self,
-        #[http("Command")] command: String,
-        #[http("Raw")] raw: String,
-    ) -> bool;
+    #[http("commandbool", method = Put, via = ValueResponse)]
+    fn command_bool(&self, #[http("Command")] command: String, #[http("Raw")] raw: String) -> bool;
 
     /// Transmits an arbitrary string to the device and waits for a string response. Optionally, protocol framing characters may be added to the string before transmission.
-    #[http("commandstring", via = ValueResponse)]
+    #[http("commandstring", method = Put, via = ValueResponse)]
     fn command_string(
-        &mut self,
+        &self,
         #[http("Command")] command: String,
         #[http("Raw")] raw: String,
     ) -> String;
 
     /// Retrieves the connected state of the device
-    #[http("connected", via = ValueResponse)]
+    #[http("connected", method = Get, via = ValueResponse)]
     fn connected(&self) -> bool;
 
     /// Sets the connected state of the device
-    #[http("connected")]
-    fn set_connected(&mut self, #[http("Connected")] connected: bool);
+    #[http("connected", method = Put)]
+    fn set_connected(&self, #[http("Connected")] connected: bool);
 
     /// The description of the device
-    #[http("description", via = ValueResponse)]
+    #[http("description", method = Get, via = ValueResponse)]
     fn description(&self) -> String;
 
     /// The description of the driver
-    #[http("driverinfo", via = ValueResponse)]
+    #[http("driverinfo", method = Get, via = ValueResponse)]
     fn driver_info(&self) -> String;
 
     /// A string containing only the major and minor version of the driver.
-    #[http("driverversion", via = ValueResponse)]
+    #[http("driverversion", method = Get, via = ValueResponse)]
     fn driver_version(&self) -> String;
 
     /// This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support previous versions as well as the current version to ensure thay can use the largest number of devices.
-    #[http("interfaceversion", via = ValueResponse)]
+    #[http("interfaceversion", method = Get, via = ValueResponse)]
     fn interface_version(&self) -> i32;
 
     /// The name of the device
-    #[http("name", via = ValueResponse)]
+    #[http("name", method = Get, via = ValueResponse)]
     fn name(&self) -> String;
 
     /// Returns the list of action names supported by this driver.
-    #[http("supportedactions", via = ValueResponse)]
+    #[http("supportedactions", method = Get, via = ValueResponse)]
     fn supported_actions(&self) -> Vec<String>;
 }
 
@@ -527,139 +523,139 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 #[apply(rpc_trait)]
 pub trait Camera: Device + Send + Sync {
     /// Returns the X offset of the Bayer matrix, as defined in SensorType.
-    #[http("bayeroffsetx", via = ValueResponse)]
+    #[http("bayeroffsetx", method = Get, via = ValueResponse)]
     fn bayer_offset_x(&self) -> i32;
 
     /// Returns the Y offset of the Bayer matrix, as defined in SensorType.
-    #[http("bayeroffsety", via = ValueResponse)]
+    #[http("bayeroffsety", method = Get, via = ValueResponse)]
     fn bayer_offset_y(&self) -> i32;
 
     /// Returns the binning factor for the X axis.
-    #[http("binx", via = ValueResponse)]
+    #[http("binx", method = Get, via = ValueResponse)]
     fn bin_x(&self) -> i32;
 
     /// Sets the binning factor for the X axis.
-    #[http("binx")]
-    fn set_bin_x(&mut self, #[http("BinX")] bin_x: i32);
+    #[http("binx", method = Put)]
+    fn set_bin_x(&self, #[http("BinX")] bin_x: i32);
 
     /// Returns the binning factor for the Y axis.
-    #[http("biny", via = ValueResponse)]
+    #[http("biny", method = Get, via = ValueResponse)]
     fn bin_y(&self) -> i32;
 
     /// Sets the binning factor for the Y axis.
-    #[http("biny")]
-    fn set_bin_y(&mut self, #[http("BinY")] bin_y: i32);
+    #[http("biny", method = Put)]
+    fn set_bin_y(&self, #[http("BinY")] bin_y: i32);
 
     /// Returns the current camera operational state.
-    #[http("camerastate", via = ValueResponse)]
+    #[http("camerastate", method = Get, via = ValueResponse)]
     fn camera_state(&self) -> CameraState;
 
     /// Returns the width of the CCD camera chip in unbinned pixels.
-    #[http("cameraxsize", via = ValueResponse)]
+    #[http("cameraxsize", method = Get, via = ValueResponse)]
     fn camera_xsize(&self) -> i32;
 
     /// Returns the height of the CCD camera chip in unbinned pixels.
-    #[http("cameraysize", via = ValueResponse)]
+    #[http("cameraysize", method = Get, via = ValueResponse)]
     fn camera_ysize(&self) -> i32;
 
     /// Returns true if the camera can abort exposures; false if not.
-    #[http("canabortexposure", via = ValueResponse)]
+    #[http("canabortexposure", method = Get, via = ValueResponse)]
     fn can_abort_exposure(&self) -> bool;
 
     /// Returns a flag showing whether this camera supports asymmetric binning
-    #[http("canasymmetricbin", via = ValueResponse)]
+    #[http("canasymmetricbin", method = Get, via = ValueResponse)]
     fn can_asymmetric_bin(&self) -> bool;
 
     /// Indicates whether the camera has a fast readout mode.
-    #[http("canfastreadout", via = ValueResponse)]
+    #[http("canfastreadout", method = Get, via = ValueResponse)]
     fn can_fast_readout(&self) -> bool;
 
     /// If true, the camera's cooler power setting can be read.
-    #[http("cangetcoolerpower", via = ValueResponse)]
+    #[http("cangetcoolerpower", method = Get, via = ValueResponse)]
     fn can_get_cooler_power(&self) -> bool;
 
     /// Returns a flag indicating whether this camera supports pulse guiding.
-    #[http("canpulseguide", via = ValueResponse)]
+    #[http("canpulseguide", method = Get, via = ValueResponse)]
     fn can_pulse_guide(&self) -> bool;
 
     /// Returns a flag indicatig whether this camera supports setting the CCD temperature
-    #[http("cansetccdtemperature", via = ValueResponse)]
+    #[http("cansetccdtemperature", method = Get, via = ValueResponse)]
     fn can_set_ccd_temperature(&self) -> bool;
 
     /// Returns a flag indicating whether this camera can stop an exposure that is in progress
-    #[http("canstopexposure", via = ValueResponse)]
+    #[http("canstopexposure", method = Get, via = ValueResponse)]
     fn can_stop_exposure(&self) -> bool;
 
     /// Returns the current CCD temperature in degrees Celsius.
-    #[http("ccdtemperature", via = ValueResponse)]
+    #[http("ccdtemperature", method = Get, via = ValueResponse)]
     fn ccd_temperature(&self) -> f64;
 
     /// Returns the current cooler on/off state.
-    #[http("cooleron", via = ValueResponse)]
+    #[http("cooleron", method = Get, via = ValueResponse)]
     fn cooler_on(&self) -> bool;
 
     /// Turns on and off the camera cooler. True = cooler on, False = cooler off
-    #[http("cooleron")]
-    fn set_cooler_on(&mut self, #[http("CoolerOn")] cooler_on: bool);
+    #[http("cooleron", method = Put)]
+    fn set_cooler_on(&self, #[http("CoolerOn")] cooler_on: bool);
 
     /// Returns the present cooler power level, in percent.
-    #[http("coolerpower", via = ValueResponse)]
+    #[http("coolerpower", method = Get, via = ValueResponse)]
     fn cooler_power(&self) -> f64;
 
     /// Returns the gain of the camera in photoelectrons per A/D unit.
-    #[http("electronsperadu", via = ValueResponse)]
+    #[http("electronsperadu", method = Get, via = ValueResponse)]
     fn electrons_per_adu(&self) -> f64;
 
     /// Returns the maximum exposure time supported by StartExposure.
-    #[http("exposuremax", via = ValueResponse)]
+    #[http("exposuremax", method = Get, via = ValueResponse)]
     fn exposure_max(&self) -> f64;
 
     /// Returns the Minimium exposure time in seconds that the camera supports through StartExposure.
-    #[http("exposuremin", via = ValueResponse)]
+    #[http("exposuremin", method = Get, via = ValueResponse)]
     fn exposure_min(&self) -> f64;
 
     /// Returns the smallest increment in exposure time supported by StartExposure.
-    #[http("exposureresolution", via = ValueResponse)]
+    #[http("exposureresolution", method = Get, via = ValueResponse)]
     fn exposure_resolution(&self) -> f64;
 
     /// Returns whenther Fast Readout Mode is enabled.
-    #[http("fastreadout", via = ValueResponse)]
+    #[http("fastreadout", method = Get, via = ValueResponse)]
     fn fast_readout(&self) -> bool;
 
     /// Sets whether Fast Readout Mode is enabled.
-    #[http("fastreadout")]
-    fn set_fast_readout(&mut self, #[http("FastReadout")] fast_readout: bool);
+    #[http("fastreadout", method = Put)]
+    fn set_fast_readout(&self, #[http("FastReadout")] fast_readout: bool);
 
     /// Reports the full well capacity of the camera in electrons, at the current camera settings (binning, SetupDialog settings, etc.).
-    #[http("fullwellcapacity", via = ValueResponse)]
+    #[http("fullwellcapacity", method = Get, via = ValueResponse)]
     fn full_well_capacity(&self) -> f64;
 
     /// The camera's gain (GAIN VALUE MODE) OR the index of the selected camera gain description in the Gains array (GAINS INDEX MODE).
-    #[http("gain", via = ValueResponse)]
+    #[http("gain", method = Get, via = ValueResponse)]
     fn gain(&self) -> i32;
 
     /// The camera's gain (GAIN VALUE MODE) OR the index of the selected camera gain description in the Gains array (GAINS INDEX MODE).
-    #[http("gain")]
-    fn set_gain(&mut self, #[http("Gain")] gain: i32);
+    #[http("gain", method = Put)]
+    fn set_gain(&self, #[http("Gain")] gain: i32);
 
     /// Returns the maximum value of Gain.
-    #[http("gainmax", via = ValueResponse)]
+    #[http("gainmax", method = Get, via = ValueResponse)]
     fn gain_max(&self) -> i32;
 
     /// Returns the Minimum value of Gain.
-    #[http("gainmin", via = ValueResponse)]
+    #[http("gainmin", method = Get, via = ValueResponse)]
     fn gain_min(&self) -> i32;
 
     /// Returns the Gains supported by the camera.
-    #[http("gains", via = ValueResponse)]
+    #[http("gains", method = Get, via = ValueResponse)]
     fn gains(&self) -> Vec<String>;
 
     /// Returns a flag indicating whether this camera has a mechanical shutter.
-    #[http("hasshutter", via = ValueResponse)]
+    #[http("hasshutter", method = Get, via = ValueResponse)]
     fn has_shutter(&self) -> bool;
 
     /// Returns the current heat sink temperature (called "ambient temperature" by some manufacturers) in degrees Celsius.
-    #[http("heatsinktemperature", via = ValueResponse)]
+    #[http("heatsinktemperature", method = Get, via = ValueResponse)]
     fn heat_sink_temperature(&self) -> f64;
 
     /**
@@ -719,159 +715,156 @@ pub trait Camera: Device + Send + Sync {
 
     Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
     */
-    #[http("imagearray")]
+    #[http("imagearray", method = Get)]
     fn image_array(&self) -> ImageArray;
 
     /// Returns a flag indicating whether the image is ready to be downloaded from the camera.
-    #[http("imageready", via = ValueResponse)]
+    #[http("imageready", method = Get, via = ValueResponse)]
     fn image_ready(&self) -> bool;
 
     /// Returns a flag indicating whether the camera is currrently in a PulseGuide operation.
-    #[http("ispulseguiding", via = ValueResponse)]
+    #[http("ispulseguiding", method = Get, via = ValueResponse)]
     fn is_pulse_guiding(&self) -> bool;
 
     /// Reports the actual exposure duration in seconds (i.e. shutter open time).
-    #[http("lastexposureduration", via = ValueResponse)]
+    #[http("lastexposureduration", method = Get, via = ValueResponse)]
     fn last_exposure_duration(&self) -> f64;
 
     /// Reports the actual exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
-    #[http("lastexposurestarttime", via = ValueResponse)]
+    #[http("lastexposurestarttime", method = Get, via = ValueResponse)]
     fn last_exposure_start_time(&self) -> String;
 
     /// Reports the maximum ADU value the camera can produce.
-    #[http("maxadu", via = ValueResponse)]
+    #[http("maxadu", method = Get, via = ValueResponse)]
     fn max_adu(&self) -> i32;
 
     /// Returns the maximum allowed binning for the X camera axis
-    #[http("maxbinx", via = ValueResponse)]
+    #[http("maxbinx", method = Get, via = ValueResponse)]
     fn max_bin_x(&self) -> i32;
 
     /// Returns the maximum allowed binning for the Y camera axis
-    #[http("maxbiny", via = ValueResponse)]
+    #[http("maxbiny", method = Get, via = ValueResponse)]
     fn max_bin_y(&self) -> i32;
 
     /// Returns the current subframe width, if binning is active, value is in binned pixels.
-    #[http("numx", via = ValueResponse)]
+    #[http("numx", method = Get, via = ValueResponse)]
     fn num_x(&self) -> i32;
 
     /// Sets the current subframe width.
-    #[http("numx")]
-    fn set_num_x(&mut self, #[http("NumX")] num_x: i32);
+    #[http("numx", method = Put)]
+    fn set_num_x(&self, #[http("NumX")] num_x: i32);
 
     /// Returns the current subframe height, if binning is active, value is in binned pixels.
-    #[http("numy", via = ValueResponse)]
+    #[http("numy", method = Get, via = ValueResponse)]
     fn num_y(&self) -> i32;
 
     /// Sets the current subframe height.
-    #[http("numy")]
-    fn set_num_y(&mut self, #[http("NumY")] num_y: i32);
+    #[http("numy", method = Put)]
+    fn set_num_y(&self, #[http("NumY")] num_y: i32);
 
     /// Returns the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
-    #[http("offset", via = ValueResponse)]
+    #[http("offset", method = Get, via = ValueResponse)]
     fn offset(&self) -> i32;
 
     /// Sets the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
-    #[http("offset")]
-    fn set_offset(&mut self, #[http("Offset")] offset: i32);
+    #[http("offset", method = Put)]
+    fn set_offset(&self, #[http("Offset")] offset: i32);
 
     /// Returns the maximum value of offset.
-    #[http("offsetmax", via = ValueResponse)]
+    #[http("offsetmax", method = Get, via = ValueResponse)]
     fn offset_max(&self) -> i32;
 
     /// Returns the Minimum value of offset.
-    #[http("offsetmin", via = ValueResponse)]
+    #[http("offsetmin", method = Get, via = ValueResponse)]
     fn offset_min(&self) -> i32;
 
     /// Returns the offsets supported by the camera.
-    #[http("offsets", via = ValueResponse)]
+    #[http("offsets", method = Get, via = ValueResponse)]
     fn offsets(&self) -> Vec<String>;
 
     /// Returns the percentage of the current operation that is complete. If valid, returns an integer between 0 and 100, where 0 indicates 0% progress (function just started) and 100 indicates 100% progress (i.e. completion).
-    #[http("percentcompleted", via = ValueResponse)]
+    #[http("percentcompleted", method = Get, via = ValueResponse)]
     fn percent_completed(&self) -> i32;
 
     /// Returns the width of the CCD chip pixels in microns.
-    #[http("pixelsizex", via = ValueResponse)]
+    #[http("pixelsizex", method = Get, via = ValueResponse)]
     fn pixel_size_x(&self) -> f64;
 
     /// Returns the Height of the CCD chip pixels in microns.
-    #[http("pixelsizey", via = ValueResponse)]
+    #[http("pixelsizey", method = Get, via = ValueResponse)]
     fn pixel_size_y(&self) -> f64;
 
     /// ReadoutMode is an index into the array ReadoutModes and returns the desired readout mode for the camera. Defaults to 0 if not set.
-    #[http("readoutmode", via = ValueResponse)]
+    #[http("readoutmode", method = Get, via = ValueResponse)]
     fn readout_mode(&self) -> i32;
 
     /// Sets the ReadoutMode as an index into the array ReadoutModes.
-    #[http("readoutmode")]
-    fn set_readout_mode(&mut self, #[http("ReadoutMode")] readout_mode: i32);
+    #[http("readoutmode", method = Put)]
+    fn set_readout_mode(&self, #[http("ReadoutMode")] readout_mode: i32);
 
     /// This property provides an array of strings, each of which describes an available readout mode of the camera. At least one string must be present in the list.
-    #[http("readoutmodes", via = ValueResponse)]
+    #[http("readoutmodes", method = Get, via = ValueResponse)]
     fn readout_modes(&self) -> Vec<String>;
 
     /// The name of the sensor used within the camera.
-    #[http("sensorname", via = ValueResponse)]
+    #[http("sensorname", method = Get, via = ValueResponse)]
     fn sensor_name(&self) -> String;
 
     /// Returns a value indicating whether the sensor is monochrome, or what Bayer matrix it encodes.
-    #[http("sensortype", via = ValueResponse)]
+    #[http("sensortype", method = Get, via = ValueResponse)]
     fn sensor_type(&self) -> SensorType;
 
     /// Returns the current camera cooler setpoint in degrees Celsius.
-    #[http("setccdtemperature", via = ValueResponse)]
+    #[http("setccdtemperature", method = Get, via = ValueResponse)]
     fn set_ccd_temperature(&self) -> f64;
 
     /// Set's the camera's cooler setpoint in degrees Celsius.
-    #[http("setccdtemperature")]
-    fn set_set_ccd_temperature(&mut self, #[http("SetCCDTemperature")] set_ccd_temperature: f64);
+    #[http("setccdtemperature", method = Put)]
+    fn set_set_ccd_temperature(&self, #[http("SetCCDTemperature")] set_ccd_temperature: f64);
 
     /// Sets the subframe start position for the X axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
-    #[http("startx", via = ValueResponse)]
+    #[http("startx", method = Get, via = ValueResponse)]
     fn start_x(&self) -> i32;
 
     /// Sets the current subframe X axis start position in binned pixels.
-    #[http("startx")]
-    fn set_start_x(&mut self, #[http("StartX")] start_x: i32);
+    #[http("startx", method = Put)]
+    fn set_start_x(&self, #[http("StartX")] start_x: i32);
 
     /// Sets the subframe start position for the Y axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
-    #[http("starty", via = ValueResponse)]
+    #[http("starty", method = Get, via = ValueResponse)]
     fn start_y(&self) -> i32;
 
     /// Sets the current subframe Y axis start position in binned pixels.
-    #[http("starty")]
-    fn set_start_y(&mut self, #[http("StartY")] start_y: i32);
+    #[http("starty", method = Put)]
+    fn set_start_y(&self, #[http("StartY")] start_y: i32);
 
     /// The Camera's sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
-    #[http("subexposureduration", via = ValueResponse)]
+    #[http("subexposureduration", method = Get, via = ValueResponse)]
     fn sub_exposure_duration(&self) -> f64;
 
     /// Sets image sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
-    #[http("subexposureduration")]
-    fn set_sub_exposure_duration(
-        &mut self,
-        #[http("SubExposureDuration")] sub_exposure_duration: f64,
-    );
+    #[http("subexposureduration", method = Put)]
+    fn set_sub_exposure_duration(&self, #[http("SubExposureDuration")] sub_exposure_duration: f64);
 
     /// Aborts the current exposure, if any, and returns the camera to Idle state.
-    #[http("abortexposure")]
-    fn abort_exposure(&mut self);
+    #[http("abortexposure", method = Put)]
+    fn abort_exposure(&self);
 
     /// Activates the Camera's mount control sytem to instruct the mount to move in a particular direction for a given period of time
-    #[http("pulseguide")]
+    #[http("pulseguide", method = Put)]
     fn pulse_guide(
-        &mut self,
+        &self,
         #[http("Direction")] direction: PutPulseGuideDirection,
         #[http("Duration")] duration: i32,
     );
 
     /// Starts an exposure. Use ImageReady to check when the exposure is complete.
-    #[http("startexposure")]
-    fn start_exposure(&mut self, #[http("Duration")] duration: f64, #[http("Light")] light: bool);
+    #[http("startexposure", method = Put)]
+    fn start_exposure(&self, #[http("Duration")] duration: f64, #[http("Light")] light: bool);
 
     /// Stops the current exposure, if any. If an exposure is in progress, the readout process is initiated. Ignored if readout is already in process.
-    #[http("stopexposure")]
-    fn stop_exposure(&mut self);
+    #[http("stopexposure", method = Put)]
+    fn stop_exposure(&self);
 }
 
 /// CoverCalibrator Specific Methods
@@ -879,40 +872,40 @@ pub trait Camera: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait CoverCalibrator: Device + Send + Sync {
     /// Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on)
-    #[http("brightness", via = ValueResponse)]
+    #[http("brightness", method = Get, via = ValueResponse)]
     fn brightness(&self) -> i32;
 
     /// Returns the state of the calibration device, if present, otherwise returns "NotPresent". The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
-    #[http("calibratorstate", via = ValueResponse)]
+    #[http("calibratorstate", method = Get, via = ValueResponse)]
     fn calibrator_state(&self) -> CalibratorStatus;
 
     /// Returns the state of the device cover, if present, otherwise returns "NotPresent". The cover state mode is specified as an integer value from the CoverStatus Enum.
-    #[http("coverstate", via = ValueResponse)]
+    #[http("coverstate", method = Get, via = ValueResponse)]
     fn cover_state(&self) -> CoverStatus;
 
     /// The Brightness value that makes the calibrator deliver its maximum illumination.
-    #[http("maxbrightness", via = ValueResponse)]
+    #[http("maxbrightness", method = Get, via = ValueResponse)]
     fn max_brightness(&self) -> i32;
 
     /// Turns the calibrator off if the device has calibration capability.
-    #[http("calibratoroff")]
-    fn calibrator_off(&mut self);
+    #[http("calibratoroff", method = Put)]
+    fn calibrator_off(&self);
 
     /// Turns the calibrator on at the specified brightness if the device has calibration capability.
-    #[http("calibratoron")]
-    fn calibrator_on(&mut self, #[http("Brightness")] brightness: i32);
+    #[http("calibratoron", method = Put)]
+    fn calibrator_on(&self, #[http("Brightness")] brightness: i32);
 
     /// Initiates cover closing if a cover is present.
-    #[http("closecover")]
-    fn close_cover(&mut self);
+    #[http("closecover", method = Put)]
+    fn close_cover(&self);
 
     /// Stops any cover movement that may be in progress if a cover is present and cover movement can be interrupted.
-    #[http("haltcover")]
-    fn halt_cover(&mut self);
+    #[http("haltcover", method = Put)]
+    fn halt_cover(&self);
 
     /// Initiates cover opening if a cover is present.
-    #[http("opencover")]
-    fn open_cover(&mut self);
+    #[http("opencover", method = Put)]
+    fn open_cover(&self);
 }
 
 /// Dome Specific Methods
@@ -920,104 +913,104 @@ pub trait CoverCalibrator: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait Dome: Device + Send + Sync {
     /// The dome altitude (degrees, horizon zero and increasing positive to 90 zenith).
-    #[http("altitude", via = ValueResponse)]
+    #[http("altitude", method = Get, via = ValueResponse)]
     fn altitude(&self) -> f64;
 
     /// Indicates whether the dome is in the home position. This is normally used following a FindHome()  operation. The value is reset with any azimuth slew operation that moves the dome away from the home position. AtHome may also become true durng normal slew operations, if the dome passes through the home position and the dome controller hardware is capable of detecting that; or at the end of a slew operation if the dome comes to rest at the home position.
-    #[http("athome", via = ValueResponse)]
+    #[http("athome", method = Get, via = ValueResponse)]
     fn at_home(&self) -> bool;
 
     /// True if the dome is in the programmed park position. Set only following a Park() operation and reset with any slew operation.
-    #[http("atpark", via = ValueResponse)]
+    #[http("atpark", method = Get, via = ValueResponse)]
     fn at_park(&self) -> bool;
 
     /// Returns the dome azimuth (degrees, North zero and increasing clockwise, i.e., 90 East, 180 South, 270 West)
-    #[http("azimuth", via = ValueResponse)]
+    #[http("azimuth", method = Get, via = ValueResponse)]
     fn azimuth(&self) -> f64;
 
     /// True if the dome can move to the home position.
-    #[http("canfindhome", via = ValueResponse)]
+    #[http("canfindhome", method = Get, via = ValueResponse)]
     fn can_find_home(&self) -> bool;
 
     /// True if the dome is capable of programmed parking (Park() method)
-    #[http("canpark", via = ValueResponse)]
+    #[http("canpark", method = Get, via = ValueResponse)]
     fn can_park(&self) -> bool;
 
     /// True if driver is capable of setting the dome altitude.
-    #[http("cansetaltitude", via = ValueResponse)]
+    #[http("cansetaltitude", method = Get, via = ValueResponse)]
     fn can_set_altitude(&self) -> bool;
 
     /// True if driver is capable of setting the dome azimuth.
-    #[http("cansetazimuth", via = ValueResponse)]
+    #[http("cansetazimuth", method = Get, via = ValueResponse)]
     fn can_set_azimuth(&self) -> bool;
 
     /// True if driver is capable of setting the dome park position.
-    #[http("cansetpark", via = ValueResponse)]
+    #[http("cansetpark", method = Get, via = ValueResponse)]
     fn can_set_park(&self) -> bool;
 
     /// True if driver is capable of automatically operating shutter
-    #[http("cansetshutter", via = ValueResponse)]
+    #[http("cansetshutter", method = Get, via = ValueResponse)]
     fn can_set_shutter(&self) -> bool;
 
     /// True if driver is capable of slaving to a telescope.
-    #[http("canslave", via = ValueResponse)]
+    #[http("canslave", method = Get, via = ValueResponse)]
     fn can_slave(&self) -> bool;
 
     /// True if driver is capable of synchronizing the dome azimuth position using the SyncToAzimuth(Double) method.
-    #[http("cansyncazimuth", via = ValueResponse)]
+    #[http("cansyncazimuth", method = Get, via = ValueResponse)]
     fn can_sync_azimuth(&self) -> bool;
 
     /// Returns the status of the dome shutter or roll-off roof.
-    #[http("shutterstatus", via = ValueResponse)]
+    #[http("shutterstatus", method = Get, via = ValueResponse)]
     fn shutter_status(&self) -> DomeShutterStatus;
 
     /// True if the dome is slaved to the telescope in its hardware, else False.
-    #[http("slaved", via = ValueResponse)]
+    #[http("slaved", method = Get, via = ValueResponse)]
     fn slaved(&self) -> bool;
 
     /// Sets the current subframe height.
-    #[http("slaved")]
-    fn set_slaved(&mut self, #[http("Slaved")] slaved: bool);
+    #[http("slaved", method = Put)]
+    fn set_slaved(&self, #[http("Slaved")] slaved: bool);
 
     /// True if any part of the dome is currently moving, False if all dome components are steady.
-    #[http("slewing", via = ValueResponse)]
+    #[http("slewing", method = Get, via = ValueResponse)]
     fn slewing(&self) -> bool;
 
     /// Calling this method will immediately disable hardware slewing (Slaved will become False).
-    #[http("abortslew")]
-    fn abort_slew(&mut self);
+    #[http("abortslew", method = Put)]
+    fn abort_slew(&self);
 
     /// Close the shutter or otherwise shield telescope from the sky.
-    #[http("closeshutter")]
-    fn close_shutter(&mut self);
+    #[http("closeshutter", method = Put)]
+    fn close_shutter(&self);
 
     /// After Home position is established initializes Azimuth to the default value and sets the AtHome flag.
-    #[http("findhome")]
-    fn find_home(&mut self);
+    #[http("findhome", method = Put)]
+    fn find_home(&self);
 
     /// Open shutter or otherwise expose telescope to the sky.
-    #[http("openshutter")]
-    fn open_shutter(&mut self);
+    #[http("openshutter", method = Put)]
+    fn open_shutter(&self);
 
     /// After assuming programmed park position, sets AtPark flag.
-    #[http("park")]
-    fn park(&mut self);
+    #[http("park", method = Put)]
+    fn park(&self);
 
     /// Set the current azimuth, altitude position of dome to be the park position.
-    #[http("setpark")]
-    fn set_park(&mut self);
+    #[http("setpark", method = Put)]
+    fn set_park(&self);
 
     /// Slew the dome to the given altitude position.
-    #[http("slewtoaltitude")]
-    fn slew_to_altitude(&mut self, #[http("Altitude")] altitude: f64);
+    #[http("slewtoaltitude", method = Put)]
+    fn slew_to_altitude(&self, #[http("Altitude")] altitude: f64);
 
     /// Slew the dome to the given azimuth position.
-    #[http("slewtoazimuth")]
-    fn slew_to_azimuth(&mut self, #[http("Azimuth")] azimuth: f64);
+    #[http("slewtoazimuth", method = Put)]
+    fn slew_to_azimuth(&self, #[http("Azimuth")] azimuth: f64);
 
     /// Synchronize the current position of the dome to the given azimuth.
-    #[http("synctoazimuth")]
-    fn sync_to_azimuth(&mut self, #[http("Azimuth")] azimuth: f64);
+    #[http("synctoazimuth", method = Put)]
+    fn sync_to_azimuth(&self, #[http("Azimuth")] azimuth: f64);
 }
 
 /// FilterWheel Specific Methods
@@ -1025,20 +1018,20 @@ pub trait Dome: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait FilterWheel: Device + Send + Sync {
     /// An integer array of filter focus offsets.
-    #[http("focusoffsets", via = ValueResponse)]
+    #[http("focusoffsets", method = Get, via = ValueResponse)]
     fn focus_offsets(&self) -> Vec<i32>;
 
     /// The names of the filters
-    #[http("names", via = ValueResponse)]
+    #[http("names", method = Get, via = ValueResponse)]
     fn names(&self) -> Vec<String>;
 
     /// Returns the current filter wheel position
-    #[http("position", via = ValueResponse)]
+    #[http("position", method = Get, via = ValueResponse)]
     fn position(&self) -> i32;
 
     /// Sets the filter wheel position
-    #[http("position")]
-    fn set_position(&mut self, #[http("Position")] position: i32);
+    #[http("position", method = Put)]
+    fn set_position(&self, #[http("Position")] position: i32);
 }
 
 /// Focuser Specific Methods
@@ -1046,52 +1039,52 @@ pub trait FilterWheel: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait Focuser: Device + Send + Sync {
     /// True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
-    #[http("absolute", via = ValueResponse)]
+    #[http("absolute", method = Get, via = ValueResponse)]
     fn absolute(&self) -> bool;
 
     /// True if the focuser is currently moving to a new position. False if the focuser is stationary.
-    #[http("ismoving", via = ValueResponse)]
+    #[http("ismoving", method = Get, via = ValueResponse)]
     fn is_moving(&self) -> bool;
 
     /// Maximum increment size allowed by the focuser; i.e. the maximum number of steps allowed in one move operation.
-    #[http("maxincrement", via = ValueResponse)]
+    #[http("maxincrement", method = Get, via = ValueResponse)]
     fn max_increment(&self) -> i32;
 
     /// Maximum step position permitted.
-    #[http("maxstep", via = ValueResponse)]
+    #[http("maxstep", method = Get, via = ValueResponse)]
     fn max_step(&self) -> i32;
 
     /// Current focuser position, in steps.
-    #[http("position", via = ValueResponse)]
+    #[http("position", method = Get, via = ValueResponse)]
     fn position(&self) -> i32;
 
     /// Step size (microns) for the focuser.
-    #[http("stepsize", via = ValueResponse)]
+    #[http("stepsize", method = Get, via = ValueResponse)]
     fn step_size(&self) -> f64;
 
     /// Gets the state of temperature compensation mode (if available), else always False.
-    #[http("tempcomp", via = ValueResponse)]
+    #[http("tempcomp", method = Get, via = ValueResponse)]
     fn temp_comp(&self) -> bool;
 
     /// Sets the state of temperature compensation mode.
-    #[http("tempcomp")]
-    fn set_temp_comp(&mut self, #[http("TempComp")] temp_comp: bool);
+    #[http("tempcomp", method = Put)]
+    fn set_temp_comp(&self, #[http("TempComp")] temp_comp: bool);
 
     /// True if focuser has temperature compensation available.
-    #[http("tempcompavailable", via = ValueResponse)]
+    #[http("tempcompavailable", method = Get, via = ValueResponse)]
     fn temp_comp_available(&self) -> bool;
 
     /// Current ambient temperature as measured by the focuser.
-    #[http("temperature", via = ValueResponse)]
+    #[http("temperature", method = Get, via = ValueResponse)]
     fn temperature(&self) -> f64;
 
     /// Immediately stop any focuser motion due to a previous Move(Int32) method call.
-    #[http("halt")]
-    fn halt(&mut self);
+    #[http("halt", method = Put)]
+    fn halt(&self);
 
     /// Moves the focuser by the specified amount or to the specified position depending on the value of the Absolute property.
-    #[http("move")]
-    fn move_(&mut self, #[http("Position")] position: i32);
+    #[http("move", method = Put)]
+    fn move_(&self, #[http("Position")] position: i32);
 }
 
 /// ObservingConditions Specific Methods
@@ -1099,75 +1092,75 @@ pub trait Focuser: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait ObservingConditions: Device + Send + Sync {
     /// Gets the time period over which observations will be averaged
-    #[http("averageperiod", via = ValueResponse)]
+    #[http("averageperiod", method = Get, via = ValueResponse)]
     fn average_period(&self) -> f64;
 
     /// Sets the time period over which observations will be averaged
-    #[http("averageperiod")]
-    fn set_average_period(&mut self, #[http("AveragePeriod")] average_period: f64);
+    #[http("averageperiod", method = Put)]
+    fn set_average_period(&self, #[http("AveragePeriod")] average_period: f64);
 
     /// Gets the percentage of the sky obscured by cloud
-    #[http("cloudcover", via = ValueResponse)]
+    #[http("cloudcover", method = Get, via = ValueResponse)]
     fn cloud_cover(&self) -> f64;
 
     /// Gets the atmospheric dew point at the observatory reported in °C.
-    #[http("dewpoint", via = ValueResponse)]
+    #[http("dewpoint", method = Get, via = ValueResponse)]
     fn dew_point(&self) -> f64;
 
     /// Gets the atmospheric  humidity (%) at the observatory
-    #[http("humidity", via = ValueResponse)]
+    #[http("humidity", method = Get, via = ValueResponse)]
     fn humidity(&self) -> f64;
 
     /// Gets the atmospheric pressure in hectoPascals at the observatory's altitude - NOT reduced to sea level.
-    #[http("pressure", via = ValueResponse)]
+    #[http("pressure", method = Get, via = ValueResponse)]
     fn pressure(&self) -> f64;
 
     /// Gets the rain rate (mm/hour) at the observatory.
-    #[http("rainrate", via = ValueResponse)]
+    #[http("rainrate", method = Get, via = ValueResponse)]
     fn rain_rate(&self) -> f64;
 
     /// Gets the sky brightness at the observatory (Lux)
-    #[http("skybrightness", via = ValueResponse)]
+    #[http("skybrightness", method = Get, via = ValueResponse)]
     fn sky_brightness(&self) -> f64;
 
     /// Gets the sky quality at the observatory (magnitudes per square arc second)
-    #[http("skyquality", via = ValueResponse)]
+    #[http("skyquality", method = Get, via = ValueResponse)]
     fn sky_quality(&self) -> f64;
 
     /// Gets the sky temperature(°C) at the observatory.
-    #[http("skytemperature", via = ValueResponse)]
+    #[http("skytemperature", method = Get, via = ValueResponse)]
     fn sky_temperature(&self) -> f64;
 
     /// Gets the seeing at the observatory measured as star full width half maximum (FWHM) in arc secs.
-    #[http("starfwhm", via = ValueResponse)]
+    #[http("starfwhm", method = Get, via = ValueResponse)]
     fn star_fwhm(&self) -> f64;
 
     /// Gets the temperature(°C) at the observatory.
-    #[http("temperature", via = ValueResponse)]
+    #[http("temperature", method = Get, via = ValueResponse)]
     fn temperature(&self) -> f64;
 
     /// Gets the wind direction. The returned value must be between 0.0 and 360.0, interpreted according to the metereological standard, where a special value of 0.0 is returned when the wind speed is 0.0. Wind direction is measured clockwise from north, through east, where East=90.0, South=180.0, West=270.0 and North=360.0.
-    #[http("winddirection", via = ValueResponse)]
+    #[http("winddirection", method = Get, via = ValueResponse)]
     fn wind_direction(&self) -> f64;
 
     /// Gets the peak 3 second wind gust(m/s) at the observatory over the last 2 minutes.
-    #[http("windgust", via = ValueResponse)]
+    #[http("windgust", method = Get, via = ValueResponse)]
     fn wind_gust(&self) -> f64;
 
     /// Gets the wind speed(m/s) at the observatory.
-    #[http("windspeed", via = ValueResponse)]
+    #[http("windspeed", method = Get, via = ValueResponse)]
     fn wind_speed(&self) -> f64;
 
     /// Forces the driver to immediately query its attached hardware to refresh sensor values.
-    #[http("refresh")]
-    fn refresh(&mut self);
+    #[http("refresh", method = Put)]
+    fn refresh(&self);
 
     /// Gets a description of the sensor with the name specified in the SensorName parameter
-    #[http("sensordescription", via = ValueResponse)]
+    #[http("sensordescription", method = Get, via = ValueResponse)]
     fn sensor_description(&self, #[http("SensorName")] sensor_name: String) -> String;
 
     /// Gets the time since the sensor specified in the SensorName parameter was last updated
-    #[http("timesincelastupdate", via = ValueResponse)]
+    #[http("timesincelastupdate", method = Get, via = ValueResponse)]
     fn time_since_last_update(&self, #[http("SensorName")] sensor_name: String) -> f64;
 }
 
@@ -1176,56 +1169,56 @@ pub trait ObservingConditions: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait Rotator: Device + Send + Sync {
     /// True if the Rotator supports the Reverse method.
-    #[http("canreverse", via = ValueResponse)]
+    #[http("canreverse", method = Get, via = ValueResponse)]
     fn can_reverse(&self) -> bool;
 
     /// True if the rotator is currently moving to a new position. False if the focuser is stationary.
-    #[http("ismoving", via = ValueResponse)]
+    #[http("ismoving", method = Get, via = ValueResponse)]
     fn is_moving(&self) -> bool;
 
     /// Returns the raw mechanical position of the rotator in degrees.
-    #[http("mechanicalposition", via = ValueResponse)]
+    #[http("mechanicalposition", method = Get, via = ValueResponse)]
     fn mechanical_position(&self) -> f64;
 
     /// Current instantaneous Rotator position, in degrees.
-    #[http("position", via = ValueResponse)]
+    #[http("position", method = Get, via = ValueResponse)]
     fn position(&self) -> f64;
 
     /// Returns the rotator’s Reverse state.
-    #[http("reverse", via = ValueResponse)]
+    #[http("reverse", method = Get, via = ValueResponse)]
     fn reverse(&self) -> bool;
 
     /// Sets the rotator’s Reverse state.
-    #[http("reverse")]
-    fn set_reverse(&mut self, #[http("Reverse")] reverse: bool);
+    #[http("reverse", method = Put)]
+    fn set_reverse(&self, #[http("Reverse")] reverse: bool);
 
     /// The minimum StepSize, in degrees.
-    #[http("stepsize", via = ValueResponse)]
+    #[http("stepsize", method = Get, via = ValueResponse)]
     fn step_size(&self) -> f64;
 
     /// The destination position angle for Move() and MoveAbsolute().
-    #[http("targetposition", via = ValueResponse)]
+    #[http("targetposition", method = Get, via = ValueResponse)]
     fn target_position(&self) -> f64;
 
     /// Immediately stop any Rotator motion due to a previous Move or MoveAbsolute method call.
-    #[http("halt")]
-    fn halt(&mut self);
+    #[http("halt", method = Put)]
+    fn halt(&self);
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
-    #[http("move")]
-    fn move_(&mut self, #[http("Position")] position: f64);
+    #[http("move", method = Put)]
+    fn move_(&self, #[http("Position")] position: f64);
 
     /// Causes the rotator to move the absolute position of Position degrees.
-    #[http("moveabsolute")]
-    fn move_absolute(&mut self, #[http("Position")] position: f64);
+    #[http("moveabsolute", method = Put)]
+    fn move_absolute(&self, #[http("Position")] position: f64);
 
     /// Causes the rotator to move the mechanical position of Position degrees.
-    #[http("movemechanical")]
-    fn move_mechanical(&mut self, #[http("Position")] position: f64);
+    #[http("movemechanical", method = Put)]
+    fn move_mechanical(&self, #[http("Position")] position: f64);
 
     /// Causes the rotator to sync to the position of Position degrees.
-    #[http("sync")]
-    fn sync(&mut self, #[http("Position")] position: f64);
+    #[http("sync", method = Put)]
+    fn sync(&self, #[http("Position")] position: f64);
 }
 
 /// SafetyMonitor Specific Methods
@@ -1233,7 +1226,7 @@ pub trait Rotator: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait SafetyMonitor: Device + Send + Sync {
     /// Indicates whether the monitored state is safe for use. True if the state is safe, False if it is unsafe.
-    #[http("issafe", via = ValueResponse)]
+    #[http("issafe", method = Get, via = ValueResponse)]
     fn is_safe(&self) -> bool;
 }
 
@@ -1242,51 +1235,51 @@ pub trait SafetyMonitor: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait Switch: Device + Send + Sync {
     /// Returns the number of switch devices managed by this driver. Devices are numbered from 0 to MaxSwitch - 1
-    #[http("maxswitch", via = ValueResponse)]
+    #[http("maxswitch", method = Get, via = ValueResponse)]
     fn max_switch(&self) -> i32;
 
     /// Reports if the specified switch device can be written to, default true. This is false if the device cannot be written to, for example a limit switch or a sensor.  Devices are numbered from 0 to MaxSwitch - 1
-    #[http("canwrite", via = ValueResponse)]
+    #[http("canwrite", method = Get, via = ValueResponse)]
     fn can_write(&self, #[http("Id")] id: u32) -> bool;
 
     /// Return the state of switch device id as a boolean.  Devices are numbered from 0 to MaxSwitch - 1
-    #[http("getswitch", via = ValueResponse)]
+    #[http("getswitch", method = Get, via = ValueResponse)]
     fn get_switch(&self, #[http("Id")] id: u32) -> bool;
 
     /// Gets the description of the specified switch device. This is to allow a fuller description of the device to be returned, for example for a tool tip. Devices are numbered from 0 to MaxSwitch - 1
-    #[http("getswitchdescription", via = ValueResponse)]
+    #[http("getswitchdescription", method = Get, via = ValueResponse)]
     fn get_switch_description(&self, #[http("Id")] id: u32) -> String;
 
     /// Gets the name of the specified switch device. Devices are numbered from 0 to MaxSwitch - 1
-    #[http("getswitchname", via = ValueResponse)]
+    #[http("getswitchname", method = Get, via = ValueResponse)]
     fn get_switch_name(&self, #[http("Id")] id: u32) -> String;
 
     /// Gets the value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1, The value of this switch is expected to be between MinSwitchValue and MaxSwitchValue.
-    #[http("getswitchvalue", via = ValueResponse)]
+    #[http("getswitchvalue", method = Get, via = ValueResponse)]
     fn get_switch_value(&self, #[http("Id")] id: u32) -> f64;
 
     /// Gets the minimum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
-    #[http("minswitchvalue", via = ValueResponse)]
+    #[http("minswitchvalue", method = Get, via = ValueResponse)]
     fn min_switch_value(&self, #[http("Id")] id: u32) -> f64;
 
     /// Gets the maximum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
-    #[http("maxswitchvalue", via = ValueResponse)]
+    #[http("maxswitchvalue", method = Get, via = ValueResponse)]
     fn max_switch_value(&self, #[http("Id")] id: u32) -> f64;
 
     /// Sets a switch controller device to the specified state, true or false.
-    #[http("setswitch")]
-    fn set_switch(&mut self, #[http("Id")] id: u32, #[http("State")] state: bool);
+    #[http("setswitch", method = Put)]
+    fn set_switch(&self, #[http("Id")] id: u32, #[http("State")] state: bool);
 
     /// Sets a switch device name to the specified value.
-    #[http("setswitchname")]
-    fn set_switch_name(&mut self, #[http("Id")] id: u32, #[http("Name")] name: String);
+    #[http("setswitchname", method = Put)]
+    fn set_switch_name(&self, #[http("Id")] id: u32, #[http("Name")] name: String);
 
     /// Sets a switch device value to the specified value.
-    #[http("setswitchvalue")]
-    fn set_switch_value(&mut self, #[http("Id")] id: u32, #[http("Value")] value: f64);
+    #[http("setswitchvalue", method = Put)]
+    fn set_switch_value(&self, #[http("Id")] id: u32, #[http("Value")] value: f64);
 
     /// Returns the step size that this device supports (the difference between successive values of the device). Devices are numbered from 0 to MaxSwitch - 1.
-    #[http("switchstep", via = ValueResponse)]
+    #[http("switchstep", method = Get, via = ValueResponse)]
     fn switch_step(&self, #[http("Id")] id: u32) -> f64;
 }
 
@@ -1295,272 +1288,272 @@ pub trait Switch: Device + Send + Sync {
 #[apply(rpc_trait)]
 pub trait Telescope: Device + Send + Sync {
     /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
-    #[http("alignmentmode", via = ValueResponse)]
+    #[http("alignmentmode", method = Get, via = ValueResponse)]
     fn alignment_mode(&self) -> AlignmentMode;
 
     /// The altitude above the local horizon of the mount's current position (degrees, positive up)
-    #[http("altitude", via = ValueResponse)]
+    #[http("altitude", method = Get, via = ValueResponse)]
     fn altitude(&self) -> f64;
 
     /// The area of the telescope's aperture, taking into account any obstructions (square meters)
-    #[http("aperturearea", via = ValueResponse)]
+    #[http("aperturearea", method = Get, via = ValueResponse)]
     fn aperture_area(&self) -> f64;
 
     /// The telescope's effective aperture diameter (meters)
-    #[http("aperturediameter", via = ValueResponse)]
+    #[http("aperturediameter", method = Get, via = ValueResponse)]
     fn aperture_diameter(&self) -> f64;
 
     /// True if the mount is stopped in the Home position. Set only following a FindHome()  operation, and reset with any slew operation. This property must be False if the telescope does not support homing.
-    #[http("athome", via = ValueResponse)]
+    #[http("athome", method = Get, via = ValueResponse)]
     fn at_home(&self) -> bool;
 
     /// True if the telescope has been put into the parked state by the seee Park()  method. Set False by calling the Unpark() method.
-    #[http("atpark", via = ValueResponse)]
+    #[http("atpark", method = Get, via = ValueResponse)]
     fn at_park(&self) -> bool;
 
     /// The azimuth at the local horizon of the mount's current position (degrees, North-referenced, positive East/clockwise).
-    #[http("azimuth", via = ValueResponse)]
+    #[http("azimuth", method = Get, via = ValueResponse)]
     fn azimuth(&self) -> f64;
 
     /// True if this telescope is capable of programmed finding its home position (FindHome()  method).
-    #[http("canfindhome", via = ValueResponse)]
+    #[http("canfindhome", method = Get, via = ValueResponse)]
     fn can_find_home(&self) -> bool;
 
     /// True if this telescope is capable of programmed parking (Park() method)
-    #[http("canpark", via = ValueResponse)]
+    #[http("canpark", method = Get, via = ValueResponse)]
     fn can_park(&self) -> bool;
 
     /// True if this telescope is capable of software-pulsed guiding (via the PulseGuide(GuideDirections, Int32) method)
-    #[http("canpulseguide", via = ValueResponse)]
+    #[http("canpulseguide", method = Get, via = ValueResponse)]
     fn can_pulse_guide(&self) -> bool;
 
     /// True if the DeclinationRate property can be changed to provide offset tracking in the declination axis.
-    #[http("cansetdeclinationrate", via = ValueResponse)]
+    #[http("cansetdeclinationrate", method = Get, via = ValueResponse)]
     fn can_set_declination_rate(&self) -> bool;
 
     /// True if the guide rate properties used for PulseGuide(GuideDirections, Int32) can ba adjusted.
-    #[http("cansetguiderates", via = ValueResponse)]
+    #[http("cansetguiderates", method = Get, via = ValueResponse)]
     fn can_set_guide_rates(&self) -> bool;
 
     /// True if this telescope is capable of programmed setting of its park position (SetPark() method)
-    #[http("cansetpark", via = ValueResponse)]
+    #[http("cansetpark", method = Get, via = ValueResponse)]
     fn can_set_park(&self) -> bool;
 
     /// True if the SideOfPier property can be set, meaning that the mount can be forced to flip.
-    #[http("cansetpierside", via = ValueResponse)]
+    #[http("cansetpierside", method = Get, via = ValueResponse)]
     fn can_set_pier_side(&self) -> bool;
 
     /// True if the RightAscensionRate property can be changed to provide offset tracking in the right ascension axis. .
-    #[http("cansetrightascensionrate", via = ValueResponse)]
+    #[http("cansetrightascensionrate", method = Get, via = ValueResponse)]
     fn can_set_right_ascension_rate(&self) -> bool;
 
     /// True if the Tracking property can be changed, turning telescope sidereal tracking on and off.
-    #[http("cansettracking", via = ValueResponse)]
+    #[http("cansettracking", method = Get, via = ValueResponse)]
     fn can_set_tracking(&self) -> bool;
 
     /// True if this telescope is capable of programmed slewing (synchronous or asynchronous) to equatorial coordinates
-    #[http("canslew", via = ValueResponse)]
+    #[http("canslew", method = Get, via = ValueResponse)]
     fn can_slew(&self) -> bool;
 
     /// True if this telescope is capable of programmed slewing (synchronous or asynchronous) to local horizontal coordinates
-    #[http("canslewaltaz", via = ValueResponse)]
+    #[http("canslewaltaz", method = Get, via = ValueResponse)]
     fn can_slew_alt_az(&self) -> bool;
 
     /// True if this telescope is capable of programmed asynchronous slewing to local horizontal coordinates
-    #[http("canslewaltazasync", via = ValueResponse)]
+    #[http("canslewaltazasync", method = Get, via = ValueResponse)]
     fn can_slew_alt_az_async(&self) -> bool;
 
     /// True if this telescope is capable of programmed asynchronous slewing to equatorial coordinates.
-    #[http("canslewasync", via = ValueResponse)]
+    #[http("canslewasync", method = Get, via = ValueResponse)]
     fn can_slew_async(&self) -> bool;
 
     /// True if this telescope is capable of programmed synching to equatorial coordinates.
-    #[http("cansync", via = ValueResponse)]
+    #[http("cansync", method = Get, via = ValueResponse)]
     fn can_sync(&self) -> bool;
 
     /// True if this telescope is capable of programmed synching to local horizontal coordinates
-    #[http("cansyncaltaz", via = ValueResponse)]
+    #[http("cansyncaltaz", method = Get, via = ValueResponse)]
     fn can_sync_alt_az(&self) -> bool;
 
     /// True if this telescope is capable of programmed unparking (UnPark() method)
-    #[http("canunpark", via = ValueResponse)]
+    #[http("canunpark", method = Get, via = ValueResponse)]
     fn can_unpark(&self) -> bool;
 
     /// The declination (degrees) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property. Reading the property will raise an error if the value is unavailable.
-    #[http("declination", via = ValueResponse)]
+    #[http("declination", method = Get, via = ValueResponse)]
     fn declination(&self) -> f64;
 
     /// The declination tracking rate (arcseconds per second, default = 0.0)
-    #[http("declinationrate", via = ValueResponse)]
+    #[http("declinationrate", method = Get, via = ValueResponse)]
     fn declination_rate(&self) -> f64;
 
     /// Sets the declination tracking rate (arcseconds per second)
-    #[http("declinationrate")]
-    fn set_declination_rate(&mut self, #[http("DeclinationRate")] declination_rate: f64);
+    #[http("declinationrate", method = Put)]
+    fn set_declination_rate(&self, #[http("DeclinationRate")] declination_rate: f64);
 
     /// True if the telescope or driver applies atmospheric refraction to coordinates.
-    #[http("doesrefraction", via = ValueResponse)]
+    #[http("doesrefraction", method = Get, via = ValueResponse)]
     fn does_refraction(&self) -> bool;
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
-    #[http("doesrefraction")]
-    fn set_does_refraction(&mut self, #[http("DoesRefraction")] does_refraction: bool);
+    #[http("doesrefraction", method = Put)]
+    fn set_does_refraction(&self, #[http("DoesRefraction")] does_refraction: bool);
 
     /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
-    #[http("equatorialsystem", via = ValueResponse)]
+    #[http("equatorialsystem", method = Get, via = ValueResponse)]
     fn equatorial_system(&self) -> EquatorialSystem;
 
     /// The telescope's focal length in meters
-    #[http("focallength", via = ValueResponse)]
+    #[http("focallength", method = Get, via = ValueResponse)]
     fn focal_length(&self) -> f64;
 
     /// The current Declination movement rate offset for telescope guiding (degrees/sec)
-    #[http("guideratedeclination", via = ValueResponse)]
+    #[http("guideratedeclination", method = Get, via = ValueResponse)]
     fn guide_rate_declination(&self) -> f64;
 
     /// Sets the current Declination movement rate offset for telescope guiding (degrees/sec).
-    #[http("guideratedeclination")]
+    #[http("guideratedeclination", method = Put)]
     fn set_guide_rate_declination(
-        &mut self,
+        &self,
         #[http("GuideRateDeclination")] guide_rate_declination: f64,
     );
 
     /// The current RightAscension movement rate offset for telescope guiding (degrees/sec)
-    #[http("guideraterightascension", via = ValueResponse)]
+    #[http("guideraterightascension", method = Get, via = ValueResponse)]
     fn guide_rate_right_ascension(&self) -> f64;
 
     /// Sets the current RightAscension movement rate offset for telescope guiding (degrees/sec).
-    #[http("guideraterightascension")]
+    #[http("guideraterightascension", method = Put)]
     fn set_guide_rate_right_ascension(
-        &mut self,
+        &self,
         #[http("GuideRateRightAscension")] guide_rate_right_ascension: f64,
     );
 
     /// True if a PulseGuide(GuideDirections, Int32) command is in progress, False otherwise
-    #[http("ispulseguiding", via = ValueResponse)]
+    #[http("ispulseguiding", method = Get, via = ValueResponse)]
     fn is_pulse_guiding(&self) -> bool;
 
     /// The right ascension (hours) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property
-    #[http("rightascension", via = ValueResponse)]
+    #[http("rightascension", method = Get, via = ValueResponse)]
     fn right_ascension(&self) -> f64;
 
     /// The right ascension tracking rate (arcseconds per second, default = 0.0)
-    #[http("rightascensionrate", via = ValueResponse)]
+    #[http("rightascensionrate", method = Get, via = ValueResponse)]
     fn right_ascension_rate(&self) -> f64;
 
     /// Sets the right ascension tracking rate (arcseconds per second)
-    #[http("rightascensionrate")]
-    fn set_right_ascension_rate(&mut self, #[http("RightAscensionRate")] right_ascension_rate: f64);
+    #[http("rightascensionrate", method = Put)]
+    fn set_right_ascension_rate(&self, #[http("RightAscensionRate")] right_ascension_rate: f64);
 
     /// Indicates the pointing state of the mount.
-    #[http("sideofpier", via = ValueResponse)]
+    #[http("sideofpier", method = Get, via = ValueResponse)]
     fn side_of_pier(&self) -> SideOfPier;
 
     /// Sets the pointing state of the mount.
-    #[http("sideofpier")]
-    fn set_side_of_pier(&mut self, #[http("SideOfPier")] side_of_pier: SideOfPier);
+    #[http("sideofpier", method = Put)]
+    fn set_side_of_pier(&self, #[http("SideOfPier")] side_of_pier: SideOfPier);
 
     /// The local apparent sidereal time from the telescope's internal clock (hours, sidereal).
-    #[http("siderealtime", via = ValueResponse)]
+    #[http("siderealtime", method = Get, via = ValueResponse)]
     fn sidereal_time(&self) -> f64;
 
     /// The elevation above mean sea level (meters) of the site at which the telescope is located.
-    #[http("siteelevation", via = ValueResponse)]
+    #[http("siteelevation", method = Get, via = ValueResponse)]
     fn site_elevation(&self) -> f64;
 
     /// Sets the elevation above mean sea level (metres) of the site at which the telescope is located.
-    #[http("siteelevation")]
-    fn set_site_elevation(&mut self, #[http("SiteElevation")] site_elevation: f64);
+    #[http("siteelevation", method = Put)]
+    fn set_site_elevation(&self, #[http("SiteElevation")] site_elevation: f64);
 
     /// The geodetic(map) latitude (degrees, positive North, WGS84) of the site at which the telescope is located.
-    #[http("sitelatitude", via = ValueResponse)]
+    #[http("sitelatitude", method = Get, via = ValueResponse)]
     fn site_latitude(&self) -> f64;
 
     /// Sets the observing site's latitude (degrees).
-    #[http("sitelatitude")]
-    fn set_site_latitude(&mut self, #[http("SiteLatitude")] site_latitude: f64);
+    #[http("sitelatitude", method = Put)]
+    fn set_site_latitude(&self, #[http("SiteLatitude")] site_latitude: f64);
 
     /// The longitude (degrees, positive East, WGS84) of the site at which the telescope is located.
-    #[http("sitelongitude", via = ValueResponse)]
+    #[http("sitelongitude", method = Get, via = ValueResponse)]
     fn site_longitude(&self) -> f64;
 
     /// Sets the observing site's longitude (degrees, positive East, WGS84).
-    #[http("sitelongitude")]
-    fn set_site_longitude(&mut self, #[http("SiteLongitude")] site_longitude: f64);
+    #[http("sitelongitude", method = Put)]
+    fn set_site_longitude(&self, #[http("SiteLongitude")] site_longitude: f64);
 
     /// True if telescope is currently moving in response to one of the Slew methods or the MoveAxis(TelescopeAxes, Double) method, False at all other times.
-    #[http("slewing", via = ValueResponse)]
+    #[http("slewing", method = Get, via = ValueResponse)]
     fn slewing(&self) -> bool;
 
     /// Returns the post-slew settling time (sec.).
-    #[http("slewsettletime", via = ValueResponse)]
+    #[http("slewsettletime", method = Get, via = ValueResponse)]
     fn slew_settle_time(&self) -> i32;
 
     /// Sets the  post-slew settling time (integer sec.).
-    #[http("slewsettletime")]
-    fn set_slew_settle_time(&mut self, #[http("SlewSettleTime")] slew_settle_time: i32);
+    #[http("slewsettletime", method = Put)]
+    fn set_slew_settle_time(&self, #[http("SlewSettleTime")] slew_settle_time: i32);
 
     /// The declination (degrees, positive North) for the target of an equatorial slew or sync operation
-    #[http("targetdeclination", via = ValueResponse)]
+    #[http("targetdeclination", method = Get, via = ValueResponse)]
     fn target_declination(&self) -> f64;
 
     /// Sets the declination (degrees, positive North) for the target of an equatorial slew or sync operation
-    #[http("targetdeclination")]
-    fn set_target_declination(&mut self, #[http("TargetDeclination")] target_declination: f64);
+    #[http("targetdeclination", method = Put)]
+    fn set_target_declination(&self, #[http("TargetDeclination")] target_declination: f64);
 
     /// The right ascension (hours) for the target of an equatorial slew or sync operation
-    #[http("targetrightascension", via = ValueResponse)]
+    #[http("targetrightascension", method = Get, via = ValueResponse)]
     fn target_right_ascension(&self) -> f64;
 
     /// Sets the right ascension (hours) for the target of an equatorial slew or sync operation
-    #[http("targetrightascension")]
+    #[http("targetrightascension", method = Put)]
     fn set_target_right_ascension(
-        &mut self,
+        &self,
         #[http("TargetRightAscension")] target_right_ascension: f64,
     );
 
     /// Returns the state of the telescope's sidereal tracking drive.
-    #[http("tracking", via = ValueResponse)]
+    #[http("tracking", method = Get, via = ValueResponse)]
     fn tracking(&self) -> bool;
 
     /// Sets the state of the telescope's sidereal tracking drive.
-    #[http("tracking")]
-    fn set_tracking(&mut self, #[http("Tracking")] tracking: bool);
+    #[http("tracking", method = Put)]
+    fn set_tracking(&self, #[http("Tracking")] tracking: bool);
 
     /// The current tracking rate of the telescope's sidereal drive.
-    #[http("trackingrate", via = ValueResponse)]
+    #[http("trackingrate", method = Get, via = ValueResponse)]
     fn tracking_rate(&self) -> DriveRate;
 
     /// Sets the tracking rate of the telescope's sidereal drive.
-    #[http("trackingrate")]
-    fn set_tracking_rate(&mut self, #[http("TrackingRate")] tracking_rate: DriveRate);
+    #[http("trackingrate", method = Put)]
+    fn set_tracking_rate(&self, #[http("TrackingRate")] tracking_rate: DriveRate);
 
     /// Returns an array of supported DriveRates values that describe the permissible values of the TrackingRate property for this telescope type.
-    #[http("trackingrates", via = ValueResponse)]
+    #[http("trackingrates", method = Get, via = ValueResponse)]
     fn tracking_rates(&self) -> Vec<DriveRate>;
 
     /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
-    #[http("utcdate", via = ValueResponse)]
+    #[http("utcdate", method = Get, via = ValueResponse)]
     fn utc_date(&self) -> String;
 
     /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
-    #[http("utcdate")]
-    fn set_utc_date(&mut self, #[http("UTCDate")] utc_date: String);
+    #[http("utcdate", method = Put)]
+    fn set_utc_date(&self, #[http("UTCDate")] utc_date: String);
 
     /// Immediately Stops a slew in progress.
-    #[http("abortslew")]
-    fn abort_slew(&mut self);
+    #[http("abortslew", method = Put)]
+    fn abort_slew(&self);
 
     /// The rates at which the telescope may be moved about the specified axis by the MoveAxis(TelescopeAxes, Double) method.
-    #[http("axisrates", via = ValueResponse)]
+    #[http("axisrates", method = Get, via = ValueResponse)]
     fn axis_rates(&self, #[http("Axis")] axis: Axis) -> Vec<AxisRate>;
 
     /// True if this telescope can move the requested axis.
-    #[http("canmoveaxis", via = ValueResponse)]
+    #[http("canmoveaxis", method = Get, via = ValueResponse)]
     fn can_move_axis(&self, #[http("Axis")] axis: Axis) -> bool;
 
     /// Predicts the pointing state that a German equatorial mount will be in if it slews to the given coordinates.
-    #[http("destinationsideofpier", via = ValueResponse)]
+    #[http("destinationsideofpier", method = Get, via = ValueResponse)]
     fn destination_side_of_pier(
         &self,
         #[http("RightAscension")] right_ascension: f64,
@@ -1568,92 +1561,84 @@ pub trait Telescope: Device + Send + Sync {
     ) -> SideOfPier;
 
     /// Locates the telescope's "home" position (synchronous)
-    #[http("findhome")]
-    fn find_home(&mut self);
+    #[http("findhome", method = Put)]
+    fn find_home(&self);
 
     /// Move the telescope in one axis at the given rate.
-    #[http("moveaxis")]
-    fn move_axis(&mut self, #[http("Axis")] axis: Axis, #[http("Rate")] rate: f64);
+    #[http("moveaxis", method = Put)]
+    fn move_axis(&self, #[http("Axis")] axis: Axis, #[http("Rate")] rate: f64);
 
     /// Move the telescope to its park position, stop all motion (or restrict to a small safe range), and set AtPark to True. )
-    #[http("park")]
-    fn park(&mut self);
+    #[http("park", method = Put)]
+    fn park(&self);
 
     /// Moves the scope in the given direction for the given interval or time at the rate given by the corresponding guide rate property
-    #[http("pulseguide")]
+    #[http("pulseguide", method = Put)]
     fn pulse_guide(
-        &mut self,
+        &self,
         #[http("Direction")] direction: PutPulseGuideDirection,
         #[http("Duration")] duration: i32,
     );
 
     /// Sets the telescope's park position to be its current position.
-    #[http("setpark")]
-    fn set_park(&mut self);
+    #[http("setpark", method = Put)]
+    fn set_park(&self);
 
     /// Move the telescope to the given local horizontal coordinates, return when slew is complete
-    #[http("slewtoaltaz")]
-    fn slew_to_alt_az(
-        &mut self,
-        #[http("Azimuth")] azimuth: f64,
-        #[http("Altitude")] altitude: f64,
-    );
+    #[http("slewtoaltaz", method = Put)]
+    fn slew_to_alt_az(&self, #[http("Azimuth")] azimuth: f64, #[http("Altitude")] altitude: f64);
 
     /// Move the telescope to the given local horizontal coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
-    #[http("slewtoaltazasync")]
+    #[http("slewtoaltazasync", method = Put)]
     fn slew_to_alt_az_async(
-        &mut self,
+        &self,
         #[http("Azimuth")] azimuth: f64,
         #[http("Altitude")] altitude: f64,
     );
 
     /// Move the telescope to the given equatorial coordinates, return when slew is complete
-    #[http("slewtocoordinates")]
+    #[http("slewtocoordinates", method = Put)]
     fn slew_to_coordinates(
-        &mut self,
+        &self,
         #[http("RightAscension")] right_ascension: f64,
         #[http("Declination")] declination: f64,
     );
 
     /// Move the telescope to the given equatorial coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
-    #[http("slewtocoordinatesasync")]
+    #[http("slewtocoordinatesasync", method = Put)]
     fn slew_to_coordinates_async(
-        &mut self,
+        &self,
         #[http("RightAscension")] right_ascension: f64,
         #[http("Declination")] declination: f64,
     );
 
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete
-    #[http("slewtotarget")]
-    fn slew_to_target(&mut self);
+    #[http("slewtotarget", method = Put)]
+    fn slew_to_target(&self);
 
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
-    #[http("slewtotargetasync")]
-    fn slew_to_target_async(&mut self);
+    #[http("slewtotargetasync", method = Put)]
+    fn slew_to_target_async(&self);
 
     /// Matches the scope's local horizontal coordinates to the given local horizontal coordinates.
-    #[http("synctoaltaz")]
-    fn sync_to_alt_az(
-        &mut self,
-        #[http("Azimuth")] azimuth: f64,
-        #[http("Altitude")] altitude: f64,
-    );
+    #[http("synctoaltaz", method = Put)]
+    fn sync_to_alt_az(&self, #[http("Azimuth")] azimuth: f64, #[http("Altitude")] altitude: f64);
 
     /// Matches the scope's equatorial coordinates to the given equatorial coordinates.
-    #[http("synctocoordinates")]
+    #[http("synctocoordinates", method = Put)]
     fn sync_to_coordinates(
-        &mut self,
+        &self,
         #[http("RightAscension")] right_ascension: f64,
         #[http("Declination")] declination: f64,
     );
 
     /// Matches the scope's equatorial coordinates to the TargetRightAscension and TargetDeclination equatorial coordinates.
-    #[http("synctotarget")]
-    fn sync_to_target(&mut self);
+    #[http("synctotarget", method = Put)]
+    fn sync_to_target(&self);
 
     /// Takes telescope out of the Parked state. )
-    #[http("unpark")]
-    fn unpark(&mut self);
+    #[http("unpark", method = Put)]
+    fn unpark(&self);
 }
 
 rpc_mod! {

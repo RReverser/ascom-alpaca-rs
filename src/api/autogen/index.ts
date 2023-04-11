@@ -708,9 +708,9 @@ ${stringifyIter(
         device.methods,
         method => `
           ${stringifyDoc(method.doc)}
-          #[http("${method.path}"${method.returnType.isValueResponse ? ', via = ValueResponse' : ''})]
+          #[http("${method.path}", method = ${method.mutable ? 'Put' : 'Get'}${method.returnType.isValueResponse ? ', via = ValueResponse' : ''})]
           fn ${method.name}(
-            &${method.mutable ? 'mut ' : ''}self,
+            &self,
             ${stringifyIter(
               method.resolvedArgs,
               arg =>

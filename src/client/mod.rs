@@ -5,7 +5,7 @@ mod transaction;
 pub(crate) use transaction::*;
 
 mod params;
-pub(crate) use params::ActionParams;
+pub(crate) use params::{ActionParams, Method};
 
 mod response;
 pub(crate) use response::Response;
@@ -37,14 +37,13 @@ pub(crate) struct RawDeviceClient {
 impl RawDeviceClient {
     pub(crate) async fn exec_action<Resp>(
         &self,
-        action: &str,
-        params: ActionParams<impl Debug + Serialize + Send>,
+        action_params: ActionParams<impl Debug + Serialize + Send>,
     ) -> ASCOMResult<Resp>
     where
         ASCOMResult<Resp>: Response,
     {
         self.inner
-            .request::<ASCOMResult<Resp>>(action, params)
+            .request::<ASCOMResult<Resp>>(action_params)
             .await
             .unwrap_or_else(|err| {
                 Err(ASCOMError::new(
@@ -79,31 +78,31 @@ impl RawClient {
 
     pub(crate) async fn request<Resp: Response>(
         &self,
-        path: &str,
-        params: ActionParams<impl Debug + Serialize + Send>,
+        ActionParams {
+            action,
+            method,
+            params,
+        }: ActionParams<impl Debug + Serialize + Send>,
     ) -> anyhow::Result<Resp> {
         let request_transaction = RequestTransaction::new(self.client_id);
 
         let span = tracing::debug_span!(
             "Alpaca transaction",
-            path,
+            action,
             ?params,
+            base_url = %self.base_url,
             client_transaction_id = request_transaction.client_transaction_id,
             client_id = request_transaction.client_id,
         );
 
         async move {
-            let mut request = self.inner.request(
-                match params {
-                    ActionParams::Get(_) => reqwest::Method::GET,
-                    ActionParams::Put(_) => reqwest::Method::PUT,
-                },
-                self.base_url.join(path)?,
-            );
+            let mut request = self
+                .inner
+                .request(method.into(), self.base_url.join(action)?);
 
-            let add_params = match params {
-                ActionParams::Get(_) => RequestBuilder::query,
-                ActionParams::Put(_) => RequestBuilder::form,
+            let add_params = match method {
+                Method::Get => RequestBuilder::query,
+                Method::Put => RequestBuilder::form,
             };
             request = add_params(
                 request,
@@ -151,7 +150,10 @@ impl RawClient {
         }
         .map_err(|err| {
             tracing::error!(%err, "Alpaca request failed");
-            err.context(format!("Failed to send Alpaca request to {path}"))
+            err.context(format!(
+                "Failed to send Alpaca request to {action} on {}",
+                self.base_url
+            ))
         })
         .instrument(span)
         .await
@@ -185,10 +187,11 @@ impl Client {
 
         Ok(self
             .inner
-            .request::<ValueResponse<Vec<ConfiguredDevice<FallibleDeviceType>>>>(
-                "management/v1/configureddevices",
-                ActionParams::Get(()),
-            )
+            .request::<ValueResponse<Vec<ConfiguredDevice<FallibleDeviceType>>>>(ActionParams {
+                action: "management/v1/configureddevices",
+                method: Method::Get,
+                params: (),
+            })
             .await?
             .into_inner()
             .into_iter()
@@ -217,10 +220,11 @@ impl Client {
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
         Ok(self
             .inner
-            .request::<ValueResponse<ServerInfo>>(
-                "management/v1/description",
-                ActionParams::Get(()),
-            )
+            .request::<ValueResponse<ServerInfo>>(ActionParams {
+                action: "management/v1/description",
+                method: Method::Get,
+                params: (),
+            })
             .await?
             .into_inner())
     }

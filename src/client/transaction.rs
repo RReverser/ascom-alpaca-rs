@@ -1,4 +1,3 @@
-use super::ActionParams;
 use crate::macros::auto_increment;
 use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
@@ -26,7 +25,7 @@ pub(crate) struct RequestWithTransaction<T> {
     #[serde(flatten)]
     pub(crate) transaction: RequestTransaction,
     #[serde(flatten)]
-    pub(crate) params: ActionParams<T>,
+    pub(crate) params: T,
 }
 
 #[repr(C)]

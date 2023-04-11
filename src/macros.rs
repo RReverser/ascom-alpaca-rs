@@ -17,10 +17,6 @@ macro_rules! rpc_trait {
 
     (@if_specific $trait_name:ident $then:block $else:block) => ($then);
 
-    (@params_pat $scope:ident, mut $self:ident $inner:tt) => ($crate::$scope::ActionParams::Put $inner);
-
-    (@params_pat $scope:ident, $self:ident $inner:tt) => ($crate::$scope::ActionParams::Get $inner);
-
     (
         $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
@@ -34,8 +30,8 @@ macro_rules! rpc_trait {
             )*
 
             $(
-                #[http($method_path:literal $(, via = $via:ident)?)]
-                fn $method_name:ident(& $($mut_self:ident)* $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
+                #[http($method_path:literal, method = $http_method:ident $(, via = $via:ident)?)]
+                fn $method_name:ident(&self $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
 
                 $(#[doc = $docs_after_method:literal])*
             )*
@@ -77,7 +73,7 @@ macro_rules! rpc_trait {
                 #[allow(unused)]
                 let value = match (action, params) {
                     $(
-                        ($method_path, rpc_trait!(@params_pat server, $($mut_self)* (mut params))) => {
+                        ($method_path, $crate::server::ActionParams::$http_method(mut params)) => {
                             $(
                                 let $param = params.extract(stringify!($param_query)).map_err($crate::server::Error::BadRequest)?;
                             )*
@@ -126,10 +122,12 @@ macro_rules! rpc_trait {
                         )*
                     }
 
-                    let opaque_params = OpaqueParams { $($param),* };
-
                     self
-                    .exec_action($method_path, rpc_trait!(@params_pat client, $($mut_self)* (opaque_params)))
+                    .exec_action($crate::client::ActionParams {
+                        action: $method_path,
+                        method: $crate::client::Method::$http_method,
+                        params: OpaqueParams { $($param),* }
+                    })
                     .await
                     $(.map($via::into_inner))?
                 }
