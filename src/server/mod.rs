@@ -19,11 +19,12 @@ use crate::api::{CargoServerInfo, DevicePath, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::Devices;
-use axum::extract::Path;
-use axum::http::Uri;
+use axum::body::HttpBody;
+use axum::extract::{FromRequest, Path};
+use axum::http::Request;
 use axum::response::IntoResponse;
 use axum::routing::MethodFilter;
-use axum::Router;
+use axum::{BoxError, Router};
 use futures::TryFutureExt;
 use net_literals::addr;
 use std::future::Future;
@@ -50,35 +51,59 @@ impl Default for Server {
     }
 }
 
-async fn server_handler<Resp: Response, RespFut: Future<Output = Resp> + Send>(
-    uri: Uri,
-    mut raw_opaque_params: ActionParams,
-    make_response: impl FnOnce(ActionParams) -> RespFut + Send,
-) -> axum::response::Response {
-    let request_transaction = match RequestTransaction::extract(&mut raw_opaque_params) {
-        Ok(transaction) => transaction,
-        Err(err) => {
-            return (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")).into_response();
-        }
-    };
-    let response_transaction = ResponseTransaction::new(request_transaction.client_transaction_id);
+struct ServerHandler {
+    path: String,
+    params: ActionParams,
+}
 
-    let span = tracing::debug_span!(
-        "Alpaca transaction",
-        path = uri.path(),
-        params = ?raw_opaque_params,
-        client_id = request_transaction.client_id,
-        client_transaction_id = request_transaction.client_transaction_id,
-        server_transaction_id = response_transaction.server_transaction_id,
-    );
+#[async_trait::async_trait]
+impl<S, B> FromRequest<S, B> for ServerHandler
+where
+    B: HttpBody + Send + Sync + 'static,
+    B::Data: Send,
+    B::Error: Into<BoxError>,
+    S: Send + Sync,
+{
+    type Rejection = axum::response::Response;
 
-    async move {
-        make_response(raw_opaque_params)
-            .await
-            .into_axum(response_transaction)
+    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+        let path = req.uri().path().to_owned();
+        let params = ActionParams::from_request(req, state).await?;
+        Ok(Self { path, params })
     }
-    .instrument(span)
-    .await
+}
+
+impl ServerHandler {
+    async fn exec<Resp: Response, RespFut: Future<Output = Resp> + Send>(
+        mut self,
+        make_response: impl FnOnce(ActionParams) -> RespFut + Send,
+    ) -> axum::response::Response {
+        let request_transaction = match RequestTransaction::extract(&mut self.params) {
+            Ok(transaction) => transaction,
+            Err(err) => {
+                return (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")).into_response();
+            }
+        };
+        let response_transaction =
+            ResponseTransaction::new(request_transaction.client_transaction_id);
+
+        let span = tracing::debug_span!(
+            "Alpaca transaction",
+            path = self.path,
+            params = ?self.params,
+            client_id = request_transaction.client_id,
+            client_transaction_id = request_transaction.client_transaction_id,
+            server_transaction_id = response_transaction.server_transaction_id,
+        );
+
+        async move {
+            make_response(self.params)
+                .await
+                .into_axum(response_transaction)
+        }
+        .instrument(span)
+        .await
+    }
 }
 
 impl Server {
@@ -116,8 +141,8 @@ impl Server {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|uri, params| {
-                    server_handler(uri,  params, |_params| async move {
+                axum::routing::get(|server_handler: ServerHandler| {
+                    server_handler.exec(|_params| async move {
                         ValueResponse::from([1_u32])
                     })
                 }),
@@ -125,16 +150,16 @@ impl Server {
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&devices);
 
-                axum::routing::get(|uri, params| {
-                    server_handler(uri,  params, |_params| async move {
+                axum::routing::get(|server_handler: ServerHandler| {
+                    server_handler.exec(|_params| async move {
                         let devices = this.iter_all().map(|(device, number)| device.to_configured_device(number)).collect::<Vec<_>>();
                         ValueResponse::from(devices)
                     })
                 })
             })
             .route("/management/v1/description",
-                axum::routing::get(move |uri, params| {
-                    server_handler(uri, params, |_params| async move {
+                axum::routing::get(move |server_handler: ServerHandler| {
+                    server_handler.exec(|_params| async move {
                         ValueResponse::from(Arc::clone(&server_info))
                     })
                 })
@@ -144,7 +169,6 @@ impl Server {
                 axum::routing::on(
                     MethodFilter::GET | MethodFilter::PUT,
                     move |
-                        uri,
                         #[cfg_attr(not(feature = "camera"), allow(unused_mut))]
                         Path((DevicePath(device_type), device_number, mut action)): Path<(
                             DevicePath,
@@ -153,7 +177,7 @@ impl Server {
                         )>,
                         #[cfg(feature = "camera")]
                         headers: axum::http::HeaderMap,
-                        params: ActionParams
+                        server_handler: ServerHandler,
                     | async move {
                         #[cfg(feature = "camera")]
                         if device_type == DeviceType::Camera {
@@ -163,17 +187,17 @@ impl Server {
                                 action.truncate("imagearray".len());
                             }
 
-                            if matches!(params, ActionParams::Get { .. })
+                            if matches!(server_handler.params, ActionParams::Get { .. })
                                 && action == "imagearray"
                                 && crate::api::ImageArray::is_accepted(&headers)
                             {
-                                return server_handler(uri, params, |_params| async move {
+                                return server_handler.exec(|_params| async move {
                                     Ok::<_, Error>(crate::api::ImageBytesResponse(devices.get_for_server::<dyn Camera>(device_number)?.image_array().await?))
                                 }).await;
                             }
                         }
 
-                        server_handler(uri,  params, |params| {
+                        server_handler.exec(|params| {
                             devices.handle_action(
                                 device_type,
                                 device_number,
