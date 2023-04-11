@@ -1,3 +1,9 @@
+//! This is an alternative to the problematic `serde(flatten)` attribute
+//! that efficiently deserializes large structs by caching only the small flattened
+//! part instead of the whole JSON object.
+//!
+//! This makes a particularly big difference for ImageArray JSON representation.
+
 use serde::de::value::MapDeserializer;
 use serde::de::{
     Deserialize, DeserializeOwned, DeserializeSeed, Deserializer, IntoDeserializer, MapAccess,
