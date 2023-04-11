@@ -11,12 +11,12 @@ macro_rules! opaque_params {
     ($($key:ident: $value:expr),* $(,)?) => {{
         #[derive(Debug, serde::Serialize)]
         #[allow(non_snake_case)]
-        struct Params {
-            $($key: String,)*
+        struct Params<$($key),*> {
+            $($key: $key,)*
         }
 
         Params {
-            $($key: $crate::params::ASCOMParam::to_string($value),)*
+            $($key: $value,)*
         }
     }};
 }

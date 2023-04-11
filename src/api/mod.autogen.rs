@@ -45,8 +45,9 @@ mod devices_impl;
 mod server_info;
 
 use crate::macros::{rpc_mod, rpc_trait};
-use crate::params::ASCOMEnumParam;
 use crate::response::ValueResponse;
+#[cfg(feature = "server")]
+use crate::server::ASCOMEnumParam;
 use macro_rules_attribute::{apply, macro_rules_derive};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
@@ -67,7 +68,7 @@ pub use server_info::*;
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum CameraState {
@@ -96,7 +97,7 @@ pub enum CameraState {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum ImageArrayType {
@@ -131,7 +132,7 @@ pub use image_array::*;
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum SensorType {
@@ -167,7 +168,7 @@ pub enum SensorType {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum PutPulseGuideDirection {
@@ -193,7 +194,7 @@ pub enum PutPulseGuideDirection {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum CalibratorStatus {
@@ -229,7 +230,7 @@ pub enum CalibratorStatus {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum CoverStatus {
@@ -265,7 +266,7 @@ pub enum CoverStatus {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum DomeShutterStatus {
@@ -293,7 +294,7 @@ pub enum DomeShutterStatus {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum AlignmentMode {
@@ -320,7 +321,7 @@ pub enum AlignmentMode {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum EquatorialSystem {
@@ -353,7 +354,7 @@ pub enum EquatorialSystem {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum SideOfPier {
@@ -380,7 +381,7 @@ pub enum SideOfPier {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum DriveRate {
@@ -410,7 +411,7 @@ pub enum DriveRate {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[macro_rules_derive(ASCOMEnumParam)]
+#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum Axis {

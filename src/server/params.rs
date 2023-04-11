@@ -1,4 +1,4 @@
-use crate::params::{ASCOMParam, CaseInsensitiveStr};
+use super::case_insensitive_str::CaseInsensitiveStr;
 use anyhow::Context;
 use axum::body::HttpBody;
 use axum::extract::FromRequest;
@@ -76,3 +76,52 @@ where
         }
     }
 }
+
+pub(crate) trait ASCOMParam: Sized {
+    fn from_string(s: String) -> anyhow::Result<Self>;
+}
+
+impl ASCOMParam for String {
+    fn from_string(s: String) -> anyhow::Result<Self> {
+        Ok(s)
+    }
+}
+
+impl ASCOMParam for bool {
+    fn from_string(s: String) -> anyhow::Result<Self> {
+        Ok(if s.eq_ignore_ascii_case("true") {
+            true
+        } else if s.eq_ignore_ascii_case("false") {
+            false
+        } else {
+            anyhow::bail!(r#"Invalid bool value {s:?}, expected "True" or "False""#);
+        })
+    }
+}
+
+macro_rules! simple_ascom_param {
+    ($($ty:ty),*) => {
+        $(
+            impl ASCOMParam for $ty {
+                fn from_string(s: String) -> anyhow::Result<Self> {
+                    Ok(s.parse()?)
+                }
+            }
+        )*
+    };
+}
+
+simple_ascom_param!(i32, u32, f64);
+
+macro_rules! ASCOMEnumParam {
+    ($(# $attr:tt)* $pub:vis enum $name:ident $variants:tt) => {
+        impl $crate::server::ASCOMParam for $name {
+            fn from_string(s: String) -> anyhow::Result<Self> {
+                Ok(<Self as num_enum::TryFromPrimitive>::try_from_primitive(
+                    $crate::server::ASCOMParam::from_string(s)?,
+                )?)
+            }
+        }
+    };
+}
+pub(crate) use ASCOMEnumParam;

@@ -599,7 +599,8 @@ mod devices_impl;
 mod server_info;
 
 use crate::macros::{rpc_mod, rpc_trait};
-use crate::params::ASCOMEnumParam;
+#[cfg(feature = "server")]
+use crate::server::ASCOMEnumParam;
 use crate::response::ValueResponse;
 use macro_rules_attribute::{apply, macro_rules_derive};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -669,7 +670,7 @@ ${stringifyIter(types, ({features, type}) => {
         ${stringifyDoc(type.doc)}
         ${cfg}
         #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
-        #[macro_rules_derive(ASCOMEnumParam)]
+        #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
         #[repr(${type.baseType})]
         #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
         pub enum ${type.name} {

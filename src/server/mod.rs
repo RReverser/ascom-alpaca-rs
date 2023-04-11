@@ -4,8 +4,10 @@ pub use discovery::Server as DiscoveryServer;
 mod transaction;
 pub(crate) use transaction::*;
 
+mod case_insensitive_str;
+
 mod params;
-pub(crate) use params::ActionParams;
+pub(crate) use params::{ASCOMEnumParam, ASCOMParam, ActionParams};
 
 mod response;
 pub(crate) use response::Response;

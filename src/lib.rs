@@ -59,7 +59,6 @@ mod server;
 pub mod discovery;
 mod either;
 mod errors;
-mod params;
 mod response;
 
 pub use api::Devices;
