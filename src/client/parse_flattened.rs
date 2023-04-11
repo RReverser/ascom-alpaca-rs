@@ -2,7 +2,7 @@
 //! that efficiently deserializes large structs by caching only the small flattened
 //! part instead of the whole JSON object.
 //!
-//! This makes a particularly big difference for ImageArray JSON representation.
+//! This makes a particularly big difference for the image array JSON representation.
 
 use serde::de::value::MapDeserializer;
 use serde::de::{
