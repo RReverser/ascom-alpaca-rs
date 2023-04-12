@@ -75,7 +75,7 @@ macro_rules! rpc_trait {
                     $(
                         ($method_path, $crate::server::ActionParams::$http_method(mut params)) => {
                             $(
-                                let $param = params.extract($param_query).map_err($crate::server::Error::BadRequest)?;
+                                let $param = params.extract($param_query)?;
                             )*
 
                             let value =

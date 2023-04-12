@@ -1,4 +1,4 @@
-use super::ActionParams;
+use super::{ActionParams, Error};
 use crate::macros::auto_increment;
 use serde::Serialize;
 use std::num::NonZeroU32;
@@ -37,7 +37,7 @@ pub(crate) struct RequestTransaction {
 }
 
 impl RequestTransaction {
-    pub(crate) fn extract(params: &mut ActionParams) -> anyhow::Result<Self> {
+    pub(crate) fn extract(params: &mut ActionParams) -> Result<Self, Error> {
         let mut extract_id = |name| {
             match params {
                 ActionParams::Get(params) => params.maybe_extract(name),

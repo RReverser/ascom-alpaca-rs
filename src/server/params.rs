@@ -1,5 +1,5 @@
 use super::case_insensitive_str::CaseInsensitiveStr;
-use anyhow::Context;
+use super::Error;
 use axum::body::HttpBody;
 use axum::extract::FromRequest;
 use axum::http::{Method, Request, StatusCode};
@@ -33,19 +33,23 @@ impl<ParamStr: ?Sized + Hash + Eq + Debug> OpaqueParams<ParamStr>
 where
     str: AsRef<ParamStr>,
 {
-    pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<Option<T>> {
+    pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> Result<Option<T>, Error> {
         self.0
             .remove(name.as_ref())
             .map(|value| {
-                T::from_string(value)
-                    .with_context(|| format!("Invalid value for parameter {name:?}"))
+                T::from_string(value).map_err(|err| {
+                    Error::Ascom(ASCOMError::new(
+                        ASCOMErrorCode::INVALID_VALUE,
+                        format!("Invalid value for parameter {name:?}: {err:#}"),
+                    ))
+                })
             })
             .transpose()
     }
 
-    pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<T> {
+    pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &str) -> Result<T, Error> {
         self.maybe_extract(name)?
-            .ok_or_else(|| anyhow::anyhow!("Missing parameter {name:?}"))
+            .ok_or_else(|| Error::BadRequest(anyhow::anyhow!("Missing parameter {name:?}")))
     }
 }
 
@@ -125,4 +129,5 @@ macro_rules! ASCOMEnumParam {
         }
     };
 }
+use crate::{ASCOMError, ASCOMErrorCode};
 pub(crate) use ASCOMEnumParam;
