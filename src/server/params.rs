@@ -37,14 +37,15 @@ where
         self.0
             .remove(name.as_ref())
             .map(|value| {
-                T::from_string(value).with_context(|| format!("Invalid value for parameter {name}"))
+                T::from_string(value)
+                    .with_context(|| format!("Invalid value for parameter {name:?}"))
             })
             .transpose()
     }
 
     pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &str) -> anyhow::Result<T> {
         self.maybe_extract(name)?
-            .ok_or_else(|| anyhow::anyhow!("Missing parameter {name}"))
+            .ok_or_else(|| anyhow::anyhow!("Missing parameter {name:?}"))
     }
 }
 
