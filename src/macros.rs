@@ -70,10 +70,11 @@ macro_rules! rpc_trait {
                     $($method_name($method_name),)*
                 }
 
-                #[allow(unused)]
                 let value = match (action, params) {
                     $(
-                        ($method_path, $crate::server::ActionParams::$http_method(mut params)) => {
+                        ($method_path, $crate::server::ActionParams::$http_method(params)) => {
+                            #[allow(unused_mut)]
+                            let mut params = params;
                             $(
                                 let $param = params.extract($param_query)?;
                             )*
@@ -92,6 +93,7 @@ macro_rules! rpc_trait {
                     (action, params) => rpc_trait!(@if_specific $trait_name {
                         return <dyn Device>::handle_action(device, action, params).await.map($crate::either::Either::Right);
                     } {
+                        let _ = params;
                         return Err($crate::server::Error::NotFound(anyhow::anyhow!("Unknown action {}::{action}", stringify!($trait_name))));
                     })
                 };

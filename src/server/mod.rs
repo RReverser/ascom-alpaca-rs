@@ -155,9 +155,7 @@ impl Server {
             .route(
                 "/management/apiversions",
                 axum::routing::get(|server_handler: ServerHandler| {
-                    server_handler.exec(|_params| async move {
-                        ValueResponse::from([1_u32])
-                    })
+                    server_handler.exec(|_params| async move { ValueResponse::from([1_u32]) })
                 }),
             )
             .route("/management/v1/configureddevices", {
@@ -165,33 +163,36 @@ impl Server {
 
                 axum::routing::get(|server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move {
-                        let devices = this.iter_all().map(|(device, number)| device.to_configured_device(number)).collect::<Vec<_>>();
+                        let devices = this
+                            .iter_all()
+                            .map(|(device, number)| device.to_configured_device(number))
+                            .collect::<Vec<_>>();
                         ValueResponse::from(devices)
                     })
                 })
             })
-            .route("/management/v1/description",
+            .route(
+                "/management/v1/description",
                 axum::routing::get(move |server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move {
                         ValueResponse::from(Arc::clone(&server_info))
                     })
-                })
+                }),
             )
             .route(
                 "/api/v1/:device_type/:device_number/:action",
                 axum::routing::on(
                     MethodFilter::GET | MethodFilter::PUT,
-                    move |
-                        #[cfg_attr(not(feature = "camera"), allow(unused_mut))]
-                        Path((DevicePath(device_type), device_number, mut action)): Path<(
-                            DevicePath,
-                            usize,
-                            String,
-                        )>,
+                    move |Path((DevicePath(device_type), device_number, action)): Path<(
+                        DevicePath,
+                        usize,
+                        String,
+                    )>,
+                          #[cfg(feature = "camera")] headers: axum::http::HeaderMap,
+                          server_handler: ServerHandler| async move {
                         #[cfg(feature = "camera")]
-                        headers: axum::http::HeaderMap,
-                        server_handler: ServerHandler,
-                    | async move {
+                        let mut action = action;
+
                         #[cfg(feature = "camera")]
                         if device_type == DeviceType::Camera {
                             // imagearrayvariant is soft-deprecated; we should accept it but
@@ -204,21 +205,26 @@ impl Server {
                                 && action == "imagearray"
                                 && crate::api::ImageArray::is_accepted(&headers)
                             {
-                                return server_handler.exec(|_params| async move {
-                                    Ok::<_, Error>(crate::api::ImageBytesResponse(devices.get_for_server::<dyn Camera>(device_number)?.image_array().await?))
-                                }).await;
+                                return server_handler
+                                    .exec(|_params| async move {
+                                        Ok::<_, Error>(crate::api::ImageBytesResponse(
+                                            devices
+                                                .get_for_server::<dyn Camera>(device_number)?
+                                                .image_array()
+                                                .await?,
+                                        ))
+                                    })
+                                    .await;
                             }
                         }
 
-                        server_handler.exec(|params| {
-                            devices.handle_action(
-                                device_type,
-                                device_number,
-                                &action,
-                                params,
-                            )
-                        }).await
-                    }),
+                        server_handler
+                            .exec(|params| {
+                                devices.handle_action(device_type, device_number, &action, params)
+                            })
+                            .await
+                    },
+                ),
             )
     }
 }
