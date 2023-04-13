@@ -13,15 +13,7 @@ use std::hash::Hash;
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
 #[serde(bound(deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"))]
-pub(crate) struct OpaqueParams<ParamStr: ?Sized + Debug>(IndexMap<Box<ParamStr>, String>);
-
-impl<ParamStr: ?Sized + Debug> Drop for OpaqueParams<ParamStr> {
-    fn drop(&mut self) {
-        if !self.0.is_empty() {
-            tracing::warn!("Unused parameters: {:?}", self.0);
-        }
-    }
-}
+pub(crate) struct OpaqueParams<ParamStr: ?Sized>(IndexMap<Box<ParamStr>, String>);
 
 #[derive(Debug)]
 pub(crate) enum ActionParams {
@@ -50,6 +42,12 @@ where
     pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &str) -> Result<T, Error> {
         self.maybe_extract(name)?
             .ok_or_else(|| Error::BadRequest(anyhow::anyhow!("Missing parameter {name:?}")))
+    }
+
+    pub(crate) fn finish_extraction(self) {
+        if !self.0.is_empty() {
+            tracing::warn!("Unused parameters: {:?}", self.0.keys());
+        }
     }
 }
 

@@ -77,6 +77,7 @@ macro_rules! rpc_trait {
                             $(
                                 let $param = params.extract($param_query)?;
                             )*
+                            params.finish_extraction();
 
                             let value =
                                 device
