@@ -63,7 +63,7 @@ macro_rules! rpc_trait {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
             #[allow(non_camel_case_types)]
-            async fn handle_action(device: &(impl ?Sized + $trait_name), action: &str, params: $crate::server::ActionParams) -> Result<impl Serialize, $crate::server::Error> {
+            async fn handle_action(device: &(impl ?Sized + $trait_name), action: &str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
                 #[derive(Serialize)]
                 #[serde(untagged)]
                 enum ResponseRepr<$($method_name),*> {
@@ -94,7 +94,10 @@ macro_rules! rpc_trait {
                         return <dyn Device>::handle_action(device, action, params).await.map($crate::either::Either::Right);
                     } {
                         let _ = params;
-                        return Err($crate::server::Error::NotFound(anyhow::anyhow!("Unknown action {}::{action}", stringify!($trait_name))));
+                        return Err($crate::server::Error::UnknownAction {
+                            device_type: stringify!($trait_name),
+                            action: action.to_owned(),
+                        });
                     })
                 };
 
@@ -406,7 +409,7 @@ macro_rules! rpc_mod {
 
         impl Devices {
             #[cfg(feature = "server")]
-            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> Result<impl 'this + Serialize, $crate::server::Error> {
+            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl 'this + Serialize> {
                 #[derive(Serialize)]
                 #[serde(untagged)]
                 enum ResponseRepr<$(

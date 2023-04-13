@@ -13,7 +13,7 @@ mod response;
 pub(crate) use response::Response;
 
 mod error;
-pub(crate) use error::Error;
+pub(crate) use error::{Error, Result};
 
 #[cfg(feature = "camera")]
 use crate::api::{Camera, DeviceType};
@@ -73,7 +73,10 @@ where
 {
     type Rejection = axum::response::Response;
 
-    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(
+        req: Request<B>,
+        state: &S,
+    ) -> std::result::Result<Self, Self::Rejection> {
         let path = req.uri().path().to_owned();
         let params = ActionParams::from_request(req, state).await?;
         Ok(Self { path, params })

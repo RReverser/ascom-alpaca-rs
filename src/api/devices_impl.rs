@@ -42,13 +42,11 @@ impl Devices {
     pub(crate) fn get_for_server<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
         device_number: usize,
-    ) -> Result<&DynTrait, crate::server::Error> {
-        self.get::<DynTrait>(device_number).ok_or_else(|| {
-            crate::server::Error::NotFound(anyhow::anyhow!(
-                "Device {}#{} not found",
-                DynTrait::TYPE,
-                device_number
-            ))
-        })
+    ) -> crate::server::Result<&DynTrait> {
+        self.get::<DynTrait>(device_number)
+            .ok_or(crate::server::Error::UnknownDeviceIndex {
+                ty: DynTrait::TYPE,
+                index: device_number,
+            })
     }
 }

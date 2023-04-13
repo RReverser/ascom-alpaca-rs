@@ -1,12 +1,20 @@
+use crate::api::DeviceType;
 use crate::ASCOMError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub(crate) enum Error {
-    #[error("Bad request: {0}")]
-    BadRequest(#[source] anyhow::Error),
-    #[error("Bad request: {0}")]
-    NotFound(#[source] anyhow::Error),
+    #[error("Device {ty}[{index}] not found")]
+    UnknownDeviceIndex { ty: DeviceType, index: usize },
+    #[error("Unknown action {device_type}::{action}")]
+    UnknownAction {
+        device_type: &'static str,
+        action: String,
+    },
+    #[error("Missing parameter {name:?}")]
+    MissingParameter { name: &'static str },
     #[error(transparent)]
     Ascom(#[from] ASCOMError),
 }
+
+pub(crate) type Result<T> = std::result::Result<T, Error>;

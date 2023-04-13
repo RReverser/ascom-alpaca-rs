@@ -38,7 +38,7 @@ impl<T: Serialize> Response for ASCOMResult<T> {
     }
 }
 
-impl<T> Response for Result<T, Error>
+impl<T> Response for super::Result<T>
 where
     ASCOMResult<T>: Response,
 {
@@ -46,8 +46,12 @@ where
         let ascom_result_or_err = match self {
             Ok(response) => Ok(Ok(response)),
             Err(Error::Ascom(err)) => Ok(Err(err)),
-            Err(Error::BadRequest(err)) => Err((StatusCode::BAD_REQUEST, format!("{err:#}"))),
-            Err(Error::NotFound(err)) => Err((StatusCode::NOT_FOUND, format!("{err:#}"))),
+            Err(err @ Error::MissingParameter { .. }) => {
+                Err((StatusCode::BAD_REQUEST, err.to_string()))
+            }
+            Err(err @ (Error::UnknownDeviceIndex { .. } | Error::UnknownAction { .. })) => {
+                Err((StatusCode::NOT_FOUND, err.to_string()))
+            }
         };
 
         match ascom_result_or_err {

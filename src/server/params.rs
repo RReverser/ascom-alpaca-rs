@@ -25,7 +25,10 @@ impl<ParamStr: ?Sized + Hash + Eq + Debug> OpaqueParams<ParamStr>
 where
     str: AsRef<ParamStr>,
 {
-    pub(crate) fn maybe_extract<T: ASCOMParam>(&mut self, name: &str) -> Result<Option<T>, Error> {
+    pub(crate) fn maybe_extract<T: ASCOMParam>(
+        &mut self,
+        name: &'static str,
+    ) -> super::Result<Option<T>> {
         self.0
             .remove(name.as_ref())
             .map(|value| {
@@ -39,9 +42,9 @@ where
             .transpose()
     }
 
-    pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &str) -> Result<T, Error> {
+    pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &'static str) -> super::Result<T> {
         self.maybe_extract(name)?
-            .ok_or_else(|| Error::BadRequest(anyhow::anyhow!("Missing parameter {name:?}")))
+            .ok_or(Error::MissingParameter { name })
     }
 
     pub(crate) fn finish_extraction(self) {
