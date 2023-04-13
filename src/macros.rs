@@ -91,7 +91,16 @@ macro_rules! rpc_trait {
                         }
                     )*
                     (action, params) => rpc_trait!(@if_specific $trait_name {
-                        return <dyn Device>::handle_action(device, action, params).await.map($crate::either::Either::Right);
+                        return match <dyn Device>::handle_action(device, action, params).await {
+                            Ok(value) => Ok($crate::either::Either::Right(value)),
+                            Err(mut err) => {
+                                if let $crate::server::Error::UnknownAction { device_type, .. } = &mut err {
+                                    // Update to a more specific device type.
+                                    *device_type = stringify!($trait_name);
+                                }
+                                Err(err)
+                            }
+                        };
                     } {
                         let _ = params;
                         return Err($crate::server::Error::UnknownAction {
