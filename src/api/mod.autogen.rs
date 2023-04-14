@@ -87,35 +87,6 @@ pub enum CameraState {
 }
 
 #[cfg(feature = "camera")]
-#[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Serialize_repr,
-    Deserialize_repr,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
-#[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
-#[allow(missing_docs)] // some enum variants might not have docs and that's okay
-pub enum ImageArrayType {
-    Unknown = 0,
-
-    /// int16
-    Short = 1,
-
-    /// int32
-    Integer = 2,
-
-    /// Double precision real number
-    Double = 3,
-}
-
-#[cfg(feature = "camera")]
 mod image_array;
 
 #[cfg(feature = "camera")]

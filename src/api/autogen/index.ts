@@ -636,6 +636,10 @@ ${stringifyIter(types, ({features, type}) => {
     `;
   }
 
+  if (type.name === 'ImageArrayType') {
+    return '';
+  }
+
   switch (type.kind) {
     case 'Request':
       return '';

@@ -7,9 +7,11 @@ mod server;
 pub(crate) use server::ImageBytesResponse;
 
 use bytemuck::{Pod, Zeroable};
-use ndarray::{Array3, Axis};
+use ndarray::{Array2, Array3, ArrayView2, ArrayView3, Axis};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::num::NonZeroU32;
+use std::ops::Deref;
 
 /// Rank of an image array.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
@@ -21,6 +23,53 @@ pub enum ImageArrayRank {
     Rank3 = 3,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
+pub(crate) enum TransmissionElementType {
+    I16 = 1,
+    I32 = 2,
+    U8 = 6,
+    U16 = 8,
+}
+
+// Limited to the only supported element type; useful for serde purposes.
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Serialize_repr,
+    Deserialize_repr,
+    IntoPrimitive,
+    TryFromPrimitive,
+)]
+#[repr(i32)]
+pub(crate) enum ImageElementType {
+    I32 = TransmissionElementType::I32 as i32,
+}
+
+trait AsTransmissionElementType: 'static + TryFrom<i32> + Into<i32> + Copy {
+    const TYPE: TransmissionElementType;
+}
+
+impl AsTransmissionElementType for i16 {
+    const TYPE: TransmissionElementType = TransmissionElementType::I16;
+}
+
+impl AsTransmissionElementType for i32 {
+    const TYPE: TransmissionElementType = TransmissionElementType::I32;
+}
+
+impl AsTransmissionElementType for u16 {
+    const TYPE: TransmissionElementType = TransmissionElementType::U16;
+}
+
+impl AsTransmissionElementType for u8 {
+    const TYPE: TransmissionElementType = TransmissionElementType::U8;
+}
+
 /// Image array.
 ///
 /// Image is represented as a 3D array regardless of its actual rank.
@@ -29,11 +78,53 @@ pub enum ImageArrayRank {
 /// You can retrieve rank as an enum via the [`ImageArray::rank`] method.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ImageArray {
-    /// Image data.
-    pub data: Array3<i32>,
+    data: Array3<i32>,
+    transmission_element_type: TransmissionElementType,
 }
 
 const COLOUR_AXIS: Axis = Axis(2);
+
+impl<T: AsTransmissionElementType> From<ArrayView3<'_, T>> for ImageArray {
+    fn from(array: ArrayView3<'_, T>) -> Self {
+        let data = array.mapv(Into::into);
+        let transmission_element_type = T::TYPE;
+        Self {
+            data,
+            transmission_element_type,
+        }
+    }
+}
+
+impl<T: AsTransmissionElementType> From<Array3<T>> for ImageArray {
+    fn from(array: Array3<T>) -> Self {
+        let data = array.mapv_into_any(Into::into);
+        let transmission_element_type = T::TYPE;
+        Self {
+            data,
+            transmission_element_type,
+        }
+    }
+}
+
+impl<T: AsTransmissionElementType> From<ArrayView2<'_, T>> for ImageArray {
+    fn from(array: ArrayView2<'_, T>) -> Self {
+        array.insert_axis(COLOUR_AXIS).into()
+    }
+}
+
+impl<T: AsTransmissionElementType> From<Array2<T>> for ImageArray {
+    fn from(array: Array2<T>) -> Self {
+        array.insert_axis(COLOUR_AXIS).into()
+    }
+}
+
+impl Deref for ImageArray {
+    type Target = Array3<i32>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
 
 impl ImageArray {
     /// Retrieve actual rank of the image.

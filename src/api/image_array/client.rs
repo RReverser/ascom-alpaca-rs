@@ -1,10 +1,13 @@
-use super::{ImageArray, ImageArrayRank, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
-use crate::api::ImageArrayType;
+use super::{
+    ImageArray, ImageArrayRank, ImageBytesMetadata, ImageElementType, COLOUR_AXIS, IMAGE_BYTES_TYPE,
+};
+use crate::api::TransmissionElementType;
 use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytes::Bytes;
 use mime::Mime;
 use ndarray::{Array2, Array3};
+use num_enum::TryFromPrimitive;
 use serde::de::{DeserializeOwned, IgnoredAny, Visitor};
 use serde::Deserialize;
 
@@ -54,12 +57,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
 
     fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         expect_key(&mut map, KnownKey::Type)?;
-        let type_ = map.next_value::<ImageArrayType>()?;
-        if type_ != ImageArrayType::Integer {
-            return Err(serde::de::Error::custom(format!(
-                r"expected Type == Integer, got {type_:?}",
-            )));
-        }
+        let ImageElementType::I32 = map.next_value::<ImageElementType>()?;
 
         expect_key(&mut map, KnownKey::Rank)?;
         let rank = map.next_value::<ImageArrayRank>()?;
@@ -76,7 +74,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
         // Consume leftover fields.
         let _ = IgnoredAny.visit_map(map)?;
 
-        Ok(ImageArray { data })
+        Ok(data.into())
     }
 }
 
@@ -123,29 +121,24 @@ impl Response for ASCOMResult<ImageArray> {
             server_transaction_id: metadata.server_transaction_id,
         };
         let ascom_result = if metadata.error_number == 0_i32 {
-            anyhow::ensure!(
-                metadata.image_element_type == ImageArrayType::Integer as i32,
-                "only Integer image element type is supported, got {}",
-                metadata.image_element_type
-            );
-            let data = match metadata.transmission_element_type {
-				1_i32 /* Int16 */=> bytemuck::cast_slice::<u8, i16>(data)
-					.iter()
-					.copied()
-					.map(i32::from)
-					.collect(),
-				2_i32/* Int32 */ => bytemuck::cast_slice::<u8, i32>(data).to_owned(),
-				6_i32/* Byte */ => data.iter().copied().map(i32::from).collect(),
-				8_i32 /* Uint16 */=> bytemuck::cast_slice::<u8, u16>(data)
-					.iter()
-					.copied()
-					.map(i32::from)
-					.collect(),
-				_ => anyhow::bail!(
-					"unsupported integer transmission type {}",
-					metadata.transmission_element_type
-				),
-			};
+            let ImageElementType::I32 =
+                ImageElementType::try_from_primitive(metadata.image_element_type)?;
+            let transmission_element_type =
+                TransmissionElementType::try_from_primitive(metadata.transmission_element_type)?;
+            let data = match transmission_element_type {
+                TransmissionElementType::I16 => bytemuck::cast_slice::<u8, i16>(data)
+                    .iter()
+                    .copied()
+                    .map(i32::from)
+                    .collect(),
+                TransmissionElementType::I32 => bytemuck::cast_slice::<u8, i32>(data).to_owned(),
+                TransmissionElementType::U8 => data.iter().copied().map(i32::from).collect(),
+                TransmissionElementType::U16 => bytemuck::cast_slice::<u8, u16>(data)
+                    .iter()
+                    .copied()
+                    .map(i32::from)
+                    .collect(),
+            };
             let shape = ndarray::Ix3(
                 usize::try_from(metadata.dimension_1)?,
                 usize::try_from(metadata.dimension_2)?,
@@ -162,10 +155,9 @@ impl Response for ASCOMResult<ImageArray> {
                     rank => anyhow::bail!("unsupported rank {}, expected 2 or 3", rank),
                 },
             );
-            Ok(ImageArray {
-                data: ndarray::Array::from_shape_vec(shape, data)
-                    .expect("couldn't match the parsed shape to the data"),
-            })
+            Ok(ndarray::Array::from_shape_vec(shape, data)
+                .expect("couldn't match the parsed shape to the data")
+                .into())
         } else {
             Err(ASCOMError::new(
                 ASCOMErrorCode::try_from(u16::try_from(metadata.error_number)?)?,

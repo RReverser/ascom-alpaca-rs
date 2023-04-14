@@ -339,13 +339,14 @@ impl CaptureState {
         while !self.camera.image_ready().await? {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        let mut raw_img = self.camera.image_array().await?;
-        let (width, height, depth) = raw_img.data.dim();
+        let raw_img = self.camera.image_array().await?;
+        let (width, height, depth) = raw_img.dim();
         // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
-        raw_img.data.swap_axes(0, 1);
+        let mut data = raw_img.view();
+        data.swap_axes(0, 1);
         let mut min = i32::MAX;
         let mut max = i32::MIN;
-        for &x in &raw_img.data {
+        for &x in data {
             min = min.min(x);
             max = max.max(x);
         }
@@ -353,7 +354,7 @@ impl CaptureState {
         if diff == 0 {
             diff = 1;
         }
-        let stretched_iter = raw_img.data.iter().map(|&x| {
+        let stretched_iter = raw_img.iter().map(|&x| {
             // Stretch the image.
             (i64::from(x - min) * i64::from(u8::MAX) / diff)
                 .try_into()

@@ -1,9 +1,10 @@
 use super::{ImageArray, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
-use crate::api::{ImageArrayRank, ImageArrayType};
+use crate::api::{ImageArrayRank, ImageElementType, TransmissionElementType};
 use crate::server::Response;
 use crate::ASCOMResult;
-use bytemuck::Zeroable;
+use bytemuck::{bytes_of, Zeroable};
 use serde::{Serialize, Serializer};
+use std::mem::size_of;
 
 pub(crate) struct ImageBytesResponse(pub(crate) ImageArray);
 
@@ -16,18 +17,18 @@ impl Response for ASCOMResult<ImageBytesResponse> {
 
         let mut metadata = ImageBytesMetadata {
             metadata_version: 1,
-            data_start: i32::try_from(std::mem::size_of::<ImageBytesMetadata>())
+            data_start: i32::try_from(size_of::<ImageBytesMetadata>())
                 .expect("internal error: metadata size is too large"),
             client_transaction_id: transaction.client_transaction_id,
             server_transaction_id: Some(transaction.server_transaction_id),
             ..Zeroable::zeroed()
         };
-        let data = match &self {
-            Ok(ImageBytesResponse(ImageArray { data })) => {
-                metadata.image_element_type = ImageArrayType::Integer as i32;
-                metadata.transmission_element_type = ImageArrayType::Integer as i32;
+        let bytes = match &self {
+            Ok(ImageBytesResponse(img_array)) => {
+                metadata.image_element_type = ImageElementType::I32.into();
+                metadata.transmission_element_type = img_array.transmission_element_type.into();
                 let dims = {
-                    let (dim0, dim1, dim2) = data.dim();
+                    let (dim0, dim1, dim2) = img_array.dim();
                     [dim0, dim1, dim2]
                         .map(|dim| i32::try_from(dim).expect("dimension is too large"))
                 };
@@ -40,19 +41,43 @@ impl Response for ASCOMResult<ImageBytesResponse> {
                         3_i32
                     }
                 };
-                bytemuck::cast_slice(
-                    data.as_slice()
-                        .expect("internal arrays should always be in standard layout"),
-                )
+                let mut bytes = Vec::with_capacity(
+                    size_of::<ImageBytesMetadata>()
+                        + img_array.len()
+                            * match img_array.transmission_element_type {
+                                TransmissionElementType::I32 => size_of::<i32>(),
+                                TransmissionElementType::U8 => size_of::<u8>(),
+                                TransmissionElementType::I16 => size_of::<i16>(),
+                                TransmissionElementType::U16 => size_of::<u16>(),
+                            },
+                );
+                bytes.extend_from_slice(bytes_of(&metadata));
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                match img_array.transmission_element_type {
+                    TransmissionElementType::I32 => {
+                        bytes.extend(img_array.iter().flat_map(|&i| i.to_le_bytes()));
+                    }
+                    TransmissionElementType::U8 => {
+                        bytes.extend(img_array.iter().map(|&i| i as u8));
+                    }
+                    TransmissionElementType::I16 => {
+                        bytes.extend(img_array.iter().flat_map(|&i| (i as i16).to_le_bytes()));
+                    }
+                    TransmissionElementType::U16 => {
+                        bytes.extend(img_array.iter().flat_map(|&i| (i as u16).to_le_bytes()));
+                    }
+                }
+                bytes
             }
             Err(err) => {
                 metadata.error_number = err.code.raw().into();
-                err.message.as_bytes()
+                let mut bytes =
+                    Vec::with_capacity(size_of::<ImageBytesMetadata>() + err.message.len());
+                bytes.extend_from_slice(bytes_of(&metadata));
+                bytes.extend_from_slice(err.message.as_bytes());
+                bytes
             }
         };
-        let mut bytes = Vec::with_capacity(std::mem::size_of::<ImageBytesMetadata>() + data.len());
-        bytes.extend_from_slice(bytemuck::bytes_of(&metadata));
-        bytes.extend_from_slice(data);
         (
             [(axum::http::header::CONTENT_TYPE, IMAGE_BYTES_TYPE)],
             bytes,
@@ -67,7 +92,7 @@ impl Serialize for ImageArray {
         #[serde(rename_all = "PascalCase")]
         struct JsonImageArray<'img> {
             #[serde(rename = "Type")]
-            type_: ImageArrayType,
+            type_: ImageElementType,
             rank: ImageArrayRank,
             value: Value<'img>,
         }
@@ -82,7 +107,7 @@ impl Serialize for ImageArray {
         let view = self.data.view();
 
         JsonImageArray {
-            type_: ImageArrayType::Integer,
+            type_: ImageElementType::I32,
             rank: self.rank(),
             value: match self.rank() {
                 ImageArrayRank::Rank2 => Value::Rank2(view.remove_axis(COLOUR_AXIS)),
