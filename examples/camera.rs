@@ -394,18 +394,20 @@ impl CaptureState {
         let mut raw_img = raw_img.view();
         raw_img.swap_axes(0, 1);
         let mut min = i32::MAX;
-        let mut max = i32::MIN;
+        let mut max = 0; // some simulators return negative values that don't make sense, so 0 is better default than i32::MIN
         for &x in raw_img {
             min = min.min(x);
             max = max.max(x);
         }
-        let mut diff = i64::from(max - min);
+        let min = i64::from(min);
+        let max = i64::from(max);
+        let mut diff = max - min;
         if diff == 0 {
             diff = 1;
         }
         let stretched_iter = raw_img.iter().map(|&x| {
             // Stretch the image.
-            (i64::from(x - min) * i64::from(u8::MAX) / diff)
+            ((i64::from(x) - min) * i64::from(u8::MAX) / diff)
                 .try_into()
                 .unwrap()
         });
