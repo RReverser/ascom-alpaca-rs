@@ -5,13 +5,10 @@ use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
 use std::collections::VecDeque;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
-
-type AtomicF64 = atomic::Atomic<f64>;
 
 struct FpsCounter {
     total_count: u32,
@@ -188,7 +185,9 @@ impl<'a> StateCtxGuard<'a> {
                         let exposure_max = camera.exposure_max().await?;
                         let (tx, rx) = tokio::sync::mpsc::channel(1);
                         let capture_state = Arc::new(CaptureState {
-                            duration_sec: AtomicF64::new(exposure_min),
+                            params: Mutex::new(CaptureParams {
+                                duration_sec: exposure_min,
+                            }),
                             params_change: Notify::new(),
                             tx,
                             sensor_type: camera.sensor_type().await?,
@@ -229,16 +228,16 @@ impl<'a> StateCtxGuard<'a> {
             } => {
                 ui.label(format!("Connected to camera: {}", camera_name));
                 let disconnect_btn = ui.button("⏹ Disconnect");
-                let mut duration_sec = capture_state.get_duration_sec();
-                if ui
+                let mut params = capture_state.get_params();
+                let params_changed = ui
                     .add(
-                        egui::Slider::new(&mut duration_sec, exposure_range.clone())
+                        egui::Slider::new(&mut params.duration_sec, exposure_range.clone())
                             .logarithmic(true)
                             .text("Exposure (sec)"),
                     )
-                    .changed()
-                {
-                    capture_state.set_duration_sec(duration_sec);
+                    .changed();
+                if params_changed {
+                    capture_state.set_params(params);
                     fps_counter.reset();
                 }
                 if let Ok(new_img) = rx.try_recv() {
@@ -251,7 +250,7 @@ impl<'a> StateCtxGuard<'a> {
                             "Frame #{}. Rendering at {:.1} fps vs capture set to {:.1}",
                             fps_counter.total_count,
                             fps_counter.rate(),
-                            1.0 / duration_sec
+                            1.0 / params.duration_sec
                         ));
                         let available_size = ui.available_size();
                         let mut img_size = Vec2::from(img.size().map(|x| x as f32));
@@ -280,8 +279,13 @@ impl<'a> StateCtxGuard<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct CaptureParams {
+    duration_sec: f64,
+}
+
 struct CaptureState {
-    duration_sec: atomic::Atomic<f64>,
+    params: Mutex<CaptureParams>,
     params_change: Notify,
     tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
     camera: Arc<dyn Camera>,
@@ -290,12 +294,12 @@ struct CaptureState {
 }
 
 impl CaptureState {
-    fn get_duration_sec(&self) -> f64 {
-        self.duration_sec.load(Ordering::Relaxed)
+    fn get_params(&self) -> CaptureParams {
+        *self.params.lock().unwrap()
     }
 
-    fn set_duration_sec(&self, duration_sec: f64) {
-        self.duration_sec.store(duration_sec, Ordering::Relaxed);
+    fn set_params(&self, params: CaptureParams) {
+        *self.params.lock().unwrap() = params;
         // Abort current exposure.
         self.params_change.notify_waiters();
     }
@@ -334,8 +338,10 @@ impl CaptureState {
     }
 
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
-        let duration_sec = self.get_duration_sec();
-        self.camera.start_exposure(duration_sec, true).await?;
+        let params = self.get_params();
+        self.camera
+            .start_exposure(params.duration_sec, true)
+            .await?;
         while !self.camera.image_ready().await? {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
