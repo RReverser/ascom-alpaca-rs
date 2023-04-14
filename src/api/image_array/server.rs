@@ -35,12 +35,13 @@ impl Response for ASCOMResult<ImageBytesResponse> {
                 metadata.dimension_1 = dims[0];
                 metadata.dimension_2 = dims[1];
                 metadata.rank = match dims[2] {
-                    1_i32 => 2_i32,
+                    1_i32 => ImageArrayRank::Rank2,
                     n => {
                         metadata.dimension_3 = n;
-                        3_i32
+                        ImageArrayRank::Rank3
                     }
-                };
+                }
+                .into();
                 let mut bytes = Vec::with_capacity(
                     size_of::<ImageBytesMetadata>()
                         + img_array.len()

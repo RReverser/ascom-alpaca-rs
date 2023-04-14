@@ -142,8 +142,8 @@ impl Response for ASCOMResult<ImageArray> {
             let shape = ndarray::Ix3(
                 usize::try_from(metadata.dimension_1)?,
                 usize::try_from(metadata.dimension_2)?,
-                match metadata.rank {
-                    2 => {
+                match ImageArrayRank::try_from_primitive(metadata.rank)? {
+                    ImageArrayRank::Rank2 => {
                         anyhow::ensure!(
                             metadata.dimension_3 == 0_i32,
                             "dimension 3 must be 0 for rank 2, got {}",
@@ -151,13 +151,10 @@ impl Response for ASCOMResult<ImageArray> {
                         );
                         1
                     }
-                    3 => usize::try_from(metadata.dimension_3)?,
-                    rank => anyhow::bail!("unsupported rank {}, expected 2 or 3", rank),
+                    ImageArrayRank::Rank3 => usize::try_from(metadata.dimension_3)?,
                 },
             );
-            Ok(ndarray::Array::from_shape_vec(shape, data)
-                .expect("couldn't match the parsed shape to the data")
-                .into())
+            Ok(ndarray::Array::from_shape_vec(shape, data)?.into())
         } else {
             Err(ASCOMError::new(
                 ASCOMErrorCode::try_from(u16::try_from(metadata.error_number)?)?,

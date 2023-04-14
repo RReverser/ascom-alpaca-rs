@@ -14,13 +14,24 @@ use std::num::NonZeroU32;
 use std::ops::Deref;
 
 /// Rank of an image array.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr)]
-#[repr(u8)]
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Serialize_repr,
+    Deserialize_repr,
+    TryFromPrimitive,
+    IntoPrimitive,
+)]
+#[repr(i32)]
+#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum ImageArrayRank {
     /// 2D
-    Rank2 = 2,
+    Rank2 = 2_i32,
     /// 3D
-    Rank3 = 3,
+    Rank3 = 3_i32,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
