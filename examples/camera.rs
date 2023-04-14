@@ -1,11 +1,14 @@
 use ascom_alpaca::api::{Camera, SensorType, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
+use dioxus::prelude::*;
 use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
-use futures::{Future, FutureExt, TryStreamExt};
+use futures::{Future, FutureExt, StreamExt, TryStreamExt};
+use std::cell::Cell;
 use std::collections::VecDeque;
-use std::sync::atomic::Ordering;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
@@ -50,296 +53,220 @@ impl FpsCounter {
     }
 }
 
+fn render_err(cx: Scope, error: impl std::fmt::Display) -> Element {
+    cx.render(rsx! {
+        h1 { style: "color: red", "Error: {error}" }
+    })
+}
+
+#[derive(Clone)]
+struct ComparableCamera(Arc<dyn Camera>);
+
+impl PartialEq for ComparableCamera {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.unique_id() == other.0.unique_id()
+    }
+}
+
+#[derive(Debug)]
+struct CameraInfo {
+    name: String,
+    exposure_min: f64,
+    exposure_max: f64,
+    sensor_type: SensorType,
+}
+
+fn app(cx: Scope) -> Element {
+    // todo: just use `discovering.state()` when it's implemented upstream
+    let is_discovering = use_state(cx, || false);
+
+    let discovering = {
+        let is_discovering = is_discovering.clone();
+
+        use_future!(cx, || async move {
+            is_discovering.set(true);
+
+            let cameras = DiscoveryClient::new()
+                .discover_addrs()
+                .and_then(|addr| async move { Client::new_from_addr(addr)?.get_devices().await })
+                .try_fold(Vec::new(), |mut cameras, new_devices| async move {
+                    cameras.extend(new_devices.filter_map(|device| match device {
+                        TypedDevice::Camera(camera) => Some(camera),
+                        #[allow(unreachable_patterns)]
+                        _ => None,
+                    }));
+                    Ok(cameras)
+                })
+                .await?;
+
+            is_discovering.set(false);
+
+            Ok::<_, anyhow::Error>(cameras)
+        })
+    };
+
+    let cameras = match discovering.value().filter(|_| !is_discovering) {
+        Some(Ok(cameras)) => cameras,
+        Some(Err(err)) => return render_err(cx, err),
+        None => return cx.render(rsx!(h1 { "Discovering..." })),
+    };
+
+    let camera = use_state(cx, || None);
+
+    let is_connecting = use_state(cx, || false);
+
+    let connecting = {
+        let is_connecting = is_connecting.clone();
+
+        use_future!(cx, |camera| async move {
+            let camera = match camera.get() {
+                Some(ComparableCamera(camera)) => camera,
+                None => return Ok::<_, anyhow::Error>(None),
+            };
+
+            is_connecting.set(true);
+
+            camera.set_connected(true).await?;
+            let camera_info = CameraInfo {
+                name: camera.name().await?,
+                exposure_min: camera.exposure_min().await?,
+                exposure_max: camera.exposure_max().await?,
+                sensor_type: camera.sensor_type().await?,
+            };
+
+            is_connecting.set(false);
+
+            Ok::<_, anyhow::Error>(Some(camera_info))
+        })
+    };
+
+    let camera_info = match connecting.value().filter(|_| !is_connecting) {
+        Some(Ok(None)) => {
+            return cx.render(rsx!(
+                h1 { "Discovered cameras:" },
+                cameras.iter().map(|camera_| rsx!(button {
+                    key: "{camera_.unique_id()}",
+                    onclick: move |_| {
+                        camera.set(Some(ComparableCamera(Arc::clone(camera_))));
+                    },
+                    camera_.static_name()
+                })),
+                button {
+                    onclick: move |_| {
+                        discovering.restart();
+                    },
+                    "↻ Refresh"
+                }
+            ))
+        }
+        Some(Ok(Some(camera_info))) => camera_info,
+        Some(Err(err)) => return render_err(cx, err),
+        None => return cx.render(rsx!(h1 { "Connecting..." })),
+    };
+
+    let capture_params = use_state(cx, || CaptureParams {
+        duration: Duration::from_secs(1),
+        camera: camera.get().as_ref().unwrap().clone(),
+        sensor_type: camera_info.sensor_type,
+    });
+
+    let latest_image = use_state(cx, || None);
+
+    let capture_loop = {
+        let capture_params = capture_params.clone();
+        let latest_image = latest_image.clone();
+
+        use_coroutine(cx, |rx| async move {
+            capture_params.start_capture_loop(latest_image, rx).await
+        })
+    };
+
+    let old_capture_params = use_state(cx, || capture_params.current());
+
+    if old_capture_params.get() != capture_params.get_rc() {
+        capture_loop.send(());
+        old_capture_params.set(capture_params.current());
+    }
+
+    cx.render(rsx!(
+        h1 { "Connected to {camera_info.name}" }
+        h2 { "Exposure range: {camera_info.exposure_min} - {camera_info.exposure_max}" }
+        h2 { "Sensor type: {camera_info.sensor_type:?}" }
+        button {
+            onclick: move |_| {
+                camera.set(None);
+            },
+            "Disconnect"
+        }
+        if let Some(latest_image) = latest_image.as_ref() {
+            // let url = format!("data:image/png;base64,{}", base64::encode(&latest_image.to_png()));
+            // rsx!(img {
+            //     src: "{url}",
+            //     style: "max-width: 100%; max-height: 100%;"
+            // })
+            rsx!("{latest_image.pixels.len()}")
+        }
+    ))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    let native_options = eframe::NativeOptions::default();
-    eframe::run_native(
-        "ascom-alpaca-rs camera demo",
-        native_options,
-        Box::new(|cc| {
-            Box::new(StateCtx {
-                state: Default::default(),
-                ctx: cc.egui_ctx.clone(),
-            })
-        }),
-    )?;
+    dioxus_desktop::launch(app);
+
     Ok(())
 }
 
-enum State {
-    Init,
-    Discovering(ChildTask),
-    Discovered(Vec<Arc<dyn Camera>>),
-    Connecting(ChildTask),
-    Connected {
-        camera_name: String,
-        rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
-        img: Option<TextureHandle>,
-        fps_counter: FpsCounter,
-        exposure_range: std::ops::RangeInclusive<f64>,
-        capture_state: Arc<CaptureState>,
-        image_loop: JoinHandle<()>, // not `ChildTask` because it has its own cancellation mechanism
-    },
-    Error(String),
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Init
-    }
-}
-
-#[derive(Clone)]
-struct StateCtx {
-    state: Arc<Mutex<State>>,
-    ctx: egui::Context,
-}
-
-impl StateCtx {
-    fn lock(&self) -> StateCtxGuard {
-        StateCtxGuard {
-            state_ctx: self,
-            state: self.state.lock().unwrap(),
-            ctx: &self.ctx,
-        }
-    }
-}
-
-struct ChildTask(JoinHandle<()>);
-
-impl Drop for ChildTask {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
-
-struct StateCtxGuard<'a> {
-    state_ctx: &'a StateCtx,
-    state: MutexGuard<'a, State>,
-    ctx: &'a egui::Context,
-}
-
-impl<'a> StateCtxGuard<'a> {
-    fn set_state(&mut self, new_state: State) {
-        *self.state = new_state;
-        self.ctx.request_repaint();
-    }
-
-    fn set_error(&mut self, err: impl std::fmt::Display) {
-        self.set_state(State::Error(format!("Error: {err:#}")));
-    }
-
-    fn spawn(
-        &mut self,
-        as_new_state: impl FnOnce(ChildTask) -> State,
-        update: impl Future<Output = anyhow::Result<State>> + Send + 'static,
-    ) {
-        let state_ctx = self.state_ctx.clone();
-        self.set_state(as_new_state(ChildTask(tokio::spawn(async move {
-            let result = update.await;
-            let mut state_ctx = state_ctx.lock();
-            match result {
-                Ok(state) => state_ctx.set_state(state),
-                Err(err) => state_ctx.set_error(err),
-            }
-        }))));
-    }
-
-    fn try_update(&mut self, ui: &mut Ui) -> anyhow::Result<()> {
-        match &mut *self.state {
-            State::Init => {
-                self.spawn(State::Discovering, async move {
-                    let cameras = DiscoveryClient::new()
-                        .discover_addrs()
-                        .and_then(
-                            |addr| async move { Client::new_from_addr(addr)?.get_devices().await },
-                        )
-                        .try_fold(Vec::new(), |mut cameras, new_devices| async move {
-                            cameras.extend(new_devices.filter_map(|device| match device {
-                                TypedDevice::Camera(camera) => Some(camera),
-                                #[allow(unreachable_patterns)]
-                                _ => None,
-                            }));
-                            Ok(cameras)
-                        })
-                        .await?;
-
-                    Ok::<_, anyhow::Error>(State::Discovered(cameras))
-                });
-            }
-            State::Discovering(_task) => {
-                ui.label("Discovering cameras...");
-            }
-            State::Discovered(cameras) => {
-                ui.label("Discovered cameras:");
-
-                if let Some(clicked_index) = cameras
-                    .iter()
-                    .position(|camera| ui.button(camera.static_name()).clicked())
-                {
-                    let camera = cameras.swap_remove(clicked_index);
-                    let ctx = self.ctx.clone();
-                    self.spawn(State::Connecting, async move {
-                        camera.set_connected(true).await?;
-                        let camera_name = camera.name().await?;
-                        let exposure_min = camera.exposure_min().await?;
-                        let exposure_max = camera.exposure_max().await?;
-                        let (tx, rx) = tokio::sync::mpsc::channel(1);
-                        let capture_state = Arc::new(CaptureState {
-                            duration_sec: AtomicF64::new(exposure_min),
-                            params_change: Notify::new(),
-                            tx,
-                            sensor_type: camera.sensor_type().await?,
-                            camera,
-                            ctx,
-                        });
-                        let image_loop = {
-                            let capture_state = Arc::clone(&capture_state);
-                            tokio::spawn(async move { capture_state.start_capture_loop().await })
-                        };
-                        Ok(State::Connected {
-                            capture_state,
-                            camera_name,
-                            image_loop,
-                            rx,
-                            img: None,
-                            fps_counter: FpsCounter::new(10),
-                            exposure_range: exposure_min..=exposure_max,
-                        })
-                    });
-                }
-                if ui.button("↻ Refresh").clicked() {
-                    self.set_state(State::Init);
-                }
-                // });
-            }
-            State::Connecting(_task) => {
-                ui.label("Connecting to camera...");
-            }
-            State::Connected {
-                capture_state,
-                camera_name,
-                rx,
-                img,
-                fps_counter,
-                exposure_range,
-                image_loop,
-            } => {
-                ui.label(format!("Connected to camera: {}", camera_name));
-                let disconnect_btn = ui.button("⏹ Disconnect");
-                let mut duration_sec = capture_state.get_duration_sec();
-                if ui
-                    .add(
-                        egui::Slider::new(&mut duration_sec, exposure_range.clone())
-                            .logarithmic(true)
-                            .text("Exposure (sec)"),
-                    )
-                    .changed()
-                {
-                    capture_state.set_duration_sec(duration_sec);
-                    fps_counter.reset();
-                }
-                if let Ok(new_img) = rx.try_recv() {
-                    fps_counter.tick();
-                    *img = Some(ui.ctx().load_texture("img", new_img?, Default::default()));
-                }
-                match &*img {
-                    Some(img) => {
-                        ui.label(format!(
-                            "Frame #{}. Rendering at {:.1} fps vs capture set to {:.1}",
-                            fps_counter.total_count,
-                            fps_counter.rate(),
-                            1.0 / duration_sec
-                        ));
-                        let available_size = ui.available_size();
-                        let mut img_size = Vec2::from(img.size().map(|x| x as f32));
-                        // Fit the image to the available space while preserving aspect ratio.
-                        img_size *= (available_size / img_size).min_elem();
-                        ui.image(img, img_size)
-                    }
-                    None => ui.label("Starting capture stream..."),
-                };
-                if let Some(result) = image_loop.now_or_never() {
-                    // propagate panic from the image loop
-                    result?;
-                }
-                if disconnect_btn.clicked() {
-                    self.set_state(State::Init);
-                }
-            }
-            State::Error(err) => {
-                ui.colored_label(Color32::RED, err);
-                if ui.button("Restart").clicked() {
-                    self.set_state(State::Init);
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-struct CaptureState {
-    duration_sec: atomic::Atomic<f64>,
-    params_change: Notify,
-    tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
-    camera: Arc<dyn Camera>,
+#[derive(PartialEq, Clone)]
+struct CaptureParams {
+    duration: Duration,
     sensor_type: SensorType,
-    ctx: egui::Context,
+    camera: ComparableCamera,
 }
 
-impl CaptureState {
-    fn get_duration_sec(&self) -> f64 {
-        self.duration_sec.load(Ordering::Relaxed)
-    }
-
-    fn set_duration_sec(&self, duration_sec: f64) {
-        self.duration_sec.store(duration_sec, Ordering::Relaxed);
-        // Abort current exposure.
-        self.params_change.notify_waiters();
-    }
-
-    async fn start_capture_loop(&self) {
-        while self.capture_image().await {}
+impl CaptureParams {
+    async fn start_capture_loop(
+        &self,
+        latest_image: UseState<Option<ColorImage>>,
+        mut abort_rx: UnboundedReceiver<()>,
+    ) {
+        loop {
+            tokio::select! {
+                abort = abort_rx.next() => {
+                    let is_end = abort.is_none();
+                    tracing::warn!(is_end, "Aborting exposure");
+                    let _ignore_err = self.camera.0.abort_exposure().await;
+                    if is_end {
+                        break;
+                    }
+                }
+                res = self.capture_image_without_cancellation() => {
+                    match res {
+                        Ok(image) => {
+                            latest_image.set(Some(image));
+                        }
+                        Err(err) => {
+                            tracing::warn!(%err, "Failed to capture an image");
+                        }
+                    }
+                }
+            }
+        }
         // Channel is closed, cleanup.
-        if let Err(err) = self.camera.set_connected(false).await {
+        if let Err(err) = self.camera.0.set_connected(false).await {
             tracing::warn!(%err, "Failed to disconnect from the camera");
         }
     }
 
-    async fn capture_image(&self) -> bool {
-        tokio::select! {
-            _ = self.tx.closed() => {
-                // the receiver was dropped due to app state change
-                // gracefully abort the exposure and stop the loop
-                let _ = self.camera.abort_exposure().await;
-                false
-            }
-            _ = self.params_change.notified() => {
-                // the exposure parameters were changed
-                // gracefully abort the exposure and continue the loop
-                let _ = self.camera.abort_exposure().await;
-                true
-            }
-            result = self.capture_image_without_cancellation() => {
-                if self.tx.send(result).await.is_err() {
-                    // couldn't send as the received was dropped, stop the loop
-                    return false;
-                }
-                self.ctx.request_repaint();
-                true
-            }
-        }
-    }
-
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
-        let duration_sec = self.get_duration_sec();
-        self.camera.start_exposure(duration_sec, true).await?;
-        while !self.camera.image_ready().await? {
+        let camera = &self.camera.0;
+        let duration_sec = self.duration.as_secs_f64();
+        camera.start_exposure(duration_sec, true).await?;
+        while !camera.image_ready().await? {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        let raw_img = self.camera.image_array().await?;
+        let raw_img = camera.image_array().await?;
         let (width, height, depth) = raw_img.dim();
         // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
         let mut data = raw_img.view();
@@ -409,16 +336,5 @@ impl CaptureState {
             }
         };
         Ok(ColorImage::from_rgb([width, height], &rgb_buf))
-    }
-}
-
-impl eframe::App for StateCtx {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let mut state_ctx = self.lock();
-            if let Err(err) = &mut state_ctx.try_update(ui) {
-                state_ctx.set_error(err);
-            }
-        });
     }
 }

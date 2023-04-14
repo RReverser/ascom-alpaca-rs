@@ -35,6 +35,8 @@ tracing = "0.1.37"
 ascom-alpaca = { path = ".", features = ["test"] }
 bayer = "0.1.5"
 criterion = { version = "0.4.0", features = ["async_tokio"] }
+dioxus = "0.3.2"
+dioxus-desktop = "0.3.0"
 eframe = "0.21.3"
 tracing-subscriber = "0.3.16"
 
