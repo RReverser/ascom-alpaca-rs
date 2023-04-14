@@ -342,11 +342,11 @@ impl CaptureState {
         let raw_img = self.camera.image_array().await?;
         let (width, height, depth) = raw_img.dim();
         // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
-        let mut data = raw_img.view();
-        data.swap_axes(0, 1);
+        let mut raw_img = raw_img.view();
+        raw_img.swap_axes(0, 1);
         let mut min = i32::MAX;
         let mut max = i32::MIN;
-        for &x in data {
+        for &x in raw_img {
             min = min.min(x);
             max = max.max(x);
         }
