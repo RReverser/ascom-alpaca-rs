@@ -1,10 +1,11 @@
 use ascom_alpaca::api::{Camera, SensorType, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
-use ascom_alpaca::Client;
+use ascom_alpaca::{ASCOMErrorCode, Client};
 use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
 use std::collections::VecDeque;
+use std::ops::RangeInclusive;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
@@ -75,11 +76,17 @@ enum State {
         rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
         img: Option<TextureHandle>,
         fps_counter: FpsCounter,
-        exposure_range: std::ops::RangeInclusive<f64>,
+        exposure_range: RangeInclusive<f64>,
         capture_state: Arc<CaptureState>,
         image_loop: JoinHandle<()>, // not `ChildTask` because it has its own cancellation mechanism
     },
     Error(String),
+}
+
+enum GainMode {
+    Range(RangeInclusive<i32>),
+    List(Vec<String>),
+    None,
 }
 
 impl Default for State {
@@ -187,10 +194,27 @@ impl<'a> StateCtxGuard<'a> {
                         let capture_state = Arc::new(CaptureState {
                             params: Mutex::new(CaptureParams {
                                 duration_sec: exposure_min,
+                                gain: camera.gain().await.or_else(|err| match err.code {
+                                    ASCOMErrorCode::NOT_IMPLEMENTED => Ok(0),
+                                    _ => Err(err),
+                                })?,
                             }),
                             params_change: Notify::new(),
                             tx,
                             sensor_type: camera.sensor_type().await?,
+                            gain_mode: match camera.gain_min().await {
+                                Ok(min) => GainMode::Range(min..=camera.gain_max().await?),
+                                Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
+                                    match camera.gains().await {
+                                        Ok(list) => GainMode::List(list),
+                                        Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
+                                            GainMode::None
+                                        }
+                                        Err(err) => return Err(err.into()),
+                                    }
+                                }
+                                Err(err) => return Err(err.into()),
+                            },
                             camera,
                             ctx,
                         });
@@ -229,13 +253,30 @@ impl<'a> StateCtxGuard<'a> {
                 ui.label(format!("Connected to camera: {}", camera_name));
                 let disconnect_btn = ui.button("⏹ Disconnect");
                 let mut params = capture_state.get_params();
-                let params_changed = ui
+                let mut params_changed = false;
+                params_changed |= ui
                     .add(
                         egui::Slider::new(&mut params.duration_sec, exposure_range.clone())
                             .logarithmic(true)
                             .text("Exposure (sec)"),
                     )
                     .changed();
+                params_changed |= match &capture_state.gain_mode {
+                    GainMode::List(values) => egui::ComboBox::from_label("Gain")
+                        .selected_text(&values[params.gain as usize])
+                        .show_ui(ui, |ui| {
+                            values.iter().enumerate().any(|(i, value)| {
+                                ui.selectable_value(&mut params.gain, i as i32, value)
+                                    .clicked()
+                            })
+                        })
+                        .inner
+                        .unwrap_or(false),
+                    GainMode::Range(range) => ui
+                        .add(egui::Slider::new(&mut params.gain, range.clone()).text("Gain"))
+                        .changed(),
+                    GainMode::None => false,
+                };
                 if params_changed {
                     capture_state.set_params(params);
                     fps_counter.reset();
@@ -282,6 +323,7 @@ impl<'a> StateCtxGuard<'a> {
 #[derive(Clone, Copy)]
 struct CaptureParams {
     duration_sec: f64,
+    gain: i32,
 }
 
 struct CaptureState {
@@ -290,6 +332,7 @@ struct CaptureState {
     tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
     camera: Arc<dyn Camera>,
     sensor_type: SensorType,
+    gain_mode: GainMode,
     ctx: egui::Context,
 }
 
