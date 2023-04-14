@@ -6,6 +6,7 @@ use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
@@ -200,6 +201,7 @@ impl<'a> StateCtxGuard<'a> {
                                 })?,
                             }),
                             params_change: Notify::new(),
+                            needs_gain_update: AtomicBool::new(false),
                             tx,
                             sensor_type: camera.sensor_type().await?,
                             gain_mode: match camera.gain_min().await {
@@ -253,15 +255,14 @@ impl<'a> StateCtxGuard<'a> {
                 ui.label(format!("Connected to camera: {}", camera_name));
                 let disconnect_btn = ui.button("⏹ Disconnect");
                 let mut params = capture_state.get_params();
-                let mut params_changed = false;
-                params_changed |= ui
+                let mut params_changed = ui
                     .add(
                         egui::Slider::new(&mut params.duration_sec, exposure_range.clone())
                             .logarithmic(true)
                             .text("Exposure (sec)"),
                     )
                     .changed();
-                params_changed |= match &capture_state.gain_mode {
+                let gain_changed = match &capture_state.gain_mode {
                     GainMode::List(values) => egui::ComboBox::from_label("Gain")
                         .selected_text(&values[params.gain as usize])
                         .show_ui(ui, |ui| {
@@ -277,6 +278,12 @@ impl<'a> StateCtxGuard<'a> {
                         .changed(),
                     GainMode::None => false,
                 };
+                if gain_changed {
+                    capture_state
+                        .needs_gain_update
+                        .store(true, Ordering::Relaxed);
+                    params_changed = true;
+                }
                 if params_changed {
                     capture_state.set_params(params);
                     fps_counter.reset();
@@ -329,6 +336,7 @@ struct CaptureParams {
 struct CaptureState {
     params: Mutex<CaptureParams>,
     params_change: Notify,
+    needs_gain_update: AtomicBool,
     tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
     camera: Arc<dyn Camera>,
     sensor_type: SensorType,
@@ -382,6 +390,9 @@ impl CaptureState {
 
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
         let params = self.get_params();
+        if self.needs_gain_update.swap(false, Ordering::Relaxed) {
+            self.camera.set_gain(params.gain).await?;
+        }
         self.camera
             .start_exposure(params.duration_sec, true)
             .await?;
