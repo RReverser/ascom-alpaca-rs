@@ -385,8 +385,9 @@ impl CaptureState {
         self.camera
             .start_exposure(params.duration_sec, true)
             .await?;
+        tokio::time::sleep(Duration::from_secs_f64(params.duration_sec)).await;
         while !self.camera.image_ready().await? {
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
         let raw_img = self.camera.image_array().await?;
         let (width, height, depth) = raw_img.dim();
