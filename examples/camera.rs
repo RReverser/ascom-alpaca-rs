@@ -179,11 +179,11 @@ impl<'a> StateCtxGuard<'a> {
             State::Discovered(cameras) => {
                 ui.label("Discovered cameras:");
 
-                if let Some(clicked_index) = cameras
+                if let Some(camera) = cameras
                     .iter()
-                    .position(|camera| ui.button(camera.static_name()).clicked())
+                    .find(|camera| ui.button(camera.static_name()).clicked())
                 {
-                    let camera = cameras.swap_remove(clicked_index);
+                    let camera = Arc::clone(camera);
                     let ctx = self.ctx.clone();
                     self.spawn(State::Connecting, async move {
                         camera.set_connected(true).await?;
