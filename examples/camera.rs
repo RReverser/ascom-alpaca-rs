@@ -9,24 +9,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
-
-    let native_options = eframe::NativeOptions::default();
-    eframe::run_native(
-        "ascom-alpaca-rs camera demo",
-        native_options,
-        Box::new(|cc| {
-            Box::new(StateCtx {
-                state: Default::default(),
-                ctx: cc.egui_ctx.clone(),
-            })
-        }),
-    )?;
-    Ok(())
-}
-
 enum State {
     Init,
     Discovering(ChildTask),
@@ -54,12 +36,6 @@ enum GainMode {
     Range(RangeInclusive<i32>),
     List(Vec<String>),
     None,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Init
-    }
 }
 
 struct ChildTask(JoinHandle<State>);
@@ -159,20 +135,17 @@ impl StateCtx {
                             }
                             Err(err) => return Err(err.into()),
                         };
-                        let image_loop = {
-                            // let capture_state = Arc::clone(&capture_state);
-                            tokio::spawn(async move {
-                                CaptureState {
-                                    params_rx,
-                                    tx,
-                                    sensor_type,
-                                    camera,
-                                    ctx,
-                                }
-                                .start_capture_loop()
-                                .await
-                            })
-                        };
+                        let image_loop = tokio::spawn(async move {
+                            CaptureState {
+                                params_rx,
+                                tx,
+                                sensor_type,
+                                camera,
+                                ctx,
+                            }
+                            .start_capture_loop()
+                            .await
+                        });
                         Ok(State::Connected {
                             camera_name,
                             image_loop,
@@ -187,7 +160,6 @@ impl StateCtx {
                 if ui.button("↻ Refresh").clicked() {
                     self.set_state(State::Init);
                 }
-                // });
             }
             State::Connecting(ChildTask(task)) => {
                 ui.label("Connecting to camera...");
@@ -408,4 +380,22 @@ impl eframe::App for StateCtx {
             }
         });
     }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt::init();
+
+    let native_options = eframe::NativeOptions::default();
+    eframe::run_native(
+        "ascom-alpaca-rs camera demo",
+        native_options,
+        Box::new(|cc| {
+            Box::new(StateCtx {
+                state: State::Init,
+                ctx: cc.egui_ctx.clone(),
+            })
+        }),
+    )?;
+    Ok(())
 }
