@@ -364,23 +364,19 @@ fn to_stretched_color_img(
     let mut raw_img = raw_img.view();
     // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
     raw_img.swap_axes(0, 1);
-    let mut min = i32::MAX;
-    let mut max = 0; // some simulators return negative values that don't make sense, so 0 is better default than i32::MIN
-    for &x in raw_img {
-        min = min.min(x);
-        max = max.max(x);
-    }
-    let min = i64::from(min);
-    let max = i64::from(max);
-    let mut diff = max - min;
-    if diff == 0 {
-        diff = 1;
-    }
+    let max = raw_img
+        .iter()
+        // ignore negative values
+        .filter_map(|&x| u32::try_from(x).ok())
+        // avoid division by zero
+        .filter(|&x| x != 0)
+        .max()
+        .unwrap_or(1);
     let stretched_iter = raw_img.iter().map(|&x| {
-        // Stretch the image.
-        ((i64::from(x) - min) * i64::from(u8::MAX) / diff)
-            .try_into()
-            .unwrap()
+        // clamp sub-zero values
+        let x = u32::try_from(x).unwrap_or(0);
+        // Stretch the image, use u64 as a cheap replacement for floating-point math.
+        (u64::from(x) * u64::from(u8::MAX) / u64::from(max)) as u8
     });
     let rgb_buf: Vec<u8> = match sensor_type {
         SensorType::Color => {
