@@ -66,6 +66,12 @@ macro_rules! rpc_trait {
 
         impl Eq for dyn $trait_name {}
 
+        impl std::hash::Hash for dyn $trait_name {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                self.unique_id().hash(state);
+            }
+        }
+
         #[cfg(feature = "server")]
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
