@@ -5,10 +5,8 @@ use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
 use std::ops::RangeInclusive;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
 #[tokio::main]
@@ -39,7 +37,8 @@ enum State {
         rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
         img: Option<TextureHandle>,
         exposure_range: RangeInclusive<f64>,
-        capture_state: Arc<CaptureState>,
+        gain_mode: GainMode,
+        params_tx: tokio::sync::watch::Sender<CaptureParams>,
         image_loop: JoinHandle<()>, // not `ChildTask` because it has its own cancellation mechanism
     },
     Error(String),
@@ -139,42 +138,46 @@ impl StateCtx {
                         let exposure_min = camera.exposure_min().await?;
                         let exposure_max = camera.exposure_max().await?;
                         let (tx, rx) = tokio::sync::mpsc::channel(1);
-                        let capture_state = Arc::new(CaptureState {
-                            params: Mutex::new(CaptureParams {
-                                duration_sec: exposure_min,
-                                gain: camera.gain().await.or_else(|err| match err.code {
-                                    ASCOMErrorCode::NOT_IMPLEMENTED => Ok(0),
-                                    _ => Err(err),
-                                })?,
-                            }),
-                            params_change: Notify::new(),
-                            needs_gain_update: AtomicBool::new(false),
-                            tx,
-                            sensor_type: camera.sensor_type().await?,
-                            gain_mode: match camera.gain_min().await {
-                                Ok(min) => GainMode::Range(min..=camera.gain_max().await?),
-                                Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
-                                    match camera.gains().await {
-                                        Ok(list) => GainMode::List(list),
-                                        Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
-                                            GainMode::None
-                                        }
-                                        Err(err) => return Err(err.into()),
-                                    }
-                                }
-                                Err(err) => return Err(err.into()),
-                            },
-                            camera,
-                            ctx,
+                        let (params_tx, params_rx) = tokio::sync::watch::channel(CaptureParams {
+                            duration_sec: exposure_min,
+                            gain: camera.gain().await.or_else(|err| match err.code {
+                                ASCOMErrorCode::NOT_IMPLEMENTED => Ok(0),
+                                _ => Err(err),
+                            })?,
                         });
+                        let sensor_type = camera.sensor_type().await?;
+                        let gain_mode = match camera.gain_min().await {
+                            Ok(min) => GainMode::Range(min..=camera.gain_max().await?),
+                            Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
+                                match camera.gains().await {
+                                    Ok(list) => GainMode::List(list),
+                                    Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
+                                        GainMode::None
+                                    }
+                                    Err(err) => return Err(err.into()),
+                                }
+                            }
+                            Err(err) => return Err(err.into()),
+                        };
                         let image_loop = {
-                            let capture_state = Arc::clone(&capture_state);
-                            tokio::spawn(async move { capture_state.start_capture_loop().await })
+                            // let capture_state = Arc::clone(&capture_state);
+                            tokio::spawn(async move {
+                                CaptureState {
+                                    params_rx,
+                                    tx,
+                                    sensor_type,
+                                    camera,
+                                    ctx,
+                                }
+                                .start_capture_loop()
+                                .await
+                            })
                         };
                         Ok(State::Connected {
-                            capture_state,
                             camera_name,
                             image_loop,
+                            params_tx,
+                            gain_mode,
                             rx,
                             img: None,
                             exposure_range: exposure_min..=exposure_max,
@@ -193,7 +196,8 @@ impl StateCtx {
                 }
             }
             State::Connected {
-                capture_state,
+                params_tx,
+                gain_mode,
                 camera_name,
                 rx,
                 img,
@@ -202,39 +206,32 @@ impl StateCtx {
             } => {
                 ui.label(format!("Connected to camera: {}", camera_name));
                 let disconnect_btn = ui.button("⏹ Disconnect");
-                let mut params = capture_state.get_params();
-                let mut params_changed = ui
-                    .add(
-                        egui::Slider::new(&mut params.duration_sec, exposure_range.clone())
-                            .logarithmic(true)
-                            .text("Exposure (sec)"),
-                    )
-                    .changed();
-                let gain_changed = match &capture_state.gain_mode {
-                    GainMode::List(values) => egui::ComboBox::from_label("Gain")
-                        .selected_text(&values[params.gain as usize])
-                        .show_ui(ui, |ui| {
-                            values.iter().enumerate().any(|(i, value)| {
-                                ui.selectable_value(&mut params.gain, i as i32, value)
-                                    .clicked()
+                params_tx.send_if_modified(|params| {
+                    let exposure_changed = ui
+                        .add(
+                            egui::Slider::new(&mut params.duration_sec, exposure_range.clone())
+                                .logarithmic(true)
+                                .text("Exposure (sec)"),
+                        )
+                        .changed();
+                    let gain_changed = match gain_mode {
+                        GainMode::List(values) => egui::ComboBox::from_label("Gain")
+                            .selected_text(&values[params.gain as usize])
+                            .show_ui(ui, |ui| {
+                                values.iter().enumerate().any(|(i, value)| {
+                                    ui.selectable_value(&mut params.gain, i as i32, value)
+                                        .clicked()
+                                })
                             })
-                        })
-                        .inner
-                        .unwrap_or(false),
-                    GainMode::Range(range) => ui
-                        .add(egui::Slider::new(&mut params.gain, range.clone()).text("Gain"))
-                        .changed(),
-                    GainMode::None => false,
-                };
-                if gain_changed {
-                    capture_state
-                        .needs_gain_update
-                        .store(true, Ordering::Relaxed);
-                    params_changed = true;
-                }
-                if params_changed {
-                    capture_state.set_params(params);
-                }
+                            .inner
+                            .unwrap_or(false),
+                        GainMode::Range(range) => ui
+                            .add(egui::Slider::new(&mut params.gain, range.clone()).text("Gain"))
+                            .changed(),
+                        GainMode::None => false,
+                    };
+                    exposure_changed || gain_changed
+                });
                 if let Ok(new_img) = rx.try_recv() {
                     *img = Some(ui.ctx().load_texture("img", new_img?, Default::default()));
                 }
@@ -274,69 +271,59 @@ struct CaptureParams {
 }
 
 struct CaptureState {
-    params: Mutex<CaptureParams>,
-    params_change: Notify,
-    needs_gain_update: AtomicBool,
+    params_rx: tokio::sync::watch::Receiver<CaptureParams>,
     tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
     camera: Arc<dyn Camera>,
     sensor_type: SensorType,
-    gain_mode: GainMode,
     ctx: egui::Context,
 }
 
 impl CaptureState {
-    fn get_params(&self) -> CaptureParams {
-        *self.params.lock().unwrap()
-    }
-
-    fn set_params(&self, params: CaptureParams) {
-        *self.params.lock().unwrap() = params;
-        // Abort current exposure.
-        self.params_change.notify_waiters();
-    }
-
-    async fn start_capture_loop(&self) {
-        while self.capture_image().await {}
+    async fn start_capture_loop(mut self) {
+        while !self.tx.is_closed() {
+            if let Some(send) = self.capture_image().await.transpose() {
+                if self.tx.send(send).await.is_ok() {
+                    self.ctx.request_repaint();
+                }
+            }
+        }
         // Channel is closed, cleanup.
         if let Err(err) = self.camera.set_connected(false).await {
             tracing::warn!(%err, "Failed to disconnect from the camera");
         }
     }
 
-    async fn capture_image(&self) -> bool {
+    async fn capture_image(&mut self) -> anyhow::Result<Option<ColorImage>> {
+        let mut params_rx_clone = self.params_rx.clone();
+        let old_gain = self.params_rx.borrow().gain;
+
         tokio::select! {
             _ = self.tx.closed() => {
                 // the receiver was dropped due to app state change
                 // gracefully abort the exposure and stop the loop
-                let _ = self.camera.abort_exposure().await;
-                false
+                self.camera.abort_exposure().await?;
+                Ok(None)
             }
-            _ = self.params_change.notified() => {
-                // the exposure parameters were changed
-                // gracefully abort the exposure and continue the loop
-                let _ = self.camera.abort_exposure().await;
-                true
+            _ = params_rx_clone.changed() => {
+                // exposure parameters were changed
+                // gracefully abort the exposure, update params and continue the loop
+                self.camera.abort_exposure().await?;
+                let new_gain = self.params_rx.borrow_and_update().gain;
+                if new_gain != old_gain {
+                    self.camera.set_gain(new_gain).await?;
+                }
+                Ok(None)
             }
             result = self.capture_image_without_cancellation() => {
-                if self.tx.send(result).await.is_err() {
-                    // couldn't send as the received was dropped, stop the loop
-                    return false;
-                }
-                self.ctx.request_repaint();
-                true
+                result.map(Some)
             }
         }
     }
 
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
-        let params = self.get_params();
-        if self.needs_gain_update.swap(false, Ordering::Relaxed) {
-            self.camera.set_gain(params.gain).await?;
-        }
-        self.camera
-            .start_exposure(params.duration_sec, true)
-            .await?;
-        tokio::time::sleep(Duration::from_secs_f64(params.duration_sec)).await;
+        let duration_sec = self.params_rx.borrow().duration_sec;
+        self.camera.start_exposure(duration_sec, true).await?;
+        tokio::time::sleep(Duration::from_secs_f64(duration_sec)).await;
         while !self.camera.image_ready().await? {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
