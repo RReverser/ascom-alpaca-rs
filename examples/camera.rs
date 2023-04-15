@@ -1,4 +1,4 @@
-use ascom_alpaca::api::{Camera, SensorType, TypedDevice};
+use ascom_alpaca::api::{Camera, ImageArray, SensorType, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::{ASCOMErrorCode, Client};
 use eframe::egui::{self, Ui};
@@ -352,78 +352,80 @@ impl CaptureState {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         let raw_img = self.camera.image_array().await?;
-        let (width, height, depth) = raw_img.dim();
-        // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
-        let mut raw_img = raw_img.view();
-        raw_img.swap_axes(0, 1);
-        let mut min = i32::MAX;
-        let mut max = 0; // some simulators return negative values that don't make sense, so 0 is better default than i32::MIN
-        for &x in raw_img {
-            min = min.min(x);
-            max = max.max(x);
-        }
-        let min = i64::from(min);
-        let max = i64::from(max);
-        let mut diff = max - min;
-        if diff == 0 {
-            diff = 1;
-        }
-        let stretched_iter = raw_img.iter().map(|&x| {
-            // Stretch the image.
-            ((i64::from(x) - min) * i64::from(u8::MAX) / diff)
-                .try_into()
-                .unwrap()
-        });
-        let rgb_buf: Vec<u8> = match self.sensor_type {
-            SensorType::Color => {
-                anyhow::ensure!(depth == 3, "Expected 3 channels for color image");
-                stretched_iter.collect()
-            }
-            SensorType::Monochrome => {
-                anyhow::ensure!(depth == 1, "Expected 1 channel for monochrome image");
-                stretched_iter
-                    // Repeat each gray pixel 3 times to make it RGB.
-                    .flat_map(|color| std::iter::repeat(color).take(3))
-                    .collect()
-            }
-            SensorType::RGGB => {
-                struct ReadIter<I>(I);
-
-                impl<I: ExactSizeIterator<Item = u8>> std::io::Read for ReadIter<I> {
-                    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-                        let merged_iter = buf.iter_mut().zip(&mut self.0);
-                        let len = merged_iter.len();
-                        for (dst, src) in merged_iter {
-                            *dst = src;
-                        }
-                        Ok(len)
-                    }
-                }
-
-                anyhow::ensure!(depth == 1, "Expected 1 channel for RGGB image");
-
-                let mut rgb_buf = vec![0; width * height * 3];
-
-                bayer::demosaic::linear::run(
-                    &mut ReadIter(stretched_iter),
-                    bayer::BayerDepth::Depth8,
-                    bayer::CFA::RGGB,
-                    &mut bayer::RasterMut::new(
-                        width,
-                        height,
-                        bayer::RasterDepth::Depth8,
-                        &mut rgb_buf,
-                    ),
-                )?;
-
-                rgb_buf
-            }
-            other => {
-                anyhow::bail!("Unsupported sensor type: {:?}", other)
-            }
-        };
-        Ok(ColorImage::from_rgb([width, height], &rgb_buf))
+        to_stretched_color_img(self.sensor_type, &raw_img)
     }
+}
+
+fn to_stretched_color_img(
+    sensor_type: SensorType,
+    raw_img: &ImageArray,
+) -> Result<ColorImage, anyhow::Error> {
+    let (width, height, depth) = raw_img.dim();
+    let mut raw_img = raw_img.view();
+    // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
+    raw_img.swap_axes(0, 1);
+    let mut min = i32::MAX;
+    let mut max = 0; // some simulators return negative values that don't make sense, so 0 is better default than i32::MIN
+    for &x in raw_img {
+        min = min.min(x);
+        max = max.max(x);
+    }
+    let min = i64::from(min);
+    let max = i64::from(max);
+    let mut diff = max - min;
+    if diff == 0 {
+        diff = 1;
+    }
+    let stretched_iter = raw_img.iter().map(|&x| {
+        // Stretch the image.
+        ((i64::from(x) - min) * i64::from(u8::MAX) / diff)
+            .try_into()
+            .unwrap()
+    });
+    let rgb_buf: Vec<u8> = match sensor_type {
+        SensorType::Color => {
+            anyhow::ensure!(depth == 3, "Expected 3 channels for color image");
+            stretched_iter.collect()
+        }
+        SensorType::Monochrome => {
+            anyhow::ensure!(depth == 1, "Expected 1 channel for monochrome image");
+            stretched_iter
+                // Repeat each gray pixel 3 times to make it RGB.
+                .flat_map(|color| std::iter::repeat(color).take(3))
+                .collect()
+        }
+        SensorType::RGGB => {
+            struct ReadIter<I>(I);
+
+            impl<I: ExactSizeIterator<Item = u8>> std::io::Read for ReadIter<I> {
+                fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                    let merged_iter = buf.iter_mut().zip(&mut self.0);
+                    let len = merged_iter.len();
+                    for (dst, src) in merged_iter {
+                        *dst = src;
+                    }
+                    Ok(len)
+                }
+            }
+
+            anyhow::ensure!(depth == 1, "Expected 1 channel for RGGB image");
+
+            let mut rgb_buf = vec![0; width * height * 3];
+
+            bayer::demosaic::linear::run(
+                &mut ReadIter(stretched_iter),
+                bayer::BayerDepth::Depth8,
+                bayer::CFA::RGGB,
+                &mut bayer::RasterMut::new(width, height, bayer::RasterDepth::Depth8, &mut rgb_buf),
+            )?;
+
+            rgb_buf
+        }
+        other => {
+            anyhow::bail!("Unsupported sensor type: {:?}", other)
+        }
+    };
+    Ok(ColorImage::from_rgb([width, height], &rgb_buf))
 }
 
 impl eframe::App for StateCtx {
