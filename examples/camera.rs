@@ -6,7 +6,7 @@ use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
 use std::ops::RangeInclusive;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
@@ -45,6 +45,12 @@ enum State {
     Error(String),
 }
 
+impl State {
+    fn error(err: anyhow::Error) -> Self {
+        Self::Error(format!("{err:#}"))
+    }
+}
+
 enum GainMode {
     Range(RangeInclusive<i32>),
     List(Vec<String>),
@@ -57,23 +63,7 @@ impl Default for State {
     }
 }
 
-#[derive(Clone)]
-struct StateCtx {
-    state: Arc<Mutex<State>>,
-    ctx: egui::Context,
-}
-
-impl StateCtx {
-    fn lock(&self) -> StateCtxGuard {
-        StateCtxGuard {
-            state_ctx: self,
-            state: self.state.lock().unwrap(),
-            ctx: &self.ctx,
-        }
-    }
-}
-
-struct ChildTask(JoinHandle<()>);
+struct ChildTask(JoinHandle<State>);
 
 impl Drop for ChildTask {
     fn drop(&mut self) {
@@ -81,20 +71,15 @@ impl Drop for ChildTask {
     }
 }
 
-struct StateCtxGuard<'a> {
-    state_ctx: &'a StateCtx,
-    state: MutexGuard<'a, State>,
-    ctx: &'a egui::Context,
+struct StateCtx {
+    state: State,
+    ctx: egui::Context,
 }
 
-impl<'a> StateCtxGuard<'a> {
+impl StateCtx {
     fn set_state(&mut self, new_state: State) {
-        *self.state = new_state;
+        self.state = new_state;
         self.ctx.request_repaint();
-    }
-
-    fn set_error(&mut self, err: impl std::fmt::Display) {
-        self.set_state(State::Error(format!("Error: {err:#}")));
     }
 
     fn spawn(
@@ -102,19 +87,17 @@ impl<'a> StateCtxGuard<'a> {
         as_new_state: impl FnOnce(ChildTask) -> State,
         update: impl Future<Output = anyhow::Result<State>> + Send + 'static,
     ) {
-        let state_ctx = self.state_ctx.clone();
         self.set_state(as_new_state(ChildTask(tokio::spawn(async move {
             let result = update.await;
-            let mut state_ctx = state_ctx.lock();
             match result {
-                Ok(state) => state_ctx.set_state(state),
-                Err(err) => state_ctx.set_error(err),
+                Ok(state) => state,
+                Err(err) => State::error(err),
             }
         }))));
     }
 
     fn try_update(&mut self, ui: &mut Ui) -> anyhow::Result<()> {
-        match &mut *self.state {
+        match &mut self.state {
             State::Init => {
                 self.spawn(State::Discovering, async move {
                     let cameras = DiscoveryClient::new()
@@ -135,8 +118,11 @@ impl<'a> StateCtxGuard<'a> {
                     Ok::<_, anyhow::Error>(State::Discovered(cameras))
                 });
             }
-            State::Discovering(_task) => {
+            State::Discovering(ChildTask(task)) => {
                 ui.label("Discovering cameras...");
+                if let Some(new_state) = task.now_or_never() {
+                    self.set_state(new_state?);
+                }
             }
             State::Discovered(cameras) => {
                 ui.label("Discovered cameras:");
@@ -200,8 +186,11 @@ impl<'a> StateCtxGuard<'a> {
                 }
                 // });
             }
-            State::Connecting(_task) => {
+            State::Connecting(ChildTask(task)) => {
                 ui.label("Connecting to camera...");
+                if let Some(new_state) = task.now_or_never() {
+                    self.set_state(new_state?);
+                }
             }
             State::Connected {
                 capture_state,
@@ -427,9 +416,8 @@ fn to_stretched_color_img(
 impl eframe::App for StateCtx {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut state_ctx = self.lock();
-            if let Err(err) = &mut state_ctx.try_update(ui) {
-                state_ctx.set_error(err);
+            if let Err(err) = self.try_update(ui) {
+                self.set_state(State::error(err))
             }
         });
     }
