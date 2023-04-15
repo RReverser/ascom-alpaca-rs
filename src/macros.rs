@@ -58,6 +58,14 @@ macro_rules! rpc_trait {
             )*
         }
 
+        impl PartialEq for dyn $trait_name {
+            fn eq(&self, other: &Self) -> bool {
+                self.unique_id() == other.unique_id()
+            }
+        }
+
+        impl Eq for dyn $trait_name {}
+
         #[cfg(feature = "server")]
         impl dyn $trait_name {
             /// Private inherent method for handling actions.
