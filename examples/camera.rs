@@ -1,6 +1,6 @@
 use ascom_alpaca::api::{Camera, ImageArray, SensorType, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
-use ascom_alpaca::{ASCOMErrorCode, Client};
+use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
 use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
@@ -43,6 +43,13 @@ struct ChildTask(JoinHandle<State>);
 impl Drop for ChildTask {
     fn drop(&mut self) {
         self.0.abort();
+    }
+}
+
+fn if_implemented<T>(res: ASCOMResult<T>) -> ASCOMResult<Option<T>> {
+    match res {
+        Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => Ok(None),
+        _ => res.map(Some),
     }
 }
 
@@ -110,32 +117,38 @@ impl StateCtx {
                     let ctx = self.ctx.clone();
                     self.spawn(State::Connecting, async move {
                         camera.set_connected(true).await?;
-                        let camera_name = camera.name().await?;
-                        let exposure_min = camera.exposure_min().await?;
-                        let exposure_max = camera.exposure_max().await?;
+                        let (
+                            camera_name,
+                            exposure_min,
+                            exposure_max,
+                            sensor_type,
+                            (gain_mode, gain),
+                        ) = tokio::try_join!(
+                            camera.name(),
+                            camera.exposure_min(),
+                            camera.exposure_max(),
+                            camera.sensor_type(),
+                            async {
+                                let gain_mode = match if_implemented(camera.gain_min().await)? {
+                                    Some(min) => GainMode::Range(min..=camera.gain_max().await?),
+                                    None => match if_implemented(camera.gains().await)? {
+                                        Some(list) => GainMode::List(list),
+                                        None => GainMode::None,
+                                    },
+                                };
+                                let gain = match gain_mode {
+                                    GainMode::None => 0,
+                                    _ => camera.gain().await?,
+                                };
+                                Ok((gain_mode, gain))
+                            }
+                        )?;
                         let (tx, rx) = tokio::sync::mpsc::channel(1);
                         let (params_tx, params_rx) = tokio::sync::watch::channel(CaptureParams {
                             duration_sec: exposure_min,
-                            gain: camera.gain().await.or_else(|err| match err.code {
-                                ASCOMErrorCode::NOT_IMPLEMENTED => Ok(0),
-                                _ => Err(err),
-                            })?,
+                            gain,
                         });
-                        let sensor_type = camera.sensor_type().await?;
-                        let gain_mode = match camera.gain_min().await {
-                            Ok(min) => GainMode::Range(min..=camera.gain_max().await?),
-                            Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
-                                match camera.gains().await {
-                                    Ok(list) => GainMode::List(list),
-                                    Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => {
-                                        GainMode::None
-                                    }
-                                    Err(err) => return Err(err.into()),
-                                }
-                            }
-                            Err(err) => return Err(err.into()),
-                        };
-                        let image_loop = tokio::spawn(async move {
+                        let image_loop = tokio::spawn(
                             CaptureState {
                                 params_rx,
                                 tx,
@@ -143,9 +156,8 @@ impl StateCtx {
                                 camera,
                                 ctx,
                             }
-                            .start_capture_loop()
-                            .await
-                        });
+                            .start_capture_loop(),
+                        );
                         Ok(State::Connected {
                             camera_name,
                             image_loop,
