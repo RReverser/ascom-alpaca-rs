@@ -351,13 +351,6 @@ fn to_stretched_color_img(
             anyhow::ensure!(depth == 3, "Expected 3 channels for color image");
             stretched_iter.collect()
         }
-        SensorType::Monochrome => {
-            anyhow::ensure!(depth == 1, "Expected 1 channel for monochrome image");
-            stretched_iter
-                // Repeat each gray pixel 3 times to make it RGB.
-                .flat_map(|color| std::iter::repeat(color).take(3))
-                .collect()
-        }
         SensorType::RGGB => {
             struct ReadIter<I>(I);
 
@@ -386,7 +379,14 @@ fn to_stretched_color_img(
             rgb_buf
         }
         other => {
-            anyhow::bail!("Unsupported sensor type: {other:?}")
+            if other != SensorType::Monochrome {
+                anyhow::bail!("Unsupported Bayer type {other:?}, treating as monochrome");
+            }
+            anyhow::ensure!(depth == 1, "Expected 1 channel for monochrome image");
+            stretched_iter
+                // Repeat each gray pixel 3 times to make it RGB.
+                .flat_map(|color| std::iter::repeat(color).take(3))
+                .collect()
         }
     };
     Ok(ColorImage::from_rgb([width, height], &rgb_buf))
