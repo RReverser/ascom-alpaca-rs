@@ -17,6 +17,7 @@ enum State {
     Connected {
         camera_name: String,
         rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
+        frame_num: u32,
         img: Option<TextureHandle>,
         exposure_range: RangeInclusive<f64>,
         gain_mode: GainMode,
@@ -163,6 +164,7 @@ impl StateCtx {
                             image_loop,
                             params_tx,
                             gain_mode,
+                            frame_num: 0,
                             rx,
                             img: None,
                             exposure_range: exposure_min..=exposure_max,
@@ -187,6 +189,7 @@ impl StateCtx {
                 img,
                 exposure_range,
                 image_loop,
+                frame_num,
             } => {
                 ui.label(format!("Connected to camera: {camera_name}"));
                 let disconnect_btn = ui.button("⏹ Disconnect");
@@ -217,11 +220,13 @@ impl StateCtx {
                     exposure_changed || gain_changed
                 });
                 if let Ok(new_img) = rx.try_recv() {
+                    *frame_num += 1;
                     *img = Some(
                         ui.ctx()
                             .load_texture("img", new_img?, TextureOptions::default()),
                     );
                 }
+                ui.label(format!("Frame: {frame_num}"));
                 match &*img {
                     Some(img) => {
                         let available_size = ui.available_size();
