@@ -86,7 +86,7 @@ impl RawClient {
     ) -> anyhow::Result<Resp> {
         let request_transaction = RequestTransaction::new(self.client_id);
 
-        let span = tracing::debug_span!(
+        let span = tracing::error_span!(
             "Alpaca transaction",
             action,
             ?params,

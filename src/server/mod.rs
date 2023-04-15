@@ -97,7 +97,7 @@ impl ServerHandler {
         let response_transaction =
             ResponseTransaction::new(request_transaction.client_transaction_id);
 
-        let span = tracing::debug_span!(
+        let span = tracing::error_span!(
             "Alpaca transaction",
             path = self.path,
             params = ?self.params,
