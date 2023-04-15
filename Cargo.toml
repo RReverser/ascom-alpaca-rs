@@ -38,6 +38,8 @@ criterion = { version = "0.4.0", features = ["async_tokio"] }
 dioxus = "0.3.2"
 dioxus-desktop = "0.3.0"
 eframe = "0.21.3"
+fnv = "1.0.7"
+image = { version = "0.24.6", default-features = false }
 tracing-subscriber = "0.3.16"
 
 [[bench]]

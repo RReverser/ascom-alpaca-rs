@@ -2,11 +2,12 @@ use ascom_alpaca::api::{Camera, SensorType, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
 use dioxus::prelude::*;
-use eframe::egui::{self, Ui};
-use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, StreamExt, TryStreamExt};
+use image::{DynamicImage, RgbImage, RgbaImage};
 use std::cell::Cell;
 use std::collections::VecDeque;
+use std::convert::Infallible;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -172,21 +173,13 @@ fn app(cx: Scope) -> Element {
 
     let latest_image = use_state(cx, || None);
 
-    let capture_loop = {
-        let capture_params = capture_params.clone();
+    let _capture_loop = {
         let latest_image = latest_image.clone();
 
-        use_coroutine(cx, |rx| async move {
-            capture_params.start_capture_loop(latest_image, rx).await
+        use_future!(cx, |capture_params| async move {
+            capture_params.start_capture_loop(latest_image).await
         })
     };
-
-    let old_capture_params = use_state(cx, || capture_params.current());
-
-    if old_capture_params.get() != capture_params.get_rc() {
-        capture_loop.send(());
-        old_capture_params.set(capture_params.current());
-    }
 
     cx.render(rsx!(
         h1 { "Connected to {camera_info.name}" }
@@ -204,7 +197,10 @@ fn app(cx: Scope) -> Element {
             //     src: "{url}",
             //     style: "max-width: 100%; max-height: 100%;"
             // })
-            rsx!("{latest_image.pixels.len()}")
+            let mut fnv = fnv::FnvHasher::default();
+            latest_image.hash(&mut fnv);
+            let hash = fnv.finish();
+            rsx!("{hash}")
         }
     ))
 }
@@ -226,40 +222,45 @@ struct CaptureParams {
 }
 
 impl CaptureParams {
-    async fn start_capture_loop(
-        &self,
-        latest_image: UseState<Option<ColorImage>>,
-        mut abort_rx: UnboundedReceiver<()>,
-    ) {
+    async fn start_capture_loop(&self, latest_image: UseState<Option<RgbaImage>>) {
+        struct DropGuard {
+            camera: Option<Arc<dyn Camera>>,
+        }
+
+        impl Drop for DropGuard {
+            fn drop(&mut self) {
+                tracing::debug!("Aborting exposure as the capture loop stopped");
+                let camera = self.camera.take().unwrap();
+                tokio::spawn(async move {
+                    if let Err(err) = camera.abort_exposure().await {
+                        tracing::warn!(%err, "Failed to abort exposure");
+                    }
+                    if let Err(err) = camera.set_connected(false).await {
+                        tracing::warn!(%err, "Failed to disconnect from the camera");
+                    }
+                });
+            }
+        }
+
+        let _drop_guard = DropGuard {
+            camera: Some(Arc::clone(&self.camera.0)),
+        };
+
+        tracing::debug!("Starting capture loop");
         loop {
-            tokio::select! {
-                abort = abort_rx.next() => {
-                    let is_end = abort.is_none();
-                    tracing::warn!(is_end, "Aborting exposure");
-                    let _ignore_err = self.camera.0.abort_exposure().await;
-                    if is_end {
-                        break;
-                    }
+            tracing::debug!("Capturing an image");
+            match self.capture_image_without_cancellation().await {
+                Ok(image) => {
+                    latest_image.set(Some(DynamicImage::ImageRgb8(image).into_rgba8()));
                 }
-                res = self.capture_image_without_cancellation() => {
-                    match res {
-                        Ok(image) => {
-                            latest_image.set(Some(image));
-                        }
-                        Err(err) => {
-                            tracing::warn!(%err, "Failed to capture an image");
-                        }
-                    }
+                Err(err) => {
+                    tracing::warn!(%err, "Failed to capture an image");
                 }
             }
         }
-        // Channel is closed, cleanup.
-        if let Err(err) = self.camera.0.set_connected(false).await {
-            tracing::warn!(%err, "Failed to disconnect from the camera");
-        }
     }
 
-    async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
+    async fn capture_image_without_cancellation(&self) -> Result<RgbImage, anyhow::Error> {
         let camera = &self.camera.0;
         let duration_sec = self.duration.as_secs_f64();
         camera.start_exposure(duration_sec, true).await?;
@@ -335,6 +336,6 @@ impl CaptureParams {
                 anyhow::bail!("Unsupported sensor type: {:?}", other)
             }
         };
-        Ok(ColorImage::from_rgb([width, height], &rgb_buf))
+        Ok(image::RgbImage::from_raw(width as u32, height as u32, rgb_buf).unwrap())
     }
 }
