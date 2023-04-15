@@ -4,50 +4,12 @@ use ascom_alpaca::{ASCOMErrorCode, Client};
 use eframe::egui::{self, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
-use std::collections::VecDeque;
 use std::ops::RangeInclusive;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
-
-struct FpsCounter {
-    total_count: u32,
-    timings: VecDeque<Instant>,
-}
-
-impl FpsCounter {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            total_count: 0,
-            timings: VecDeque::with_capacity(capacity),
-        }
-    }
-
-    pub fn tick(&mut self) {
-        if self.timings.len() == self.timings.capacity() {
-            self.timings.pop_front();
-        }
-        self.timings.push_back(Instant::now());
-        self.total_count += 1;
-    }
-
-    pub fn rate(&self) -> f64 {
-        let frame_count = self.timings.len().saturating_sub(1);
-        if frame_count == 0 {
-            return 0.0;
-        }
-        let oldest = *self.timings.front().unwrap();
-        let newest = *self.timings.back().unwrap();
-        let duration = newest - oldest;
-        frame_count as f64 / duration.as_secs_f64()
-    }
-
-    pub fn reset(&mut self) {
-        self.timings.clear();
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -76,7 +38,6 @@ enum State {
         camera_name: String,
         rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
         img: Option<TextureHandle>,
-        fps_counter: FpsCounter,
         exposure_range: RangeInclusive<f64>,
         capture_state: Arc<CaptureState>,
         image_loop: JoinHandle<()>, // not `ChildTask` because it has its own cancellation mechanism
@@ -230,7 +191,6 @@ impl<'a> StateCtxGuard<'a> {
                             image_loop,
                             rx,
                             img: None,
-                            fps_counter: FpsCounter::new(10),
                             exposure_range: exposure_min..=exposure_max,
                         })
                     });
@@ -248,7 +208,6 @@ impl<'a> StateCtxGuard<'a> {
                 camera_name,
                 rx,
                 img,
-                fps_counter,
                 exposure_range,
                 image_loop,
             } => {
@@ -286,20 +245,12 @@ impl<'a> StateCtxGuard<'a> {
                 }
                 if params_changed {
                     capture_state.set_params(params);
-                    fps_counter.reset();
                 }
                 if let Ok(new_img) = rx.try_recv() {
-                    fps_counter.tick();
                     *img = Some(ui.ctx().load_texture("img", new_img?, Default::default()));
                 }
                 match &*img {
                     Some(img) => {
-                        ui.label(format!(
-                            "Frame #{}. Rendering at {:.1} fps vs capture set to {:.1}",
-                            fps_counter.total_count,
-                            fps_counter.rate(),
-                            1.0 / params.duration_sec
-                        ));
                         let available_size = ui.available_size();
                         let mut img_size = Vec2::from(img.size().map(|x| x as f32));
                         // Fit the image to the available space while preserving aspect ratio.
