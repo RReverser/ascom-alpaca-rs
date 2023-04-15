@@ -1,7 +1,7 @@
 use ascom_alpaca::api::{Camera, ImageArray, SensorType, TypedDevice};
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
-use eframe::egui::{self, Ui};
+use eframe::egui::{self, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, TryStreamExt};
 use std::ops::RangeInclusive;
@@ -188,7 +188,7 @@ impl StateCtx {
                 exposure_range,
                 image_loop,
             } => {
-                ui.label(format!("Connected to camera: {}", camera_name));
+                ui.label(format!("Connected to camera: {camera_name}"));
                 let disconnect_btn = ui.button("⏹ Disconnect");
                 params_tx.send_if_modified(|params| {
                     let exposure_changed = ui
@@ -217,7 +217,10 @@ impl StateCtx {
                     exposure_changed || gain_changed
                 });
                 if let Ok(new_img) = rx.try_recv() {
-                    *img = Some(ui.ctx().load_texture("img", new_img?, Default::default()));
+                    *img = Some(
+                        ui.ctx()
+                            .load_texture("img", new_img?, TextureOptions::default()),
+                    );
                 }
                 match &*img {
                     Some(img) => {
@@ -378,7 +381,7 @@ fn to_stretched_color_img(
             rgb_buf
         }
         other => {
-            anyhow::bail!("Unsupported sensor type: {:?}", other)
+            anyhow::bail!("Unsupported sensor type: {other:?}")
         }
     };
     Ok(ColorImage::from_rgb([width, height], &rgb_buf))
@@ -388,7 +391,7 @@ impl eframe::App for StateCtx {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             if let Err(err) = self.try_update(ui) {
-                self.set_state(State::error(err))
+                self.set_state(State::error(err));
             }
         });
     }
