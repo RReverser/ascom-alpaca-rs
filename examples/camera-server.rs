@@ -9,8 +9,8 @@ use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType};
 use nokhwa::{nokhwa_initialize, Buffer, CallbackCamera, NokhwaError};
 use parking_lot::RwLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use tokio::sync::OnceCell;
 
 #[derive(Debug, Clone, Copy)]
 struct Vec2 {
@@ -30,10 +30,16 @@ enum ExposureStopKind {
     Abort,
 }
 
-struct ExposingState {
-    frame_tx: tokio::sync::mpsc::Sender<Buffer>,
-    stop_exposure_tx: tokio::sync::watch::Sender<ExposureStopKind>,
-    image: Arc<OnceCell<ImageArray>>,
+enum ExposingState {
+    BeforeExposure,
+    Exposing {
+        id: usize,
+        frame_tx: tokio::sync::mpsc::Sender<Buffer>,
+        stop_exposure_tx: tokio::sync::watch::Sender<ExposureStopKind>,
+    },
+    AfterExposure {
+        image: ImageArray,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,7 +57,8 @@ struct Webcam {
     #[debug(skip)]
     camera: RwLock<CallbackCamera>,
     #[debug(skip)]
-    exposing: Arc<RwLock<Option<ExposingState>>>,
+    exposing: Arc<RwLock<ExposingState>>,
+    exposure_counter: AtomicUsize,
     binning_formats: Vec<BinnedFormat>,
 }
 
@@ -155,10 +162,11 @@ impl Camera for Webcam {
     }
 
     async fn camera_state(&self) -> ASCOMResult<CameraState> {
-        Ok(if self.exposing.read().is_some() {
-            CameraState::Exposing
-        } else {
-            CameraState::Idle
+        Ok(match *self.exposing.read() {
+            ExposingState::BeforeExposure | ExposingState::AfterExposure { .. } => {
+                CameraState::Idle
+            }
+            ExposingState::Exposing { .. } => CameraState::Exposing,
         })
     }
 
@@ -207,20 +215,17 @@ impl Camera for Webcam {
     }
 
     async fn image_array(&self) -> ASCOMResult<ImageArray> {
-        self.exposing
-            .read()
-            .as_ref()
-            .and_then(|exposing| exposing.image.get())
-            .cloned()
-            .ok_or(ASCOMError::INVALID_OPERATION)
+        match &*self.exposing.read() {
+            ExposingState::AfterExposure { image } => Ok(image.clone()),
+            _ => Err(ASCOMError::INVALID_OPERATION),
+        }
     }
 
     async fn image_ready(&self) -> ASCOMResult<bool> {
-        Ok(self
-            .exposing
-            .read()
-            .as_ref()
-            .map_or(false, |exposing| exposing.image.initialized()))
+        Ok(matches!(
+            *self.exposing.read(),
+            ExposingState::AfterExposure { .. }
+        ))
     }
 
     async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
@@ -304,10 +309,11 @@ impl Camera for Webcam {
     }
 
     async fn start_exposure(&self, duration: f64, _light: bool) -> ASCOMResult {
+        let exposing_state = self.exposing.clone();
         let mut exposing_state_lock = self.exposing.write();
-        if let Some(ExposingState {
+        if let ExposingState::Exposing {
             stop_exposure_tx, ..
-        }) = &*exposing_state_lock
+        } = &*exposing_state_lock
         {
             // It's possible that the state is still Exposing, but something has already
             // sent a signal to abort exposure. If so, it's okay to start a new exposure.
@@ -320,12 +326,12 @@ impl Camera for Webcam {
         let (frame_tx, mut frame_rx) = tokio::sync::mpsc::channel(count);
         let (stop_exposure_tx, mut stop_exposure_rx) =
             tokio::sync::watch::channel(ExposureStopKind::Normal);
-        let image = Arc::new(OnceCell::new());
-        *exposing_state_lock = Some(ExposingState {
+        let id = self.exposure_counter.fetch_add(1, Ordering::Relaxed);
+        *exposing_state_lock = ExposingState::Exposing {
+            id,
             frame_tx,
             stop_exposure_tx,
-            image: image.clone(),
-        });
+        };
         drop(exposing_state_lock);
         let subframe = *self.subframe.read();
         let resolution = format.resolution();
@@ -361,7 +367,20 @@ impl Camera for Webcam {
                     }
                 } => {}
             }
-            image.set(stacked_buffer.into()).unwrap();
+            let mut exposing_state_lock = exposing_state.write();
+            if let ExposingState::Exposing { id: current_id, .. } = &mut *exposing_state_lock {
+                // Check that another exposure hasn't started in between
+                if *current_id == id {
+                    *exposing_state_lock = match &*stop_exposure_rx.borrow() {
+                        ExposureStopKind::Normal | ExposureStopKind::Stop => {
+                            ExposingState::AfterExposure {
+                                image: stacked_buffer.into(),
+                            }
+                        }
+                        ExposureStopKind::Abort => ExposingState::BeforeExposure,
+                    };
+                }
+            }
         });
         Ok(())
     }
@@ -375,9 +394,9 @@ impl Camera for Webcam {
     }
 
     async fn stop_exposure(&self) -> ASCOMResult {
-        if let Some(ExposingState {
+        if let ExposingState::Exposing {
             stop_exposure_tx, ..
-        }) = &*self.exposing.read()
+        } = &*self.exposing.read()
         {
             let _ = stop_exposure_tx.send(ExposureStopKind::Stop);
         }
@@ -385,9 +404,9 @@ impl Camera for Webcam {
     }
 
     async fn abort_exposure(&self) -> ASCOMResult {
-        if let Some(ExposingState {
+        if let ExposingState::Exposing {
             stop_exposure_tx, ..
-        }) = &*self.exposing.read()
+        } = &*self.exposing.read()
         {
             let _ = stop_exposure_tx.send(ExposureStopKind::Abort);
         }
@@ -463,7 +482,7 @@ async fn main() -> anyhow::Result<()> {
 
         binning_formats.sort_by_key(|binned_format| binned_format.bin);
 
-        let exposing = Arc::<_>::new(RwLock::new(None));
+        let exposing = Arc::new(RwLock::new(ExposingState::BeforeExposure));
 
         let camera = CallbackCamera::new(
             camera_info.index().clone(),
@@ -471,7 +490,7 @@ async fn main() -> anyhow::Result<()> {
             {
                 let exposing = exposing.clone();
                 move |frame| {
-                    if let Some(ExposingState { frame_tx, .. }) = &*exposing.read() {
+                    if let ExposingState::Exposing { frame_tx, .. } = &*exposing.read() {
                         frame_tx.blocking_send(frame).unwrap();
                     }
                 }
@@ -495,6 +514,7 @@ async fn main() -> anyhow::Result<()> {
             binning_formats,
             camera: RwLock::new(camera),
             exposing,
+            exposure_counter: AtomicUsize::new(0),
         };
 
         tracing::debug!(?webcam, "Registering webcam");
