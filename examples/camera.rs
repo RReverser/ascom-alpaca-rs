@@ -70,8 +70,10 @@ impl StateCtx {
         as_new_state: impl FnOnce(ChildTask) -> State,
         update: impl Future<Output = anyhow::Result<State>> + Send + 'static,
     ) {
+        let ctx = self.ctx.clone();
         self.set_state(as_new_state(ChildTask(tokio::spawn(async move {
             let result = update.await;
+            ctx.request_repaint();
             match result {
                 Ok(state) => state,
                 Err(err) => State::error(err),
