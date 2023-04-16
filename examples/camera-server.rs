@@ -6,7 +6,7 @@ use image::{GenericImageView, Pixel, RgbImage};
 use ndarray::Array3;
 use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
-use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType};
+use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
 use nokhwa::{nokhwa_initialize, Buffer, CallbackCamera, NokhwaError};
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,16 +14,72 @@ use std::sync::Arc;
 use time::format_description::well_known::Iso8601;
 use time::OffsetDateTime;
 
-#[derive(Debug, Clone, Copy)]
-struct Vec2 {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct Point {
     x: i32,
     y: i32,
 }
 
 #[derive(Debug, Clone, Copy)]
+struct Size {
+    x: i32,
+    y: i32,
+}
+
+impl TryFrom<Resolution> for Size {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(resolution: Resolution) -> Result<Self, Self::Error> {
+        Ok(Self {
+            x: resolution.width().try_into()?,
+            y: resolution.height().try_into()?,
+        })
+    }
+}
+
+impl From<Size> for Point {
+    fn from(size: Size) -> Self {
+        Self {
+            x: size.x,
+            y: size.y,
+        }
+    }
+}
+
+impl Point {
+    fn checked_add(self, size: Size) -> Option<Self> {
+        Some(Self {
+            x: self.x.checked_add(size.x)?,
+            y: self.y.checked_add(size.y)?,
+        })
+    }
+}
+
+// Define comparison as "is this point more bottom-right than the other?".
+impl Ord for Point {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self.x.cmp(&other.x), self.y.cmp(&other.y)) {
+            (std::cmp::Ordering::Less, _) | (_, std::cmp::Ordering::Less) => {
+                std::cmp::Ordering::Less
+            }
+            (std::cmp::Ordering::Equal, std::cmp::Ordering::Equal) => std::cmp::Ordering::Equal,
+            (std::cmp::Ordering::Greater, _) | (_, std::cmp::Ordering::Greater) => {
+                std::cmp::Ordering::Greater
+            }
+        }
+    }
+}
+
+impl PartialOrd for Point {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 struct Subframe {
-    offset: Vec2,
-    size: Vec2,
+    offset: Point,
+    size: Size,
 }
 
 enum ExposureStopKind {
@@ -128,11 +184,15 @@ impl Device for Webcam {
 #[async_trait]
 impl Camera for Webcam {
     async fn bayer_offset_x(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+        Ok(0)
     }
 
     async fn bayer_offset_y(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+        Ok(0)
+    }
+
+    async fn sensor_name(&self) -> ASCOMResult<String> {
+        Ok(String::default())
     }
 
     async fn bin_x(&self) -> ASCOMResult<i32> {
@@ -140,13 +200,28 @@ impl Camera for Webcam {
     }
 
     async fn set_bin_x(&self, bin_x: i32) -> ASCOMResult {
-        self.binning_formats
-            .iter()
-            .find(|binned_format| binned_format.bin == bin_x as u32)
-            .ok_or(ASCOMError::INVALID_VALUE)
-            .map(|binned_format| {
-                *self.binned_format.write() = *binned_format;
-            })
+        // let binned_format = self
+        //     .binning_formats
+        //     .iter()
+        //     .find(|binned_format| binned_format.bin == bin_x as u32)
+        //     .ok_or(ASCOMError::INVALID_VALUE)?;
+
+        // self.camera
+        //     .write()
+        //     .set_camera_requset(RequestedFormat::new::<RgbFormat>(
+        //         RequestedFormatType::Exact(binned_format.format),
+        //     ))
+        //     .map_err(|err| {
+        //         tracing::error!("Couldn't change camera format: {err}");
+        //         convert_err(err)
+        //     })?;
+        // *self.binned_format.write() = *binned_format;
+        // Ok(())
+        if bin_x == 1 {
+            Ok(())
+        } else {
+            Err(ASCOMError::INVALID_VALUE)
+        }
     }
 
     async fn bin_y(&self) -> ASCOMResult<i32> {
@@ -332,9 +407,20 @@ impl Camera for Webcam {
                 return Err(ASCOMError::INVALID_OPERATION);
             }
         }
-        *self.last_exposure_start_time.write() = Some(start);
-        let last_exposure_duration = self.last_exposure_duration.clone();
+        let subframe = *self.subframe.read();
         let format = self.binned_format.read().format;
+        let resolution = Size::try_from(format.resolution())
+            .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
+        if subframe.offset < Point::default()
+            || subframe
+                .offset
+                .checked_add(subframe.size)
+                .ok_or(ASCOMError::INVALID_VALUE)?
+                > Point::from(resolution)
+        {
+            return Err(ASCOMError::INVALID_VALUE);
+        }
+        let last_exposure_duration = self.last_exposure_duration.clone();
         let count = (duration * f64::from(format.frame_rate())).round() as usize;
         let (frame_tx, mut frame_rx) = tokio::sync::mpsc::channel(count);
         let (stop_exposure_tx, mut stop_exposure_rx) =
@@ -346,12 +432,11 @@ impl Camera for Webcam {
             stop_exposure_tx,
         };
         drop(exposing_state_lock);
-        let subframe = *self.subframe.read();
-        let resolution = format.resolution();
+        *self.last_exposure_start_time.write() = Some(start);
         tokio::spawn(async move {
             let mut stacked_buffer =
-                Array3::<u16>::zeros((resolution.x() as usize, resolution.y() as usize, 3));
-            let mut single_frame_buffer = RgbImage::new(resolution.x(), resolution.y());
+                Array3::<u16>::zeros((resolution.x as usize, resolution.y as usize, 3));
+            let mut single_frame_buffer = RgbImage::new(resolution.x as u32, resolution.y as u32);
             tokio::select! {
                 _ = stop_exposure_rx.changed() => {}
                 _ = async {
@@ -482,7 +567,7 @@ async fn main() -> anyhow::Result<()> {
                 )
             })?;
 
-        let mut binning_formats = compatible_formats
+        let mut binning_formats = /*compatible_formats
             .iter()
             .filter_map(|other| {
                 let (bin_x, rem_x) = div_rem(format.resolution().x(), other.resolution().x());
@@ -496,7 +581,7 @@ async fn main() -> anyhow::Result<()> {
                     None
                 }
             })
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()*/ vec![BinnedFormat { bin: 1, format }];
 
         binning_formats.sort_by_key(|binned_format| binned_format.bin);
 
@@ -522,11 +607,8 @@ async fn main() -> anyhow::Result<()> {
             ),
             name: camera_info.human_name(),
             subframe: RwLock::new(Subframe {
-                offset: Vec2 { x: 0, y: 0 },
-                size: Vec2 {
-                    x: format.width() as _,
-                    y: format.height() as _,
-                },
+                offset: Point::default(),
+                size: format.resolution().try_into()?,
             }),
             binned_format: RwLock::new(BinnedFormat { bin: 1, format }),
             binning_formats,
