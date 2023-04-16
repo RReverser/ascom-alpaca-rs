@@ -1,12 +1,9 @@
-use super::parse_flattened::Flattened;
 use super::ResponseWithTransaction;
-use crate::client::ResponseTransaction;
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytes::Bytes;
 use mime::Mime;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Deserializer};
 
 pub(crate) trait Response: Sized {
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -19,7 +16,7 @@ pub(crate) trait Response: Sized {
 
 struct JsonResponse<T>(T);
 
-impl<T: DeserializeOwned> Response for JsonResponse<T> {
+impl<T: 'static + DeserializeOwned> Response for JsonResponse<T> {
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
@@ -33,45 +30,38 @@ impl<T: DeserializeOwned> Response for JsonResponse<T> {
             Some(charset) => anyhow::bail!("Unsupported charset {charset}"),
         };
 
-        let Flattened(transaction, response) =
-            serde_json::from_slice::<Flattened<ResponseTransaction, T>>(&bytes)?;
-
         Ok(ResponseWithTransaction {
-            transaction,
-            response: Self(response),
+            transaction: serde_json::from_slice(&bytes)?,
+            response: Self(serde_json::from_slice(
+                if std::any::TypeId::of::<T>() == std::any::TypeId::of::<()>() {
+                    // workaround for serde expecting `null` for unit type, but we want to support & ignore arbitrary input
+                    b"null"
+                } else {
+                    &bytes
+                },
+            )?),
         })
     }
 }
 
-impl<T: DeserializeOwned> Response for ASCOMResult<T> {
+impl<T: 'static + DeserializeOwned> Response for ASCOMResult<T> {
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
     ) -> anyhow::Result<ResponseWithTransaction<Self>> {
-        struct ParseResult<T>(anyhow::Result<T>);
-
-        impl<'de, T: Deserialize<'de>> Deserialize<'de> for ParseResult<T> {
-            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                Ok(Self(
-                    T::deserialize(deserializer).map_err(|err| anyhow::anyhow!("{err}")),
-                ))
-            }
+        let ascom_error = serde_json::from_slice::<ASCOMError>(&bytes)?;
+        if ascom_error.code == ASCOMErrorCode::OK {
+            Ok(JsonResponse::from_reqwest(mime_type, bytes)?.map(|JsonResponse(value)| Ok(value)))
+        } else {
+            Ok(ResponseWithTransaction {
+                transaction: serde_json::from_slice(&bytes)?,
+                response: Err(ascom_error),
+            })
         }
-
-        JsonResponse::<Flattened<ASCOMError, ParseResult<T>>>::from_reqwest(mime_type, bytes)?
-            .try_map(
-                |JsonResponse(Flattened(ascom_error, ParseResult(parse_result)))| {
-                    Ok(if ascom_error.code == ASCOMErrorCode::OK {
-                        Ok(parse_result?)
-                    } else {
-                        Err(ascom_error)
-                    })
-                },
-            )
     }
 }
 
-impl<T: DeserializeOwned> Response for ValueResponse<T> {
+impl<T: 'static + DeserializeOwned> Response for ValueResponse<T> {
     fn from_reqwest(
         mime_type: Mime,
         bytes: Bytes,
