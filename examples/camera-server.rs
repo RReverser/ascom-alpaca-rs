@@ -11,6 +11,8 @@ use nokhwa::{nokhwa_initialize, Buffer, CallbackCamera, NokhwaError};
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use time::format_description::well_known::Iso8601;
+use time::OffsetDateTime;
 
 #[derive(Debug, Clone, Copy)]
 struct Vec2 {
@@ -58,6 +60,8 @@ struct Webcam {
     camera: RwLock<CallbackCamera>,
     #[debug(skip)]
     exposing: Arc<RwLock<ExposingState>>,
+    last_exposure_start_time: RwLock<Option<OffsetDateTime>>,
+    last_exposure_duration: Arc<RwLock<Option<f64>>>,
     exposure_counter: AtomicUsize,
     binning_formats: Vec<BinnedFormat>,
 }
@@ -228,12 +232,18 @@ impl Camera for Webcam {
         ))
     }
 
-    async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+    async fn last_exposure_start_time(&self) -> ASCOMResult<String> {
+        self.last_exposure_start_time
+            .read()
+            .ok_or(ASCOMError::INVALID_OPERATION)?
+            .format(&Iso8601::DEFAULT)
+            .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string()))
     }
 
-    async fn last_exposure_start_time(&self) -> ASCOMResult<String> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+    async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
+        self.last_exposure_duration
+            .read()
+            .ok_or(ASCOMError::INVALID_OPERATION)
     }
 
     async fn max_adu(&self) -> ASCOMResult<i32> {
@@ -309,6 +319,7 @@ impl Camera for Webcam {
     }
 
     async fn start_exposure(&self, duration: f64, _light: bool) -> ASCOMResult {
+        let start = OffsetDateTime::now_utc();
         let exposing_state = self.exposing.clone();
         let mut exposing_state_lock = self.exposing.write();
         if let ExposingState::Exposing {
@@ -321,6 +332,8 @@ impl Camera for Webcam {
                 return Err(ASCOMError::INVALID_OPERATION);
             }
         }
+        *self.last_exposure_start_time.write() = Some(start);
+        let last_exposure_duration = self.last_exposure_duration.clone();
         let format = self.binned_format.read().format;
         let count = (duration * f64::from(format.frame_rate())).round() as usize;
         let (frame_tx, mut frame_rx) = tokio::sync::mpsc::channel(count);
@@ -373,6 +386,7 @@ impl Camera for Webcam {
                 if *current_id == id {
                     *exposing_state_lock = match &*stop_exposure_rx.borrow() {
                         ExposureStopKind::Normal | ExposureStopKind::Stop => {
+                            *last_exposure_duration.write() = Some(duration);
                             ExposingState::AfterExposure {
                                 image: stacked_buffer.into(),
                             }
@@ -514,7 +528,9 @@ async fn main() -> anyhow::Result<()> {
             binning_formats,
             camera: RwLock::new(camera),
             exposing,
-            exposure_counter: AtomicUsize::new(0),
+            exposure_counter: Default::default(),
+            last_exposure_start_time: Default::default(),
+            last_exposure_duration: Default::default(),
         };
 
         tracing::debug!(?webcam, "Registering webcam");
