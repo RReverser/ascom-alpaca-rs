@@ -381,20 +381,24 @@ impl Camera for Webcam {
                 } => {}
             }
             let mut exposing_state_lock = exposing_state.write();
-            if let ExposingState::Exposing { id: current_id, .. } = &mut *exposing_state_lock {
-                // Check that another exposure hasn't started in between
-                if *current_id == id {
-                    *exposing_state_lock = match &*stop_exposure_rx.borrow() {
-                        ExposureStopKind::Normal | ExposureStopKind::Stop => {
-                            *last_exposure_duration.write() = Some(duration);
-                            ExposingState::AfterExposure {
-                                image: stacked_buffer.into(),
-                            }
-                        }
-                        ExposureStopKind::Abort => ExposingState::BeforeExposure,
-                    };
-                }
+            // Check that we're still in an exposing state (another exposure might have started in between if this one is aborted).
+            let ExposingState::Exposing { id: current_id, .. } = &mut *exposing_state_lock else {
+                return;
+            };
+            // Check that it's still *our* exposing state.
+            if *current_id != id {
+                return;
             }
+            // If it is, we can safely update the state.
+            *exposing_state_lock = match &*stop_exposure_rx.borrow() {
+                ExposureStopKind::Normal | ExposureStopKind::Stop => {
+                    *last_exposure_duration.write() = Some(duration);
+                    ExposingState::AfterExposure {
+                        image: stacked_buffer.into(),
+                    }
+                }
+                ExposureStopKind::Abort => ExposingState::BeforeExposure,
+            };
         });
         Ok(())
     }
