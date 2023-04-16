@@ -92,6 +92,7 @@ enum ExposingState {
     BeforeExposure,
     Exposing {
         id: usize,
+        seen_frames: Arc<AtomicUsize>,
         frame_tx: tokio::sync::mpsc::Sender<Buffer>,
         stop_exposure_tx: tokio::sync::watch::Sender<ExposureStopKind>,
     },
@@ -370,7 +371,15 @@ impl Camera for Webcam {
     }
 
     async fn percent_completed(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+        match &*self.exposing.read() {
+            ExposingState::BeforeExposure => Ok(0),
+            ExposingState::Exposing {
+                seen_frames,
+                frame_tx,
+                ..
+            } => Ok((100 * seen_frames.load(Ordering::Relaxed) / frame_tx.max_capacity()) as i32),
+            ExposingState::AfterExposure { .. } => Ok(100),
+        }
     }
 
     async fn readout_mode(&self) -> ASCOMResult<i32> {
@@ -426,8 +435,10 @@ impl Camera for Webcam {
         let (stop_exposure_tx, mut stop_exposure_rx) =
             tokio::sync::watch::channel(ExposureStopKind::Normal);
         let id = self.exposure_counter.fetch_add(1, Ordering::Relaxed);
+        let seen_frames = Arc::new(AtomicUsize::new(0));
         *exposing_state_lock = ExposingState::Exposing {
             id,
+            seen_frames: seen_frames.clone(),
             frame_tx,
             stop_exposure_tx,
         };
@@ -441,6 +452,7 @@ impl Camera for Webcam {
                 _ = stop_exposure_rx.changed() => {}
                 _ = async {
                     for _ in 0..count {
+                        seen_frames.fetch_add(1, Ordering::Relaxed);
                         let Some(frame) = frame_rx
                             .recv()
                             .await else {
