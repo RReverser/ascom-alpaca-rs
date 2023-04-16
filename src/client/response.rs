@@ -6,6 +6,7 @@ use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytes::Bytes;
 use mime::Mime;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer};
 
 pub(crate) trait Response: Sized {
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -47,17 +48,26 @@ impl<T: DeserializeOwned> Response for ASCOMResult<T> {
         mime_type: Mime,
         bytes: Bytes,
     ) -> anyhow::Result<ResponseWithTransaction<Self>> {
-        Ok(
-            JsonResponse::<Flattened<ASCOMError, T>>::from_reqwest(mime_type, bytes)?.map(
-                |JsonResponse(Flattened(ascom_error, response))| {
-                    if ascom_error.code == ASCOMErrorCode::OK {
-                        Ok(response)
+        struct ParseResult<T>(anyhow::Result<T>);
+
+        impl<'de, T: Deserialize<'de>> Deserialize<'de> for ParseResult<T> {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                Ok(Self(
+                    T::deserialize(deserializer).map_err(|err| anyhow::anyhow!("{err}")),
+                ))
+            }
+        }
+
+        JsonResponse::<Flattened<ASCOMError, ParseResult<T>>>::from_reqwest(mime_type, bytes)?
+            .try_map(
+                |JsonResponse(Flattened(ascom_error, ParseResult(parse_result)))| {
+                    Ok(if ascom_error.code == ASCOMErrorCode::OK {
+                        Ok(parse_result?)
                     } else {
                         Err(ascom_error)
-                    }
+                    })
                 },
-            ),
-        )
+            )
     }
 }
 
