@@ -1,3 +1,4 @@
+use anyhow::Context;
 use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray};
 use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Server};
 use async_trait::async_trait;
@@ -5,12 +6,11 @@ use image::{GenericImageView, Pixel, RgbImage};
 use ndarray::Array3;
 use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
-use nokhwa::utils::Resolution;
 use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType};
 use nokhwa::{nokhwa_initialize, Buffer, CallbackCamera, NokhwaError};
+use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::sync::RwLock;
 use tokio::sync::OnceCell;
 
 #[derive(Debug, Clone, Copy)]
@@ -19,11 +19,16 @@ struct Vec2 {
     y: i32,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Subframe {
+    offset: Vec2,
+    size: Vec2,
+}
+
 #[derive(Debug)]
 struct Config {
-    state: CameraState,
-    subframe_offset: Vec2,
-    subframe_size: Vec2,
+    state: RwLock<CameraState>,
+    subframe: RwLock<Subframe>,
 }
 
 #[derive(Default)]
@@ -32,17 +37,24 @@ struct ExposingState {
     stop_exposure: AtomicBool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct BinnedFormat {
+    bin: u32,
+    format: CameraFormat,
+}
+
 #[derive(custom_debug::Debug)]
 struct Webcam {
     unique_id: String,
     name: String,
-    format: CameraFormat,
-    config: Arc<RwLock<Config>>,
+    binned_format: RwLock<BinnedFormat>,
+    config: Arc<Config>,
     frame_sender: tokio::sync::broadcast::Sender<Buffer>,
     #[debug(skip)]
     camera: RwLock<CallbackCamera>,
     #[debug(skip)]
     exposing: Arc<RwLock<ExposingState>>,
+    binning_formats: Vec<BinnedFormat>,
 }
 
 fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
@@ -61,15 +73,11 @@ impl Device for Webcam {
     }
 
     async fn connected(&self) -> ASCOMResult<bool> {
-        self.camera
-            .read()
-            .unwrap()
-            .is_stream_open()
-            .map_err(convert_err)
+        self.camera.read().is_stream_open().map_err(convert_err)
     }
 
     async fn set_connected(&self, connected: bool) -> ASCOMResult {
-        let mut camera = self.camera.write().unwrap();
+        let mut camera = self.camera.write();
 
         if connected == camera.is_stream_open().map_err(convert_err)? {
             return Ok(());
@@ -84,7 +92,7 @@ impl Device for Webcam {
     }
 
     async fn description(&self) -> ASCOMResult<String> {
-        Ok(self.camera.read().unwrap().info().description().to_owned())
+        Ok(self.camera.read().info().description().to_owned())
     }
 
     async fn driver_info(&self) -> ASCOMResult<String> {
@@ -119,15 +127,17 @@ impl Camera for Webcam {
     }
 
     async fn bin_x(&self) -> ASCOMResult<i32> {
-        Ok(1)
+        Ok(self.binned_format.read().bin as i32)
     }
 
     async fn set_bin_x(&self, bin_x: i32) -> ASCOMResult {
-        if bin_x == 1 {
-            Ok(())
-        } else {
-            Err(ASCOMError::INVALID_VALUE)
-        }
+        self.binning_formats
+            .iter()
+            .find(|binned_format| binned_format.bin == bin_x as u32)
+            .ok_or(ASCOMError::INVALID_VALUE)
+            .map(|binned_format| {
+                *self.binned_format.write() = *binned_format;
+            })
     }
 
     async fn bin_y(&self) -> ASCOMResult<i32> {
@@ -138,16 +148,16 @@ impl Camera for Webcam {
         self.set_bin_x(bin_y).await
     }
 
+    async fn max_bin_x(&self) -> ASCOMResult<i32> {
+        Ok(self.binning_formats.last().unwrap().bin as i32)
+    }
+
+    async fn max_bin_y(&self) -> ASCOMResult<i32> {
+        Ok(self.binning_formats.last().unwrap().bin as i32)
+    }
+
     async fn camera_state(&self) -> ASCOMResult<ascom_alpaca::api::CameraState> {
-        Ok(self.config.read().unwrap().state)
-    }
-
-    async fn camera_xsize(&self) -> ASCOMResult<i32> {
-        Ok(self.format.width() as i32)
-    }
-
-    async fn camera_ysize(&self) -> ASCOMResult<i32> {
-        Ok(self.format.height() as i32)
+        Ok(*self.config.state.read())
     }
 
     async fn can_asymmetric_bin(&self) -> ASCOMResult<bool> {
@@ -183,7 +193,7 @@ impl Camera for Webcam {
     }
 
     async fn exposure_resolution(&self) -> ASCOMResult<f64> {
-        Ok(1. / f64::from(self.format.frame_rate()))
+        Ok(1. / f64::from(self.binned_format.read().format.frame_rate()))
     }
 
     async fn full_well_capacity(&self) -> ASCOMResult<f64> {
@@ -197,7 +207,6 @@ impl Camera for Webcam {
     async fn image_array(&self) -> ASCOMResult<ascom_alpaca::api::ImageArray> {
         self.exposing
             .read()
-            .unwrap()
             .image
             .get()
             .cloned()
@@ -205,7 +214,7 @@ impl Camera for Webcam {
     }
 
     async fn image_ready(&self) -> ASCOMResult<bool> {
-        Ok(self.exposing.read().unwrap().image.initialized())
+        Ok(self.exposing.read().image.initialized())
     }
 
     async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
@@ -220,29 +229,47 @@ impl Camera for Webcam {
         Ok(u16::MAX.into())
     }
 
-    async fn max_bin_x(&self) -> ASCOMResult<i32> {
-        Ok(1)
+    async fn camera_xsize(&self) -> ASCOMResult<i32> {
+        Ok(self.binned_format.read().format.width() as i32)
     }
 
-    async fn max_bin_y(&self) -> ASCOMResult<i32> {
-        Ok(1)
+    async fn camera_ysize(&self) -> ASCOMResult<i32> {
+        Ok(self.binned_format.read().format.height() as i32)
+    }
+
+    async fn start_x(&self) -> ASCOMResult<i32> {
+        Ok(self.config.subframe.read().offset.x)
+    }
+
+    async fn set_start_x(&self, start_x: i32) -> ASCOMResult {
+        self.config.subframe.write().offset.x = start_x;
+        Ok(())
+    }
+
+    async fn start_y(&self) -> ASCOMResult<i32> {
+        Ok(self.config.subframe.read().offset.y)
+    }
+
+    async fn set_start_y(&self, start_y: i32) -> ASCOMResult {
+        self.config.subframe.write().offset.y = start_y;
+        Ok(())
     }
 
     async fn num_x(&self) -> ASCOMResult<i32> {
-        Ok(self.config.read().unwrap().subframe_size.x)
+        Ok(self.config.subframe.read().size.x)
     }
 
     async fn set_num_x(&self, num_x: i32) -> ASCOMResult {
-        self.config.write().unwrap().subframe_size.x = num_x;
+        self.config.subframe.write().size.x = num_x;
         Ok(())
     }
 
     async fn num_y(&self) -> ASCOMResult<i32> {
-        Ok(self.config.read().unwrap().subframe_size.y)
+        Ok(self.config.subframe.read().size.y)
     }
 
     async fn set_num_y(&self, num_y: i32) -> ASCOMResult {
-        self.config.write().unwrap().subframe_size.y = num_y;
+        self.config.subframe.write().size.y = num_y;
         Ok(())
     }
 
@@ -266,50 +293,33 @@ impl Camera for Webcam {
         Ok(vec!["Default".to_string()])
     }
 
-    async fn start_x(&self) -> ASCOMResult<i32> {
-        Ok(self.config.read().unwrap().subframe_offset.x)
-    }
-
-    async fn set_start_x(&self, start_x: i32) -> ASCOMResult {
-        self.config.write().unwrap().subframe_offset.x = start_x;
-        Ok(())
-    }
-
-    async fn start_y(&self) -> ASCOMResult<i32> {
-        Ok(self.config.read().unwrap().subframe_offset.y)
-    }
-
-    async fn set_start_y(&self, start_y: i32) -> ASCOMResult {
-        self.config.write().unwrap().subframe_offset.y = start_y;
-        Ok(())
+    async fn sensor_type(&self) -> ascom_alpaca::ASCOMResult<ascom_alpaca::api::SensorType> {
+        Ok(ascom_alpaca::api::SensorType::Color)
     }
 
     async fn start_exposure(&self, duration: f64, _light: bool) -> ASCOMResult {
-        let mut config = self.config.write().unwrap();
-        if config.state != CameraState::Idle {
+        let mut config_state = self.config.state.write();
+        if *config_state != CameraState::Idle {
             return Err(ASCOMError::INVALID_OPERATION);
         }
         {
-            let subframe_offset = config.subframe_offset;
-            let subframe_size = config.subframe_size;
+            let subframe = *self.config.subframe.read();
             let config = self.config.clone();
-            let count = (duration * f64::from(self.format.frame_rate())) as u8;
+            let format = self.binned_format.read().format;
+            let count = (duration * f64::from(format.frame_rate()))
+                .round()
+                .max(255.) as u8;
             let exposing = self.exposing.clone();
-            *exposing.write().unwrap() = ExposingState::default();
-            let resolution = self.format.resolution();
+            *exposing.write() = ExposingState::default();
+            let resolution = format.resolution();
             let mut frame_receiver = self.frame_sender.subscribe();
             tokio::spawn(async move {
-                tracing::info!("Starting exposure");
+                tracing::info!(?format, ?subframe, ?count, "Starting exposure");
                 let mut stacked_buffer =
-                    Array3::<u8>::zeros((resolution.x() as usize, resolution.y() as usize, 3));
+                    Array3::<u16>::zeros((resolution.x() as usize, resolution.y() as usize, 3));
                 let mut single_frame_buffer = RgbImage::new(resolution.x(), resolution.y());
                 for _ in 0..count {
-                    if exposing
-                        .read()
-                        .unwrap()
-                        .stop_exposure
-                        .load(Ordering::Relaxed)
-                    {
+                    if exposing.read().stop_exposure.load(Ordering::Relaxed) {
                         break;
                     }
                     frame_receiver
@@ -319,35 +329,28 @@ impl Camera for Webcam {
                         .decode_image_to_buffer::<RgbFormat>(&mut single_frame_buffer)
                         .unwrap();
                     let cropped_view = single_frame_buffer.view(
-                        subframe_offset.x as u32,
-                        subframe_offset.y as u32,
-                        subframe_size.x as u32,
-                        subframe_size.y as u32,
+                        subframe.offset.x as u32,
+                        subframe.offset.y as u32,
+                        subframe.size.x as u32,
+                        subframe.size.y as u32,
                     );
                     for (x, y, pixel) in cropped_view.pixels() {
                         stacked_buffer
                             .slice_mut(ndarray::s![x as usize, y as usize, ..])
                             .iter_mut()
                             .zip(pixel.channels())
-                            .for_each(|(dst, src)| *dst = dst.saturating_add(*src));
+                            .for_each(|(dst, src)| *dst = dst.saturating_add((*src).into()));
                     }
                 }
-                config.write().unwrap().state = CameraState::Idle;
-                exposing
-                    .write()
-                    .unwrap()
-                    .image
-                    .set(stacked_buffer.into())
-                    .unwrap();
+                // careful - don't capture existing `config_state` lock as it will deadlock
+                // any other state retriaval until the end of exposure
+                *config.state.write() = CameraState::Idle;
+                exposing.write().image.set(stacked_buffer.into()).unwrap();
                 tracing::info!("Finished exposure");
             });
         }
-        config.state = CameraState::Exposing;
+        *config_state = CameraState::Exposing;
         Ok(())
-    }
-
-    async fn sensor_type(&self) -> ascom_alpaca::ASCOMResult<ascom_alpaca::api::SensorType> {
-        Ok(ascom_alpaca::api::SensorType::Color)
     }
 
     async fn can_stop_exposure(&self) -> ASCOMResult<bool> {
@@ -361,16 +364,19 @@ impl Camera for Webcam {
     async fn stop_exposure(&self) -> ASCOMResult {
         self.exposing
             .read()
-            .unwrap()
             .stop_exposure
             .store(true, Ordering::Relaxed);
-        self.config.write().unwrap().state = CameraState::Idle;
+        *self.config.state.write() = CameraState::Idle;
         Ok(())
     }
 
     async fn abort_exposure(&self) -> ASCOMResult {
         self.stop_exposure().await
     }
+}
+
+fn div_rem(a: u32, b: u32) -> (u32, u32) {
+    (a / b, a % b)
 }
 
 #[tokio::main]
@@ -391,21 +397,66 @@ async fn main() -> anyhow::Result<()> {
     for camera_info in nokhwa::query(nokhwa::utils::ApiBackend::Auto)? {
         let (frame_sender, _) = tokio::sync::broadcast::channel(1);
 
-        let mut camera = CallbackCamera::new(
+        // Workaround for https://github.com/l1npengtul/nokhwa/issues/110:
+        // get list of compatible formats manually, extract the info,
+        // and then re-create as CallbackCamera for the same source.
+        let mut camera = nokhwa::Camera::new(
             camera_info.index().clone(),
             RequestedFormat::new::<RgbFormat>(RequestedFormatType::None),
+        )?;
+
+        let compatible_formats = camera.compatible_camera_formats()?;
+
+        let format = *compatible_formats
+            .iter()
+            .max_by_key(|format| {
+                (
+                    // nokhwa's auto-selection doesn't care about specific frame format,
+                    // but we want uncompressed RAWRGB if supported.
+                    format.format() == FrameFormat::RAWRGB,
+                    // then choose maximum resolution
+                    format.resolution(),
+                    // then choose *minimum* frame rate as our usecase is mostly long exposures
+                    -(format.frame_rate() as i32),
+                )
+            })
+            .with_context(|| {
+                format!(
+                    "No compatible formats found for camera {}",
+                    camera_info.human_name()
+                )
+            })?;
+
+        let mut binning_formats = compatible_formats
+            .iter()
+            .filter_map(|other| {
+                let (bin_x, rem_x) = div_rem(format.resolution().x(), other.resolution().x());
+                let (bin_y, rem_y) = div_rem(format.resolution().y(), other.resolution().y());
+                if bin_x == bin_y && rem_x == 0 && rem_y == 0 {
+                    Some(BinnedFormat {
+                        bin: bin_x,
+                        format: *other,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        binning_formats.sort_by_key(|binned_format| binned_format.bin);
+
+        let camera = CallbackCamera::new(
+            camera_info.index().clone(),
+            RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(format)),
             {
                 let frame_sender = frame_sender.clone();
                 move |frame| {
-                    let _ignore_err_when_no_receivers = frame_sender.send(frame);
+                    if frame_sender.receiver_count() > 0 {
+                        let _ignore_err = frame_sender.send(frame);
+                    }
                 }
             },
         )?;
-
-        let frame_rate = camera.frame_rate()?;
-        let format = camera.camera_format()?;
-
-        tracing::debug!(?format, ?frame_rate, "Camera format chosen out of");
 
         let webcam = Webcam {
             unique_id: format!(
@@ -413,15 +464,18 @@ async fn main() -> anyhow::Result<()> {
                 camera_info.index()
             ),
             name: camera_info.human_name(),
-            config: Arc::new(RwLock::new(Config {
-                state: CameraState::Idle,
-                subframe_offset: Vec2 { x: 0, y: 0 },
-                subframe_size: Vec2 {
-                    x: format.width() as _,
-                    y: format.height() as _,
-                },
-            })),
-            format,
+            config: Arc::new(Config {
+                state: RwLock::new(CameraState::Idle),
+                subframe: RwLock::new(Subframe {
+                    offset: Vec2 { x: 0, y: 0 },
+                    size: Vec2 {
+                        x: format.width() as _,
+                        y: format.height() as _,
+                    },
+                }),
+            }),
+            binned_format: RwLock::new(BinnedFormat { bin: 1, format }),
+            binning_formats,
             camera: RwLock::new(camera),
             exposing: Default::default(),
             frame_sender,
