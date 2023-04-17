@@ -6,6 +6,7 @@ use axum::http::{Method, Request, StatusCode};
 use axum::response::IntoResponse;
 use axum::{BoxError, Form};
 use indexmap::IndexMap;
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -31,17 +32,14 @@ where
     ) -> super::Result<Option<T>> {
         self.0
             .remove(name.as_ref())
-            .map(|value| {
-                T::deserialize(StringDeserializer::<serde::de::value::Error>::new(value)).map_err(
-                    |err| {
-                        Error::Ascom(ASCOMError::new(
-                            ASCOMErrorCode::INVALID_VALUE,
-                            format!("Invalid value for parameter {name:?}: {err:#}"),
-                        ))
-                    },
-                )
-            })
+            .map(|value| serde_plain::from_str(&value))
             .transpose()
+            .map_err(|err| {
+                Error::Ascom(ASCOMError::new(
+                    ASCOMErrorCode::INVALID_VALUE,
+                    format!("Invalid value for parameter {name:?}: {err:#}"),
+                ))
+            })
     }
 
     pub(crate) fn extract<T: DeserializeOwned>(&mut self, name: &'static str) -> super::Result<T> {
@@ -86,5 +84,3 @@ where
 }
 
 use crate::{ASCOMError, ASCOMErrorCode};
-use serde::de::value::StringDeserializer;
-use serde::de::DeserializeOwned;
