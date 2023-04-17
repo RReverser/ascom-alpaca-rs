@@ -11,7 +11,6 @@ use nokhwa::{nokhwa_initialize, Buffer, CallbackCamera, NokhwaError};
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use time::format_description::well_known::Iso8601;
 use time::OffsetDateTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -308,12 +307,10 @@ impl Camera for Webcam {
         ))
     }
 
-    async fn last_exposure_start_time(&self) -> ASCOMResult<String> {
+    async fn last_exposure_start_time(&self) -> ASCOMResult<OffsetDateTime> {
         self.last_exposure_start_time
             .read()
-            .ok_or(ASCOMError::INVALID_OPERATION)?
-            .format(&Iso8601::DEFAULT)
-            .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string()))
+            .ok_or(ASCOMError::INVALID_OPERATION)
     }
 
     async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
