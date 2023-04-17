@@ -70,3 +70,6 @@ nightly = []
 
 [package.metadata.docs.rs]
 all-features = true
+
+[patch.crates-io]
+nokhwa = { git = "https://github.com/RReverser/nokhwa", branch = "fix-callback-camera-deadlock" }
