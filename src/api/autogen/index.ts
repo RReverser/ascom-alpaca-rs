@@ -732,11 +732,14 @@ ${stringifyIter(types, ({features, type}) => {
         }
 
         ${cfg}
-        impl ${type.name} {
-          pub(crate) fn into_inner(self) -> time::OffsetDateTime {
-            self.value
+        impl From<${type.name}> for time::OffsetDateTime {
+          fn from(wrapper: ${type.name}) -> Self {
+            wrapper.value
           }
+        }
 
+        ${cfg}
+        impl ${type.name} {
           const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!("${type.format}");
 
           fn serialize<S: serde::Serializer>(value: &time::OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error> {

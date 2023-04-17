@@ -197,7 +197,7 @@ impl Client {
                 params: (),
             })
             .await?
-            .into_inner()
+            .into()
             .into_iter()
             .filter_map(move |device| match device.ty.0 {
                 Ok(device_type) => Some(
@@ -223,14 +223,13 @@ impl Client {
 
     /// Get general server information.
     pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
-        Ok(self
-            .inner
+        self.inner
             .request::<ValueResponse<ServerInfo>>(ActionParams {
                 action: "management/v1/description",
                 method: Method::Get,
                 params: (),
             })
-            .await?
-            .into_inner())
+            .await
+            .map(ValueResponse::into)
     }
 }

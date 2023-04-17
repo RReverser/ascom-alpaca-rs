@@ -16,7 +16,7 @@ impl<T> From<T> for ValueResponse<T> {
 #[cfg(feature = "client")]
 impl<T> ValueResponse<T> {
     #[allow(clippy::missing_const_for_fn)] // https://github.com/rust-lang/rust-clippy/issues/9271
-    pub(crate) fn into_inner(self) -> T {
+    pub(crate) fn into(self) -> T {
         self.value
     }
 }

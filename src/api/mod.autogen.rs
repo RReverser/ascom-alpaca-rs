@@ -107,11 +107,14 @@ impl From<time::OffsetDateTime> for LastExposureStartTime {
 }
 
 #[cfg(feature = "camera")]
-impl LastExposureStartTime {
-    pub(crate) fn into_inner(self) -> time::OffsetDateTime {
-        self.value
+impl From<LastExposureStartTime> for time::OffsetDateTime {
+    fn from(wrapper: LastExposureStartTime) -> Self {
+        wrapper.value
     }
+}
 
+#[cfg(feature = "camera")]
+impl LastExposureStartTime {
     const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!(
         "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]"
     );
@@ -446,11 +449,14 @@ impl From<time::OffsetDateTime> for TelescopeUtcdate {
 }
 
 #[cfg(feature = "telescope")]
-impl TelescopeUtcdate {
-    pub(crate) fn into_inner(self) -> time::OffsetDateTime {
-        self.value
+impl From<TelescopeUtcdate> for time::OffsetDateTime {
+    fn from(wrapper: TelescopeUtcdate) -> Self {
+        wrapper.value
     }
+}
 
+#[cfg(feature = "telescope")]
+impl TelescopeUtcdate {
     const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!(
         "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]Z"
     );

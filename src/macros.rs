@@ -92,7 +92,7 @@ macro_rules! rpc_trait {
                             $(
                                 let $param =
                                     params.extract($param_query)
-                                    $(.map($param_via::into_inner))?
+                                    $(.map($param_via::into))?
                                     ?;
                             )*
                             params.finish_extraction();
@@ -164,7 +164,7 @@ macro_rules! rpc_trait {
                         }
                     })
                     .await
-                    $(.map($via::into_inner))?
+                    $(.map($via::into))?
                 }
             )*
         }

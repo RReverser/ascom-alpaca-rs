@@ -10,11 +10,13 @@ impl From<bool> for BoolParam {
     }
 }
 
-impl BoolParam {
-    pub(crate) fn into_inner(self) -> bool {
-        self.0
+impl From<BoolParam> for bool {
+    fn from(b: BoolParam) -> Self {
+        b.0
     }
+}
 
+impl BoolParam {
     fn deserialize<'de, D>(deserializer: D) -> Result<bool, D::Error>
     where
         D: Deserializer<'de>,
