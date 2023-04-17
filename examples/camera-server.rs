@@ -111,7 +111,7 @@ struct BinnedFormat {
 struct Webcam {
     unique_id: String,
     name: String,
-    binned_format: RwLock<BinnedFormat>,
+    max_size: Size,
     subframe: RwLock<Subframe>,
     #[debug(skip)]
     camera: RwLock<CallbackCamera>,
@@ -125,7 +125,7 @@ struct Webcam {
 
 fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
     // TODO: more granular errors
-    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, nokhwa.to_string())
+    ASCOMError::new(ASCOMErrorCode::new_for_driver::<0>(), nokhwa.to_string())
 }
 
 #[async_trait]
@@ -197,32 +197,33 @@ impl Camera for Webcam {
     }
 
     async fn bin_x(&self) -> ASCOMResult<i32> {
-        Ok(self.binned_format.read().bin as i32)
+        let current_width = self
+            .camera
+            .read()
+            .resolution()
+            .map_err(convert_err)?
+            .width();
+        Ok(self.max_size.x / current_width as i32)
     }
 
     async fn set_bin_x(&self, bin_x: i32) -> ASCOMResult {
-        // let binned_format = self
-        //     .binning_formats
-        //     .iter()
-        //     .find(|binned_format| binned_format.bin == bin_x as u32)
-        //     .ok_or(ASCOMError::INVALID_VALUE)?;
+        let binned_format = self
+            .binning_formats
+            .iter()
+            .find(|binned_format| binned_format.bin == bin_x as u32)
+            .ok_or(ASCOMError::INVALID_VALUE)?;
 
-        // self.camera
-        //     .write()
-        //     .set_camera_requset(RequestedFormat::new::<RgbFormat>(
-        //         RequestedFormatType::Exact(binned_format.format),
-        //     ))
-        //     .map_err(|err| {
-        //         tracing::error!("Couldn't change camera format: {err}");
-        //         convert_err(err)
-        //     })?;
-        // *self.binned_format.write() = *binned_format;
-        // Ok(())
-        if bin_x == 1 {
-            Ok(())
-        } else {
-            Err(ASCOMError::INVALID_VALUE)
-        }
+        self.camera
+            .write()
+            .set_camera_requset(RequestedFormat::new::<RgbFormat>(
+                RequestedFormatType::Exact(binned_format.format),
+            ))
+            .map_err(|err| {
+                tracing::error!("Couldn't change camera format: {err}");
+                convert_err(err)
+            })?;
+
+        Ok(())
     }
 
     async fn bin_y(&self) -> ASCOMResult<i32> {
@@ -283,7 +284,8 @@ impl Camera for Webcam {
     }
 
     async fn exposure_resolution(&self) -> ASCOMResult<f64> {
-        Ok(1. / f64::from(self.binned_format.read().format.frame_rate()))
+        let frame_rate = self.camera.read().frame_rate().map_err(convert_err)?;
+        Ok(1. / f64::from(frame_rate))
     }
 
     async fn full_well_capacity(&self) -> ASCOMResult<f64> {
@@ -313,7 +315,7 @@ impl Camera for Webcam {
             .read()
             .ok_or(ASCOMError::INVALID_OPERATION)?
             .format(&Iso8601::DEFAULT)
-            .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string()))
+            .map_err(|err| ASCOMError::new(ASCOMErrorCode::new_for_driver::<1>(), err.to_string()))
     }
 
     async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
@@ -327,11 +329,11 @@ impl Camera for Webcam {
     }
 
     async fn camera_xsize(&self) -> ASCOMResult<i32> {
-        Ok(self.binned_format.read().format.width() as i32)
+        Ok(self.max_size.x)
     }
 
     async fn camera_ysize(&self) -> ASCOMResult<i32> {
-        Ok(self.binned_format.read().format.height() as i32)
+        Ok(self.max_size.y)
     }
 
     async fn start_x(&self) -> ASCOMResult<i32> {
@@ -417,7 +419,7 @@ impl Camera for Webcam {
             }
         }
         let subframe = *self.subframe.read();
-        let format = self.binned_format.read().format;
+        let format = self.camera.read().camera_format().map_err(convert_err)?;
         let resolution = Size::try_from(format.resolution())
             .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
         if subframe.offset < Point::default()
@@ -579,8 +581,11 @@ async fn main() -> anyhow::Result<()> {
                 )
             })?;
 
-        let mut binning_formats = /*compatible_formats
+        let mut binning_formats = compatible_formats
             .iter()
+            .filter(|other| {
+                format.frame_rate() == other.frame_rate() && format.format() == other.format()
+            })
             .filter_map(|other| {
                 let (bin_x, rem_x) = div_rem(format.resolution().x(), other.resolution().x());
                 let (bin_y, rem_y) = div_rem(format.resolution().y(), other.resolution().y());
@@ -593,7 +598,7 @@ async fn main() -> anyhow::Result<()> {
                     None
                 }
             })
-            .collect::<Vec<_>>()*/ vec![BinnedFormat { bin: 1, format }];
+            .collect::<Vec<_>>();
 
         binning_formats.sort_by_key(|binned_format| binned_format.bin);
 
@@ -612,6 +617,8 @@ async fn main() -> anyhow::Result<()> {
             },
         )?;
 
+        let max_size = format.resolution().try_into()?;
+
         let webcam = Webcam {
             unique_id: format!(
                 "150ddacb-7ad9-4754-b289-ae56210693e8::{}",
@@ -620,9 +627,9 @@ async fn main() -> anyhow::Result<()> {
             name: camera_info.human_name(),
             subframe: RwLock::new(Subframe {
                 offset: Point::default(),
-                size: format.resolution().try_into()?,
+                size: max_size,
             }),
-            binned_format: RwLock::new(BinnedFormat { bin: 1, format }),
+            max_size,
             binning_formats,
             camera: RwLock::new(camera),
             exposing,
