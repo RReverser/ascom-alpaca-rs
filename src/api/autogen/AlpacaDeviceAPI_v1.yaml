@@ -1289,7 +1289,7 @@ paths:
         - Camera Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/StringResponse'
+          $ref: '#/components/responses/LastExposureStartTimeResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -5112,12 +5112,6 @@ paths:
   '/telescope/{device_number}/utcdate':
     get:
       summary: Returns the UTC date/time of the telescope's internal clock.
-      description: >-
-        The UTC date/time of the telescope's internal clock in ISO 8601 format
-        including fractional seconds. The general format (in Microsoft custom
-        date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g.
-        2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note
-        the compulsary trailing Z indicating the 'Zulu', UTC time zone.
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -5126,19 +5120,13 @@ paths:
         - Telescope Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/StringResponse'
+          $ref: '#/components/responses/TelescopeUTCDateResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
           $ref: '#/components/responses/500'
     put:
       summary: Sets the UTC date/time of the telescope's internal clock.
-      description: >-
-        The UTC date/time of the telescope's internal clock in ISO 8601 format
-        including fractional seconds. The general format (in Microsoft custom
-        date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g.
-        2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note
-        the compulsary trailing Z indicating the 'Zulu', UTC time zone.
       parameters:
         - $ref: '#/components/parameters/device_number'
       tags:
@@ -5158,8 +5146,7 @@ paths:
                 - $ref: '#/components/schemas/AlpacaRequest'
                 - properties:
                     UTCDate:
-                      description: UTC date/time in ISO 8601 format.
-                      type: string
+                      $ref: '#/components/schemas/TelescopeUTCDate'
                   required:
                     - UTCDate
   '/telescope/{device_number}/abortslew':
@@ -6033,6 +6020,26 @@ components:
                   Value:
                     type: string
                     description: String response from the device.
+    TelescopeUTCDateResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/TelescopeUTCDate'
+    LastExposureStartTimeResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/LastExposureStartTime'
     StringArrayResponse:
       description: Transaction complete or exception.
       content:
@@ -6199,3 +6206,17 @@ components:
         - Primary
         - Secondary
         - Tertiary
+    TelescopeUTCDate:
+      type: string
+      format: date
+      description: >-
+        The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds.
+        The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ, e.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z.
+        Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
+      date-format: '[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]Z'
+    LastExposureStartTime:
+      type: string
+      format: date
+      description: >-
+        The UTC date/time of exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
+      date-format: '[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]'

@@ -25,24 +25,26 @@ impl<ParamStr: ?Sized + Hash + Eq + Debug> OpaqueParams<ParamStr>
 where
     str: AsRef<ParamStr>,
 {
-    pub(crate) fn maybe_extract<T: ASCOMParam>(
+    pub(crate) fn maybe_extract<T: DeserializeOwned>(
         &mut self,
         name: &'static str,
     ) -> super::Result<Option<T>> {
         self.0
             .remove(name.as_ref())
             .map(|value| {
-                T::from_string(value).map_err(|err| {
-                    Error::Ascom(ASCOMError::new(
-                        ASCOMErrorCode::INVALID_VALUE,
-                        format!("Invalid value for parameter {name:?}: {err:#}"),
-                    ))
-                })
+                T::deserialize(StringDeserializer::<serde::de::value::Error>::new(value)).map_err(
+                    |err| {
+                        Error::Ascom(ASCOMError::new(
+                            ASCOMErrorCode::INVALID_VALUE,
+                            format!("Invalid value for parameter {name:?}: {err:#}"),
+                        ))
+                    },
+                )
             })
             .transpose()
     }
 
-    pub(crate) fn extract<T: ASCOMParam>(&mut self, name: &'static str) -> super::Result<T> {
+    pub(crate) fn extract<T: DeserializeOwned>(&mut self, name: &'static str) -> super::Result<T> {
         self.maybe_extract(name)?
             .ok_or(Error::MissingParameter { name })
     }
@@ -83,52 +85,6 @@ where
     }
 }
 
-pub(crate) trait ASCOMParam: Sized {
-    fn from_string(s: String) -> anyhow::Result<Self>;
-}
-
-impl ASCOMParam for String {
-    fn from_string(s: String) -> anyhow::Result<Self> {
-        Ok(s)
-    }
-}
-
-impl ASCOMParam for bool {
-    fn from_string(s: String) -> anyhow::Result<Self> {
-        Ok(if s.eq_ignore_ascii_case("true") {
-            true
-        } else if s.eq_ignore_ascii_case("false") {
-            false
-        } else {
-            anyhow::bail!(r#"Invalid bool value {s:?}, expected "True" or "False""#);
-        })
-    }
-}
-
-macro_rules! simple_ascom_param {
-    ($($ty:ty),*) => {
-        $(
-            impl ASCOMParam for $ty {
-                fn from_string(s: String) -> anyhow::Result<Self> {
-                    Ok(s.parse()?)
-                }
-            }
-        )*
-    };
-}
-
-simple_ascom_param!(i32, u32, f64);
-
-macro_rules! ASCOMEnumParam {
-    ($(# $attr:tt)* $pub:vis enum $name:ident $variants:tt) => {
-        impl $crate::server::ASCOMParam for $name {
-            fn from_string(s: String) -> anyhow::Result<Self> {
-                Ok(<Self as num_enum::TryFromPrimitive>::try_from_primitive(
-                    $crate::server::ASCOMParam::from_string(s)?,
-                )?)
-            }
-        }
-    };
-}
 use crate::{ASCOMError, ASCOMErrorCode};
-pub(crate) use ASCOMEnumParam;
+use serde::de::value::StringDeserializer;
+use serde::de::DeserializeOwned;

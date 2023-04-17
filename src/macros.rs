@@ -31,7 +31,7 @@ macro_rules! rpc_trait {
 
             $(
                 #[http($method_path:literal, method = $http_method:ident $(, via = $via:ident)?)]
-                fn $method_name:ident(&self $(, #[http($param_query:literal)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
+                fn $method_name:ident(&self $(, #[http($param_query:literal $(, via = $param_via:ident)?)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
 
                 $(#[doc = $docs_after_method:literal])*
             )*
@@ -90,16 +90,19 @@ macro_rules! rpc_trait {
                             #[allow(unused_mut)]
                             let mut params = params;
                             $(
-                                let $param = params.extract($param_query)?;
+                                let $param =
+                                    params.extract($param_query)
+                                    $(.map($param_via::into_inner))?
+                                    ?;
                             )*
                             params.finish_extraction();
 
                             let value =
                                 device
                                 .$method_name($($param),*)
-                                .await?;
-
-                            $(let value = $via::from(value);)?
+                                .await
+                                $(.map($via::from))?
+                                ?;
 
                             ResponseRepr::$method_name(value)
                         }
@@ -142,12 +145,13 @@ macro_rules! rpc_trait {
             )*
 
             $(
+                #[allow(non_camel_case_types)]
                 async fn $method_name(&self $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
                     #[derive(Debug, Serialize)]
-                    struct OpaqueParams {
+                    struct OpaqueParams<$($param),*> {
                         $(
                             #[serde(rename = $param_query)]
-                            $param: $param_ty,
+                            $param: $param,
                         )*
                     }
 
@@ -155,7 +159,9 @@ macro_rules! rpc_trait {
                     .exec_action($crate::client::ActionParams {
                         action: $method_path,
                         method: $crate::client::Method::$http_method,
-                        params: OpaqueParams { $($param),* }
+                        params: OpaqueParams {
+                            $($param $(: $param_via::from($param))?),*
+                        }
                     })
                     .await
                     $(.map($via::into_inner))?

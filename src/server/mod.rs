@@ -7,7 +7,7 @@ pub(crate) use transaction::*;
 mod case_insensitive_str;
 
 mod params;
-pub(crate) use params::{ASCOMEnumParam, ASCOMParam, ActionParams};
+pub(crate) use params::ActionParams;
 
 mod response;
 pub(crate) use response::Response;

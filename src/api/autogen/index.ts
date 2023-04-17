@@ -130,7 +130,7 @@ function addFeature(rustyType: RustType, feature: string, visited = new Set<stri
     return;
   }
   registeredType.features.add(feature);
-  if (registeredType.type.kind === 'Enum') {
+  if (registeredType.type.kind === 'Enum' || registeredType.type.kind === 'Date') {
     return;
   }
   for (let { type } of registeredType.type.properties.values()) {
@@ -139,7 +139,7 @@ function addFeature(rustyType: RustType, feature: string, visited = new Set<stri
 }
 
 class RustType {
-  constructor(private rusty: string, public readonly isValueResponse: boolean) {}
+  constructor(private rusty: string, public readonly convertVia?: string) {}
 
   isVoid() {
     return this.rusty === '()';
@@ -154,8 +154,8 @@ class RustType {
   }
 }
 
-function rusty(rusty: string, isValueResponse = false) {
-  return new RustType(rusty, isValueResponse);
+function rusty(rusty: string, convertVia?: string) {
+  return new RustType(rusty, convertVia);
 }
 
 interface RegisteredTypeBase {
@@ -163,7 +163,7 @@ interface RegisteredTypeBase {
   doc: string | undefined;
 }
 
-type RegisteredType = ObjectType | EnumType;
+type RegisteredType = ObjectType | EnumType | DateType;
 
 interface Property {
   name: string;
@@ -187,6 +187,11 @@ interface EnumType extends RegisteredTypeBase {
   kind: 'Enum';
   baseType: RustType;
   variants: Map<string, EnumVariant>;
+}
+
+interface DateType extends RegisteredTypeBase {
+  kind: 'Date';
+  format: string;
 }
 
 interface DeviceMethod {
@@ -312,6 +317,15 @@ function handleType(
       case 'number':
         return rusty('f64');
       case 'string':
+        if (schema.format === 'date') {
+          let formatter = registerType(devicePath, schema, schema => ({
+            name,
+            doc: getDoc(schema),
+            kind: 'Date',
+            format: (schema as any)['date-format']
+          }));
+          return rusty('time::OffsetDateTime', `${formatter}`);
+        }
         return rusty('String');
       case 'boolean':
         return rusty('bool');
@@ -389,14 +403,26 @@ function handleContent(
         properties !== undefined &&
         isDeepStrictEqual(Object.keys(properties), ['Value'])
       ) {
-        return rusty(handleType(devicePath, name, properties.Value).toString(), true);
+        let valueType = handleType(devicePath, name, properties.Value);
+        return rusty(valueType.toString(), valueType.convertVia ?? 'ValueResponse');
+      }
+
+      let convertedProps = handleObjectProps(devicePath, name, { properties, required });
+
+      if (baseKind === 'Request') {
+        for (let prop of convertedProps.values()) {
+          if (prop.type.toString() === 'bool') {
+            // Boolean parameters need to be deserialized in special case-insensitive way.
+            prop.type = rusty('bool', 'BoolParam');
+          }
+        }
       }
 
       return {
         kind: baseKind,
         name,
         doc,
-        properties: handleObjectProps(devicePath, name, { properties, required })
+        properties: convertedProps
       };
     });
   });
@@ -595,14 +621,14 @@ ${api.info.description}
   clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
 )]
 
+mod bool_param;
 mod devices_impl;
 mod server_info;
 
+use bool_param::BoolParam;
 use crate::macros::{rpc_mod, rpc_trait};
-#[cfg(feature = "server")]
-use crate::server::ASCOMEnumParam;
 use crate::response::ValueResponse;
-use macro_rules_attribute::{apply, macro_rules_derive};
+use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -674,7 +700,6 @@ ${stringifyIter(types, ({features, type}) => {
         ${stringifyDoc(type.doc)}
         ${cfg}
         #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
-        #[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
         #[repr(${type.baseType})]
         #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
         #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -686,6 +711,62 @@ ${stringifyIter(types, ({features, type}) => {
               ${variant.name} = ${variant.value},
             `
           )}
+        }
+      `;
+    }
+    case 'Date': {
+      return `
+        ${stringifyDoc(type.doc)}
+        ${cfg}
+        #[derive(Debug, Serialize, Deserialize)]
+        pub(crate) struct ${type.name} {
+          #[serde(rename = "Value", with = "${type.name}")]
+          pub(crate) value: time::OffsetDateTime,
+        }
+
+        ${cfg}
+        impl From<time::OffsetDateTime> for ${type.name} {
+          fn from(value: time::OffsetDateTime) -> Self {
+            Self { value }
+          }
+        }
+
+        ${cfg}
+        impl ${type.name} {
+          pub(crate) fn into_inner(self) -> time::OffsetDateTime {
+            self.value
+          }
+
+          const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!("${type.format}");
+
+          fn serialize<S: serde::Serializer>(value: &time::OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error> {
+            value
+            .to_offset(time::UtcOffset::UTC)
+            .format(Self::FORMAT)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+          }
+
+          fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<time::OffsetDateTime, D::Error> {
+            struct Visitor;
+
+            impl serde::de::Visitor<'_> for Visitor {
+              type Value = time::OffsetDateTime;
+
+              fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a date string")
+              }
+
+              fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                match time::PrimitiveDateTime::parse(value, ${type.name}::FORMAT) {
+                  Ok(time) => Ok(time.assume_utc()),
+                  Err(err) => Err(serde::de::Error::custom(err)),
+                }
+              }
+            }
+
+            deserializer.deserialize_str(Visitor)
+          }
         }
       `;
     }
@@ -713,13 +794,16 @@ ${stringifyIter(
         device.methods,
         method => `
           ${stringifyDoc(method.doc)}
-          #[http("${method.path}", method = ${method.mutable ? 'Put' : 'Get'}${method.returnType.isValueResponse ? ', via = ValueResponse' : ''})]
+          #[http("${method.path}", method = ${method.mutable ? 'Put' : 'Get'}${method.returnType.convertVia ? `, via = ${method.returnType.convertVia}` : ''})]
           fn ${method.name}(
             &self,
             ${stringifyIter(
               method.resolvedArgs,
               arg =>
-                `#[http("${arg.originalName}")] ${arg.name}: ${arg.type},`
+                `
+                  #[http("${arg.originalName}"${arg.type.convertVia ? `, via = ${arg.type.convertVia}` : ''})]
+                  ${arg.name}: ${arg.type},
+                `
             )}
           )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
 

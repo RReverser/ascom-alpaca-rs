@@ -41,14 +41,14 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
   clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
 )]
 
+mod bool_param;
 mod devices_impl;
 mod server_info;
 
 use crate::macros::{rpc_mod, rpc_trait};
 use crate::response::ValueResponse;
-#[cfg(feature = "server")]
-use crate::server::ASCOMEnumParam;
-use macro_rules_attribute::{apply, macro_rules_derive};
+use bool_param::BoolParam;
+use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -68,7 +68,6 @@ pub use server_info::*;
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -92,6 +91,66 @@ mod image_array;
 #[cfg(feature = "camera")]
 pub use image_array::*;
 
+/// The UTC date/time of exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
+#[cfg(feature = "camera")]
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct LastExposureStartTime {
+    #[serde(rename = "Value", with = "LastExposureStartTime")]
+    pub(crate) value: time::OffsetDateTime,
+}
+
+#[cfg(feature = "camera")]
+impl From<time::OffsetDateTime> for LastExposureStartTime {
+    fn from(value: time::OffsetDateTime) -> Self {
+        Self { value }
+    }
+}
+
+#[cfg(feature = "camera")]
+impl LastExposureStartTime {
+    pub(crate) fn into_inner(self) -> time::OffsetDateTime {
+        self.value
+    }
+
+    const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!(
+        "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]"
+    );
+
+    fn serialize<S: serde::Serializer>(
+        value: &time::OffsetDateTime,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        value
+            .to_offset(time::UtcOffset::UTC)
+            .format(Self::FORMAT)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+    }
+
+    fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<time::OffsetDateTime, D::Error> {
+        struct Visitor;
+
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = time::OffsetDateTime;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a date string")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                match time::PrimitiveDateTime::parse(value, LastExposureStartTime::FORMAT) {
+                    Ok(time) => Ok(time.assume_utc()),
+                    Err(err) => Err(serde::de::Error::custom(err)),
+                }
+            }
+        }
+
+        deserializer.deserialize_str(Visitor)
+    }
+}
+
 /// Returned sensor type
 #[cfg(feature = "camera")]
 #[derive(
@@ -105,7 +164,6 @@ pub use image_array::*;
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -142,7 +200,6 @@ pub enum SensorType {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -169,7 +226,6 @@ pub enum PutPulseGuideDirection {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -206,7 +262,6 @@ pub enum CalibratorStatus {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -243,7 +298,6 @@ pub enum CoverStatus {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -272,7 +326,6 @@ pub enum DomeShutterStatus {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -300,7 +353,6 @@ pub enum AlignmentMode {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -334,7 +386,6 @@ pub enum EquatorialSystem {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -362,7 +413,6 @@ pub enum SideOfPier {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -380,6 +430,66 @@ pub enum DriveRate {
     King = 3,
 }
 
+/// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ, e.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z. Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
+#[cfg(feature = "telescope")]
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct TelescopeUtcdate {
+    #[serde(rename = "Value", with = "TelescopeUtcdate")]
+    pub(crate) value: time::OffsetDateTime,
+}
+
+#[cfg(feature = "telescope")]
+impl From<time::OffsetDateTime> for TelescopeUtcdate {
+    fn from(value: time::OffsetDateTime) -> Self {
+        Self { value }
+    }
+}
+
+#[cfg(feature = "telescope")]
+impl TelescopeUtcdate {
+    pub(crate) fn into_inner(self) -> time::OffsetDateTime {
+        self.value
+    }
+
+    const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!(
+        "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]Z"
+    );
+
+    fn serialize<S: serde::Serializer>(
+        value: &time::OffsetDateTime,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        value
+            .to_offset(time::UtcOffset::UTC)
+            .format(Self::FORMAT)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+    }
+
+    fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<time::OffsetDateTime, D::Error> {
+        struct Visitor;
+
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = time::OffsetDateTime;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a date string")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                match time::PrimitiveDateTime::parse(value, TelescopeUtcdate::FORMAT) {
+                    Ok(time) => Ok(time.assume_utc()),
+                    Err(err) => Err(serde::de::Error::custom(err)),
+                }
+            }
+        }
+
+        deserializer.deserialize_str(Visitor)
+    }
+}
+
 /// The axis of mount rotation.
 #[cfg(feature = "telescope")]
 #[derive(
@@ -393,7 +503,6 @@ pub enum DriveRate {
     TryFromPrimitive,
     IntoPrimitive,
 )]
-#[cfg_attr(feature = "server", macro_rules_derive(ASCOMEnumParam))]
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
@@ -448,7 +557,9 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     #[http("action", method = Put, via = ValueResponse)]
     fn action(
         &self,
+
         #[http("Action")] action: String,
+
         #[http("Parameters")] parameters: String,
     ) -> String;
 
@@ -464,7 +575,9 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     #[http("commandstring", method = Put, via = ValueResponse)]
     fn command_string(
         &self,
+
         #[http("Command")] command: String,
+
         #[http("Raw")] raw: String,
     ) -> String;
 
@@ -474,7 +587,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 
     /// Sets the connected state of the device
     #[http("connected", method = Put)]
-    fn set_connected(&self, #[http("Connected")] connected: bool);
+    fn set_connected(&self, #[http("Connected", via = BoolParam)] connected: bool);
 
     /// The description of the device
     #[http("description", method = Get, via = ValueResponse)]
@@ -579,7 +692,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Turns on and off the camera cooler. True = cooler on, False = cooler off
     #[http("cooleron", method = Put)]
-    fn set_cooler_on(&self, #[http("CoolerOn")] cooler_on: bool);
+    fn set_cooler_on(&self, #[http("CoolerOn", via = BoolParam)] cooler_on: bool);
 
     /// Returns the present cooler power level, in percent.
     #[http("coolerpower", method = Get, via = ValueResponse)]
@@ -607,7 +720,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets whether Fast Readout Mode is enabled.
     #[http("fastreadout", method = Put)]
-    fn set_fast_readout(&self, #[http("FastReadout")] fast_readout: bool);
+    fn set_fast_readout(&self, #[http("FastReadout", via = BoolParam)] fast_readout: bool);
 
     /// Reports the full well capacity of the camera in electrons, at the current camera settings (binning, SetupDialog settings, etc.).
     #[http("fullwellcapacity", method = Get, via = ValueResponse)]
@@ -714,8 +827,8 @@ pub trait Camera: Device + Send + Sync {
     fn last_exposure_duration(&self) -> f64;
 
     /// Reports the actual exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
-    #[http("lastexposurestarttime", method = Get, via = ValueResponse)]
-    fn last_exposure_start_time(&self) -> String;
+    #[http("lastexposurestarttime", method = Get, via = LastExposureStartTime)]
+    fn last_exposure_start_time(&self) -> time::OffsetDateTime;
 
     /// Reports the maximum ADU value the camera can produce.
     #[http("maxadu", method = Get, via = ValueResponse)]
@@ -837,13 +950,21 @@ pub trait Camera: Device + Send + Sync {
     #[http("pulseguide", method = Put)]
     fn pulse_guide(
         &self,
+
         #[http("Direction")] direction: PutPulseGuideDirection,
+
         #[http("Duration")] duration: i32,
     );
 
     /// Starts an exposure. Use ImageReady to check when the exposure is complete.
     #[http("startexposure", method = Put)]
-    fn start_exposure(&self, #[http("Duration")] duration: f64, #[http("Light")] light: bool);
+    fn start_exposure(
+        &self,
+
+        #[http("Duration")] duration: f64,
+
+        #[http("Light", via = BoolParam)] light: bool,
+    );
 
     /// Stops the current exposure, if any. If an exposure is in progress, the readout process is initiated. Ignored if readout is already in process.
     #[http("stopexposure", method = Put)]
@@ -953,7 +1074,7 @@ pub trait Dome: Device + Send + Sync {
 
     /// Sets the current subframe height.
     #[http("slaved", method = Put)]
-    fn set_slaved(&self, #[http("Slaved")] slaved: bool);
+    fn set_slaved(&self, #[http("Slaved", via = BoolParam)] slaved: bool);
 
     /// True if any part of the dome is currently moving, False if all dome components are steady.
     #[http("slewing", method = Get, via = ValueResponse)]
@@ -1051,7 +1172,7 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Sets the state of temperature compensation mode.
     #[http("tempcomp", method = Put)]
-    fn set_temp_comp(&self, #[http("TempComp")] temp_comp: bool);
+    fn set_temp_comp(&self, #[http("TempComp", via = BoolParam)] temp_comp: bool);
 
     /// True if focuser has temperature compensation available.
     #[http("tempcompavailable", method = Get, via = ValueResponse)]
@@ -1173,7 +1294,7 @@ pub trait Rotator: Device + Send + Sync {
 
     /// Sets the rotator’s Reverse state.
     #[http("reverse", method = Put)]
-    fn set_reverse(&self, #[http("Reverse")] reverse: bool);
+    fn set_reverse(&self, #[http("Reverse", via = BoolParam)] reverse: bool);
 
     /// The minimum StepSize, in degrees.
     #[http("stepsize", method = Get, via = ValueResponse)]
@@ -1251,7 +1372,7 @@ pub trait Switch: Device + Send + Sync {
 
     /// Sets a switch controller device to the specified state, true or false.
     #[http("setswitch", method = Put)]
-    fn set_switch(&self, #[http("Id")] id: u32, #[http("State")] state: bool);
+    fn set_switch(&self, #[http("Id")] id: u32, #[http("State", via = BoolParam)] state: bool);
 
     /// Sets a switch device name to the specified value.
     #[http("setswitchname", method = Put)]
@@ -1380,7 +1501,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
     #[http("doesrefraction", method = Put)]
-    fn set_does_refraction(&self, #[http("DoesRefraction")] does_refraction: bool);
+    fn set_does_refraction(&self, #[http("DoesRefraction", via = BoolParam)] does_refraction: bool);
 
     /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
     #[http("equatorialsystem", method = Get, via = ValueResponse)]
@@ -1398,6 +1519,7 @@ pub trait Telescope: Device + Send + Sync {
     #[http("guideratedeclination", method = Put)]
     fn set_guide_rate_declination(
         &self,
+
         #[http("GuideRateDeclination")] guide_rate_declination: f64,
     );
 
@@ -1409,6 +1531,7 @@ pub trait Telescope: Device + Send + Sync {
     #[http("guideraterightascension", method = Put)]
     fn set_guide_rate_right_ascension(
         &self,
+
         #[http("GuideRateRightAscension")] guide_rate_right_ascension: f64,
     );
 
@@ -1492,6 +1615,7 @@ pub trait Telescope: Device + Send + Sync {
     #[http("targetrightascension", method = Put)]
     fn set_target_right_ascension(
         &self,
+
         #[http("TargetRightAscension")] target_right_ascension: f64,
     );
 
@@ -1501,7 +1625,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the state of the telescope's sidereal tracking drive.
     #[http("tracking", method = Put)]
-    fn set_tracking(&self, #[http("Tracking")] tracking: bool);
+    fn set_tracking(&self, #[http("Tracking", via = BoolParam)] tracking: bool);
 
     /// The current tracking rate of the telescope's sidereal drive.
     #[http("trackingrate", method = Get, via = ValueResponse)]
@@ -1515,13 +1639,17 @@ pub trait Telescope: Device + Send + Sync {
     #[http("trackingrates", method = Get, via = ValueResponse)]
     fn tracking_rates(&self) -> Vec<DriveRate>;
 
-    /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
-    #[http("utcdate", method = Get, via = ValueResponse)]
-    fn utc_date(&self) -> String;
+    /// Returns the UTC date/time of the telescope's internal clock.
+    #[http("utcdate", method = Get, via = TelescopeUtcdate)]
+    fn utc_date(&self) -> time::OffsetDateTime;
 
-    /// The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds. The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ E.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
+    /// Sets the UTC date/time of the telescope's internal clock.
     #[http("utcdate", method = Put)]
-    fn set_utc_date(&self, #[http("UTCDate")] utc_date: String);
+    fn set_utc_date(
+        &self,
+
+        #[http("UTCDate", via = TelescopeUtcdate)] utc_date: time::OffsetDateTime,
+    );
 
     /// Immediately Stops a slew in progress.
     #[http("abortslew", method = Put)]
@@ -1539,7 +1667,9 @@ pub trait Telescope: Device + Send + Sync {
     #[http("destinationsideofpier", method = Get, via = ValueResponse)]
     fn destination_side_of_pier(
         &self,
+
         #[http("RightAscension")] right_ascension: f64,
+
         #[http("Declination")] declination: f64,
     ) -> SideOfPier;
 
@@ -1559,7 +1689,9 @@ pub trait Telescope: Device + Send + Sync {
     #[http("pulseguide", method = Put)]
     fn pulse_guide(
         &self,
+
         #[http("Direction")] direction: PutPulseGuideDirection,
+
         #[http("Duration")] duration: i32,
     );
 
@@ -1575,7 +1707,9 @@ pub trait Telescope: Device + Send + Sync {
     #[http("slewtoaltazasync", method = Put)]
     fn slew_to_alt_az_async(
         &self,
+
         #[http("Azimuth")] azimuth: f64,
+
         #[http("Altitude")] altitude: f64,
     );
 
@@ -1583,7 +1717,9 @@ pub trait Telescope: Device + Send + Sync {
     #[http("slewtocoordinates", method = Put)]
     fn slew_to_coordinates(
         &self,
+
         #[http("RightAscension")] right_ascension: f64,
+
         #[http("Declination")] declination: f64,
     );
 
@@ -1591,7 +1727,9 @@ pub trait Telescope: Device + Send + Sync {
     #[http("slewtocoordinatesasync", method = Put)]
     fn slew_to_coordinates_async(
         &self,
+
         #[http("RightAscension")] right_ascension: f64,
+
         #[http("Declination")] declination: f64,
     );
 
@@ -1611,7 +1749,9 @@ pub trait Telescope: Device + Send + Sync {
     #[http("synctocoordinates", method = Put)]
     fn sync_to_coordinates(
         &self,
+
         #[http("RightAscension")] right_ascension: f64,
+
         #[http("Declination")] declination: f64,
     );
 
