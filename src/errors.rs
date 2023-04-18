@@ -128,26 +128,26 @@ macro_rules! ascom_error_codes {
 ascom_error_codes! {
     #[doc = ""]
     OK = 0,
-    #[doc = "The requested action is not implemented in this driver."]
+    #[doc = "The requested action is not implemented in this driver"]
     ACTION_NOT_IMPLEMENTED = 0x40C,
-    #[doc = "The requested operation can not be undertaken at this time."]
+    #[doc = "The requested operation can not be undertaken at this time"]
     INVALID_OPERATION = 0x40B,
-    #[doc = "Invalid value."]
+    #[doc = "Invalid value"]
     INVALID_VALUE = 0x401,
-    #[doc = "The attempted operation is invalid because the mount is currently in a Parked state."]
+    #[doc = "The attempted operation is invalid because the mount is currently in a Parked state"]
     INVALID_WHILE_PARKED = 0x408,
-    #[doc = "The attempted operation is invalid because the mount is currently in a Slaved state."]
+    #[doc = "The attempted operation is invalid because the mount is currently in a Slaved state"]
     INVALID_WHILE_SLAVED = 0x409,
-    #[doc = "The communications channel is not connected."]
+    #[doc = "The communications channel is not connected"]
     NOT_CONNECTED = 0x407,
-    #[doc = "Property or method not implemented."]
+    #[doc = "Property or method not implemented"]
     NOT_IMPLEMENTED = 0x400,
-    #[doc = "The requested item is not present in the ASCOM cache."]
+    #[doc = "The requested item is not present in the ASCOM cache"]
     NOT_IN_CACHE = 0x40D,
-    #[doc = "Settings error."]
+    #[doc = "Settings error"]
     SETTINGS = 0x40A,
-    #[doc = "'catch-all' error code used when nothing else was specified."]
+    #[doc = "Unspecified error"]
     UNSPECIFIED = 0x4FF,
-    #[doc = "A value has not been set."]
+    #[doc = "A value has not been set"]
     VALUE_NOT_SET = 0x402,
 }
