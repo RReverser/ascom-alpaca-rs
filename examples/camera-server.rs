@@ -215,6 +215,7 @@ impl Camera for Webcam {
         }
 
         // Recreate camera completely because `set_camera_requset` is currently buggy.
+        // See https://github.com/l1npengtul/nokhwa/issues/111.
         let index = camera.index().clone();
         *camera = nokhwa::Camera::new(
             index,
