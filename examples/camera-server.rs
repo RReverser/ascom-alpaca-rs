@@ -203,20 +203,20 @@ impl Camera for Webcam {
             return Err(ASCOMError::INVALID_VALUE);
         }
 
-        let mut binned_format = self.max_format;
-        let mut resolution = binned_format.resolution();
-        resolution.width_x /= bin_x as u32;
-        resolution.height_y /= bin_x as u32;
-        binned_format.set_resolution(resolution);
+        let mut binned_resolution = self.max_format.resolution();
+        binned_resolution.width_x /= bin_x as u32;
+        binned_resolution.height_y /= bin_x as u32;
 
         let mut camera = self.camera.lock().await;
-        if camera.camera_format() == binned_format {
+        if camera.resolution() == binned_resolution {
             return Ok(());
         }
 
         // Recreate camera completely because `set_camera_requset` is currently buggy.
         // See https://github.com/l1npengtul/nokhwa/issues/111.
         let index = camera.index().clone();
+        let mut binned_format = self.max_format;
+        binned_format.set_resolution(binned_resolution);
         *camera = nokhwa::Camera::new(
             index,
             RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(binned_format)),
