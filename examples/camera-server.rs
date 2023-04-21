@@ -8,11 +8,10 @@ use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
 use nokhwa::{nokhwa_initialize, NokhwaError};
-use parking_lot::{Mutex, RwLock};
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use parking_lot::lock_api::ArcRwLockWriteGuard;
+use parking_lot::{Mutex, RawRwLock, RwLock};
 use std::sync::Arc;
 use time::OffsetDateTime;
-use tokio::task::JoinHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct Point {
@@ -83,17 +82,23 @@ struct Subframe {
     size: Size,
 }
 
+pub struct StopExposure {
+    // When stopping exposure, we want to hand over the lock for the exposing state
+    // to ensure continuity - that way e.g. start_exposure can't accidentally
+    // try to access the exposing state while we're still trying to stop it.
+    exposing_lock: ArcRwLockWriteGuard<RawRwLock, ExposingState>,
+    want_image: bool,
+}
+
 enum ExposingState {
     Idle {
         camera: Arc<Mutex<nokhwa::Camera>>,
         image: Option<ImageArray>,
     },
     Exposing {
-        seen_frames: Arc<AtomicUsize>,
-        max_frames: usize,
-        // 0 for continued exposure, 1 for stop_exposure, 2 for abort_exposure
-        stop: Arc<AtomicU8>,
-        task: Option<JoinHandle<()>>,
+        start: std::time::Instant,
+        expected_duration: f64,
+        stop: tokio::sync::mpsc::Sender<StopExposure>,
     },
 }
 
@@ -358,10 +363,10 @@ impl Camera for Webcam {
         match &*self.exposing.read() {
             ExposingState::Idle { .. } => Ok(100),
             ExposingState::Exposing {
-                seen_frames,
-                max_frames,
+                start,
+                expected_duration,
                 ..
-            } => Ok((100 * seen_frames.load(Ordering::Relaxed) / max_frames) as i32),
+            } => Ok((100. * start.elapsed().as_secs_f64() / expected_duration) as i32),
         }
     }
 
@@ -430,59 +435,67 @@ impl Camera for Webcam {
             })?;
         }
         let last_exposure_duration = self.last_exposure_duration.clone();
-        let count = (duration * f64::from(self.max_format.frame_rate())).round() as usize;
-        let stop_exposure = Arc::new(AtomicU8::new(0));
-        let seen_frames = Arc::new(AtomicUsize::new(0));
-        *self.last_exposure_start_time.write() = Some(OffsetDateTime::now_utc());
+        let (stop_exposure_tx, mut stop_exposure_rx) = tokio::sync::mpsc::channel(1);
         // Run long blocking exposing operation on a dedicated I/O thread.
-        let task = {
-            let seen_frames = seen_frames.clone();
-            let stop_exposure = stop_exposure.clone();
+        let (frames_tx, mut frames_rx) = tokio::sync::mpsc::unbounded_channel::<nokhwa::Buffer>();
 
-            tokio::task::spawn_blocking(move || {
-                let mut stacked_buffer =
-                    Array3::<u16>::zeros((size.x as usize, size.y as usize, 3));
-                let mut single_frame_buffer = RgbImage::new(size.x as u32, size.y as u32);
-                let mut stop_state = 0;
-                for _ in 0..count {
-                    stop_state = stop_exposure.load(Ordering::Relaxed);
-                    if stop_state != 0 {
-                        break;
+        tokio::task::spawn(async move {
+            let mut stacked_buffer = Array3::<u16>::zeros((size.x as usize, size.y as usize, 3));
+            let mut stop_exposure = tokio::select! {
+                stop_exposure_res = stop_exposure_rx.recv() => stop_exposure_res.unwrap(),
+                _ = async {
+                    let mut single_frame_buffer = RgbImage::new(size.x as u32, size.y as u32);
+                    while let Some(frame) = frames_rx.recv().await {
+                        frame
+                            .decode_image_to_buffer::<RgbFormat>(&mut single_frame_buffer)
+                            .unwrap();
+                        let cropped_view = single_frame_buffer.view(
+                            subframe.offset.x as u32,
+                            subframe.offset.y as u32,
+                            subframe.size.x as u32,
+                            subframe.size.y as u32,
+                        );
+                        for (x, y, pixel) in cropped_view.pixels() {
+                            stacked_buffer
+                                .slice_mut(ndarray::s![x as usize, y as usize, ..])
+                                .iter_mut()
+                                .zip(pixel.channels())
+                                .for_each(|(dst, src)| *dst = dst.saturating_add((*src).into()));
+                        }
                     }
-                    seen_frames.fetch_add(1, Ordering::Relaxed);
-                    let frame = camera_lock.frame().unwrap();
-                    frame
-                        .decode_image_to_buffer::<RgbFormat>(&mut single_frame_buffer)
-                        .unwrap();
-                    let cropped_view = single_frame_buffer.view(
-                        subframe.offset.x as u32,
-                        subframe.offset.y as u32,
-                        subframe.size.x as u32,
-                        subframe.size.y as u32,
-                    );
-                    for (x, y, pixel) in cropped_view.pixels() {
-                        stacked_buffer
-                            .slice_mut(ndarray::s![x as usize, y as usize, ..])
-                            .iter_mut()
-                            .zip(pixel.channels())
-                            .for_each(|(dst, src)| *dst = dst.saturating_add((*src).into()));
-                    }
+                } => StopExposure {
+                    exposing_lock: exposing_state.write_arc(),
+                    want_image: true,
+                },
+            };
+            *stop_exposure.exposing_lock = ExposingState::Idle {
+                camera,
+                image: stop_exposure.want_image.then(|| stacked_buffer.into()),
+            };
+        });
+
+        *self.last_exposure_start_time.write() = Some(OffsetDateTime::now_utc());
+        let start = std::time::Instant::now();
+
+        tokio::task::spawn_blocking(move || {
+            // Webcams produce variable-length exposures, so we can't just precalculate count of
+            // frames and instead need to check the total elapsed time.
+            while start.elapsed().as_secs_f64() < duration {
+                if frames_tx.send(camera_lock.frame().unwrap()).is_err() {
+                    // Receiver was dropped due to stop_exposure or abort_exposure.
+                    // Either way, stop exposing.
+                    break;
                 }
-                *last_exposure_duration.write() = Some(
-                    (seen_frames.load(Ordering::Relaxed) as f64) / f64::from(format.frame_rate()),
-                );
-                *exposing_state.write() = ExposingState::Idle {
-                    camera,
-                    image: (stop_state != 2).then(|| stacked_buffer.into()),
-                };
-            })
-        };
+            }
+            *last_exposure_duration.write() = Some(start.elapsed().as_secs_f64());
+        });
+
         *exposing_state_lock = ExposingState::Exposing {
-            seen_frames,
-            max_frames: count,
-            stop: stop_exposure,
-            task: Some(task),
+            start,
+            expected_duration: duration,
+            stop: stop_exposure_tx,
         };
+
         Ok(())
     }
 
@@ -495,35 +508,29 @@ impl Camera for Webcam {
     }
 
     async fn stop_exposure(&self) -> ASCOMResult {
-        let task = {
-            let mut exposing_lock = self.exposing.write();
-            if let ExposingState::Exposing { stop, task, .. } = &mut *exposing_lock {
-                let _ = stop.compare_exchange(0, 1, Ordering::Relaxed, Ordering::Relaxed);
-                task.take()
-            } else {
-                None
-            }
-        };
-        if let Some(task) = task {
-            task.await
-                .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string()))?;
+        let exposing_lock = self.exposing.write_arc();
+        if let ExposingState::Exposing { stop, .. } = &*exposing_lock {
+            let _ = stop
+                .clone()
+                .send(StopExposure {
+                    exposing_lock,
+                    want_image: true,
+                })
+                .await;
         }
         Ok(())
     }
 
     async fn abort_exposure(&self) -> ASCOMResult {
-        let task = {
-            let mut exposing_lock = self.exposing.write();
-            if let ExposingState::Exposing { stop, task, .. } = &mut *exposing_lock {
-                let _ = stop.compare_exchange(0, 2, Ordering::Relaxed, Ordering::Relaxed);
-                task.take()
-            } else {
-                None
-            }
-        };
-        if let Some(task) = task {
-            task.await
-                .map_err(|err| ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, err.to_string()))?;
+        let exposing_lock = self.exposing.write_arc();
+        if let ExposingState::Exposing { stop, .. } = &*exposing_lock {
+            let _ = stop
+                .clone()
+                .send(StopExposure {
+                    exposing_lock,
+                    want_image: false,
+                })
+                .await;
         }
         Ok(())
     }
