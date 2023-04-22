@@ -434,7 +434,8 @@ impl Camera for Webcam {
         let (frames_tx, mut frames_rx) = tokio::sync::mpsc::unbounded_channel::<nokhwa::Buffer>();
 
         tokio::task::spawn(async move {
-            let mut stacked_buffer = Array3::<u16>::zeros((size.x as usize, size.y as usize, 3));
+            let mut stacked_buffer =
+                Array3::<u16>::zeros((subframe.size.x as usize, subframe.size.y as usize, 3));
             let mut stop_exposure = tokio::select! {
                 stop_exposure_res = stop_exposure_rx => stop_exposure_res.unwrap(),
                 _ = async {
