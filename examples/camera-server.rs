@@ -431,19 +431,24 @@ impl Camera for Webcam {
         let last_exposure_duration = self.last_exposure_duration.clone();
         let (stop_exposure_tx, stop_exposure_rx) = tokio::sync::oneshot::channel();
         // Run long blocking exposing operation on a dedicated I/O thread.
-        let (frames_tx, mut frames_rx) = tokio::sync::mpsc::unbounded_channel::<nokhwa::Buffer>();
+        let (frames_tx, mut frames_rx) =
+            tokio::sync::mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
 
         tokio::task::spawn(async move {
             let mut stacked_buffer =
                 Array3::<u16>::zeros((subframe.size.y as usize, subframe.size.x as usize, 3));
-            let mut stop_exposure = tokio::select! {
-                stop_exposure_res = stop_exposure_rx => stop_exposure_res.unwrap(),
-                _ = async {
+            // Watches `stop_exposure` channel and the actual exposure for whichever ends the exposure first.
+            let stop_exposure_res = tokio::select! {
+                stop_exposure_res = stop_exposure_rx => match stop_exposure_res {
+                    Ok(stop_exposure) => Ok(Some(stop_exposure)),
+                    Err(_) => Err(ASCOMError::unspecified("Internal error: exposing state changed unexpectedly during an active exposure")),
+                },
+                stop_exposure_res = async {
                     let mut single_frame_buffer = Array3::<u8>::zeros((size.y as usize, size.x as usize, 3));
-                    while let Some(frame) = frames_rx.recv().await {
-                        frame
-                            .decode_image_to_buffer::<RgbFormat>(single_frame_buffer.as_slice_mut().unwrap())
-                            .unwrap();
+                    while let Some(frame_res) = frames_rx.recv().await {
+                        let frame = frame_res.map_err(convert_err)?;
+
+                        frame.decode_image_to_buffer::<RgbFormat>(single_frame_buffer.as_slice_mut().unwrap()).map_err(convert_err)?;
 
                         let cropped_view = single_frame_buffer.slice(ndarray::s![
                             subframe.offset.y..subframe_end_offset.y,
@@ -455,10 +460,25 @@ impl Camera for Webcam {
                             *dst = dst.saturating_add(src.into());
                         });
                     }
-                } => StopExposure {
+                    Ok(None)
+                } => stop_exposure_res,
+            };
+            let mut stop_exposure = match stop_exposure_res {
+                // Exposure was stopped by the user via `stop_exposure` or `abort_exposure` and it sent us the `StopExposure` info.
+                Ok(Some(stop_exposure)) => stop_exposure,
+                // Exposure ended naturally and we need to create our own `StopExposure` info assuming we want the image.
+                Ok(None) => StopExposure {
                     exposing_lock: exposing_state.write_arc(),
                     want_image: true,
                 },
+                // Exposure ended prematurely due to an error and we need to create our own `StopExposure` info discarding the image.
+                Err(err) => {
+                    tracing::error!(%err, "Exposure stopped prematurely due to an error");
+                    StopExposure {
+                        exposing_lock: exposing_state.write_arc(),
+                        want_image: false,
+                    }
+                }
             };
             *stop_exposure.exposing_lock = ExposingState::Idle {
                 camera,
@@ -477,8 +497,10 @@ impl Camera for Webcam {
             // Webcams produce variable-length exposures, so we can't just precalculate count of
             // frames and instead need to check the total elapsed time.
             while start.elapsed().as_secs_f64() < duration {
-                if frames_tx.send(camera_lock.frame().unwrap()).is_err() {
-                    // Receiver was dropped due to stop_exposure or abort_exposure.
+                let frame_res = camera_lock.frame();
+                let failed = frame_res.is_err();
+                if frames_tx.send(frame_res).is_err() || failed {
+                    // Receiver was dropped due to stop_exposure or abort_exposure or retrieving frame failed.
                     // Either way, stop exposing.
                     break;
                 }
