@@ -37,7 +37,9 @@ ascom-alpaca = { path = ".", features = ["test"] }
 bayer = "0.1.5"
 criterion = { version = "0.4.0", features = ["async_tokio"] }
 eframe = "0.21.3"
-image = { version = "0.24.6", default-features = false }
+# apparently Cargo doesn't allow `test` to enable `ndarray/rayon` when `ndarray` is an optional dependency
+# hence the duplicate dep with rayon feature
+ndarray = { version = "0.15.6", features = ["rayon"] }
 nokhwa = { version = "0.10.3", features = ["input-native", "output-threaded"] }
 parking_lot = { version = "0.12.1", features = ["arc_lock", "send_guard"] }
 time = { version = "0.3.20", features = ["formatting"] }

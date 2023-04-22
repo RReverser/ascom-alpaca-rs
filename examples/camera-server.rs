@@ -2,7 +2,6 @@ use anyhow::Context;
 use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray, SensorType};
 use ascom_alpaca::{ASCOMError, ASCOMResult, Server};
 use async_trait::async_trait;
-use image::{GenericImageView, Pixel, RgbImage};
 use ndarray::Array3;
 use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
@@ -75,7 +74,7 @@ impl PartialOrd for Point {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Subframe {
     bin: Size,
     offset: Point,
@@ -399,7 +398,8 @@ impl Camera for Webcam {
             ExposingState::Idle { camera, .. } => camera.clone(),
             _ => return Err(ASCOMError::invalid_operation("Camera is already exposing")),
         };
-        let subframe = *self.subframe.read();
+        let subframe = self.subframe.read().clone();
+        let subframe_end_offset = subframe.offset + subframe.size;
         if subframe.bin.x != subframe.bin.y {
             return Err(ASCOMError::invalid_value("BinX and BinY must be symmetric"));
         }
@@ -435,28 +435,25 @@ impl Camera for Webcam {
 
         tokio::task::spawn(async move {
             let mut stacked_buffer =
-                Array3::<u16>::zeros((subframe.size.x as usize, subframe.size.y as usize, 3));
+                Array3::<u16>::zeros((subframe.size.y as usize, subframe.size.x as usize, 3));
             let mut stop_exposure = tokio::select! {
                 stop_exposure_res = stop_exposure_rx => stop_exposure_res.unwrap(),
                 _ = async {
-                    let mut single_frame_buffer = RgbImage::new(size.x as u32, size.y as u32);
+                    let mut single_frame_buffer = Array3::<u8>::zeros((size.y as usize, size.x as usize, 3));
                     while let Some(frame) = frames_rx.recv().await {
                         frame
-                            .decode_image_to_buffer::<RgbFormat>(&mut single_frame_buffer)
+                            .decode_image_to_buffer::<RgbFormat>(single_frame_buffer.as_slice_mut().unwrap())
                             .unwrap();
-                        let cropped_view = single_frame_buffer.view(
-                            subframe.offset.x as u32,
-                            subframe.offset.y as u32,
-                            subframe.size.x as u32,
-                            subframe.size.y as u32,
-                        );
-                        for (x, y, pixel) in cropped_view.pixels() {
-                            stacked_buffer
-                                .slice_mut(ndarray::s![x as usize, y as usize, ..])
-                                .iter_mut()
-                                .zip(pixel.channels())
-                                .for_each(|(dst, src)| *dst = dst.saturating_add((*src).into()));
-                        }
+
+                        let cropped_view = single_frame_buffer.slice(ndarray::s![
+                            subframe.offset.y..subframe_end_offset.y,
+                            subframe.offset.x..subframe_end_offset.x,
+                            ..
+                        ]);
+
+                        ndarray::par_azip!((&src in cropped_view, dst in &mut stacked_buffer) {
+                            *dst = dst.saturating_add(src.into());
+                        });
                     }
                 } => StopExposure {
                     exposing_lock: exposing_state.write_arc(),
@@ -465,7 +462,11 @@ impl Camera for Webcam {
             };
             *stop_exposure.exposing_lock = ExposingState::Idle {
                 camera,
-                image: stop_exposure.want_image.then(|| stacked_buffer.into()),
+                image: stop_exposure.want_image.then(|| {
+                    // Swap axes from image representation (y then x) to array representation (x then y).
+                    stacked_buffer.swap_axes(0, 1);
+                    stacked_buffer.into()
+                }),
             };
         });
 
