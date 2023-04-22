@@ -14,7 +14,7 @@ mod parse_flattened;
 
 use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::response::ValueResponse;
-use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+use crate::{ASCOMError, ASCOMResult};
 use anyhow::Context;
 use futures::TryFutureExt;
 use mime::Mime;
@@ -45,12 +45,7 @@ impl RawDeviceClient {
         self.inner
             .request::<ASCOMResult<Resp>>(action_params)
             .await
-            .unwrap_or_else(|err| {
-                Err(ASCOMError::new(
-                    ASCOMErrorCode::UNSPECIFIED,
-                    format!("{err:#}"),
-                ))
-            })
+            .unwrap_or_else(|err| Err(ASCOMError::unspecified(err)))
     }
 }
 

@@ -1,5 +1,6 @@
 use super::case_insensitive_str::CaseInsensitiveStr;
 use super::Error;
+use crate::ASCOMError;
 use axum::body::HttpBody;
 use axum::extract::FromRequest;
 use axum::http::{Method, Request, StatusCode};
@@ -35,10 +36,9 @@ where
             .map(|value| serde_plain::from_str(&value))
             .transpose()
             .map_err(|err| {
-                Error::Ascom(ASCOMError::new(
-                    ASCOMErrorCode::INVALID_VALUE,
-                    format!("Invalid value for parameter {name:?}: {err:#}"),
-                ))
+                Error::Ascom(ASCOMError::invalid_value(format_args!(
+                    "Invalid value for parameter {name:?}: {err:#}"
+                )))
             })
     }
 
@@ -82,5 +82,3 @@ where
         }
     }
 }
-
-use crate::{ASCOMError, ASCOMErrorCode};

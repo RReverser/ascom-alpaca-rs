@@ -1,6 +1,6 @@
 use anyhow::Context;
 use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray, SensorType};
-use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Server};
+use ascom_alpaca::{ASCOMError, ASCOMResult, Server};
 use async_trait::async_trait;
 use image::{GenericImageView, Pixel, RgbImage};
 use ndarray::Array3;
@@ -25,14 +25,12 @@ struct Size {
     y: i32,
 }
 
-impl TryFrom<Resolution> for Size {
-    type Error = std::num::TryFromIntError;
-
-    fn try_from(resolution: Resolution) -> Result<Self, Self::Error> {
-        Ok(Self {
-            x: resolution.width().try_into()?,
-            y: resolution.height().try_into()?,
-        })
+impl From<Resolution> for Size {
+    fn from(resolution: Resolution) -> Self {
+        Self {
+            x: resolution.width() as _,
+            y: resolution.height() as _,
+        }
     }
 }
 
@@ -45,12 +43,14 @@ impl From<Size> for Point {
     }
 }
 
-impl Point {
-    fn checked_add(self, size: Size) -> Option<Self> {
-        Some(Self {
-            x: self.x.checked_add(size.x)?,
-            y: self.y.checked_add(size.y)?,
-        })
+impl std::ops::Add<Size> for Point {
+    type Output = Self;
+
+    fn add(self, size: Size) -> Self::Output {
+        Self {
+            x: self.x + size.x,
+            y: self.y + size.y,
+        }
     }
 }
 
@@ -118,7 +118,7 @@ struct Webcam {
 
 fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
     // TODO: more granular errors
-    ASCOMError::new(ASCOMErrorCode::UNSPECIFIED, nokhwa.to_string())
+    ASCOMError::driver_error::<0>(nokhwa)
 }
 
 #[async_trait]
@@ -152,8 +152,7 @@ impl Device for Webcam {
                 }
                 .map_err(convert_err)
             }
-            ExposingState::Exposing { .. } => Err(ASCOMError::new(
-                ASCOMErrorCode::INVALID_OPERATION,
+            ExposingState::Exposing { .. } => Err(ASCOMError::invalid_operation(
                 "Cannot change connection state during an exposure",
             )),
         }
@@ -392,32 +391,26 @@ impl Camera for Webcam {
 
     async fn start_exposure(&self, duration: f64, _light: bool) -> ASCOMResult {
         if duration < 0. {
-            return Err(ASCOMError::INVALID_VALUE);
+            return Err(ASCOMError::invalid_value("Duration must be non-negative"));
         }
         let exposing_state = self.exposing.clone();
         let mut exposing_state_lock = exposing_state.write_arc();
         let camera = match &*exposing_state_lock {
             ExposingState::Idle { camera, .. } => camera.clone(),
-            _ => return Err(ASCOMError::INVALID_OPERATION),
+            _ => return Err(ASCOMError::invalid_operation("Camera is already exposing")),
         };
         let subframe = *self.subframe.read();
         if subframe.bin.x != subframe.bin.y {
-            return Err(ASCOMError::INVALID_VALUE);
+            return Err(ASCOMError::invalid_value("BinX and BinY must be symmetric"));
         }
         let mut camera_lock = camera.lock_arc();
         let mut resolution = self.max_format.resolution();
         resolution.width_x /= subframe.bin.x as u32;
         resolution.height_y /= subframe.bin.y as u32;
-        let size = Size::try_from(resolution)
-            .map_err(|err| ASCOMError::new(ASCOMErrorCode::INVALID_VALUE, err.to_string()))?;
-        if subframe.offset < Point::default()
-            || subframe
-                .offset
-                .checked_add(subframe.size)
-                .ok_or(ASCOMError::INVALID_VALUE)?
-                > Point::from(size)
+        let size = Size::from(resolution);
+        if subframe.offset < Point::default() || subframe.offset + subframe.size > Point::from(size)
         {
-            return Err(ASCOMError::INVALID_VALUE);
+            return Err(ASCOMError::invalid_value("Subframe is out of bounds"));
         }
         let mut format = self.max_format;
         if camera_lock.resolution() != resolution {

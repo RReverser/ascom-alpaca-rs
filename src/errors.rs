@@ -73,10 +73,10 @@ pub struct ASCOMError {
 
 impl ASCOMError {
     /// Create a new `ASCOMError` from given error code and a message.
-    pub fn new(code: ASCOMErrorCode, message: impl Into<Cow<'static, str>>) -> Self {
+    pub fn new(code: ASCOMErrorCode, message: impl std::fmt::Display) -> Self {
         Self {
             code,
-            message: message.into(),
+            message: message.to_string().into(),
         }
     }
 }
@@ -150,4 +150,29 @@ ascom_error_codes! {
     UNSPECIFIED = 0x4FF,
     #[doc = "A value has not been set"]
     VALUE_NOT_SET = 0x402,
+}
+
+impl ASCOMError {
+    /// Generate a driver-specific error with the given code (0-based) and a message.
+    pub fn driver_error<const CODE: u16>(message: impl std::fmt::Display) -> Self {
+        Self {
+            code: ASCOMErrorCode::new_for_driver::<CODE>(),
+            message: message.to_string().into(),
+        }
+    }
+
+    /// Create a new "invalid operation" error with the specified message.
+    pub fn invalid_operation(message: impl std::fmt::Display) -> Self {
+        Self::new(ASCOMErrorCode::INVALID_OPERATION, message)
+    }
+
+    /// Create a new "invalid value" error with the specified message.
+    pub fn invalid_value(message: impl std::fmt::Display) -> Self {
+        Self::new(ASCOMErrorCode::INVALID_VALUE, message)
+    }
+
+    /// Create a new error with unspecified error code and the given message.
+    pub fn unspecified(message: impl std::fmt::Display) -> Self {
+        Self::new(ASCOMErrorCode::UNSPECIFIED, message)
+    }
 }
