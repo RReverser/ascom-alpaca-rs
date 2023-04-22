@@ -426,6 +426,7 @@ impl Camera for Webcam {
                 tracing::error!("Couldn't change camera format: {err}");
                 convert_err(err)
             })?;
+            camera_lock.open_stream().map_err(convert_err)?;
         }
         let last_exposure_duration = self.last_exposure_duration.clone();
         let (stop_exposure_tx, stop_exposure_rx) = tokio::sync::oneshot::channel();
