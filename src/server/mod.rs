@@ -100,13 +100,14 @@ impl ServerHandler {
         let span = tracing::error_span!(
             "Alpaca transaction",
             path = self.path,
-            params = ?self.params,
             client_id = request_transaction.client_id,
             client_transaction_id = request_transaction.client_transaction_id,
             server_transaction_id = response_transaction.server_transaction_id,
         );
 
         async move {
+            tracing::debug!(params = ?self.params, "Received request");
+
             make_response(self.params)
                 .await
                 .into_axum(response_transaction)

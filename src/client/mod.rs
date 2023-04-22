@@ -89,13 +89,13 @@ impl RawClient {
         let span = tracing::error_span!(
             "Alpaca transaction",
             action,
-            ?params,
-            base_url = %self.base_url,
             client_transaction_id = request_transaction.client_transaction_id,
             client_id = request_transaction.client_id,
         );
 
         async move {
+            tracing::debug!(?method, ?params, base_url = %self.base_url, "Sending request");
+
             let mut request = self
                 .inner
                 .request(method.into(), self.base_url.join(action)?);
