@@ -140,14 +140,16 @@ impl Device for Webcam {
     async fn set_connected(&self, connected: bool) -> ASCOMResult {
         match &*self.exposing.read() {
             ExposingState::Idle { camera, .. } => {
-                if connected == camera.lock().is_stream_open() {
+                let mut camera_lock = camera.lock();
+
+                if connected == camera_lock.is_stream_open() {
                     return Ok(());
                 }
 
                 if connected {
-                    camera.lock().open_stream()
+                    camera_lock.open_stream()
                 } else {
-                    camera.lock().stop_stream()
+                    camera_lock.stop_stream()
                 }
                 .map_err(convert_err)
             }
