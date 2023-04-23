@@ -81,12 +81,18 @@ struct Subframe {
     size: Size,
 }
 
-pub struct StopExposure {
+#[derive(PartialEq, Eq)]
+enum StopExposureKind {
+    Stop,
+    Abort,
+}
+
+struct StopExposure {
     // When stopping exposure, we want to hand over the lock for the exposing state
     // to ensure continuity - that way e.g. start_exposure can't accidentally
     // try to access the exposing state while we're still trying to stop it.
     exposing_lock: ArcRwLockWriteGuard<RawRwLock, ExposingState>,
-    want_image: bool,
+    kind: StopExposureKind,
 }
 
 enum ExposingState {
@@ -118,6 +124,20 @@ struct Webcam {
 fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
     // TODO: more granular errors
     ASCOMError::driver_error::<0>(nokhwa)
+}
+
+impl Webcam {
+    fn stop_exposure(&self, kind: StopExposureKind) {
+        let mut exposing_lock = self.exposing.write_arc();
+        if let ExposingState::Exposing { stop, .. } = &mut *exposing_lock {
+            if let Some(stop) = stop.take() {
+                let _ = stop.send(StopExposure {
+                    exposing_lock,
+                    kind,
+                });
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -435,6 +455,23 @@ impl Camera for Webcam {
         // Run long blocking exposing operation on a dedicated I/O thread.
         let (frames_tx, mut frames_rx) =
             tokio::sync::mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
+        *self.last_exposure_start_time.write() = Some(OffsetDateTime::now_utc());
+        let start = std::time::Instant::now();
+
+        let frame_reader_task = tokio::task::spawn_blocking(move || {
+            // Webcams produce variable-length exposures, so we can't just precalculate count of
+            // frames and instead need to check the total elapsed time.
+            loop {
+                let frame_res = camera_lock.frame();
+                let failed = frame_res.is_err();
+                let total_duration = start.elapsed().as_secs_f64();
+                if frames_tx.send(frame_res).is_err() || failed || total_duration >= duration {
+                    // Receiver was dropped due to stop_exposure or abort_exposure or retrieving frame failed.
+                    // Either way, stop exposing.
+                    return total_duration;
+                }
+            }
+        });
 
         tokio::task::spawn(async move {
             let mut stacked_buffer =
@@ -471,43 +508,28 @@ impl Camera for Webcam {
                 // Exposure ended naturally and we need to create our own `StopExposure` info assuming we want the image.
                 Ok(None) => StopExposure {
                     exposing_lock: exposing_state.write_arc(),
-                    want_image: true,
+                    kind: StopExposureKind::Stop,
                 },
                 // Exposure ended prematurely due to an error and we need to create our own `StopExposure` info discarding the image.
                 Err(err) => {
                     tracing::error!(%err, "Exposure stopped prematurely due to an error");
                     StopExposure {
                         exposing_lock: exposing_state.write_arc(),
-                        want_image: false,
+                        kind: StopExposureKind::Abort,
                     }
                 }
             };
             *stop_exposure.exposing_lock = ExposingState::Idle {
                 camera,
-                image: stop_exposure.want_image.then(|| {
+                image: (stop_exposure.kind == StopExposureKind::Stop).then(|| {
                     // Swap axes from image representation (y then x) to array representation (x then y).
                     stacked_buffer.swap_axes(0, 1);
                     stacked_buffer.into()
                 }),
             };
-        });
-
-        *self.last_exposure_start_time.write() = Some(OffsetDateTime::now_utc());
-        let start = std::time::Instant::now();
-
-        tokio::task::spawn_blocking(move || {
-            // Webcams produce variable-length exposures, so we can't just precalculate count of
-            // frames and instead need to check the total elapsed time.
-            while start.elapsed().as_secs_f64() < duration {
-                let frame_res = camera_lock.frame();
-                let failed = frame_res.is_err();
-                if frames_tx.send(frame_res).is_err() || failed {
-                    // Receiver was dropped due to stop_exposure or abort_exposure or retrieving frame failed.
-                    // Either way, stop exposing.
-                    break;
-                }
+            if stop_exposure.kind == StopExposureKind::Stop {
+                *last_exposure_duration.write() = Some(frame_reader_task.await.unwrap());
             }
-            *last_exposure_duration.write() = Some(start.elapsed().as_secs_f64());
         });
 
         *exposing_state_lock = ExposingState::Exposing {
@@ -528,28 +550,12 @@ impl Camera for Webcam {
     }
 
     async fn stop_exposure(&self) -> ASCOMResult {
-        let mut exposing_lock = self.exposing.write_arc();
-        if let ExposingState::Exposing { stop, .. } = &mut *exposing_lock {
-            if let Some(stop) = stop.take() {
-                let _ = stop.send(StopExposure {
-                    exposing_lock,
-                    want_image: true,
-                });
-            }
-        }
+        self.stop_exposure(StopExposureKind::Stop);
         Ok(())
     }
 
     async fn abort_exposure(&self) -> ASCOMResult {
-        let mut exposing_lock = self.exposing.write_arc();
-        if let ExposingState::Exposing { stop, .. } = &mut *exposing_lock {
-            if let Some(stop) = stop.take() {
-                let _ = stop.send(StopExposure {
-                    exposing_lock,
-                    want_image: false,
-                });
-            }
-        }
+        self.stop_exposure(StopExposureKind::Abort);
         Ok(())
     }
 }
