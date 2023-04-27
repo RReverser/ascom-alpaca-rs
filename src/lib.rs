@@ -43,7 +43,8 @@
     clippy::missing_panics_doc,
     clippy::redundant_pub_crate,
     clippy::single_match_else,
-    clippy::type_repetition_in_bounds
+    clippy::type_repetition_in_bounds,
+    clippy::let_underscore_untyped
 )]
 
 pub(crate) mod macros;
