@@ -7,8 +7,7 @@ use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
 use nokhwa::{nokhwa_initialize, NokhwaError};
-use parking_lot::lock_api::ArcRwLockWriteGuard;
-use parking_lot::{Mutex, RawRwLock, RwLock};
+use parking_lot::{Mutex, RwLock};
 use std::sync::Arc;
 use time::OffsetDateTime;
 
@@ -88,11 +87,8 @@ enum StopExposureKind {
 }
 
 struct StopExposure {
-    // When stopping exposure, we want to hand over the lock for the exposing state
-    // to ensure continuity - that way e.g. start_exposure can't accidentally
-    // try to access the exposing state while we're still trying to stop it.
-    exposing_lock: ArcRwLockWriteGuard<RawRwLock, ExposingState>,
-    kind: StopExposureKind,
+    request: tokio::sync::oneshot::Sender<StopExposureKind>,
+    response: tokio::sync::oneshot::Receiver<()>,
 }
 
 enum ExposingState {
@@ -103,7 +99,7 @@ enum ExposingState {
     Exposing {
         start: std::time::Instant,
         expected_duration: f64,
-        stop: Option<tokio::sync::oneshot::Sender<StopExposure>>,
+        stop: Option<StopExposure>,
     },
 }
 
@@ -127,14 +123,12 @@ fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
 }
 
 impl Webcam {
-    fn stop_exposure(&self, kind: StopExposureKind) {
+    async fn stop_exposure(&self, kind: StopExposureKind) {
         let mut exposing_lock = self.exposing.write_arc();
         if let ExposingState::Exposing { stop, .. } = &mut *exposing_lock {
             if let Some(stop) = stop.take() {
-                let _ = stop.send(StopExposure {
-                    exposing_lock,
-                    kind,
-                });
+                let _ = stop.request.send(kind);
+                let _ = stop.response.await;
             }
         }
     }
@@ -451,7 +445,9 @@ impl Camera for Webcam {
             camera_lock.open_stream().map_err(convert_err)?;
         }
         let last_exposure_duration = self.last_exposure_duration.clone();
-        let (stop_exposure_tx, stop_exposure_rx) = tokio::sync::oneshot::channel();
+        let (stop_exposure_tx, stop_exposure_rx) =
+            tokio::sync::oneshot::channel::<StopExposureKind>();
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
         // Run long blocking exposing operation on a dedicated I/O thread.
         let (frames_tx, mut frames_rx) =
             tokio::sync::mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
@@ -479,7 +475,7 @@ impl Camera for Webcam {
             // Watches `stop_exposure` channel and the actual exposure for whichever ends the exposure first.
             let stop_exposure_res = tokio::select! {
                 stop_exposure_res = stop_exposure_rx => match stop_exposure_res {
-                    Ok(stop_exposure) => Ok(Some(stop_exposure)),
+                    Ok(stop_exposure) => Ok(stop_exposure),
                     Err(_) => Err(ASCOMError::unspecified("Internal error: exposing state changed unexpectedly during an active exposure")),
                 },
                 stop_exposure_res = async {
@@ -499,43 +495,37 @@ impl Camera for Webcam {
                             *dst = dst.saturating_add(src.into());
                         });
                     }
-                    Ok(None)
+                    Ok(StopExposureKind::Stop)
                 } => stop_exposure_res,
             };
-            let mut stop_exposure = match stop_exposure_res {
-                // Exposure was stopped by the user via `stop_exposure` or `abort_exposure` and it sent us the `StopExposure` info.
-                Ok(Some(stop_exposure)) => stop_exposure,
-                // Exposure ended naturally and we need to create our own `StopExposure` info assuming we want the image.
-                Ok(None) => StopExposure {
-                    exposing_lock: exposing_state.write_arc(),
-                    kind: StopExposureKind::Stop,
-                },
-                // Exposure ended prematurely due to an error and we need to create our own `StopExposure` info discarding the image.
+            let stop_exposure = match stop_exposure_res {
+                Ok(stop_exposure) => stop_exposure,
                 Err(err) => {
                     tracing::error!(%err, "Exposure stopped prematurely due to an error");
-                    StopExposure {
-                        exposing_lock: exposing_state.write_arc(),
-                        kind: StopExposureKind::Abort,
-                    }
+                    StopExposureKind::Abort
                 }
             };
-            *stop_exposure.exposing_lock = ExposingState::Idle {
+            *exposing_state.write() = ExposingState::Idle {
                 camera,
-                image: (stop_exposure.kind == StopExposureKind::Stop).then(|| {
+                image: (stop_exposure != StopExposureKind::Abort).then(|| {
                     // Swap axes from image representation (y then x) to array representation (x then y).
                     stacked_buffer.swap_axes(0, 1);
                     stacked_buffer.into()
                 }),
             };
-            if stop_exposure.kind == StopExposureKind::Stop {
+            if stop_exposure != StopExposureKind::Abort {
                 *last_exposure_duration.write() = Some(frame_reader_task.await.unwrap());
             }
+            let _ = done_tx.send(());
         });
 
         *exposing_state_lock = ExposingState::Exposing {
             start,
             expected_duration: duration,
-            stop: Some(stop_exposure_tx),
+            stop: Some(StopExposure {
+                request: stop_exposure_tx,
+                response: done_rx,
+            }),
         };
 
         Ok(())
@@ -550,12 +540,12 @@ impl Camera for Webcam {
     }
 
     async fn stop_exposure(&self) -> ASCOMResult {
-        self.stop_exposure(StopExposureKind::Stop);
+        self.stop_exposure(StopExposureKind::Stop).await;
         Ok(())
     }
 
     async fn abort_exposure(&self) -> ASCOMResult {
-        self.stop_exposure(StopExposureKind::Abort);
+        self.stop_exposure(StopExposureKind::Abort).await;
         Ok(())
     }
 }
