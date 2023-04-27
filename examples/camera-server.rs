@@ -563,15 +563,13 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     {
-        // Ideally this would be oneshot but can't be due to https://github.com/l1npengtul/nokhwa/issues/109.
-        let (init_tx, mut init_rx) = mpsc::channel(1);
+        let (init_tx, init_rx) = oneshot::channel();
+        // Ideally this would be *just* oneshot but can't be due to https://github.com/l1npengtul/nokhwa/issues/109.
+        let init_tx = Mutex::new(Some(init_tx));
         nokhwa_initialize(move |status| {
-            init_tx.blocking_send(status).unwrap();
+            init_tx.lock().take().unwrap().send(status).unwrap();
         });
-        anyhow::ensure!(
-            init_rx.recv().await == Some(true),
-            "User did not grant camera access"
-        );
+        anyhow::ensure!(init_rx.await?, "User did not grant camera access");
     }
 
     let mut server = Server {
