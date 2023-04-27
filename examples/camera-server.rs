@@ -10,6 +10,8 @@ use nokhwa::{nokhwa_initialize, NokhwaError};
 use parking_lot::{Mutex, RwLock};
 use std::sync::Arc;
 use time::OffsetDateTime;
+use tokio::sync::{mpsc, oneshot, watch};
+use tokio::task;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct Point {
@@ -86,11 +88,6 @@ enum StopExposureKind {
     Abort,
 }
 
-struct StopExposure {
-    request: tokio::sync::oneshot::Sender<StopExposureKind>,
-    response: tokio::sync::oneshot::Receiver<()>,
-}
-
 enum ExposingState {
     Idle {
         camera: Arc<Mutex<nokhwa::Camera>>,
@@ -99,7 +96,8 @@ enum ExposingState {
     Exposing {
         start: std::time::Instant,
         expected_duration: f64,
-        stop: Option<StopExposure>,
+        stop_tx: Option<oneshot::Sender<StopExposureKind>>,
+        done_rx: watch::Receiver<bool>,
     },
 }
 
@@ -123,13 +121,24 @@ fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
 }
 
 impl Webcam {
-    async fn stop_exposure(&self, kind: StopExposureKind) {
-        let mut exposing_lock = self.exposing.write_arc();
-        if let ExposingState::Exposing { stop, .. } = &mut *exposing_lock {
-            if let Some(stop) = stop.take() {
-                let _ = stop.request.send(kind);
-                let _ = stop.response.await;
+    async fn stop(&self, kind: StopExposureKind) -> ASCOMResult {
+        // Make sure `self.exposing.write()` lock is not held when waiting for `done`.
+        let mut done_rx = match &mut *self.exposing.write() {
+            ExposingState::Exposing {
+                stop_tx, done_rx, ..
+            } => {
+                // Only send the stop signal if nobody else has.
+                if let Some(stop_tx) = stop_tx.take() {
+                    let _ = stop_tx.send(kind);
+                }
+                done_rx.clone()
             }
+            ExposingState::Idle { .. } => return Ok(()),
+        };
+        let done_res = done_rx.wait_for(|&done| done).await;
+        match done_res {
+            Ok(_) => Ok(()),
+            Err(_) => Err(ASCOMError::unspecified("Exposure failed to stop correctly")),
         }
     }
 }
@@ -445,16 +454,15 @@ impl Camera for Webcam {
             camera_lock.open_stream().map_err(convert_err)?;
         }
         let last_exposure_duration = self.last_exposure_duration.clone();
-        let (stop_exposure_tx, stop_exposure_rx) =
-            tokio::sync::oneshot::channel::<StopExposureKind>();
-        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+        let (stop_tx, stop_rx) = oneshot::channel::<StopExposureKind>();
+        let (done_tx, done_rx) = watch::channel(false);
         // Run long blocking exposing operation on a dedicated I/O thread.
         let (frames_tx, mut frames_rx) =
-            tokio::sync::mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
+            mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
         *self.last_exposure_start_time.write() = Some(OffsetDateTime::now_utc());
         let start = std::time::Instant::now();
 
-        let frame_reader_task = tokio::task::spawn_blocking(move || {
+        let frame_reader_task = task::spawn_blocking(move || {
             // Webcams produce variable-length exposures, so we can't just precalculate count of
             // frames and instead need to check the total elapsed time.
             loop {
@@ -469,16 +477,16 @@ impl Camera for Webcam {
             }
         });
 
-        tokio::task::spawn(async move {
+        task::spawn(async move {
             let mut stacked_buffer =
                 Array3::<u16>::zeros((subframe.size.y as usize, subframe.size.x as usize, 3));
-            // Watches `stop_exposure` channel and the actual exposure for whichever ends the exposure first.
-            let stop_exposure_res = tokio::select! {
-                stop_exposure_res = stop_exposure_rx => match stop_exposure_res {
-                    Ok(stop_exposure) => Ok(stop_exposure),
+            // Watches `stop` channel and the actual exposure for whichever ends the exposure first.
+            let stop_res = tokio::select! {
+                stop_res = stop_rx => match stop_res {
+                    Ok(stop) => Ok(stop),
                     Err(_) => Err(ASCOMError::unspecified("Internal error: exposing state changed unexpectedly during an active exposure")),
                 },
-                stop_exposure_res = async {
+                stop_res = async {
                     let mut single_frame_buffer = Array3::<u8>::zeros((size.y as usize, size.x as usize, 3));
                     while let Some(frame_res) = frames_rx.recv().await {
                         let frame = frame_res.map_err(convert_err)?;
@@ -496,10 +504,10 @@ impl Camera for Webcam {
                         });
                     }
                     Ok(StopExposureKind::Stop)
-                } => stop_exposure_res,
+                } => stop_res,
             };
-            let stop_exposure = match stop_exposure_res {
-                Ok(stop_exposure) => stop_exposure,
+            let stop = match stop_res {
+                Ok(stop) => stop,
                 Err(err) => {
                     tracing::error!(%err, "Exposure stopped prematurely due to an error");
                     StopExposureKind::Abort
@@ -507,25 +515,23 @@ impl Camera for Webcam {
             };
             *exposing_state.write() = ExposingState::Idle {
                 camera,
-                image: (stop_exposure != StopExposureKind::Abort).then(|| {
+                image: (stop != StopExposureKind::Abort).then(|| {
                     // Swap axes from image representation (y then x) to array representation (x then y).
                     stacked_buffer.swap_axes(0, 1);
                     stacked_buffer.into()
                 }),
             };
-            if stop_exposure != StopExposureKind::Abort {
+            if stop != StopExposureKind::Abort {
                 *last_exposure_duration.write() = Some(frame_reader_task.await.unwrap());
             }
-            let _ = done_tx.send(());
+            let _ = done_tx.send(true);
         });
 
         *exposing_state_lock = ExposingState::Exposing {
             start,
             expected_duration: duration,
-            stop: Some(StopExposure {
-                request: stop_exposure_tx,
-                response: done_rx,
-            }),
+            stop_tx: Some(stop_tx),
+            done_rx,
         };
 
         Ok(())
@@ -540,13 +546,11 @@ impl Camera for Webcam {
     }
 
     async fn stop_exposure(&self) -> ASCOMResult {
-        self.stop_exposure(StopExposureKind::Stop).await;
-        Ok(())
+        self.stop(StopExposureKind::Stop).await
     }
 
     async fn abort_exposure(&self) -> ASCOMResult {
-        self.stop_exposure(StopExposureKind::Abort).await;
-        Ok(())
+        self.stop(StopExposureKind::Abort).await
     }
 }
 
@@ -559,11 +563,15 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     {
-        let (init_tx, init_rx) = std::sync::mpsc::sync_channel(1);
+        // Ideally this would be oneshot but can't be due to https://github.com/l1npengtul/nokhwa/issues/109.
+        let (init_tx, mut init_rx) = mpsc::channel(1);
         nokhwa_initialize(move |status| {
-            init_tx.send(status).unwrap();
+            init_tx.blocking_send(status).unwrap();
         });
-        anyhow::ensure!(init_rx.recv()?, "User did not grant camera access");
+        anyhow::ensure!(
+            init_rx.recv().await == Some(true),
+            "User did not grant camera access"
+        );
     }
 
     let mut server = Server {
