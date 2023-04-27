@@ -13,6 +13,9 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::num::NonZeroU32;
 use std::ops::Deref;
 
+// Missing alias in ndarray.
+type ArcArray3<T> = ndarray::ArcArray<T, ndarray::Ix3>;
+
 /// Rank of an image array.
 #[derive(
     Debug,
@@ -87,9 +90,11 @@ impl AsTransmissionElementType for u8 {
 /// If the image is a 2D image, the third dimension will have length 1.
 ///
 /// You can retrieve rank as an enum via the [`ImageArray::rank`] method.
+///
+/// This type is cheaply clonable.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ImageArray {
-    data: Array3<i32>,
+    data: ArcArray3<i32>,
     transmission_element_type: TransmissionElementType,
 }
 
@@ -100,7 +105,7 @@ impl<T: AsTransmissionElementType> From<ArrayView3<'_, T>> for ImageArray {
         let data = array.mapv(Into::into);
         let transmission_element_type = T::TYPE;
         Self {
-            data,
+            data: data.into_shared(),
             transmission_element_type,
         }
     }
@@ -111,7 +116,7 @@ impl<T: AsTransmissionElementType> From<Array3<T>> for ImageArray {
         let data = array.mapv_into_any(Into::into);
         let transmission_element_type = T::TYPE;
         Self {
-            data,
+            data: data.into_shared(),
             transmission_element_type,
         }
     }
@@ -130,7 +135,7 @@ impl<T: AsTransmissionElementType> From<Array2<T>> for ImageArray {
 }
 
 impl Deref for ImageArray {
-    type Target = Array3<i32>;
+    type Target = ArcArray3<i32>;
 
     fn deref(&self) -> &Self::Target {
         &self.data
