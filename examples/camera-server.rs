@@ -82,10 +82,8 @@ struct Subframe {
     size: Size,
 }
 
-#[derive(PartialEq, Eq)]
-enum StopExposureKind {
-    Stop,
-    Abort,
+struct StopExposure {
+    want_image: bool,
 }
 
 enum ExposingState {
@@ -96,7 +94,7 @@ enum ExposingState {
     Exposing {
         start: std::time::Instant,
         expected_duration: f64,
-        stop_tx: Option<oneshot::Sender<StopExposureKind>>,
+        stop_tx: Option<oneshot::Sender<StopExposure>>,
         done_rx: watch::Receiver<bool>,
     },
 }
@@ -121,7 +119,7 @@ fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
 }
 
 impl Webcam {
-    async fn stop(&self, kind: StopExposureKind) -> ASCOMResult {
+    async fn stop(&self, want_image: bool) -> ASCOMResult {
         // Make sure `self.exposing.write()` lock is not held when waiting for `done`.
         let mut done_rx = match &mut *self.exposing.write() {
             ExposingState::Exposing {
@@ -129,7 +127,7 @@ impl Webcam {
             } => {
                 // Only send the stop signal if nobody else has.
                 if let Some(stop_tx) = stop_tx.take() {
-                    let _ = stop_tx.send(kind);
+                    let _ = stop_tx.send(StopExposure { want_image });
                 }
                 done_rx.clone()
             }
@@ -454,7 +452,7 @@ impl Camera for Webcam {
             camera_lock.open_stream().map_err(convert_err)?;
         }
         let last_exposure_duration = self.last_exposure_duration.clone();
-        let (stop_tx, stop_rx) = oneshot::channel::<StopExposureKind>();
+        let (stop_tx, stop_rx) = oneshot::channel::<StopExposure>();
         let (done_tx, done_rx) = watch::channel(false);
         // Run long blocking exposing operation on a dedicated I/O thread.
         let (frames_tx, mut frames_rx) =
@@ -503,27 +501,25 @@ impl Camera for Webcam {
                             *dst = dst.saturating_add(src.into());
                         });
                     }
-                    Ok(StopExposureKind::Stop)
+                    Ok(StopExposure { want_image: true })
                 } => stop_res,
             };
             let stop = match stop_res {
                 Ok(stop) => stop,
                 Err(err) => {
                     tracing::error!(%err, "Exposure stopped prematurely due to an error");
-                    StopExposureKind::Abort
+                    StopExposure { want_image: false }
                 }
             };
             *exposing_state.write() = ExposingState::Idle {
                 camera,
-                image: (stop != StopExposureKind::Abort).then(|| {
+                image: stop.want_image.then(|| {
                     // Swap axes from image representation (y then x) to array representation (x then y).
                     stacked_buffer.swap_axes(0, 1);
                     stacked_buffer.into()
                 }),
             };
-            if stop != StopExposureKind::Abort {
-                *last_exposure_duration.write() = Some(frame_reader_task.await.unwrap());
-            }
+            *last_exposure_duration.write() = Some(frame_reader_task.await.unwrap());
             let _ = done_tx.send(true);
         });
 
@@ -546,11 +542,11 @@ impl Camera for Webcam {
     }
 
     async fn stop_exposure(&self) -> ASCOMResult {
-        self.stop(StopExposureKind::Stop).await
+        self.stop(true).await
     }
 
     async fn abort_exposure(&self) -> ASCOMResult {
-        self.stop(StopExposureKind::Abort).await
+        self.stop(false).await
     }
 }
 
