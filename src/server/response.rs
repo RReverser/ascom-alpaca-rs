@@ -46,7 +46,7 @@ where
         let ascom_result_or_err = match self {
             Ok(response) => Ok(Ok(response)),
             Err(Error::Ascom(err)) => Ok(Err(err)),
-            Err(err @ Error::MissingParameter { .. }) => {
+            Err(err @ (Error::MissingParameter { .. } | Error::BadParameter { .. })) => {
                 Err((StatusCode::BAD_REQUEST, err.to_string()))
             }
             Err(err @ (Error::UnknownDeviceIndex { .. } | Error::UnknownAction { .. })) => {

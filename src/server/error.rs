@@ -13,6 +13,11 @@ pub(crate) enum Error {
     },
     #[error("Missing parameter {name:?}")]
     MissingParameter { name: &'static str },
+    #[error("Couldn't parse parameter {name:?}: {err:#}")]
+    BadParameter {
+        name: &'static str,
+        err: serde_plain::Error,
+    },
     #[error(transparent)]
     Ascom(#[from] ASCOMError),
 }
