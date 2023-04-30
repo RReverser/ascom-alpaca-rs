@@ -3,7 +3,6 @@ use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray
 use ascom_alpaca::{ASCOMError, ASCOMResult, Server};
 use async_trait::async_trait;
 use ndarray::Array3;
-use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
 use nokhwa::{nokhwa_initialize, NokhwaError};
@@ -570,9 +569,11 @@ async fn main() -> anyhow::Result<()> {
 
     let mut server = Server {
         info: CargoServerInfo!(),
-        listen_addr: addr!("0.0.0.0:8000"),
         ..Default::default()
     };
+
+    server.listen_addr.set_port(8000);
+
     for camera_info in nokhwa::query(nokhwa::utils::ApiBackend::Auto)? {
         // Workaround for https://github.com/l1npengtul/nokhwa/issues/110:
         // get list of compatible formats manually, extract the info,

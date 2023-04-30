@@ -129,7 +129,26 @@ impl Server {
 
         tracing::debug!(%addr, "Binding Alpaca server");
 
-        let server = axum::Server::try_bind(&addr)?.serve(
+        // Like in discovery, use dual stack (IPv4+IPv6) consistently on all platforms.
+        //
+        // This is usually what user wants when setting IPv6 address like `[::]`
+        // and this is what happens by default on popular Linux distros but not on Windows.
+        //
+        // For that, we can't use the standard `TcpListener::bind` and need to build our own socket.
+        let socket = socket2::Socket::new(
+            socket2::Domain::for_address(addr),
+            socket2::Type::STREAM,
+            Some(socket2::Protocol::TCP),
+        )?;
+
+        if addr.is_ipv6() {
+            socket.set_only_v6(false)?;
+        }
+
+        socket.bind(&addr.into())?;
+        socket.listen(128)?;
+
+        let server = axum::Server::from_tcp(socket.into())?.serve(
             self.into_router()
                 // .layer(TraceLayer::new_for_http())
                 .into_make_service(),
