@@ -41,20 +41,69 @@ pub use crate::server::DiscoveryServer;
 #[tokio::test]
 async fn test_discovery() -> anyhow::Result<()> {
     use futures::TryStreamExt;
-    use std::net::SocketAddr;
+    use net_literals::addr;
+
+    async fn run_test(
+        addr: SocketAddr,
+        include_ipv6: bool,
+        on_found: impl FnOnce(&mut [SocketAddr]) -> bool + Copy + Send,
+    ) -> anyhow::Result<()> {
+        // check that `include_ipv6` makes no difference for IPv4 addresses, just in case.
+        let include_ipv6_values = if addr.is_ipv4() {
+            &[false, true]
+        } else {
+            std::slice::from_ref(&include_ipv6)
+        };
+
+        for &include_ipv6 in include_ipv6_values {
+            let mut client = DiscoveryClient::new();
+            client.include_ipv6 = include_ipv6;
 
     tokio::select!(
-        result = DiscoveryServer::new(8378).start() => result,
-        addrs = DiscoveryClient::new().discover_addrs().try_collect::<Vec<_>>() => {
-            let addrs = addrs?;
+                result = DiscoveryServer::for_alpaca_server_at(addr).start() => result,
+                addrs = client.discover_addrs().try_collect::<Vec<_>>() => {
+                    let mut addrs = addrs?;
             anyhow::ensure!(
-                matches!(
-                    addrs.as_slice(),
-                    [SocketAddr::V4(addr)] if addr.port() == 8378
-                ),
-                "Couldn't find own discovery server on port 8378. Found: {addrs:?}"
+                        on_found(&mut addrs),
+                        "Couldn't find own discovery server {addr:?}. Found: {addrs:?}"
             );
             Ok(())
         }
-    )
+            )?;
+        }
+
+        Ok(())
+    }
+
+    let loopback_v4 = addr!("127.0.0.1:8378");
+    let loopback_v6 = addr!("[::1]:8378");
+    let unspecified_v4 = addr!("0.0.0.0:8378");
+    let unspecified_v6 = addr!("[::]:8378");
+
+    run_test(loopback_v4, false, |addrs| addrs == [loopback_v4]).await?;
+
+    run_test(loopback_v6, false, |addrs| addrs == [loopback_v4]).await?;
+
+    run_test(loopback_v6, true, |addrs| {
+        addrs.sort();
+        addrs == [loopback_v4, loopback_v6]
+    })
+    .await?;
+
+    run_test(unspecified_v4, false, |addrs| {
+        addrs.len() > 1 && addrs.contains(&loopback_v4)
+    })
+    .await?;
+
+    run_test(unspecified_v6, false, |addrs| {
+        addrs.len() > 1 && addrs.contains(&loopback_v4)
+    })
+    .await?;
+
+    run_test(unspecified_v6, true, |addrs| {
+        addrs.len() > 2 && addrs.contains(&loopback_v4) && addrs.contains(&loopback_v6)
+    })
+    .await?;
+
+    Ok(())
 }
