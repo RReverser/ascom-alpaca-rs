@@ -1,7 +1,7 @@
-use anyhow::Context;
 use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray, SensorType};
 use ascom_alpaca::{ASCOMError, ASCOMResult, Server};
 use async_trait::async_trait;
+use eyre::ContextCompat;
 use ndarray::Array3;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
@@ -554,7 +554,7 @@ fn div_rem(a: u32, b: u32) -> (u32, u32) {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> eyre::Result<std::convert::Infallible> {
     tracing_subscriber::fmt::init();
 
     {
@@ -564,7 +564,7 @@ async fn main() -> anyhow::Result<()> {
         nokhwa_initialize(move |status| {
             init_tx.lock().take().unwrap().send(status).unwrap();
         });
-        anyhow::ensure!(init_rx.await?, "User did not grant camera access");
+        eyre::ensure!(init_rx.await?, "User did not grant camera access");
     }
 
     let mut server = Server {
@@ -655,5 +655,5 @@ async fn main() -> anyhow::Result<()> {
         server.devices.register(webcam);
     }
 
-    server.start().await
+    server.start()?.await
 }

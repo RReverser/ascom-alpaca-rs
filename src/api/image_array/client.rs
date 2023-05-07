@@ -91,31 +91,28 @@ impl Response for ASCOMResult<ImageArray> {
         request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
     }
 
-    fn from_reqwest(
-        mime_type: Mime,
-        bytes: Bytes,
-    ) -> anyhow::Result<ResponseWithTransaction<Self>> {
+    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
         if mime_type.essence_str() != IMAGE_BYTES_TYPE {
             return <ASCOMResult<JsonImageArray>>::from_reqwest(mime_type, bytes)
                 .map(|response| response.map(|response| response.map(|json| json.0)));
         }
         let metadata = bytes
             .get(..std::mem::size_of::<ImageBytesMetadata>())
-            .ok_or_else(|| anyhow::anyhow!("not enough bytes to read image metadata"))?;
+            .ok_or_else(|| eyre::eyre!("not enough bytes to read image metadata"))?;
         let metadata = bytemuck::pod_read_unaligned::<ImageBytesMetadata>(metadata);
-        anyhow::ensure!(
+        eyre::ensure!(
             metadata.metadata_version == 1_i32,
             "unsupported metadata version {}",
-            metadata.metadata_version
+            metadata.metadata_version,
         );
         let data_start = usize::try_from(metadata.data_start)?;
-        anyhow::ensure!(
+        eyre::ensure!(
             data_start >= std::mem::size_of::<ImageBytesMetadata>(),
-            "image data start offset is within metadata"
+            "image data start offset is within metadata",
         );
         let data = bytes
             .get(data_start..)
-            .ok_or_else(|| anyhow::anyhow!("image data start offset is out of bounds"))?;
+            .ok_or_else(|| eyre::eyre!("image data start offset is out of bounds"))?;
         let transaction = ResponseTransaction {
             client_transaction_id: metadata.client_transaction_id,
             server_transaction_id: metadata.server_transaction_id,
@@ -144,10 +141,10 @@ impl Response for ASCOMResult<ImageArray> {
                 usize::try_from(metadata.dimension_2)?,
                 match ImageArrayRank::try_from_primitive(metadata.rank)? {
                     ImageArrayRank::Rank2 => {
-                        anyhow::ensure!(
+                        eyre::ensure!(
                             metadata.dimension_3 == 0_i32,
                             "dimension 3 must be 0 for rank 2, got {}",
-                            metadata.dimension_3
+                            metadata.dimension_3,
                         );
                         1
                     }

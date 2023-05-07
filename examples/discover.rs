@@ -1,15 +1,16 @@
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt::init();
 
     println!("Searching...");
 
     DiscoveryClient::new()
-        .discover_addrs()
+        .discover_addrs()?
+        .map(Ok)
         .try_for_each(|addr| async move {
             println!("Found Alpaca server at {addr}");
             let client = Client::new_from_addr(addr)?;
@@ -17,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
             println!("Server info: {server_info:#?}");
             let devices = client.get_devices().await?.collect::<Vec<_>>();
             println!("Devices: {devices:#?}");
-            Ok(())
+            Ok::<_, eyre::Error>(())
         })
         .await?;
 

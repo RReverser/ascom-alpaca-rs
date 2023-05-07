@@ -1,7 +1,7 @@
-use anyhow::Context;
 use ascom_alpaca::api::TypedDevice;
 use ascom_alpaca::Client;
 use criterion::{criterion_group, criterion_main, Criterion};
+use eyre::ContextCompat;
 use std::time::Duration;
 
 fn download_image_array(c: &mut Criterion) {
@@ -28,7 +28,7 @@ fn download_image_array(c: &mut Criterion) {
                         break;
                     }
                 }
-                Ok::<_, anyhow::Error>(camera)
+                Ok::<_, eyre::Error>(camera)
             })
             .expect("Failed to capture a test image");
 

@@ -15,8 +15,7 @@ mod parse_flattened;
 use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
-use anyhow::Context;
-use futures::TryFutureExt;
+use eyre::ContextCompat;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
@@ -59,10 +58,11 @@ pub(crate) struct RawClient {
 }
 
 impl RawClient {
-    pub(crate) fn new(base_url: reqwest::Url) -> anyhow::Result<Self> {
-        anyhow::ensure!(
+    pub(crate) fn new(base_url: reqwest::Url) -> eyre::Result<Self> {
+        eyre::ensure!(
             !base_url.cannot_be_a_base(),
-            "{base_url} is not a valid base URL"
+            "{} is not a valid base URL",
+            base_url,
         );
         Ok(Self {
             inner: reqwest::Client::new(),
@@ -78,7 +78,7 @@ impl RawClient {
             method,
             params,
         }: ActionParams<impl Debug + Serialize + Send>,
-    ) -> anyhow::Result<Resp> {
+    ) -> eyre::Result<Resp> {
         let request_transaction = RequestTransaction::new(self.client_id);
 
         let span = tracing::error_span!(
@@ -141,20 +141,13 @@ impl RawClient {
                 _ => {}
             }
 
-            Ok::<_, anyhow::Error>(response)
+            Ok::<_, eyre::Error>(response)
         }
-        .map_err(|err| {
-            tracing::error!(%err, "Alpaca request failed");
-            err.context(format!(
-                "Failed to send Alpaca request to {action} on {}",
-                self.base_url
-            ))
-        })
         .instrument(span)
         .await
     }
 
-    pub(crate) fn join_url(&self, path: &str) -> anyhow::Result<Self> {
+    pub(crate) fn join_url(&self, path: &str) -> eyre::Result<Self> {
         Ok(Self {
             inner: self.inner.clone(),
             base_url: self.base_url.join(path)?,
@@ -171,17 +164,17 @@ pub struct Client {
 
 impl Client {
     /// Create a new client with given server URL.
-    pub fn new(base_url: impl IntoUrl) -> anyhow::Result<Self> {
+    pub fn new(base_url: impl IntoUrl) -> eyre::Result<Self> {
         RawClient::new(base_url.into_url()?).map(|inner| Self { inner })
     }
 
     /// Create a new client with given server address.
-    pub fn new_from_addr(addr: impl Into<SocketAddr>) -> anyhow::Result<Self> {
+    pub fn new_from_addr(addr: impl Into<SocketAddr>) -> eyre::Result<Self> {
         Self::new(format!("http://{}/", addr.into()))
     }
 
     /// Get a list of all devices registered on the server.
-    pub async fn get_devices(&self) -> anyhow::Result<impl Iterator<Item = TypedDevice>> {
+    pub async fn get_devices(&self) -> eyre::Result<impl Iterator<Item = TypedDevice>> {
         let api_client = self.inner.join_url("api/v1/")?;
 
         Ok(self
@@ -217,7 +210,7 @@ impl Client {
     }
 
     /// Get general server information.
-    pub async fn get_server_info(&self) -> anyhow::Result<ServerInfo> {
+    pub async fn get_server_info(&self) -> eyre::Result<ServerInfo> {
         self.inner
             .request::<ValueResponse<ServerInfo>>(ActionParams {
                 action: "management/v1/description",

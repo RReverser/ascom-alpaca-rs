@@ -8,14 +8,16 @@ use thiserror::Error;
 pub struct ASCOMErrorCode(u16);
 
 impl TryFrom<u16> for ASCOMErrorCode {
-    type Error = anyhow::Error;
+    type Error = eyre::Error;
 
     /// Convert a raw error code into an `ASCOMErrorCode` if it's in the valid range.
-    fn try_from(raw: u16) -> anyhow::Result<Self> {
+    fn try_from(raw: u16) -> eyre::Result<Self> {
         let range = BASE..=MAX;
-        anyhow::ensure!(
+        eyre::ensure!(
             range.contains(&raw),
             "Error code {raw:#X} is out of valid range ({range:#X?})",
+            raw = raw,
+            range = range,
         );
         Ok(Self(raw))
     }

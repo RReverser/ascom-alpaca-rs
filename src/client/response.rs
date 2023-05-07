@@ -13,24 +13,21 @@ pub(crate) trait Response: Sized {
         request
     }
 
-    fn from_reqwest(mime_type: Mime, bytes: Bytes)
-        -> anyhow::Result<ResponseWithTransaction<Self>>;
+    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>>;
 }
 
 struct JsonResponse<T>(T);
 
 impl<T: DeserializeOwned> Response for JsonResponse<T> {
-    fn from_reqwest(
-        mime_type: Mime,
-        bytes: Bytes,
-    ) -> anyhow::Result<ResponseWithTransaction<Self>> {
-        anyhow::ensure!(
+    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
+        eyre::ensure!(
             mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),
-            "Expected JSON response, got {mime_type}"
+            "Expected JSON response, got {}",
+            mime_type,
         );
         match mime_type.get_param(mime::CHARSET) {
             Some(mime::UTF_8) | None => {}
-            Some(charset) => anyhow::bail!("Unsupported charset {charset}"),
+            Some(charset) => eyre::bail!("Unsupported charset {}", charset),
         };
 
         let Flattened(transaction, response) =
@@ -44,16 +41,13 @@ impl<T: DeserializeOwned> Response for JsonResponse<T> {
 }
 
 impl<T: DeserializeOwned> Response for ASCOMResult<T> {
-    fn from_reqwest(
-        mime_type: Mime,
-        bytes: Bytes,
-    ) -> anyhow::Result<ResponseWithTransaction<Self>> {
-        struct ParseResult<T>(anyhow::Result<T>);
+    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
+        struct ParseResult<T>(eyre::Result<T>);
 
         impl<'de, T: Deserialize<'de>> Deserialize<'de> for ParseResult<T> {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 Ok(Self(
-                    T::deserialize(deserializer).map_err(|err| anyhow::anyhow!("{err}")),
+                    T::deserialize(deserializer).map_err(|err| eyre::eyre!("{err}")),
                 ))
             }
         }
@@ -72,10 +66,7 @@ impl<T: DeserializeOwned> Response for ASCOMResult<T> {
 }
 
 impl<T: DeserializeOwned> Response for ValueResponse<T> {
-    fn from_reqwest(
-        mime_type: Mime,
-        bytes: Bytes,
-    ) -> anyhow::Result<ResponseWithTransaction<Self>> {
+    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
         Ok(JsonResponse::from_reqwest(mime_type, bytes)?
             .map(|JsonResponse(value_response)| value_response))
     }

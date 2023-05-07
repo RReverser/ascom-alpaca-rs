@@ -69,3 +69,32 @@ pub use client::Client;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 #[cfg(feature = "server")]
 pub use server::Server;
+
+#[cfg(test)]
+#[ctor::ctor]
+fn prepare_test_env() {
+    use tracing_subscriber::prelude::*;
+
+    std::env::set_var("RUST_BACKTRACE", "full");
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::filter::Targets::new()
+                .with_target("ascom_alpaca", tracing::Level::TRACE),
+        )
+        .with(tracing_subscriber::fmt::layer().with_test_writer())
+        .with(tracing_error::ErrorLayer::default())
+        .init();
+
+    color_eyre::config::HookBuilder::default()
+        .add_frame_filter(Box::new(|frames| {
+            frames.retain(|frame| {
+                frame.filename.as_ref().map_or(false, |filename| {
+                    // Only keep our own files in the backtrace to reduce noise.
+                    filename.starts_with(env!("CARGO_MANIFEST_DIR"))
+                })
+            });
+        }))
+        .install()
+        .expect("Failed to install color_eyre");
+}

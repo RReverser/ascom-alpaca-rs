@@ -27,7 +27,6 @@ use axum::http::Request;
 use axum::response::IntoResponse;
 use axum::routing::MethodFilter;
 use axum::{BoxError, Router};
-use futures::TryFutureExt;
 use net_literals::addr;
 use std::future::Future;
 use std::net::SocketAddr;
@@ -124,7 +123,12 @@ impl Server {
     ///
     /// Note: this function starts an infinite async loop and it's your responsibility to spawn it off
     /// via [`tokio::spawn`] if necessary.
-    pub async fn start(self) -> anyhow::Result<()> {
+    ///
+    /// The return type is intentionally split into an outer Result that indicates whether the sockets were
+    /// bound successfully and an inner Future that is actually running the infinite request loops.
+    pub fn start(
+        self,
+    ) -> eyre::Result<impl Future<Output = eyre::Result<std::convert::Infallible>>> {
         let mut addr = self.listen_addr;
 
         tracing::debug!(%addr, "Binding Alpaca server");
@@ -159,15 +163,20 @@ impl Server {
 
         tracing::info!(%addr, "Bound Alpaca server");
 
-        tracing::debug!("Starting Alpaca main and discovery servers");
+        let discovery_server = DiscoveryServer::for_alpaca_server_at(addr).start()?;
 
-        // Start the discovery server only once we ensured that the Alpaca server is bound to a port successfully.
-        tokio::try_join!(
-            server.map_err(Into::into),
-            DiscoveryServer::new(addr.port()).start()
-        )?;
+        tracing::debug!("Bound Alpaca discovery server");
 
-        Ok(())
+        Ok(async move {
+            tracing::debug!("Starting Alpaca servers");
+            tokio::select! {
+                server_result = server => match server_result {
+                    Ok(()) => unreachable!("Alpaca server should never stop without an error"),
+                    Err(err) => Err(err.into()),
+                },
+                never_returns = discovery_server => match never_returns {},
+            }
+        })
     }
 
     fn into_router(self) -> Router {

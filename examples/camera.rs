@@ -3,7 +3,7 @@ use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
 use eframe::egui::{self, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
-use futures::{Future, FutureExt, TryStreamExt};
+use futures::{Future, FutureExt, StreamExt, TryStreamExt};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,7 +16,7 @@ enum State {
     Connecting(ChildTask),
     Connected {
         camera_name: String,
-        rx: tokio::sync::mpsc::Receiver<anyhow::Result<ColorImage>>,
+        rx: tokio::sync::mpsc::Receiver<eyre::Result<ColorImage>>,
         frame_num: u32,
         img: Option<TextureHandle>,
         exposure_range: RangeInclusive<f64>,
@@ -28,7 +28,7 @@ enum State {
 }
 
 impl State {
-    fn error(err: anyhow::Error) -> Self {
+    fn error(err: eyre::Error) -> Self {
         Self::Error(format!("{err:#}"))
     }
 }
@@ -68,7 +68,7 @@ impl StateCtx {
     fn spawn(
         &mut self,
         as_new_state: impl FnOnce(ChildTask) -> State,
-        update: impl Future<Output = anyhow::Result<State>> + Send + 'static,
+        update: impl Future<Output = eyre::Result<State>> + Send + 'static,
     ) {
         let ctx = self.ctx.clone();
         self.set_state(as_new_state(ChildTask(tokio::spawn(async move {
@@ -81,15 +81,14 @@ impl StateCtx {
         }))));
     }
 
-    fn try_update(&mut self, ui: &mut Ui) -> anyhow::Result<()> {
+    fn try_update(&mut self, ui: &mut Ui) -> eyre::Result<()> {
         match &mut self.state {
             State::Init => {
                 self.spawn(State::Discovering, async move {
                     let cameras = DiscoveryClient::new()
-                        .discover_addrs()
-                        .and_then(
-                            |addr| async move { Client::new_from_addr(addr)?.get_devices().await },
-                        )
+                        .discover_addrs()?
+                        .map(Client::new_from_addr)
+                        .and_then(|client| async move { client.get_devices().await })
                         .try_fold(Vec::new(), |mut cameras, new_devices| async move {
                             cameras.extend(new_devices.filter_map(|device| match device {
                                 TypedDevice::Camera(camera) => Some(camera),
@@ -100,7 +99,7 @@ impl StateCtx {
                         })
                         .await?;
 
-                    Ok::<_, anyhow::Error>(State::Discovered(cameras))
+                    Ok::<_, eyre::Error>(State::Discovered(cameras))
                 });
             }
             State::Discovering(ChildTask(task)) => {
@@ -266,7 +265,7 @@ struct CaptureParams {
 
 struct CaptureState {
     params_rx: tokio::sync::watch::Receiver<CaptureParams>,
-    tx: tokio::sync::mpsc::Sender<anyhow::Result<ColorImage>>,
+    tx: tokio::sync::mpsc::Sender<eyre::Result<ColorImage>>,
     camera: Arc<dyn Camera>,
     sensor_type: SensorType,
     ctx: egui::Context,
@@ -287,7 +286,7 @@ impl CaptureState {
         }
     }
 
-    async fn capture_image(&mut self) -> anyhow::Result<Option<ColorImage>> {
+    async fn capture_image(&mut self) -> eyre::Result<Option<ColorImage>> {
         let mut params_rx_clone = self.params_rx.clone();
         let old_gain = self.params_rx.borrow().gain;
 
@@ -314,7 +313,7 @@ impl CaptureState {
         }
     }
 
-    async fn capture_image_without_cancellation(&self) -> Result<ColorImage, anyhow::Error> {
+    async fn capture_image_without_cancellation(&self) -> Result<ColorImage, eyre::Error> {
         let duration_sec = self.params_rx.borrow().duration_sec;
         self.camera.start_exposure(duration_sec, true).await?;
         tokio::time::sleep(Duration::from_secs_f64(duration_sec)).await;
@@ -329,7 +328,7 @@ impl CaptureState {
 fn to_stretched_color_img(
     sensor_type: SensorType,
     raw_img: &ImageArray,
-) -> Result<ColorImage, anyhow::Error> {
+) -> Result<ColorImage, eyre::Error> {
     let (width, height, depth) = raw_img.dim();
     let mut raw_img = raw_img.view();
     // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
@@ -350,7 +349,11 @@ fn to_stretched_color_img(
     });
     let rgb_buf: Vec<u8> = match sensor_type {
         SensorType::Color => {
-            anyhow::ensure!(depth == 3, "Expected 3 channels for color image");
+            eyre::ensure!(
+                depth == 3,
+                "Expected 3 channels for color image but got {}",
+                depth,
+            );
             stretched_iter.collect()
         }
         SensorType::RGGB => {
@@ -367,7 +370,11 @@ fn to_stretched_color_img(
                 }
             }
 
-            anyhow::ensure!(depth == 1, "Expected 1 channel for RGGB image");
+            eyre::ensure!(
+                depth == 1,
+                "Expected 1 channel for RGGB image but got {}",
+                depth,
+            );
 
             let mut rgb_buf = vec![0; width * height * 3];
 
@@ -382,9 +389,13 @@ fn to_stretched_color_img(
         }
         other => {
             if other != SensorType::Monochrome {
-                anyhow::bail!("Unsupported Bayer type {other:?}, treating as monochrome");
+                eyre::bail!("Unsupported Bayer type {:?}, treating as monochrome", other);
             }
-            anyhow::ensure!(depth == 1, "Expected 1 channel for monochrome image");
+            eyre::ensure!(
+                depth == 1,
+                "Expected 1 channel for monochrome image but got {}",
+                depth,
+            );
             stretched_iter
                 // Repeat each gray pixel 3 times to make it RGB.
                 .flat_map(|color| std::iter::repeat(color).take(3))

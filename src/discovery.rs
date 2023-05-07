@@ -14,21 +14,47 @@ pub(crate) struct AlpacaPort {
     pub(crate) alpaca_port: u16,
 }
 
-pub(crate) fn bind_socket(port: u16) -> anyhow::Result<tokio::net::UdpSocket> {
+#[tracing::instrument(err)]
+pub(crate) fn bind_socket(
+    addr: impl Into<SocketAddr> + std::fmt::Debug,
+) -> eyre::Result<tokio::net::UdpSocket> {
+    let addr = addr.into();
     let socket = socket2::Socket::new(
-        socket2::Domain::IPV6,
+        socket2::Domain::for_address(addr),
         socket2::Type::DGRAM,
         Some(socket2::Protocol::UDP),
     )?;
     // For async code, we need to set the socket to non-blocking mode.
     socket.set_nonblocking(true)?;
-    // We want to talk to the IPv4 broadcast address from the same socket.
-    // Using `socket2` seems to be the only way to do this from safe Rust.
-    socket.set_only_v6(false)?;
-    socket.bind(&socket2::SockAddr::from(SocketAddr::from((
-        Ipv6Addr::UNSPECIFIED,
-        port,
-    ))))?;
+    if addr.is_ipv6() {
+        // We want to talk to the IPv4 broadcast address from the same socket.
+        // Using `socket2` seems to be the only way to do this from safe Rust.
+        socket.set_only_v6(false)?;
+    }
+    #[cfg(windows)]
+    #[allow(clippy::as_conversions)]
+    unsafe {
+        use windows_sys::Win32::Networking::WinSock::{WSAIoctl, SIO_UDP_CONNRESET};
+
+        let input: i32 = 0;
+        let mut output: u32 = 0;
+
+        if WSAIoctl(
+            socket.as_raw_socket() as _,
+            SIO_UDP_CONNRESET,
+            std::ptr::addr_of!(input).cast(),
+            std::mem::size_of_val(&input) as _,
+            std::ptr::null_mut(),
+            0,
+            std::ptr::addr_of_mut!(output).cast(),
+            std::ptr::null_mut(),
+            None,
+        ) != 0
+        {
+            eyre::bail!("Couldn't configure UDP socket to ignore ICMP errors");
+        }
+    }
+    socket.bind(&addr.into())?;
     Ok(tokio::net::UdpSocket::from_std(socket.into())?)
 }
 
@@ -36,74 +62,86 @@ pub(crate) fn bind_socket(port: u16) -> anyhow::Result<tokio::net::UdpSocket> {
 pub use crate::client::DiscoveryClient;
 #[cfg(feature = "server")]
 pub use crate::server::DiscoveryServer;
+#[cfg(windows)]
+use std::os::windows::prelude::AsRawSocket;
 
 #[cfg(test)]
-#[tokio::test]
-async fn test_discovery() -> anyhow::Result<()> {
-    use futures::TryStreamExt;
-    use net_literals::addr;
+mod tests {
+    use super::{DiscoveryClient, DiscoveryServer};
+    use futures::StreamExt;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-    async fn run_test(
-        addr: SocketAddr,
-        include_ipv6: bool,
-        on_found: impl FnOnce(&mut [SocketAddr]) -> bool + Copy + Send,
-    ) -> anyhow::Result<()> {
-        // check that `include_ipv6` makes no difference for IPv4 addresses, just in case.
-        let include_ipv6_values = if addr.is_ipv4() {
-            &[false, true]
-        } else {
-            std::slice::from_ref(&include_ipv6)
-        };
+    const TEST_PORT: u16 = 8378;
 
-        for &include_ipv6 in include_ipv6_values {
-            let mut client = DiscoveryClient::new();
-            client.include_ipv6 = include_ipv6;
+    async fn run_test(server_addr: IpAddr) -> eyre::Result<()> {
+        let server_task =
+            DiscoveryServer::for_alpaca_server_at(SocketAddr::new(server_addr, TEST_PORT))
+                .start()?;
 
-    tokio::select!(
-                result = DiscoveryServer::for_alpaca_server_at(addr).start() => result,
-                addrs = client.discover_addrs().try_collect::<Vec<_>>() => {
-                    let mut addrs = addrs?;
-            anyhow::ensure!(
-                        on_found(&mut addrs),
-                        "Couldn't find own discovery server {addr:?}. Found: {addrs:?}"
-            );
-            Ok(())
+        tokio::select! {
+            never_returns = server_task => match never_returns {},
+
+            addrs = async {
+                Ok::<_, eyre::Error>(DiscoveryClient::new().discover_addrs()?.collect::<Vec<_>>().await)
+             } => {
+                let mut addrs = addrs?;
+                // Filter out unrelated servers potentially running in background.
+                addrs.retain(|addr| addr.port() == TEST_PORT);
+                let mut addrs = addrs.iter().map(SocketAddr::ip).collect::<Vec<_>>();
+
+                let mut expected_addrs =
+                    default_net::get_interfaces().into_iter()
+                    .flat_map(|iface| {
+                        let v4 = iface.ipv4.into_iter().map(|net| net.addr).filter(|addr| !addr.is_link_local()).map(IpAddr::V4);
+                        let v6 = iface.ipv6.into_iter().map(|net| net.addr).map(IpAddr::V6);
+
+                        Iterator::chain(v4, v6)
+                    })
+                    .filter(|addr| {
+                        if server_addr.is_ipv4() && addr.is_ipv6() {
+                            // IPv4 server can't be discovered from IPv6 client
+                            // (but vice versa can due to dual-stack).
+                            return false;
+                        }
+                        if server_addr.is_unspecified() {
+                            // Server listening on unspecified address can be discovered over any IP.
+                            return true;
+                        }
+                        // Otherwise the addresses should match.
+                        *addr == server_addr
+                    })
+                    .collect::<Vec<_>>();
+
+                addrs.sort();
+                expected_addrs.sort();
+                eyre::ensure!(
+                    addrs == expected_addrs,
+                    "Discovered addresses (left) don't match the expected ones (right):{}",
+                    pretty_assertions::Comparison::new(&addrs, &expected_addrs)
+                );
+                Ok(())
+            }
         }
-            )?;
-        }
-
-        Ok(())
     }
 
-    let loopback_v4 = addr!("127.0.0.1:8378");
-    let loopback_v6 = addr!("[::1]:8378");
-    let unspecified_v4 = addr!("0.0.0.0:8378");
-    let unspecified_v6 = addr!("[::]:8378");
+    macro_rules! declare_tests {
+        ($($name:ident = $addr:expr;)*) => {
+            $(
+                #[tokio::test]
+                #[serial_test::serial]
+                async fn $name() -> eyre::Result<()> {
+                    run_test($addr.into()).await
+                }
+            )*
+        };
+    }
 
-    run_test(loopback_v4, false, |addrs| addrs == [loopback_v4]).await?;
-
-    run_test(loopback_v6, false, |addrs| addrs == [loopback_v4]).await?;
-
-    run_test(loopback_v6, true, |addrs| {
-        addrs.sort();
-        addrs == [loopback_v4, loopback_v6]
-    })
-    .await?;
-
-    run_test(unspecified_v4, false, |addrs| {
-        addrs.len() > 1 && addrs.contains(&loopback_v4)
-    })
-    .await?;
-
-    run_test(unspecified_v6, false, |addrs| {
-        addrs.len() > 1 && addrs.contains(&loopback_v4)
-    })
-    .await?;
-
-    run_test(unspecified_v6, true, |addrs| {
-        addrs.len() > 2 && addrs.contains(&loopback_v4) && addrs.contains(&loopback_v6)
-    })
-    .await?;
-
-    Ok(())
+    declare_tests! {
+        test_loopback_v4 = Ipv4Addr::LOCALHOST;
+        test_loopback_v6 = Ipv6Addr::LOCALHOST;
+        test_unspecified_v4 = Ipv4Addr::UNSPECIFIED;
+        test_unspecified_v6 = Ipv6Addr::UNSPECIFIED;
+        test_external_v4 = default_net::get_default_interface().map_err(eyre::Error::msg)?.ipv4[0].addr;
+        test_external_v6 = default_net::get_default_interface().map_err(eyre::Error::msg)?.ipv6[0].addr;
+    }
 }
