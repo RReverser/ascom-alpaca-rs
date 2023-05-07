@@ -32,14 +32,17 @@ pub(crate) fn bind_socket(
         socket.set_only_v6(false)?;
     }
     #[cfg(windows)]
-    #[allow(clippy::as_conversions)]
+    #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
     unsafe {
-        use windows_sys::Win32::Networking::WinSock::{WSAIoctl, SIO_UDP_CONNRESET};
+        use eyre::Context;
+        use windows_sys::Win32::Networking::WinSock::{
+            WSAGetLastError, WSAIoctl, SIO_UDP_CONNRESET,
+        };
 
         let input: i32 = 0;
         let mut output: u32 = 0;
 
-        if WSAIoctl(
+        let error_code = WSAIoctl(
             socket.as_raw_socket() as _,
             SIO_UDP_CONNRESET,
             std::ptr::addr_of!(input).cast(),
@@ -49,9 +52,10 @@ pub(crate) fn bind_socket(
             std::ptr::addr_of_mut!(output).cast(),
             std::ptr::null_mut(),
             None,
-        ) != 0
-        {
-            eyre::bail!("Couldn't configure UDP socket to ignore ICMP errors");
+        );
+        if error_code != 0_i32 {
+            return Err(std::io::Error::from_raw_os_error(WSAGetLastError()))
+                .context("Couldn't configure the UDP socket to ignore ICMP errors");
         }
     }
     socket.bind(&addr.into())?;
