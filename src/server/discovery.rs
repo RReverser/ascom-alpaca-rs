@@ -1,6 +1,9 @@
 use super::DEFAULT_DISCOVERY_PORT;
 use crate::discovery::{bind_socket, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
-use std::net::SocketAddr;
+use default_net::Interface;
+use eyre::{Context, ContextCompat};
+use std::net::{IpAddr, SocketAddr};
+use tokio::net::UdpSocket;
 
 /// Alpaca discovery server.
 #[derive(Debug, Clone, Copy)]
@@ -11,6 +14,12 @@ pub struct Server {
     ///
     /// Defaults to `/* Alpaca server address */:32227`.
     pub listen_addr: SocketAddr,
+}
+
+#[tracing::instrument(ret, err, skip(socket))]
+fn join_multicast_group(socket: &UdpSocket, intf: &Interface) -> eyre::Result<()> {
+    socket.join_multicast_v6(&DISCOVERY_ADDR_V6, intf.index)?;
+    Ok(())
 }
 
 impl Server {
@@ -37,8 +46,24 @@ impl Server {
             alpaca_port: self.alpaca_port,
         })?;
         let socket = bind_socket(self.listen_addr)?;
-        if self.listen_addr.is_ipv6() {
-            socket.join_multicast_v6(&DISCOVERY_ADDR_V6, 0)?;
+        if let IpAddr::V6(ipv6) = self.listen_addr.ip() {
+            let interfaces = default_net::get_interfaces();
+            if ipv6.is_unspecified() {
+                // If it's [::], join multicast on every available interface with IPv6 support.
+                for intf in interfaces {
+                    if !intf.ipv6.is_empty() {
+                        let _ = join_multicast_group(&socket, &intf);
+                    }
+                }
+            } else {
+                // If it's a specific address, find corresponding interface and join multicast on it.
+                let intf = interfaces
+                    .iter()
+                    .find(|intf| intf.ipv6.iter().any(|net| net.addr == ipv6))
+                    .with_context(|| format!("No interface found for {ipv6}"))?;
+
+                let _ = join_multicast_group(&socket, intf);
+            }
         }
         Ok(async move {
             let mut buf = [0; DISCOVERY_MSG.len() + 1];

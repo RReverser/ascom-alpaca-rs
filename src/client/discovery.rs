@@ -34,14 +34,12 @@ impl Client {
         }
     }
 
-    #[tracing::instrument(err, skip(self))]
+    #[tracing::instrument(ret, err, skip(self))]
     async fn send_discovery_msg(
         &self,
         ipv6_socket: &UdpSocket,
-        addr: impl Into<IpAddr> + std::fmt::Debug + Send,
+        addr: Ipv6Addr,
     ) -> eyre::Result<()> {
-        let addr = addr.into();
-        tracing::debug!("Sending Alpaca discovery request");
         let _ = ipv6_socket
             .send_to(DISCOVERY_MSG, (addr, self.discovery_port))
             .await?;
@@ -52,7 +50,7 @@ impl Client {
     ///
     /// This function returns a stream of discovered device addresses.
     /// `each_timeout` determines how long to wait after each discovered device.
-    #[tracing::instrument]
+    #[tracing::instrument(err)]
     #[allow(clippy::panic_in_result_fn)] // unreachable! is fine here
     pub fn discover_addrs(self) -> eyre::Result<impl futures::Stream<Item = SocketAddr>> {
         tracing::debug!("Starting Alpaca discovery");
@@ -89,15 +87,12 @@ impl Client {
                     .send_discovery_msg(&v6_socket, Ipv6Addr::LOCALHOST)
                     .await;
                 for &intf in &v6_network_interfaces {
-                    if socket2::SockRef::from(&v6_socket)
-                        .set_multicast_if_v6(intf.index)
-                        .is_ok()
-                    {
-                        let _ = self
-                            .send_discovery_msg(&v6_socket, DISCOVERY_ADDR_V6)
-                            .instrument(tracing::debug_span!("Multicasting over", ?intf))
-                            .await;
+                    let _ = async {
+                        socket2::SockRef::from(&v6_socket).set_multicast_if_v6(intf.index)?;
+                        self.send_discovery_msg(&v6_socket, DISCOVERY_ADDR_V6).await
                     }
+                    .instrument(tracing::debug_span!("Multicasting over", ?intf))
+                    .await;
                 }
                 while let Ok(result) =
                     tokio::time::timeout(self.timeout, v6_socket.recv_from(&mut buf)).await
