@@ -85,9 +85,9 @@ impl Client {
                 // we had to exclude IPv6 loopback interface as it doesn't support multicast;
                 // send a separate unicast message just to loopback in case there's a server
                 // that's listening only on ::1
-                // let _ = self
-                //     .send_discovery_msg(&v6_socket, Ipv6Addr::LOCALHOST)
-                //     .await;
+                let _ = self
+                    .send_discovery_msg(&v6_socket, Ipv6Addr::LOCALHOST)
+                    .await;
                 for &intf in &v6_network_interfaces {
                     if socket2::SockRef::from(&v6_socket)
                         .set_multicast_if_v6(intf.index)
