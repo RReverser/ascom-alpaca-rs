@@ -34,7 +34,7 @@ impl Client {
         }
     }
 
-    #[tracing::instrument(ret, err, skip_all, fields(addr, intf.friendly_name, intf.description, ?intf.ipv4, ?intf.ipv6), level = "debug")]
+    #[tracing::instrument(ret, err, skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6), level = "debug")]
     async fn send_discovery_msg(
         &self,
         ipv6_socket: &UdpSocket,

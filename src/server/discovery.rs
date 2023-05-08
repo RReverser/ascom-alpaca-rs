@@ -16,7 +16,7 @@ pub struct Server {
     pub listen_addr: SocketAddr,
 }
 
-#[tracing::instrument(ret, err, skip_all, fields(intf.friendly_name, intf.description, ?intf.ipv4, ?intf.ipv6), level = "debug")]
+#[tracing::instrument(ret, err, skip_all, fields(intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6), level = "debug")]
 fn join_multicast_group(socket: &UdpSocket, intf: &Interface) -> eyre::Result<()> {
     socket.join_multicast_v6(&DISCOVERY_ADDR_V6, intf.index)?;
     Ok(())
