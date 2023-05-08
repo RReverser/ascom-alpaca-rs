@@ -86,7 +86,8 @@ impl StateCtx {
             State::Init => {
                 self.spawn(State::Discovering, async move {
                     let cameras = DiscoveryClient::new()
-                        .discover_addrs()?
+                        .discover_addrs()
+                        .await?
                         .map(Client::new_from_addr)
                         .and_then(|client| async move { client.get_devices().await })
                         .try_fold(Vec::new(), |mut cameras, new_devices| async move {

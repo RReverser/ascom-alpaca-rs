@@ -126,7 +126,7 @@ impl Server {
     ///
     /// The return type is intentionally split into an outer Result that indicates whether the sockets were
     /// bound successfully and an inner Future that is actually running the infinite request loops.
-    pub fn start(
+    pub async fn start(
         self,
     ) -> eyre::Result<impl Future<Output = eyre::Result<std::convert::Infallible>>> {
         let mut addr = self.listen_addr;
@@ -163,7 +163,7 @@ impl Server {
 
         tracing::info!(%addr, "Bound Alpaca server");
 
-        let discovery_server = DiscoveryServer::for_alpaca_server_at(addr).start()?;
+        let discovery_server = DiscoveryServer::for_alpaca_server_at(addr).start().await?;
 
         tracing::debug!("Bound Alpaca discovery server");
 

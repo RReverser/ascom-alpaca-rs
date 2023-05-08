@@ -2,7 +2,7 @@ use super::DEFAULT_DISCOVERY_PORT;
 use crate::discovery::{bind_socket, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
 use default_net::Interface;
 use eyre::ContextCompat;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 
 /// Alpaca discovery server.
@@ -16,10 +16,33 @@ pub struct Server {
     pub listen_addr: SocketAddr,
 }
 
-#[tracing::instrument(ret, err, skip(socket))]
+#[tracing::instrument(ret, err, skip_all, fields(intf.friendly_name, intf.description, ?intf.ipv4, ?intf.ipv6), level = "debug")]
 fn join_multicast_group(socket: &UdpSocket, intf: &Interface) -> eyre::Result<()> {
     socket.join_multicast_v6(&DISCOVERY_ADDR_V6, intf.index)?;
     Ok(())
+}
+
+#[allow(clippy::panic_in_result_fn)] // false positive, triggers inside `tracing::instrument` macro
+#[tracing::instrument(skip(socket))]
+fn join_multicast_groups(socket: UdpSocket, listen_addr: Ipv6Addr) -> eyre::Result<UdpSocket> {
+    let interfaces = default_net::get_interfaces();
+    if listen_addr.is_unspecified() {
+        // If it's [::], join multicast on every available interface with IPv6 support.
+        for intf in interfaces {
+            if !intf.ipv6.is_empty() {
+                let _ = join_multicast_group(&socket, &intf);
+            }
+        }
+    } else {
+        // If it's a specific address, find corresponding interface and join multicast on it.
+        let intf = interfaces
+            .iter()
+            .find(|intf| intf.ipv6.iter().any(|net| net.addr == listen_addr))
+            .with_context(|| format!("No interface found for {listen_addr}"))?;
+
+        let _ = join_multicast_group(&socket, intf);
+    }
+    Ok(socket)
 }
 
 impl Server {
@@ -39,32 +62,22 @@ impl Server {
     /// The return type is intentionally split off into a Result for the bound socket
     /// and a Future for the server itself. This allows consumers to ensure that the server
     /// is bound successfully before starting the infinite loop.
-    #[tracing::instrument(err)]
-    pub fn start(self) -> eyre::Result<impl futures::Future<Output = std::convert::Infallible>> {
-        tracing::debug!("Starting Alpaca discovery server");
+    #[tracing::instrument(err, level = "debug")]
+    pub async fn start(
+        self,
+    ) -> eyre::Result<impl futures::Future<Output = std::convert::Infallible>> {
         let response_msg = serde_json::to_string(&AlpacaPort {
             alpaca_port: self.alpaca_port,
         })?;
-        let socket = bind_socket(self.listen_addr)?;
-        if let IpAddr::V6(ipv6) = self.listen_addr.ip() {
-            let interfaces = default_net::get_interfaces();
-            if ipv6.is_unspecified() {
-                // If it's [::], join multicast on every available interface with IPv6 support.
-                for intf in interfaces {
-                    if !intf.ipv6.is_empty() {
-                        let _ = join_multicast_group(&socket, &intf);
-                    }
-                }
-            } else {
-                // If it's a specific address, find corresponding interface and join multicast on it.
-                let intf = interfaces
-                    .iter()
-                    .find(|intf| intf.ipv6.iter().any(|net| net.addr == ipv6))
-                    .with_context(|| format!("No interface found for {ipv6}"))?;
-
-                let _ = join_multicast_group(&socket, intf);
-            }
-        }
+        let socket = bind_socket(self.listen_addr).await?;
+        let socket = if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
+            // Both default_net::get_interfaces and join_multicast_group can take a long time.
+            // Spawn them all off to the async runtime.
+            tokio::task::spawn_blocking(move || join_multicast_groups(socket, listen_addr))
+                .await??
+        } else {
+            socket
+        };
         Ok(async move {
             let mut buf = [0; DISCOVERY_MSG.len() + 1];
             loop {

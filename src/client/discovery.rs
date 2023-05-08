@@ -2,10 +2,10 @@ use crate::discovery::{
     bind_socket, AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG,
 };
 use default_net::interface::InterfaceType;
+use default_net::Interface;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 use tokio::net::UdpSocket;
-use tracing::Instrument;
 
 /// Discovery client.
 #[derive(Debug, Clone, Copy)]
@@ -34,91 +34,96 @@ impl Client {
         }
     }
 
-    #[tracing::instrument(ret, err, skip(self))]
+    #[tracing::instrument(ret, err, skip_all, fields(addr, intf.friendly_name, intf.description, ?intf.ipv4, ?intf.ipv6), level = "debug")]
     async fn send_discovery_msg(
         &self,
         ipv6_socket: &UdpSocket,
         addr: Ipv6Addr,
+        intf: &Interface,
     ) -> eyre::Result<()> {
+        if addr.is_multicast() {
+            socket2::SockRef::from(ipv6_socket).set_multicast_if_v6(intf.index)?;
+        }
         let _ = ipv6_socket
             .send_to(DISCOVERY_MSG, (addr, self.discovery_port))
             .await?;
         Ok(())
     }
 
+    #[tracing::instrument(ret, err, skip_all, level = "debug")]
+    async fn recv_discovery_response(
+        &self,
+        socket: &UdpSocket,
+        buf: &mut [u8],
+    ) -> eyre::Result<Option<SocketAddr>> {
+        let (len, addr) = match tokio::time::timeout(self.timeout, socket.recv_from(buf)).await {
+            Ok(result) => result?,
+            Err(_timeout) => return Ok(None),
+        };
+        let AlpacaPort { alpaca_port } = serde_json::from_slice(&buf[..len])?;
+        let ip = match addr.ip() {
+            IpAddr::V6(ip) => ip,
+            IpAddr::V4(_) => unreachable!(
+                "shouldn't be able to get response from unmapped IPv4 address on IPv6 socket"
+            ),
+        };
+        // We used IPv6 socket to send IPv4 requests as well by using mapped addresses;
+        // now that we got responses, we need to remap them back to IPv4.
+        let ip = ip.to_ipv4_mapped().map_or(IpAddr::V6(ip), IpAddr::V4);
+        Ok(Some(SocketAddr::new(ip, alpaca_port)))
+    }
+
     /// Discover Alpaca servers on the local network.
     ///
     /// This function returns a stream of discovered device addresses.
     /// `each_timeout` determines how long to wait after each discovered device.
-    #[tracing::instrument(err)]
+    #[tracing::instrument(err, level = "debug")]
     #[allow(clippy::panic_in_result_fn)] // unreachable! is fine here
-    pub fn discover_addrs(self) -> eyre::Result<impl futures::Stream<Item = SocketAddr>> {
-        tracing::debug!("Starting Alpaca discovery");
-        let interfaces = default_net::get_interfaces();
-        let v6_socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0))?;
+    pub async fn discover_addrs(self) -> eyre::Result<impl futures::Stream<Item = SocketAddr>> {
+        let interfaces = tokio::task::spawn_blocking(default_net::get_interfaces).await?;
+        let v6_socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0)).await?;
         Ok(async_stream::stream!({
-            let v4_broadcast_dests = interfaces
-                .iter()
-                .flat_map(|intf| intf.ipv4.iter())
-                .filter(|net| net.addr.is_loopback() || net.addr.is_private())
-                .map(|net| {
-                    let addr = u32::from(net.addr);
-                    let mask = u32::from(net.netmask);
-                    let broadcast = addr | !mask;
-                    Ipv4Addr::from(broadcast)
-                })
-                .collect::<Vec<_>>();
-            let v6_network_interfaces = interfaces
-                .iter()
-                .filter(|net| net.if_type != InterfaceType::Loopback)
-                .collect::<Vec<_>>();
             let mut seen = Vec::new();
             let mut buf = [0; 64];
+
             for _ in 0..self.num_requests {
-                for &dest in &v4_broadcast_dests {
-                    let _ = self
-                        .send_discovery_msg(&v6_socket, dest.to_ipv6_mapped())
-                        .await;
-                }
-                // we had to exclude IPv6 loopback interface as it doesn't support multicast;
-                // send a separate unicast message just to loopback in case there's a server
-                // that's listening only on ::1
-                let _ = self
-                    .send_discovery_msg(&v6_socket, Ipv6Addr::LOCALHOST)
-                    .await;
-                for &intf in &v6_network_interfaces {
-                    let _ = async {
-                        socket2::SockRef::from(&v6_socket).set_multicast_if_v6(intf.index)?;
-                        self.send_discovery_msg(&v6_socket, DISCOVERY_ADDR_V6).await
+                for intf in &interfaces {
+                    for net in &intf.ipv4 {
+                        let broadcast =
+                            Ipv4Addr::from(u32::from(net.addr) | !u32::from(net.netmask));
+
+                        let _ = self
+                            .send_discovery_msg(&v6_socket, broadcast.to_ipv6_mapped(), intf)
+                            .await;
                     }
-                    .instrument(tracing::debug_span!("Multicasting over", ?intf))
-                    .await;
+
+                    if !intf.ipv6.is_empty() {
+                        let _ = self
+                            .send_discovery_msg(
+                                &v6_socket,
+                                if intf.if_type == InterfaceType::Loopback {
+                                    // Loopback interface doesn't have a link-local address
+                                    // so it can't be used for multicast.
+                                    Ipv6Addr::LOCALHOST
+                                } else {
+                                    DISCOVERY_ADDR_V6
+                                },
+                                intf,
+                            )
+                            .await;
+                    }
                 }
-                while let Ok(result) =
-                    tokio::time::timeout(self.timeout, v6_socket.recv_from(&mut buf)).await
+
+                while let Some(result) = self
+                    .recv_discovery_response(&v6_socket, &mut buf)
+                    .await
+                    .transpose()
                 {
-                    match async {
-                        let (len, addr) = result?;
-                        let AlpacaPort { alpaca_port } = serde_json::from_slice(&buf[..len])?;
-                        let ip = match addr.ip() {
-                            IpAddr::V6(ip) => ip,
-                            IpAddr::V4(_) => unreachable!("shouldn't be able to get response from unmapped IPv4 address on IPv6 socket"),
-                        };
-                        // We used IPv6 socket to send IPv4 requests as well by using mapped addresses;
-                        // now that we got responses, we need to remap them back to IPv4.
-                        let ip = ip.to_ipv4_mapped().map_or(IpAddr::V6(ip), IpAddr::V4);
-                        let addr = SocketAddr::new(ip, alpaca_port);
-                        Ok::<_, eyre::Error>(if seen.contains(&addr) {
-                            None
-                        } else {
+                    if let Ok(addr) = result {
+                        if !seen.contains(&addr) {
                             seen.push(addr);
-                            tracing::debug!(?addr, "Discovered new Alpaca device");
-                            Some(addr)
-                        })
-                    }.await {
-                        Ok(Some(addr)) => yield addr,
-                        Ok(None) => {}
-                        Err(err) => tracing::warn!(?err, "Error while parsing discovery response"),
+                            yield addr;
+                        }
                     }
                 }
             }

@@ -14,9 +14,9 @@ pub(crate) struct AlpacaPort {
     pub(crate) alpaca_port: u16,
 }
 
-#[tracing::instrument(err)]
-pub(crate) fn bind_socket(
-    addr: impl Into<SocketAddr> + std::fmt::Debug,
+#[tracing::instrument(err, level = "debug")]
+pub(crate) async fn bind_socket(
+    addr: impl Into<SocketAddr> + std::fmt::Debug + Send,
 ) -> eyre::Result<tokio::net::UdpSocket> {
     let addr = addr.into();
     let socket = socket2::Socket::new(
@@ -58,7 +58,11 @@ pub(crate) fn bind_socket(
                 .context("Couldn't configure the UDP socket to ignore ICMP errors");
         }
     }
-    socket.bind(&addr.into())?;
+    let socket = tokio::task::spawn_blocking(move || {
+        socket.bind(&addr.into())?;
+        Ok::<_, eyre::Error>(socket)
+    })
+    .await??;
     Ok(tokio::net::UdpSocket::from_std(socket.into())?)
 }
 
@@ -80,13 +84,14 @@ mod tests {
     async fn run_test(server_addr: IpAddr) -> eyre::Result<()> {
         let server_task =
             DiscoveryServer::for_alpaca_server_at(SocketAddr::new(server_addr, TEST_PORT))
-                .start()?;
+                .start()
+                .await?;
 
         tokio::select! {
             never_returns = server_task => match never_returns {},
 
             addrs = async {
-                Ok::<_, eyre::Error>(DiscoveryClient::new().discover_addrs()?.collect::<Vec<_>>().await)
+                Ok::<_, eyre::Error>(DiscoveryClient::new().discover_addrs().await?.collect::<Vec<_>>().await)
              } => {
                 let mut addrs = addrs?;
                 // Filter out unrelated servers potentially running in background.
@@ -94,7 +99,7 @@ mod tests {
                 let mut addrs = addrs.iter().map(SocketAddr::ip).collect::<Vec<_>>();
 
                 let mut expected_addrs =
-                    default_net::get_interfaces().into_iter()
+                    tokio::task::spawn_blocking(default_net::get_interfaces).await?.into_iter()
                     .flat_map(|iface| {
                         let v4 = iface.ipv4.into_iter().map(|net| net.addr).filter(|addr| !addr.is_link_local()).map(IpAddr::V4);
                         let v6 = iface.ipv6.into_iter().map(|net| net.addr).map(IpAddr::V6);

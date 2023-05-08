@@ -655,5 +655,5 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
         server.devices.register(webcam);
     }
 
-    server.start()?.await
+    server.start().await?.await
 }

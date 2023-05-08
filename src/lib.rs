@@ -82,7 +82,10 @@ fn prepare_test_env() {
             tracing_subscriber::filter::Targets::new()
                 .with_target("ascom_alpaca", tracing::Level::TRACE),
         )
-        .with(tracing_subscriber::fmt::layer().with_test_writer())
+        .with(tracing_forest::ForestLayer::new(
+            tracing_forest::printer::TestCapturePrinter::new(),
+            tracing_forest::tag::NoTag,
+        ))
         .with(tracing_error::ErrorLayer::default())
         .init();
 
