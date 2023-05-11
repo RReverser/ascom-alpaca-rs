@@ -13,11 +13,11 @@ use tracing_futures::Instrument;
 pub struct Client {
     /// Number of discovery requests to send.
     ///
-    /// Defaults to 1.
+    /// Defaults to 2.
     pub num_requests: usize,
     /// Time to wait after each discovered device for more responses.
     ///
-    /// Defaults to 1 seconds.
+    /// Defaults to 3 seconds.
     pub timeout: Duration,
     /// Discovery port to send requests to.
     ///
@@ -128,7 +128,7 @@ impl Client {
     /// Create a discovery client with default settings.
     pub const fn new() -> Self {
         Self {
-            num_requests: 1,
+            num_requests: 2,
             timeout: Duration::from_secs(3),
             discovery_port: DEFAULT_DISCOVERY_PORT,
         }
