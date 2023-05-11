@@ -79,17 +79,9 @@ impl BoundClient {
     }
 
     #[tracing::instrument(ret, err, skip_all, level = "debug")]
-    async fn recv_discovery_response(&mut self) -> eyre::Result<Option<SocketAddr>> {
+    async fn recv_discovery_response(&mut self) -> eyre::Result<SocketAddr> {
         self.buf.clear();
-        let (len, addr) = match tokio::time::timeout(
-            self.client.timeout,
-            self.socket.recv_buf_from(&mut self.buf),
-        )
-        .await
-        {
-            Ok(result) => result?,
-            Err(_timeout) => return Ok(None),
-        };
+        let (len, addr) = self.socket.recv_buf_from(&mut self.buf).await?;
         let AlpacaPort { alpaca_port } = serde_json::from_slice(&self.buf[..len])?;
         let ip = match addr.ip() {
             IpAddr::V6(ip) => ip,
@@ -100,7 +92,7 @@ impl BoundClient {
         // We used IPv6 socket to send IPv4 requests as well by using mapped addresses;
         // now that we got responses, we need to remap them back to IPv4.
         let ip = ip.to_ipv4_mapped().map_or(IpAddr::V6(ip), IpAddr::V4);
-        Ok(Some(SocketAddr::new(ip, alpaca_port)))
+        Ok(SocketAddr::new(ip, alpaca_port))
     }
 
     /// Discover Alpaca servers on the local network.
@@ -113,12 +105,15 @@ impl BoundClient {
                 self.send_discovery_msgs().await;
 
                 self.seen.clear();
-                while let Some(result) = self.recv_discovery_response().await.transpose() {
-                    if let Ok(addr) = result {
-                        if !self.seen.contains(&addr) {
+                while let Ok(result) =
+                    tokio::time::timeout(self.client.timeout, self.recv_discovery_response()).await
+                {
+                    match result {
+                        Ok(addr) if !self.seen.contains(&addr) => {
                             self.seen.push(addr);
                             emitter.emit(addr).await;
                         }
+                        _ => {}
                     }
                 }
             }
