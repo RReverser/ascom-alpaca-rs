@@ -5,15 +5,13 @@ use eyre::ContextCompat;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 
-/// Alpaca discovery server.
+/// Alpaca discovery server configuration.
 #[derive(Debug, Clone, Copy)]
 pub struct Server {
-    /// Port of the running server.
-    pub alpaca_port: u16,
-    /// Discovery address to listen on.
-    ///
-    /// Defaults to `/* Alpaca server address */:32227`.
+    /// Address for the discovery server to listen on.
     pub listen_addr: SocketAddr,
+    /// Port the Alpaca server is listening on.
+    pub alpaca_port: u16,
 }
 
 #[tracing::instrument(ret, err, skip_all, fields(intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6), level = "debug")]
@@ -46,12 +44,52 @@ fn join_multicast_groups(socket: UdpSocket, listen_addr: Ipv6Addr) -> eyre::Resu
 }
 
 impl Server {
-    /// Creates a new discovery server for Alpaca server running at the specified address.
-    pub const fn for_alpaca_server_at(alpaca_listen_addr: SocketAddr) -> Self {
+    /// Creates a new discovery server for an already bound Alpaca server.
+    ///
+    /// This creates a configuration with the same IP address as the provided Alpaca server
+    /// and the default discovery port (32227).
+    ///
+    /// You can modify the configuration before binding the server via [`Server::bind`].
+    pub const fn for_alpaca_server_at(alpaca_addr: SocketAddr) -> Self {
         Self {
-            alpaca_port: alpaca_listen_addr.port(),
-            listen_addr: SocketAddr::new(alpaca_listen_addr.ip(), DEFAULT_DISCOVERY_PORT),
+            listen_addr: SocketAddr::new(alpaca_addr.ip(), DEFAULT_DISCOVERY_PORT),
+            alpaca_port: alpaca_addr.port(),
         }
+    }
+
+    /// Binds the discovery server to the specified address and port.
+    #[tracing::instrument(err, level = "debug")]
+    pub async fn bind(self) -> eyre::Result<BoundServer> {
+        let mut socket = bind_socket(self.listen_addr).await?;
+        if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
+            // Both default_net::get_interfaces and join_multicast_group can take a long time.
+            // Spawn them all off to the async runtime.
+            socket =
+                tokio::task::spawn_blocking(move || join_multicast_groups(socket, listen_addr))
+                    .await??;
+        }
+        Ok(BoundServer {
+            socket,
+            response_msg: serde_json::to_string(&AlpacaPort {
+                alpaca_port: self.alpaca_port,
+            })?,
+        })
+    }
+}
+
+/// Alpaca discovery server bound to a local socket.
+///
+/// This struct is returned by [`Server::bind`].
+#[derive(Debug)]
+pub struct BoundServer {
+    socket: UdpSocket,
+    response_msg: String,
+}
+
+impl BoundServer {
+    /// Get listen address of the discovery server.
+    pub fn listen_addr(&self) -> std::io::Result<SocketAddr> {
+        self.socket.local_addr()
     }
 
     /// Starts a discovery server on the local network.
@@ -62,45 +100,31 @@ impl Server {
     /// The return type is intentionally split off into a Result for the bound socket
     /// and a Future for the server itself. This allows consumers to ensure that the server
     /// is bound successfully before starting the infinite loop.
-    #[tracing::instrument(err, level = "debug")]
-    pub async fn start(
-        self,
-    ) -> eyre::Result<impl futures::Future<Output = std::convert::Infallible>> {
-        let response_msg = serde_json::to_string(&AlpacaPort {
-            alpaca_port: self.alpaca_port,
-        })?;
-        let socket = bind_socket(self.listen_addr).await?;
-        let socket = if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
-            // Both default_net::get_interfaces and join_multicast_group can take a long time.
-            // Spawn them all off to the async runtime.
-            tokio::task::spawn_blocking(move || join_multicast_groups(socket, listen_addr))
-                .await??
-        } else {
-            socket
-        };
-        Ok(async move {
-            let mut buf = [0; DISCOVERY_MSG.len() + 1];
-            loop {
-                if let Err(err) = async {
-                    let (len, src) = socket.recv_from(&mut buf).await?;
-                    let data = &buf[..len];
-                    if data == DISCOVERY_MSG {
-                        tracing::debug!(%src, "Received Alpaca discovery request");
-                        eyre::ensure!(
-                            socket.send_to(response_msg.as_bytes(), src).await?
-                                == response_msg.len(),
-                            "Failed to send discovery response",
-                        );
-                    } else {
-                        tracing::warn!(%src, "Received unknown multicast packet");
-                    }
-                    Ok(())
+    #[tracing::instrument(level = "debug")]
+    pub async fn start(self) -> std::convert::Infallible {
+        let mut buf = [0; DISCOVERY_MSG.len() + 1];
+        loop {
+            if let Err(err) = async {
+                let (len, src) = self.socket.recv_from(&mut buf).await?;
+                let data = &buf[..len];
+                if data == DISCOVERY_MSG {
+                    tracing::debug!(%src, "Received Alpaca discovery request");
+                    eyre::ensure!(
+                        self.socket
+                            .send_to(self.response_msg.as_bytes(), src)
+                            .await?
+                            == self.response_msg.len(),
+                        "Failed to send discovery response",
+                    );
+                } else {
+                    tracing::warn!(%src, "Received unknown multicast packet");
                 }
-                .await
-                {
-                    tracing::error!(%err, "Error while handling a discovery request");
-                }
+                Ok(())
             }
-        })
+            .await
+            {
+                tracing::error!(%err, "Error while handling a discovery request");
+            }
+        }
     }
 }

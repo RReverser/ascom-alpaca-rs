@@ -84,8 +84,9 @@ mod tests {
     async fn run_test(server_addr: IpAddr) -> eyre::Result<()> {
         let server_task =
             DiscoveryServer::for_alpaca_server_at(SocketAddr::new(server_addr, TEST_PORT))
-                .start()
-                .await?;
+                .bind()
+                .await?
+                .start();
 
         tokio::select! {
             never_returns = server_task => match never_returns {},

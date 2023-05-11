@@ -129,7 +129,7 @@ impl Server {
     pub async fn start(
         self,
     ) -> eyre::Result<impl Future<Output = eyre::Result<std::convert::Infallible>>> {
-        let mut addr = self.listen_addr;
+        let addr = self.listen_addr;
 
         tracing::debug!(%addr, "Binding Alpaca server");
 
@@ -150,7 +150,6 @@ impl Server {
         }
 
         socket.bind(&addr.into())?;
-        socket.listen(128)?;
 
         let server = axum::Server::from_tcp(socket.into())?.serve(
             self.into_router()
@@ -159,24 +158,28 @@ impl Server {
         );
 
         // The address can differ e.g. when using port 0 (auto-assigned).
-        addr = server.local_addr();
+        let bound_addr = server.local_addr();
 
-        tracing::info!(%addr, "Bound Alpaca server");
+        tracing::info!(%bound_addr, "Bound Alpaca server");
 
-        let discovery_server = DiscoveryServer::for_alpaca_server_at(addr).start().await?;
+        // Bind discovery server only once the Alpaca server is bound successfully.
+        // We need to know the bound address & the port to advertise.
+        let discovery_server = DiscoveryServer::for_alpaca_server_at(bound_addr)
+            .bind()
+            .await?;
 
         tracing::debug!("Bound Alpaca discovery server");
 
         Ok(async move {
-            tracing::debug!("Starting Alpaca servers");
             tokio::select! {
-                server_result = server => match server_result {
-                    Ok(()) => unreachable!("Alpaca server should never stop without an error"),
-                    Err(err) => Err(err.into()),
-                },
-                never_returns = discovery_server => match never_returns {},
+                server_result = server => {
+                    server_result?;
+                    unreachable!("Alpaca server should never stop without an error");
+                }
+                never_returns = discovery_server.start() => match never_returns {},
             }
-        })
+        }
+        .instrument(tracing::info_span!("Alpaca server")))
     }
 
     fn into_router(self) -> Router {
