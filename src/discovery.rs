@@ -91,7 +91,7 @@ mod tests {
             never_returns = server_task => match never_returns {},
 
             addrs = async {
-                Ok::<_, eyre::Error>(DiscoveryClient::new().discover_addrs().await?.collect::<Vec<_>>().await)
+                Ok::<_, eyre::Error>(DiscoveryClient::new().bind().await?.discover_addrs().collect::<Vec<_>>().await)
              } => {
                 let mut addrs = addrs?;
                 // Filter out unrelated servers potentially running in background.

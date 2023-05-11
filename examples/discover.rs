@@ -9,8 +9,9 @@ async fn main() -> eyre::Result<()> {
     println!("Searching...");
 
     DiscoveryClient::new()
-        .discover_addrs()
+        .bind()
         .await?
+        .discover_addrs()
         .map(Ok)
         .try_for_each(|addr| async move {
             println!("Found Alpaca server at {addr}");
