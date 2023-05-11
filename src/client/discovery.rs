@@ -104,10 +104,11 @@ impl BoundClient {
     #[allow(clippy::panic_in_result_fn)] // unreachable! is fine here
     pub fn discover_addrs(&mut self) -> impl '_ + futures::Stream<Item = SocketAddr> {
         async_fn_stream::fn_stream(|emitter| async move {
+            self.seen.clear();
+
             for _ in 0..self.client.num_requests {
                 self.send_discovery_msgs().await;
 
-                self.seen.clear();
                 while let Ok(result) =
                     tokio::time::timeout(self.client.timeout, self.recv_discovery_response()).await
                 {

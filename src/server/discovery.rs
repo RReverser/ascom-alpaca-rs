@@ -1,7 +1,6 @@
 use super::DEFAULT_DISCOVERY_PORT;
 use crate::discovery::{bind_socket, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
 use default_net::Interface;
-use eyre::ContextCompat;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 
