@@ -207,7 +207,7 @@ name = "ascom-alpaca"
 version = "0.1.0"
 dependencies = [
  "ascom-alpaca",
- "async-stream",
+ "async-fn-stream",
  "async-trait",
  "axum",
  "bayer",
@@ -287,6 +287,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-fn-stream"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d5f39746cfb8c7686cc5da3be489d066b2dee606e6e0daec64e59657f016be7"
+dependencies = [
+ "futures",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "async-fs"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -332,28 +342,6 @@ name = "async-recursion"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e97ce7de6cf12de5d7226c73f5ba9811622f4db3a5b91b55c53e987e5f91cba"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.15",
-]
-
-[[package]]
-name = "async-stream"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd56dd203fef61ac097dd65721a419ddccb106b2d2b70ba60a6b529f03961a51"
-dependencies = [
- "async-stream-impl",
- "futures-core",
- "pin-project-lite",
-]
-
-[[package]]
-name = "async-stream-impl"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
 dependencies = [
  "proc-macro2",
  "quote",

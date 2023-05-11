@@ -17,7 +17,7 @@ pub struct Client {
     pub num_requests: usize,
     /// Time to wait after each discovered device for more responses.
     ///
-    /// Defaults to 3 seconds.
+    /// Defaults to 1 second.
     pub timeout: Duration,
     /// Discovery port to send requests to.
     ///
@@ -50,6 +50,34 @@ impl BoundClient {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip(self))]
+    async fn send_discovery_msgs(&self) {
+        for intf in &self.interfaces {
+            for net in &intf.ipv4 {
+                let broadcast = Ipv4Addr::from(u32::from(net.addr) | !u32::from(net.netmask));
+
+                let _ = self
+                    .send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
+                    .await;
+            }
+
+            if !intf.ipv6.is_empty() {
+                let _ = self
+                    .send_discovery_msg(
+                        if intf.if_type == InterfaceType::Loopback {
+                            // Loopback interface doesn't have a link-local address
+                            // so it can't be used for multicast.
+                            Ipv6Addr::LOCALHOST
+                        } else {
+                            DISCOVERY_ADDR_V6
+                        },
+                        intf,
+                    )
+                    .await;
+            }
+        }
+    }
+
     #[tracing::instrument(ret, err, skip_all, level = "debug")]
     async fn recv_discovery_response(&mut self) -> eyre::Result<Option<SocketAddr>> {
         self.buf.clear();
@@ -80,40 +108,16 @@ impl BoundClient {
     /// This function returns a stream of discovered device addresses.
     #[allow(clippy::panic_in_result_fn)] // unreachable! is fine here
     pub fn discover_addrs(&mut self) -> impl '_ + futures::Stream<Item = SocketAddr> {
-        async_stream::stream!({
+        async_fn_stream::fn_stream(|emitter| async move {
             for _ in 0..self.client.num_requests {
-                for intf in &self.interfaces {
-                    for net in &intf.ipv4 {
-                        let broadcast =
-                            Ipv4Addr::from(u32::from(net.addr) | !u32::from(net.netmask));
-
-                        let _ = self
-                            .send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
-                            .await;
-                    }
-
-                    if !intf.ipv6.is_empty() {
-                        let _ = self
-                            .send_discovery_msg(
-                                if intf.if_type == InterfaceType::Loopback {
-                                    // Loopback interface doesn't have a link-local address
-                                    // so it can't be used for multicast.
-                                    Ipv6Addr::LOCALHOST
-                                } else {
-                                    DISCOVERY_ADDR_V6
-                                },
-                                intf,
-                            )
-                            .await;
-                    }
-                }
+                self.send_discovery_msgs().await;
 
                 self.seen.clear();
                 while let Some(result) = self.recv_discovery_response().await.transpose() {
                     if let Ok(addr) = result {
                         if !self.seen.contains(&addr) {
                             self.seen.push(addr);
-                            yield addr;
+                            emitter.emit(addr).await;
                         }
                     }
                 }
@@ -128,7 +132,7 @@ impl Client {
     pub const fn new() -> Self {
         Self {
             num_requests: 2,
-            timeout: Duration::from_secs(3),
+            timeout: Duration::from_secs(1),
             discovery_port: DEFAULT_DISCOVERY_PORT,
         }
     }

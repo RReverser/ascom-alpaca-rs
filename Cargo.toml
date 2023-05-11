@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-stream = "0.3.3"
+async-fn-stream = "0.2.0"
 async-trait = "0.1.64"
 axum = { version = "0.6.11", optional = true, features = ["headers"] }
 bytemuck = { version = "1.13.0", features = ["derive", "extern_crate_std"], optional = true }
