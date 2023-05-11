@@ -78,7 +78,6 @@ impl BoundClient {
     /// Discover Alpaca servers on the local network.
     ///
     /// This function returns a stream of discovered device addresses.
-    /// `each_timeout` determines how long to wait after each discovered device.
     #[allow(clippy::panic_in_result_fn)] // unreachable! is fine here
     pub fn discover_addrs(&mut self) -> impl '_ + futures::Stream<Item = SocketAddr> {
         async_stream::stream!({
