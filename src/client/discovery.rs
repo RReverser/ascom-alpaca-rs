@@ -38,19 +38,22 @@ pub struct BoundClient {
 }
 
 impl BoundClient {
-    #[tracing::instrument(ret, err, skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6), level = "debug")]
+    #[tracing::instrument(level = "trace", ret, err(level = "warn"), skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
     async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &Interface) -> eyre::Result<()> {
         if addr.is_multicast() {
             socket2::SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
         }
-        let _ = self
-            .socket
-            .send_to(DISCOVERY_MSG, (addr, self.client.discovery_port))
-            .await?;
+        eyre::ensure!(
+            self.socket
+                .send_to(DISCOVERY_MSG, (addr, self.client.discovery_port))
+                .await?
+                == DISCOVERY_MSG.len(),
+            "failed to send discovery message"
+        );
         Ok(())
     }
 
-    #[tracing::instrument(level = "debug", skip(self))]
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn send_discovery_msgs(&self) {
         for intf in &self.interfaces {
             for net in &intf.ipv4 {
@@ -78,7 +81,7 @@ impl BoundClient {
         }
     }
 
-    #[tracing::instrument(ret, err, skip_all, level = "debug")]
+    #[tracing::instrument(level = "debug", ret, err(level = "warn"), skip_all)]
     async fn recv_discovery_response(&mut self) -> eyre::Result<SocketAddr> {
         self.buf.clear();
         let (len, addr) = self.socket.recv_buf_from(&mut self.buf).await?;
@@ -118,7 +121,7 @@ impl BoundClient {
                 }
             }
         })
-        .instrument(tracing::debug_span!("discover_addrs"))
+        .instrument(tracing::error_span!("discover_addrs"))
     }
 }
 
@@ -133,6 +136,7 @@ impl Client {
     }
 
     /// Bind the client to a local address.
+    #[tracing::instrument(level = "error", ret(level = "debug"), err)]
     pub async fn bind(self) -> eyre::Result<BoundClient> {
         let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0)).await?;
         let interfaces = tokio::task::spawn_blocking(default_net::get_interfaces).await?;

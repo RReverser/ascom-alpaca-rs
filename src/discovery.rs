@@ -14,7 +14,7 @@ pub(crate) struct AlpacaPort {
     pub(crate) alpaca_port: u16,
 }
 
-#[tracing::instrument(err, level = "debug")]
+#[tracing::instrument(level = "trace")]
 pub(crate) async fn bind_socket(
     addr: impl Into<SocketAddr> + std::fmt::Debug + Send,
 ) -> eyre::Result<tokio::net::UdpSocket> {

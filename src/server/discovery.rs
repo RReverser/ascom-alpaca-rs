@@ -14,21 +14,20 @@ pub struct Server {
     pub alpaca_port: u16,
 }
 
-#[tracing::instrument(ret, err, skip_all, fields(intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6), level = "debug")]
+#[tracing::instrument(level = "trace", ret, err(level = "warn"), skip_all, fields(intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
 fn join_multicast_group(socket: &UdpSocket, intf: &Interface) -> eyre::Result<()> {
     socket.join_multicast_v6(&DISCOVERY_ADDR_V6, intf.index)?;
     Ok(())
 }
 
-#[allow(clippy::panic_in_result_fn)] // false positive, triggers inside `tracing::instrument` macro
-#[tracing::instrument(skip(socket))]
-fn join_multicast_groups(socket: UdpSocket, listen_addr: Ipv6Addr) -> eyre::Result<UdpSocket> {
+#[tracing::instrument(level = "debug", ret, skip(socket))]
+fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
     let interfaces = default_net::get_interfaces();
     if listen_addr.is_unspecified() {
         // If it's [::], join multicast on every available interface with IPv6 support.
         for intf in interfaces {
             if !intf.ipv6.is_empty() {
-                let _ = join_multicast_group(&socket, &intf);
+                let _ = join_multicast_group(socket, &intf);
             }
         }
     } else {
@@ -36,11 +35,10 @@ fn join_multicast_groups(socket: UdpSocket, listen_addr: Ipv6Addr) -> eyre::Resu
         let intf = interfaces
             .iter()
             .find(|intf| intf.ipv6.iter().any(|net| net.addr == listen_addr))
-            .with_context(|| format!("No interface found for {listen_addr}"))?;
+            .expect("internal error: couldn't find the interface of an already bound socket");
 
-        let _ = join_multicast_group(&socket, intf);
+        let _ = join_multicast_group(socket, intf);
     }
-    Ok(socket)
 }
 
 impl Server {
@@ -58,15 +56,17 @@ impl Server {
     }
 
     /// Binds the discovery server to the specified address and port.
-    #[tracing::instrument(err, level = "debug")]
+    #[tracing::instrument(level = "error", ret(level = "debug"), err)]
     pub async fn bind(self) -> eyre::Result<BoundServer> {
         let mut socket = bind_socket(self.listen_addr).await?;
         if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
             // Both default_net::get_interfaces and join_multicast_group can take a long time.
             // Spawn them all off to the async runtime.
-            socket =
-                tokio::task::spawn_blocking(move || join_multicast_groups(socket, listen_addr))
-                    .await??;
+            socket = tokio::task::spawn_blocking(move || {
+                join_multicast_groups(&socket, listen_addr);
+                socket
+            })
+            .await?;
         }
         Ok(BoundServer {
             socket,
@@ -80,9 +80,10 @@ impl Server {
 /// Alpaca discovery server bound to a local socket.
 ///
 /// This struct is returned by [`Server::bind`].
-#[derive(Debug)]
+#[derive(custom_debug::Debug)]
 pub struct BoundServer {
     socket: UdpSocket,
+    #[debug(skip)]
     response_msg: String,
 }
 
@@ -100,7 +101,7 @@ impl BoundServer {
     /// The return type is intentionally split off into a Result for the bound socket
     /// and a Future for the server itself. This allows consumers to ensure that the server
     /// is bound successfully before starting the infinite loop.
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "error")]
     pub async fn start(self) -> std::convert::Infallible {
         let mut buf = [0; DISCOVERY_MSG.len() + 1];
         loop {
@@ -108,7 +109,7 @@ impl BoundServer {
                 let (len, src) = self.socket.recv_from(&mut buf).await?;
                 let data = &buf[..len];
                 if data == DISCOVERY_MSG {
-                    tracing::debug!(%src, "Received Alpaca discovery request");
+                    tracing::trace!(%src, "Received Alpaca discovery request");
                     eyre::ensure!(
                         self.socket
                             .send_to(self.response_msg.as_bytes(), src)
