@@ -150,6 +150,7 @@ impl Server {
         }
 
         socket.bind(&addr.into())?;
+        socket.listen(128)?;
 
         let server = axum::Server::from_tcp(socket.into())?.serve(
             self.into_router()
