@@ -577,7 +577,7 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
     for camera_info in nokhwa::query(nokhwa::utils::ApiBackend::Auto)? {
         // Workaround for https://github.com/l1npengtul/nokhwa/issues/110:
         // get list of compatible formats manually, extract the info,
-        // and then re-create as CallbackCamera for the same source.
+        // and then re-create as Camera for the same source.
         let mut camera = nokhwa::Camera::new(
             camera_info.index().clone(),
             RequestedFormat::new::<RgbFormat>(RequestedFormatType::None),

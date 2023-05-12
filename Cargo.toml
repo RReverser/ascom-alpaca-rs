@@ -85,5 +85,4 @@ nightly = []
 all-features = true
 
 [patch.crates-io]
-nokhwa = { git = "https://github.com/RReverser/nokhwa", branch = "fix-callback-camera-deadlock" }
 tracing-forest = { git = "https://github.com/QnnOkabayashi/tracing-forest" }
