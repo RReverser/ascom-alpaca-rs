@@ -55,7 +55,7 @@ impl Server {
     }
 
     /// Binds the discovery server to the specified address and port.
-    #[tracing::instrument(level = "error", ret(level = "debug"), err)]
+    #[tracing::instrument(level = "error", ret(level = "debug"))]
     pub async fn bind(self) -> eyre::Result<BoundServer> {
         let mut socket = bind_socket(self.listen_addr).await?;
         if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
