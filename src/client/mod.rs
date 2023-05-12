@@ -17,6 +17,7 @@ use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
 use eyre::ContextCompat;
 use mime::Mime;
+use once_cell::sync::Lazy;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
 use serde::Serialize;
@@ -48,10 +49,15 @@ impl RawDeviceClient {
     }
 }
 
+static REQWEST: Lazy<reqwest::Client> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .user_agent("ascom-alpaca-rs")
+        .build()
+        .expect("failed to create reqwest client")
+});
+
 #[derive(Clone, custom_debug::Debug)]
 pub(crate) struct RawClient {
-    #[debug(skip)]
-    pub(crate) inner: reqwest::Client,
     #[debug(format = r#""{}""#)]
     pub(crate) base_url: reqwest::Url,
     pub(crate) client_id: NonZeroU32,
@@ -65,7 +71,6 @@ impl RawClient {
             base_url,
         );
         Ok(Self {
-            inner: reqwest::Client::new(),
             base_url,
             client_id: rand::random(),
         })
@@ -91,9 +96,7 @@ impl RawClient {
         async move {
             tracing::debug!(?method, ?params, base_url = %self.base_url, "Sending request");
 
-            let mut request = self
-                .inner
-                .request(method.into(), self.base_url.join(action)?);
+            let mut request = REQWEST.request(method.into(), self.base_url.join(action)?);
 
             let add_params = match method {
                 Method::Get => RequestBuilder::query,
@@ -149,7 +152,6 @@ impl RawClient {
 
     pub(crate) fn join_url(&self, path: &str) -> eyre::Result<Self> {
         Ok(Self {
-            inner: self.inner.clone(),
             base_url: self.base_url.join(path)?,
             client_id: self.client_id,
         })

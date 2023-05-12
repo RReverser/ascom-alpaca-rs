@@ -10,7 +10,7 @@ axum = { version = "0.6.11", optional = true, features = ["headers"] }
 bytemuck = { version = "1.13.0", features = ["derive", "extern_crate_std"], optional = true }
 bytes = { version = "1.4.0", optional = true }
 custom_debug = "0.5.1"
-default-net = { version = "0.14.1", optional = true }
+default-net = "0.14.1"
 eyre = "0.6.8"
 futures = "0.3.26"
 indexmap = { version = "1.9.2", features = ["serde"] }
@@ -20,6 +20,7 @@ mime = { version = "0.3.16", optional = true }
 ndarray = { version = "0.15.6", optional = true }
 net-literals = "0.2.0"
 num_enum = "0.5.9"
+once_cell = { version = "1.17.1", optional = true }
 rand = { version = "0.8.5", optional = true }
 reqwest = { version = "0.11.14", optional = true, default-features = false, features = ["json"] }
 serde = { version = "1.0.145", features = ["derive", "rc"] }
@@ -74,7 +75,7 @@ safetymonitor = []
 switch = []
 telescope = []
 
-client = ["dep:reqwest", "dep:bytes", "dep:mime", "dep:rand", "dep:default-net"]
+client = ["dep:reqwest", "dep:bytes", "dep:mime", "dep:rand", "dep:once_cell"]
 server = ["dep:axum", "tokio/macros"]
 
 test = ["client", "server", "camera", "tokio/macros", "tokio/rt-multi-thread"]
