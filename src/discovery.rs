@@ -67,9 +67,9 @@ pub(crate) async fn bind_socket(
 }
 
 #[cfg(feature = "client")]
-pub use crate::client::DiscoveryClient;
+pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
 #[cfg(feature = "server")]
-pub use crate::server::DiscoveryServer;
+pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
 #[cfg(windows)]
 use std::os::windows::prelude::AsRawSocket;
 

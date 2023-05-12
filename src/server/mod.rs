@@ -1,5 +1,5 @@
 mod discovery;
-pub use discovery::Server as DiscoveryServer;
+pub use discovery::{BoundServer as BoundDiscoveryServer, Server as DiscoveryServer};
 
 mod transaction;
 pub(crate) use transaction::*;

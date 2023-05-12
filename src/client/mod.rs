@@ -1,5 +1,5 @@
 mod discovery;
-pub use discovery::Client as DiscoveryClient;
+pub use discovery::{BoundClient as BoundDiscoveryClient, Client as DiscoveryClient};
 
 mod transaction;
 pub(crate) use transaction::*;

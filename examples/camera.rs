@@ -1,5 +1,5 @@
 use ascom_alpaca::api::{Camera, ImageArray, SensorType, TypedDevice};
-use ascom_alpaca::discovery::DiscoveryClient;
+use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
 use eframe::egui::{self, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
@@ -56,6 +56,7 @@ fn if_implemented<T>(res: ASCOMResult<T>) -> ASCOMResult<Option<T>> {
 }
 
 struct StateCtx {
+    discovery_client: Arc<tokio::sync::Mutex<Option<BoundDiscoveryClient>>>,
     state: State,
     ctx: egui::Context,
 }
@@ -85,10 +86,20 @@ impl StateCtx {
     fn try_update(&mut self, ui: &mut Ui) -> eyre::Result<()> {
         match &mut self.state {
             State::Init => {
+                let discovery_client = Arc::clone(&self.discovery_client);
+
                 self.spawn(State::Discovering, async move {
-                    let cameras = DiscoveryClient::new()
-                        .bind()
-                        .await?
+                    let mut discovery_client = discovery_client.lock().await;
+
+                    let discovery_client = match &mut *discovery_client {
+                        Some(discovery_client) => discovery_client,
+                        None => {
+                            *discovery_client = Some(DiscoveryClient::new().bind().await?);
+                            discovery_client.as_mut().unwrap()
+                        }
+                    };
+
+                    let cameras = discovery_client
                         .discover_addrs()
                         .map(Client::new_from_addr)
                         .and_then(|client| async move { client.get_devices().await })
@@ -432,6 +443,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Box::new(StateCtx {
                 state: State::Init,
                 ctx: cc.egui_ctx.clone(),
+                discovery_client: Default::default(),
             })
         }),
     )?;
