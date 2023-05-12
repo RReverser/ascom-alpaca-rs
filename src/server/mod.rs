@@ -30,6 +30,7 @@ use axum::{BoxError, Router};
 use net_literals::addr;
 use std::future::Future;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
 use tracing::Instrument;
 
@@ -116,19 +117,43 @@ impl ServerHandler {
     }
 }
 
-impl Server {
+/// Alpaca servers bound to their respective ports and ready to listen.
+#[derive(custom_debug::Debug)]
+pub struct BoundServer {
+    // Axum types are a bit complicated, so just Box it for now.
+    #[debug(skip)]
+    axum: Pin<Box<dyn Future<Output = eyre::Result<std::convert::Infallible>> + Send>>,
+    axum_listen_addr: SocketAddr,
+    discovery: BoundDiscoveryServer,
+}
+
+impl BoundServer {
+    /// Returns the address the main Alpaca server is listening on.
+    #[allow(clippy::missing_const_for_fn)] // we don't want to guarantee this will be always const
+    pub fn listen_addr(&self) -> SocketAddr {
+        self.axum_listen_addr
+    }
+
+    /// Returns the address the discovery server is listening on.
+    pub fn discovery_listen_addr(&self) -> SocketAddr {
+        self.discovery.listen_addr()
+    }
+
     /// Starts the Alpaca and discovery servers.
-    ///
-    /// The discovery server will be started only after the Alpaca server is bound to a port successfully.
     ///
     /// Note: this function starts an infinite async loop and it's your responsibility to spawn it off
     /// via [`tokio::spawn`] if necessary.
-    ///
-    /// The return type is intentionally split into an outer Result that indicates whether the sockets were
-    /// bound successfully and an inner Future that is actually running the infinite request loops.
-    pub async fn start(
-        self,
-    ) -> eyre::Result<impl Future<Output = eyre::Result<std::convert::Infallible>>> {
+    pub async fn start(self) -> eyre::Result<std::convert::Infallible> {
+        match tokio::select! {
+            axum = self.axum => axum?,
+            discovery = self.discovery.start() => discovery,
+        } {}
+    }
+}
+
+impl Server {
+    /// Binds the Alpaca and discovery servers to local ports.
+    pub async fn bind(self) -> eyre::Result<BoundServer> {
         let addr = self.listen_addr;
 
         tracing::debug!(%addr, "Binding Alpaca server");
@@ -171,15 +196,24 @@ impl Server {
 
         tracing::debug!("Bound Alpaca discovery server");
 
-        Ok(async move {
-            tokio::select! {
-                server_result = server.instrument(tracing::error_span!("alpaca_server_loop")) => {
-                    server_result?;
-                    unreachable!("Alpaca server should never stop without an error");
+        Ok(BoundServer {
+            axum: Box::pin(
+                async move {
+                    server.await?;
+                    unreachable!("Alpaca server should never stop without an error")
                 }
-                never_returns = discovery_server.start() => match never_returns {},
-            }
+                .instrument(tracing::error_span!("alpaca_server_loop")),
+            ),
+            axum_listen_addr: bound_addr,
+            discovery: discovery_server,
         })
+    }
+
+    /// Binds the Alpaca and discovery servers to local ports and starts them.
+    ///
+    /// This is a convenience method that is equivalent to calling [`Self::bind`] and [`BoundServer::start`].
+    pub async fn start(self) -> eyre::Result<std::convert::Infallible> {
+        self.bind().await?.start().await
     }
 
     fn into_router(self) -> Router {

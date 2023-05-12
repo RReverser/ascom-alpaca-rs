@@ -68,7 +68,7 @@ pub use api::Devices;
 pub use client::Client;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 #[cfg(feature = "server")]
-pub use server::Server;
+pub use server::{BoundServer, Server};
 
 #[cfg(test)]
 #[ctor::ctor]
