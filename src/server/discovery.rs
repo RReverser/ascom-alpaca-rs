@@ -13,10 +13,12 @@ pub struct Server {
     pub alpaca_port: u16,
 }
 
-#[tracing::instrument(level = "trace", ret, err(level = "warn"), skip_all, fields(intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
-fn join_multicast_group(socket: &UdpSocket, intf: &Interface) -> eyre::Result<()> {
-    socket.join_multicast_v6(&DISCOVERY_ADDR_V6, intf.index)?;
-    Ok(())
+#[tracing::instrument(level = "trace", skip_all, fields(intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
+fn join_multicast_group(socket: &UdpSocket, intf: &Interface) {
+    match socket.join_multicast_v6(&DISCOVERY_ADDR_V6, intf.index) {
+        Ok(()) => tracing::trace!("success"),
+        Err(err) => tracing::warn!(%err),
+    }
 }
 
 #[tracing::instrument(level = "debug", ret, skip(socket))]
@@ -26,7 +28,7 @@ fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
         // If it's [::], join multicast on every available interface with IPv6 support.
         for intf in interfaces {
             if !intf.ipv6.is_empty() {
-                let _ = join_multicast_group(socket, &intf);
+                join_multicast_group(socket, &intf);
             }
         }
     } else {
@@ -36,7 +38,7 @@ fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
             .find(|intf| intf.ipv6.iter().any(|net| net.addr == listen_addr))
             .expect("internal error: couldn't find the interface of an already bound socket");
 
-        let _ = join_multicast_group(socket, intf);
+        join_multicast_group(socket, intf);
     }
 }
 
@@ -109,17 +111,15 @@ impl BoundServer {
                 let data = &buf[..len];
                 if data == DISCOVERY_MSG {
                     tracing::trace!(%src, "Received Alpaca discovery request");
-                    eyre::ensure!(
-                        self.socket
-                            .send_to(self.response_msg.as_bytes(), src)
-                            .await?
-                            == self.response_msg.len(),
-                        "Failed to send discovery response",
-                    );
+                    // UDP packets are sent as whole messages, no need to check length.
+                    let _ = self
+                        .socket
+                        .send_to(self.response_msg.as_bytes(), src)
+                        .await?;
                 } else {
-                    tracing::warn!(%src, "Received unknown multicast packet");
+                    tracing::warn!(%src, "Received unknown packet");
                 }
-                Ok(())
+                Ok::<_, std::io::Error>(())
             }
             .await
             {

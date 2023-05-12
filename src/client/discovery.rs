@@ -38,19 +38,24 @@ pub struct BoundClient {
 }
 
 impl BoundClient {
-    #[tracing::instrument(level = "trace", ret, err(level = "warn"), skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
-    async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &Interface) -> eyre::Result<()> {
-        if addr.is_multicast() {
-            socket2::SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
-        }
-        eyre::ensure!(
-            self.socket
+    #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
+    async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &Interface) {
+        match async {
+            if addr.is_multicast() {
+                socket2::SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
+            }
+            // UDP packets are sent as whole messages, no need to check length.
+            let _ = self
+                .socket
                 .send_to(DISCOVERY_MSG, (addr, self.client.discovery_port))
-                .await?
-                == DISCOVERY_MSG.len(),
-            "failed to send discovery message"
-        );
-        Ok(())
+                .await?;
+            Ok::<_, std::io::Error>(())
+        }
+        .await
+        {
+            Ok(()) => tracing::trace!("success"),
+            Err(err) => tracing::warn!(%err),
+        }
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -59,24 +64,22 @@ impl BoundClient {
             for net in &intf.ipv4 {
                 let broadcast = Ipv4Addr::from(u32::from(net.addr) | !u32::from(net.netmask));
 
-                let _ = self
-                    .send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
+                self.send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
                     .await;
             }
 
             if !intf.ipv6.is_empty() {
-                let _ = self
-                    .send_discovery_msg(
-                        if intf.if_type == InterfaceType::Loopback {
-                            // Loopback interface doesn't have a link-local address
-                            // so it can't be used for multicast.
-                            Ipv6Addr::LOCALHOST
-                        } else {
-                            DISCOVERY_ADDR_V6
-                        },
-                        intf,
-                    )
-                    .await;
+                self.send_discovery_msg(
+                    if intf.if_type == InterfaceType::Loopback {
+                        // Loopback interface doesn't have a link-local address
+                        // so it can't be used for multicast.
+                        Ipv6Addr::LOCALHOST
+                    } else {
+                        DISCOVERY_ADDR_V6
+                    },
+                    intf,
+                )
+                .await;
             }
         }
     }
