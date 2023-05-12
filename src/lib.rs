@@ -200,11 +200,17 @@ For example, [`tracing_subscriber::fmt`](https://docs.rs/tracing-subscriber/late
 tracing_subscriber::fmt::init();
 ```
 
+## Testing
+
+Since this is a library for communicating to networked devices, it should be tested against real devices at a higher level.
+
+In particular, if you're implementing an Alpaca device, make sure to run [ConformU](https://github.com/ASCOMInitiative/ConformU) - ASCOM's official conformance checker - against your device server.
+
 ## License
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- Apache License, Version 2.0 ([LICENSE-APACHE-2.0](LICENSE-APACHE-2.0))
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 */
 #![cfg_attr(
