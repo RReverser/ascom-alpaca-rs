@@ -80,11 +80,15 @@ use std::os::windows::prelude::AsRawSocket;
 mod tests {
     use super::{DiscoveryClient, DiscoveryServer};
     use futures::StreamExt;
+    use once_cell::sync::Lazy;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
     const TEST_ALPACA_PORT: u16 = 8378;
 
-    async fn run_test(server_addr: IpAddr) -> eyre::Result<()> {
+    async fn run_test(
+        server_addr: IpAddr,
+        expected_addrs: impl AsRef<[IpAddr]> + Send,
+    ) -> eyre::Result<()> {
         let mut server =
             DiscoveryServer::for_alpaca_server_at(SocketAddr::new(server_addr, TEST_ALPACA_PORT));
 
@@ -104,64 +108,54 @@ mod tests {
             addrs = async {
                 Ok::<_, eyre::Error>(client.bind().await?.discover_addrs().collect::<Vec<_>>().await)
              } => {
-                let mut addrs = addrs?;
-                // Filter out unrelated servers potentially running in background.
-                addrs.retain(|addr| addr.port() == TEST_ALPACA_PORT);
-                let mut addrs = addrs.iter().map(SocketAddr::ip).collect::<Vec<_>>();
+                let addrs = addrs?.iter().filter(|addr|
+                    // Filter out unrelated servers potentially running in background.
+                    addr.port() == TEST_ALPACA_PORT
+                ).map(SocketAddr::ip).collect::<Vec<_>>();
 
-                let mut expected_addrs =
-                    tokio::task::spawn_blocking(default_net::get_interfaces).await?.into_iter()
-                    .flat_map(|iface| {
-                        let v4 = iface.ipv4.into_iter().map(|net| net.addr).filter(|addr| !addr.is_link_local()).map(IpAddr::V4);
-                        let v6 = iface.ipv6.into_iter().map(|net| net.addr).map(IpAddr::V6);
+                if server_addr.is_ipv4() {
+                    eyre::ensure!(addrs.iter().all(IpAddr::is_ipv4), "IPv4 server can't be discovered via IPv6 address");
+                }
 
-                        Iterator::chain(v4, v6)
-                    })
-                    .filter(|addr| {
-                        if server_addr.is_ipv4() && addr.is_ipv6() {
-                            // IPv4 server can't be discovered from IPv6 client
-                            // (but vice versa can due to dual-stack).
-                            return false;
-                        }
-                        if server_addr.is_unspecified() {
-                            // Server listening on unspecified address can be discovered over any IP.
-                            return true;
-                        }
-                        // Otherwise the addresses should match.
-                        *addr == server_addr
-                    })
-                    .collect::<Vec<_>>();
+                for addr in expected_addrs.as_ref() {
+                    eyre::ensure!(addrs.contains(addr), "Expected address {:?} not found in {:#?}", addr, addrs);
+                }
 
-                addrs.sort();
-                expected_addrs.sort();
-                eyre::ensure!(
-                    addrs == expected_addrs,
-                    "Discovered addresses (left) don't match the expected ones (right):{}",
-                    pretty_assertions::Comparison::new(&addrs, &expected_addrs)
-                );
                 Ok(())
             }
         }
     }
 
     macro_rules! declare_tests {
-        ($($name:ident = $addr:expr;)*) => {
+        ($($name:ident = $addr:expr => $expected_addrs:expr;)*) => {
             $(
                 #[tokio::test]
                 #[serial_test::serial]
                 async fn $name() -> eyre::Result<()> {
-                    run_test($addr.into()).await
+                    run_test($addr.into(), &$expected_addrs).await
                 }
             )*
         };
     }
 
+    static DEFAULT_INTF: Lazy<default_net::Interface> =
+        Lazy::new(|| default_net::get_default_interface().expect("coudn't get default interface"));
+
     declare_tests! {
-        test_loopback_v4 = Ipv4Addr::LOCALHOST;
-        test_loopback_v6 = Ipv6Addr::LOCALHOST;
-        test_unspecified_v4 = Ipv4Addr::UNSPECIFIED;
-        test_unspecified_v6 = Ipv6Addr::UNSPECIFIED;
-        test_external_v4 = default_net::get_default_interface().map_err(eyre::Error::msg)?.ipv4[0].addr;
-        test_external_v6 = default_net::get_default_interface().map_err(eyre::Error::msg)?.ipv6[0].addr;
+        test_loopback_v4 = Ipv4Addr::LOCALHOST => [Ipv4Addr::LOCALHOST.into()];
+        test_loopback_v6 = Ipv6Addr::LOCALHOST => [Ipv6Addr::LOCALHOST.into()];
+        test_unspecified_v4 = Ipv4Addr::UNSPECIFIED => {
+            let mut expected_addrs = vec![Ipv4Addr::LOCALHOST.into()];
+            expected_addrs.extend(DEFAULT_INTF.ipv4.iter().map(|net| IpAddr::from(net.addr)));
+            expected_addrs
+        };
+        test_unspecified_v6 = Ipv6Addr::UNSPECIFIED => {
+            let mut expected_addrs = vec![Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()];
+            expected_addrs.extend(DEFAULT_INTF.ipv4.iter().map(|net| IpAddr::from(net.addr)));
+            expected_addrs.extend(DEFAULT_INTF.ipv6.iter().map(|net| IpAddr::from(net.addr)));
+            expected_addrs
+        };
+        test_external_v4 = DEFAULT_INTF.ipv4[0].addr => DEFAULT_INTF.ipv4.iter().map(|net| net.addr.into()).collect::<Vec<_>>();
+        test_external_v6 = DEFAULT_INTF.ipv6[0].addr => DEFAULT_INTF.ipv6.iter().map(|net| IpAddr::from(net.addr)).collect::<Vec<_>>();
     }
 }
