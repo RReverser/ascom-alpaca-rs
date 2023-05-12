@@ -31,6 +31,9 @@ pub(crate) async fn bind_socket(
         // Using `socket2` seems to be the only way to do this from safe Rust.
         socket.set_only_v6(false)?;
     }
+    // SIO_UDP_CONNRESET is needed to ignore the occasional "port unreachable" errors
+    // on Windows. Ideally we'd just ignore the error and move on but those tend to
+    // render socket unusable so we'd have to recreate it as well.
     #[cfg(windows)]
     #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
     unsafe {
