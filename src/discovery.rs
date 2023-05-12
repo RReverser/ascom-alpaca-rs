@@ -93,8 +93,10 @@ mod tests {
 
         let bound_server = server.bind().await?;
 
-        let mut client = DiscoveryClient::new();
-        client.discovery_port = bound_server.listen_addr()?.port();
+        let client = DiscoveryClient {
+            discovery_port: bound_server.listen_addr().port(),
+            ..Default::default()
+        };
 
         tokio::select! {
             never_returns = bound_server.start() => match never_returns {},
