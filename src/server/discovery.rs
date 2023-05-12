@@ -100,7 +100,7 @@ impl BoundServer {
     /// The return type is intentionally split off into a Result for the bound socket
     /// and a Future for the server itself. This allows consumers to ensure that the server
     /// is bound successfully before starting the infinite loop.
-    #[tracing::instrument(level = "error")]
+    #[tracing::instrument(name = "alpaca_discovery_server_loop", level = "error")]
     pub async fn start(self) -> std::convert::Infallible {
         let mut buf = [0; DISCOVERY_MSG.len() + 1];
         loop {

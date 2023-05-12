@@ -97,7 +97,7 @@ impl ServerHandler {
             ResponseTransaction::new(request_transaction.client_transaction_id);
 
         let span = tracing::error_span!(
-            "Alpaca transaction",
+            "handle_alpaca_request",
             path = self.path,
             client_id = request_transaction.client_id,
             client_transaction_id = request_transaction.client_transaction_id,
@@ -172,14 +172,13 @@ impl Server {
 
         Ok(async move {
             tokio::select! {
-                server_result = server => {
+                server_result = server.instrument(tracing::error_span!("alpaca_server_loop")) => {
                     server_result?;
                     unreachable!("Alpaca server should never stop without an error");
                 }
                 never_returns = discovery_server.start() => match never_returns {},
             }
-        }
-        .instrument(tracing::info_span!("Alpaca server")))
+        })
     }
 
     fn into_router(self) -> Router {
