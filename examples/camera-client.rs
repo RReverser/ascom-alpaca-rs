@@ -23,7 +23,7 @@ enum State {
         exposure_range: RangeInclusive<f64>,
         gain_mode: GainMode,
         params_tx: tokio::sync::watch::Sender<CaptureParams>,
-        image_loop: JoinHandle<()>, // not `ChildTask` because it has its own cancellation mechanism
+        image_loop: JoinHandle<()>, /* not `ChildTask` because it has its own cancellation mechanism */
     },
     Error(String),
 }

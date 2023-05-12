@@ -93,21 +93,29 @@ Once implemented, you can create a server, register your device(s), and start li
 ```rust
 use ascom_alpaca::Server;
 use ascom_alpaca::api::CargoServerInfo;
+use std::convert::Infallible;
 
-let mut server = Server {
-    // helper macro to populate server information from your own Cargo.toml
-    info: CargoServerInfo!(),
-    ..Default::default()
-};
+// ...implement MyCamera...
 
-// By default, the server will listen on [::] with a randomly assigned port.
-// You can change that by modifying the `listen_addr` field:
-server.listen_addr.set_port(8000);
+#[tokio::main]
+async fn main() -> eyre::Result<Infallible> {
+    let mut server = Server {
+        // helper macro to populate server information from your own Cargo.toml
+        info: CargoServerInfo!(),
+        ..Default::default()
+    };
 
-let my_camera = MyCamera { /* ... */ };
-server.devices.register(my_camera);
+    // By default, the server will listen on [::] with a randomly assigned port.
+    // You can change that by modifying the `listen_addr` field:
+    server.listen_addr.set_port(8000);
 
-server.start().await
+    // Register your device(s).
+    let my_camera = MyCamera { /* ... */ };
+    server.devices.register(my_camera);
+
+    // Start the infinite server loop.
+    server.start().await
+}
 ```
 
 This will start both the main Alpaca server as well as an auto-discovery responder.
@@ -137,15 +145,16 @@ If you want to discover device servers on the local network, you can do that via
 ```rust
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
+use futures::prelude::*;
 
 // This holds configuration for the discovery client.
 // You can customize prior to binding if you want.
-let discovery_client = DiscoveryClient::new()?;
+let discovery_client = DiscoveryClient::new();
 // This results in a discovery client bound to a local socket.
 // It's intentionally split out into a separate API step to encourage reuse,
 // for example so that user could click "Refresh devices" button in the UI
-// and not have to re-bind the socket every time.
-let bound_client = discovery_client.bind().await?;
+// and the application wouldn't have to re-bind the socket every time.
+let mut bound_client = discovery_client.bind().await?;
 // Now you can discover devices on the local networks.
 bound_client.discover_addrs()
     // create a `Client` for each discovered address

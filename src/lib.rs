@@ -47,7 +47,7 @@ All those traits additionally inherit from a special [`Device`](crate::api::Devi
 
 Since async traits are not yet natively supported on stable Rust, the traits are implemented using the [async_trait](https://crates.io/crates/async-trait) crate. Other than that, you should implement trait with all the Alpaca methods as usual:
 
-```rust
+```no_run
 use ascom_alpaca::ASCOMResult;
 use ascom_alpaca::api::{Device, Camera};
 use async_trait::async_trait;
@@ -86,31 +86,42 @@ impl Camera for MyCamera {
 
 Once implemented, you can create a server, register your device(s), and start listening:
 
-```rust
+```no_run
 use ascom_alpaca::Server;
 use ascom_alpaca::api::CargoServerInfo;
+use std::convert::Infallible;
+
+// ...implement MyCamera...
 # use ascom_alpaca::{api, ASCOMResult};
 # use async_trait::async_trait;
 #
 # #[derive(Debug)]
 # struct MyCamera {}
-# impl api::Device for MyCamera {}
+# impl api::Device for MyCamera {
+# fn static_name(&self) -> &str { todo!() }
+# fn unique_id(&self) -> &str { todo!() }
+# }
 # impl api::Camera for MyCamera {}
 
-let mut server = Server {
-    // helper macro to populate server information from your own Cargo.toml
-    info: CargoServerInfo!(),
-    ..Default::default()
-};
+#[tokio::main]
+async fn main() -> eyre::Result<Infallible> {
+    let mut server = Server {
+        // helper macro to populate server information from your own Cargo.toml
+        info: CargoServerInfo!(),
+        ..Default::default()
+    };
 
-// By default, the server will listen on [::] with a randomly assigned port.
-// You can change that by modifying the `listen_addr` field:
-server.listen_addr.set_port(8000);
+    // By default, the server will listen on [::] with a randomly assigned port.
+    // You can change that by modifying the `listen_addr` field:
+    server.listen_addr.set_port(8000);
 
-let my_camera = MyCamera { /* ... */ };
-server.devices.register(my_camera);
+    // Register your device(s).
+    let my_camera = MyCamera { /* ... */ };
+    server.devices.register(my_camera);
 
-server.start().await
+    // Start the infinite server loop.
+    server.start().await
+}
 ```
 
 This will start both the main Alpaca server as well as an auto-discovery responder.
@@ -121,8 +132,9 @@ See [`examples/camera-server.rs`](examples/camera-server.rs) for a complete exam
 
 If you know address of the device server you want to access, you can access it directly via `Client` struct:
 
-```rust
-# fn main() -> eyre::Result<()> {
+```no_run
+# #[tokio::main]
+# async fn main() -> eyre::Result<()> {
 use ascom_alpaca::Client;
 
 let client = Client::new("http://localhost:8000")?;
@@ -140,19 +152,21 @@ println!("Devices: {:#?}", client.get_devices().await?.collect::<Vec<_>>());
 
 If you want to discover device servers on the local network, you can do that via the `discovery::DiscoveryClient` struct:
 
-```rust
-# fn main() -> eyre::Result<()> {
+```no_run
+# #[tokio::main]
+# async fn main() -> eyre::Result<()> {
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
+use futures::prelude::*;
 
 // This holds configuration for the discovery client.
 // You can customize prior to binding if you want.
-let discovery_client = DiscoveryClient::new()?;
+let discovery_client = DiscoveryClient::new();
 // This results in a discovery client bound to a local socket.
 // It's intentionally split out into a separate API step to encourage reuse,
 // for example so that user could click "Refresh devices" button in the UI
-// and not have to re-bind the socket every time.
-let bound_client = discovery_client.bind().await?;
+// and the application wouldn't have to re-bind the socket every time.
+let mut bound_client = discovery_client.bind().await?;
 // Now you can discover devices on the local networks.
 bound_client.discover_addrs()
     // create a `Client` for each discovered address
@@ -182,7 +196,7 @@ You can enable logging in your app by using any of the [subscriber crates](https
 
 For example, [`tracing_subscriber::fmt`](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html) will log all the events to stderr depending on the `RUST_LOG` environment variable:
 
-```rust
+```no_run
 tracing_subscriber::fmt::init();
 ```
 
