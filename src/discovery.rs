@@ -79,24 +79,29 @@ mod tests {
     use futures::StreamExt;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-    const TEST_PORT: u16 = 8378;
+    const TEST_ALPACA_PORT: u16 = 8378;
 
     async fn run_test(server_addr: IpAddr) -> eyre::Result<()> {
-        let server_task =
-            DiscoveryServer::for_alpaca_server_at(SocketAddr::new(server_addr, TEST_PORT))
-                .bind()
-                .await?
-                .start();
+        let mut server =
+            DiscoveryServer::for_alpaca_server_at(SocketAddr::new(server_addr, TEST_ALPACA_PORT));
+
+        // override discovery server port with a random one so that tests are independent from each other
+        server.listen_addr.set_port(0);
+
+        let bound_server = server.bind().await?;
+
+        let mut client = DiscoveryClient::new();
+        client.discovery_port = bound_server.listen_addr()?.port();
 
         tokio::select! {
-            never_returns = server_task => match never_returns {},
+            never_returns = bound_server.start() => match never_returns {},
 
             addrs = async {
-                Ok::<_, eyre::Error>(DiscoveryClient::new().bind().await?.discover_addrs().collect::<Vec<_>>().await)
+                Ok::<_, eyre::Error>(client.bind().await?.discover_addrs().collect::<Vec<_>>().await)
              } => {
                 let mut addrs = addrs?;
                 // Filter out unrelated servers potentially running in background.
-                addrs.retain(|addr| addr.port() == TEST_PORT);
+                addrs.retain(|addr| addr.port() == TEST_ALPACA_PORT);
                 let mut addrs = addrs.iter().map(SocketAddr::ip).collect::<Vec<_>>();
 
                 let mut expected_addrs =
