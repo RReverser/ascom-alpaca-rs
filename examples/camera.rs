@@ -4,6 +4,7 @@ use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
 use eframe::egui::{self, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, StreamExt, TryStreamExt};
+use std::collections::HashSet;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,7 +13,7 @@ use tokio::task::JoinHandle;
 enum State {
     Init,
     Discovering(ChildTask),
-    Discovered(Vec<Arc<dyn Camera>>),
+    Discovered(HashSet<Arc<dyn Camera>>),
     Connecting(ChildTask),
     Connected {
         camera_name: String,
@@ -91,14 +92,16 @@ impl StateCtx {
                         .discover_addrs()
                         .map(Client::new_from_addr)
                         .and_then(|client| async move { client.get_devices().await })
-                        .try_fold(Vec::new(), |mut cameras, new_devices| async move {
-                            cameras.extend(new_devices.filter_map(|device| match device {
+                        .map_ok(|devices| futures::stream::iter(devices.map(Ok::<_, eyre::Error>)))
+                        .try_flatten_unordered(None)
+                        .try_filter_map(|device| async move {
+                            Ok(match device {
                                 TypedDevice::Camera(camera) => Some(camera),
                                 #[allow(unreachable_patterns)]
                                 _ => None,
-                            }));
-                            Ok(cameras)
+                            })
                         })
+                        .try_collect::<HashSet<_>>()
                         .await?;
 
                     Ok::<_, eyre::Error>(State::Discovered(cameras))
