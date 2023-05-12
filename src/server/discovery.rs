@@ -90,8 +90,10 @@ pub struct BoundServer {
 
 impl BoundServer {
     /// Get listen address of the discovery server.
-    pub fn listen_addr(&self) -> std::io::Result<SocketAddr> {
-        self.socket.local_addr()
+    pub fn listen_addr(&self) -> SocketAddr {
+        self.socket
+            .local_addr()
+            .expect("bound socket must return its address")
     }
 
     /// Starts a discovery server on the local network.
