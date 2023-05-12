@@ -12,10 +12,8 @@ async fn main() -> eyre::Result<()> {
         .bind()
         .await?
         .discover_addrs()
-        .map(Ok)
-        .try_for_each(|addr| async move {
-            println!("Found Alpaca server at {addr}");
-            let client = Client::new_from_addr(addr)?;
+        .map(Client::new_from_addr)
+        .try_for_each(|client| async move {
             let server_info = client.get_server_info().await?;
             println!("Server info: {server_info:#?}");
             let devices = client.get_devices().await?.collect::<Vec<_>>();
