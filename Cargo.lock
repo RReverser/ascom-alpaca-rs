@@ -2403,7 +2403,8 @@ checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 [[package]]
 name = "nokhwa"
 version = "0.10.3"
-source = "git+https://github.com/RReverser/nokhwa?branch=fix-callback-camera-deadlock#624c6004ca731fc55af6c6e0368b163b45acf23b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "143c7e68ab35542605825430efb8acaf977de40d4256ebfeed6324b35a6ba89a"
 dependencies = [
  "flume",
  "image",
@@ -2411,7 +2412,6 @@ dependencies = [
  "nokhwa-bindings-macos",
  "nokhwa-bindings-windows",
  "nokhwa-core",
- "parking_lot",
  "paste",
  "thiserror",
 ]
@@ -2419,7 +2419,8 @@ dependencies = [
 [[package]]
 name = "nokhwa-bindings-linux"
 version = "0.1.0"
-source = "git+https://github.com/RReverser/nokhwa?branch=fix-callback-camera-deadlock#624c6004ca731fc55af6c6e0368b163b45acf23b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "448db09af68e12168b6311423409f679d2da6e75fb158b2d75de2f5d6dc460ca"
 dependencies = [
  "nokhwa-core",
  "v4l",
@@ -2429,7 +2430,8 @@ dependencies = [
 [[package]]
 name = "nokhwa-bindings-macos"
 version = "0.2.0"
-source = "git+https://github.com/RReverser/nokhwa?branch=fix-callback-camera-deadlock#624c6004ca731fc55af6c6e0368b163b45acf23b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cb2044194c8cc0286a0bfae023caeb434c32900ffe3f3d08565362306437be8"
 dependencies = [
  "block",
  "cocoa-foundation",
@@ -2444,7 +2446,8 @@ dependencies = [
 [[package]]
 name = "nokhwa-bindings-windows"
 version = "0.4.0"
-source = "git+https://github.com/RReverser/nokhwa?branch=fix-callback-camera-deadlock#624c6004ca731fc55af6c6e0368b163b45acf23b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9b9bae36d0ce413568cefb94c43748e80f9ae97aa0a9e2d8e18f0275a909746"
 dependencies = [
  "nokhwa-core",
  "once_cell",
@@ -2454,7 +2457,8 @@ dependencies = [
 [[package]]
 name = "nokhwa-core"
 version = "0.1.0"
-source = "git+https://github.com/RReverser/nokhwa?branch=fix-callback-camera-deadlock#624c6004ca731fc55af6c6e0368b163b45acf23b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23d91fc79417cab9c8947e0bafc776b18f89a3bfeacf9bf12c4dc4f5f9b1b6f4"
 dependencies = [
  "bytes",
  "image",
