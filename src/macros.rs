@@ -180,7 +180,7 @@ macro_rules! rpc_mod {
 
         pub(crate) mod internal {
             // Not really public, needed for a Voldemort trait RetrieavableDevice.
-            #[derive(PartialEq, Eq, Clone, Copy)]
+            #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
             pub enum DeviceType {
                 $(
                     #[cfg(feature = $path)]
