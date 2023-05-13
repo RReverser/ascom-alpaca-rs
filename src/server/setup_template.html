@@ -3,7 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Alpaca devices</title>
+    <title><%= server_info.server_name %></title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -25,7 +25,7 @@
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 -2px 2px rgba(0, 0, 0, 0.3);
       }
       figcaption,
-      a {
+      li>a {
         margin: 0;
         padding: 0.625em;
       }
@@ -47,13 +47,13 @@
       li {
         border-bottom: 1px solid #ccc;
       }
-      a {
+      li>a {
         color: #333;
         text-decoration: none;
         display: block;
         transition: background-color 0.3s ease;
       }
-      a:hover {
+      li>a:hover {
         background-color: #f5f5f5;
       }
     </style>
@@ -61,6 +61,51 @@
   <body>
     <h1>Alpaca devices</h1>
 
-    <!-- devices_html -->
+    <% if grouped_devices.is_empty() { %>
+      <p>No devices are registered on this server.</p>
+    <% } %>
+
+    <% for (group_ty, group) in grouped_devices { %>
+    <figure>
+      <figcaption>
+        <%= match group_ty {
+          #[cfg(feature = "camera")]
+          DeviceType::Camera => "Cameras",
+          #[cfg(feature = "dome")]
+          DeviceType::Dome => "Domes",
+          #[cfg(feature = "filterwheel")]
+          DeviceType::FilterWheel => "Filter wheels",
+          #[cfg(feature = "focuser")]
+          DeviceType::Focuser => "Focusers",
+          #[cfg(feature = "observingconditions")]
+          DeviceType::ObservingConditions => "Weather stations",
+          #[cfg(feature = "rotator")]
+          DeviceType::Rotator => "Rotators",
+          #[cfg(feature = "safetymonitor")]
+          DeviceType::SafetyMonitor => "Safety monitors",
+          #[cfg(feature = "switch")]
+          DeviceType::Switch => "Switches",
+          #[cfg(feature = "telescope")]
+          DeviceType::Telescope => "Telescopes",
+          #[cfg(feature = "covercalibrator")]
+          DeviceType::CoverCalibrator => "Cover calibrators",
+        } %>
+      </figcaption>
+      <ul>
+        <% for (number, name) in group { %>
+          <li><a href="/api/v1/<%= DevicePath(group_ty) | disp %>/<%= number %>/setup"><%= name %></a></li>
+        <% } %>
+      </ul>
+    </figure>
+    <% } %>
+
+    <footer>
+      <p>
+        This is an <a href="https://ascom-standards.org/AlpacaDeveloper/Index.htm">ASCOM Alpaca</a> server
+        <%= server_info.server_name %> v<%= server_info.manufacturer_version %>
+        by <%= server_info.manufacturer %>.
+      </p>
+      <p>Built with <a href="https://github.com/RReverser/ascom-alpaca-rs">ascom-alpaca-rs</a>.</p>
+    </footer>
   </body>
 </html>

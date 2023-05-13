@@ -28,8 +28,8 @@ use axum::response::IntoResponse;
 use axum::routing::MethodFilter;
 use axum::{BoxError, Router};
 use net_literals::addr;
+use sailfish::TemplateOnce;
 use std::collections::BTreeMap;
-use std::fmt::Write;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -243,74 +243,51 @@ impl Server {
                     })
                 })
             })
-            .route(
-                "/management/v1/description",
+            .route("/management/v1/description", {
+                let server_info = Arc::clone(&server_info);
+
                 axum::routing::get(move |server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move {
                         ValueResponse::from(Arc::clone(&server_info))
                     })
-                }),
-            )
+                })
+            })
             .route("/setup", {
                 let this = Arc::clone(&devices);
+                let server_info = Arc::clone(&server_info);
 
                 axum::routing::get(|| async move {
-                    let mut grouped_devices = BTreeMap::new();
+                    #[derive(TemplateOnce)]
+                    #[template(path = "setup_template.html")]
+                    struct TemplateContext {
+                        server_info: Arc<ServerInfo>,
+                        grouped_devices: BTreeMap<DeviceType, Vec<(usize, String)>>,
+                    }
+
+                    let mut ctx = TemplateContext {
+                        server_info: Arc::clone(&server_info),
+                        grouped_devices: BTreeMap::new(),
+                    };
+
                     for (device, number) in this.iter_all() {
                         let device = device.to_configured_device(number);
 
-                        grouped_devices
+                        ctx.grouped_devices
                             .entry(device.ty)
                             .or_insert_with(Vec::new)
                             .push((number, device.name));
                     }
 
-                    let mut devices_html = String::new();
-
-                    for (device_type, devices) in grouped_devices {
-                        writeln!(devices_html, "<figure>").unwrap();
-                        writeln!(devices_html, "<figcaption>{}</figcaption>", match device_type {
-                            #[cfg(feature = "camera")]
-                            DeviceType::Camera => "Cameras",
-                            #[cfg(feature = "dome")]
-                            DeviceType::Dome => "Domes",
-                            #[cfg(feature = "filterwheel")]
-                            DeviceType::FilterWheel => "Filter wheels",
-                            #[cfg(feature = "focuser")]
-                            DeviceType::Focuser => "Focusers",
-                            #[cfg(feature = "observingconditions")]
-                            DeviceType::ObservingConditions => "Weather stations",
-                            #[cfg(feature = "rotator")]
-                            DeviceType::Rotator => "Rotators",
-                            #[cfg(feature = "safetymonitor")]
-                            DeviceType::SafetyMonitor => "Safety monitors",
-                            #[cfg(feature = "switch")]
-                            DeviceType::Switch => "Switches",
-                            #[cfg(feature = "telescope")]
-                            DeviceType::Telescope => "Telescopes",
-                            #[cfg(feature = "covercalibrator")]
-                            DeviceType::CoverCalibrator => "Cover calibrators",
-                        }).unwrap();
-                        writeln!(devices_html, "<ul>").unwrap();
-                        for (device_index, device_name) in devices {
-                            writeln!(
-                                devices_html,
-                                r#"<li><a href="/api/v1/{group_path}/{device_index}/setup">{device_name}</a></li>"#,
-                                group_path = DevicePath(device_type),
-                            ).unwrap();
+                    match ctx.render_once() {
+                        Ok(html) => Ok(axum::response::Html(html)),
+                        Err(err) => {
+                            tracing::error!(%err, "Failed to render setup page");
+                            Err((
+                                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                err.to_string(),
+                            ))
                         }
-                        writeln!(devices_html, "</ul>").unwrap();
-                        writeln!(devices_html, "</figure>").unwrap();
                     }
-
-                    axum::response::Html(include_str!("setup_template.html").replace(
-                        "<!-- devices_html -->",
-                        if devices_html.is_empty() {
-                            "<p>No devices are registered on this server.</p>"
-                        } else {
-                            &devices_html
-                        },
-                    ))
                 })
             })
             .route(
