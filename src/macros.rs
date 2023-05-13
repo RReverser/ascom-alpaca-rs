@@ -24,7 +24,7 @@ macro_rules! rpc_trait {
 
             $(
                 #[extra_method(client_impl = $client_impl:expr)]
-                fn $extra_method_name:ident (& $($extra_mut_self:ident)+ $(, $extra_param:ident: $extra_param_ty:ty)* $(,)?) $(-> $extra_method_return:ty)?;
+                $($extra_method_name:ident)+ ($($extra_method_params:tt)*) $(-> $extra_method_return:ty)?;
 
                 $(#[doc = $docs_after_extra_method:literal])*
             )*
@@ -44,7 +44,7 @@ macro_rules! rpc_trait {
             $(#[doc = $docs_before_methods])*
 
             $(
-                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)?;
+                $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)?;
 
                 $(#[doc = $docs_after_extra_method])*
             )*
@@ -139,7 +139,7 @@ macro_rules! rpc_trait {
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         impl $trait_name for $crate::client::RawDeviceClient {
             $(
-                fn $extra_method_name (& $($extra_mut_self)+ $(, $extra_param: $extra_param_ty)*) $(-> $extra_method_return)? {
+                $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)? {
                     $client_impl
                 }
             )*
