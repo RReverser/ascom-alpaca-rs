@@ -35,7 +35,17 @@ macro_rules! CargoServerInfo_1bc8c806_8cb9_4aaf_b57a_8f94c4d1b59d {
             server_name: env!("CARGO_PKG_NAME").to_owned(),
             manufacturer: env!("CARGO_PKG_AUTHORS").to_owned(),
             manufacturer_version: env!("CARGO_PKG_VERSION").to_owned(),
-            location: env!("CARGO_PKG_HOMEPAGE").to_owned(),
+            location: {
+                // Technically this field should be a physical location,
+                // but repository homepage seems better than nothing.
+                let homepage = env!("CARGO_PKG_HOMEPAGE");
+                if homepage.is_empty() {
+                    "Unknown"
+                } else {
+                    homepage
+                }
+            }
+            .to_owned(),
         }
     };
 }
