@@ -2,6 +2,7 @@
 name = "ascom-alpaca"
 version = "1.0.0"
 edition = "2021"
+authors = ["Ingvar Stepanyan <me@rreverser.com>"]
 
 [dependencies]
 async-fn-stream = "0.2.0"
