@@ -35,6 +35,17 @@ impl ASCOMErrorCode {
     ///
     /// This is intentionally limited to be usable only in `const` contexts
     /// so that you don't accidentally supply invalid values.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use ascom_alpaca::{ASCOMError, ASCOMErrorCode};
+    /// // Create constants for driver-specific error codes.
+    /// const MY_ERROR_CODE: ASCOMErrorCode = ASCOMErrorCode::new_for_driver::<0>();
+    /// const MY_OTHER_ERROR_CODE: ASCOMErrorCode = ASCOMErrorCode::new_for_driver::<1>();
+    /// // ...somewhere later...
+    /// let error = ASCOMError::new(MY_ERROR_CODE, "Something went wrong");
+    /// ```
     pub const fn new_for_driver<const CODE: u16>() -> Self {
         let raw = match CODE.checked_add(DRIVER_BASE) {
             Some(raw) if raw <= MAX => raw,
