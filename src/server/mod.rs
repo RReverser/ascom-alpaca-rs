@@ -16,8 +16,8 @@ mod error;
 pub(crate) use error::{Error, Result};
 
 #[cfg(feature = "camera")]
-use crate::api::{Camera, DeviceType};
-use crate::api::{CargoServerInfo, DevicePath, ServerInfo};
+use crate::api::Camera;
+use crate::api::{CargoServerInfo, DevicePath, DeviceType, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::Devices;

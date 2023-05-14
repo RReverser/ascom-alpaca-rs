@@ -127,10 +127,13 @@ async fn main() -> eyre::Result<Infallible> {
 
 This will start both the main Alpaca server as well as an auto-discovery responder.
 
-#### Server examples
+**Examples:**
 
 - [`examples/camera-server.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-server.rs):
   A cross-platform example exposing your connected webcam(s) as Alpaca `Camera`s.
+- [`star-adventurer-alpaca`](https://github.com/RReverser/star-adventurer-alpaca):
+  A fork of [`jsorrell/star-adventurer-alpaca`](https://github.com/jsorrell/star-adventurer-alpaca) which implements the Alpaca API for the Star Adventurer mount over serial port.
+  The original project has pretty extensive functionality and used manual implementation of the Alpaca API, so it was a good test case for porting to this library.
 
 ### Accessing devices from a client
 
@@ -190,7 +193,7 @@ Also, same device server can be discovered multiple times if it's available on m
 While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like `HashMap`.
 It will leverage `unique_id` for device comparisons under the hood.
 
-#### Client examples
+**Examples:**
 
 - [`examples/discover.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/discover.rs):
   A simple discovery example listing all the found servers and devices.

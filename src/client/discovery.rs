@@ -140,7 +140,7 @@ impl Client {
     }
 
     /// Bind the client to a local address.
-    #[tracing::instrument(level = "error", ret(level = "debug"))]
+    #[tracing::instrument(level = "error")]
     pub async fn bind(self) -> eyre::Result<BoundClient> {
         let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0)).await?;
         let interfaces = tokio::task::spawn_blocking(default_net::get_interfaces).await?;
