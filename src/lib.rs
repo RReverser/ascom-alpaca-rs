@@ -284,8 +284,10 @@ mod client;
 #[cfg(feature = "server")]
 mod server;
 
-pub mod discovery;
+#[cfg(feature = "server")]
 mod either;
+
+pub mod discovery;
 mod errors;
 mod response;
 
