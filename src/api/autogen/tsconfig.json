@@ -2,11 +2,14 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "strict": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["*.ts"]
+  "include": ["*.ts"],
+  "ts-node": {
+    "esm": true
+  }
 }
