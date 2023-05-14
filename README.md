@@ -40,9 +40,11 @@ ascom-alpaca = { version = "0.1", features = ["client", "camera"] }
 
 ### Device methods
 
-All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/). They all returns `ASCOMResult<...>`, which is an alias for `Result<..., ASCOMError>`.
+All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/).
 
-All those traits additionally inherit from a special [`Device`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Device.html) supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
+They all return `ASCOMResult<...>`, which is an alias for `Result<..., ASCOMError>`. Any skipped methods will return the ASCOM "not implemented" error by default.
+
+All the device type traits also inherit from a [`Device`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Device.html) supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
 
 - `fn static_name(&self) -> &str`: Returns the static device name. Might differ from the async `name` method result.
 - `fn unique_id(&self) -> &str`: Returns globally-unique device ID.
@@ -105,13 +107,12 @@ async fn main() -> eyre::Result<Infallible> {
         ..Default::default()
     };
 
-    // By default, the server will listen on [::] with a randomly assigned port.
+    // By default, the server will listen on dual-stack (IPv4 + IPv6) unspecified address with a randomly assigned port.
     // You can change that by modifying the `listen_addr` field:
     server.listen_addr.set_port(8000);
 
-    // Register your device(s).
-    let my_camera = MyCamera { /* ... */ };
-    server.devices.register(my_camera);
+    // Create and register your device(s).
+    server.devices.register(MyCamera { /* ... */ });
 
     // Start the infinite server loop.
     server.start().await
@@ -120,7 +121,10 @@ async fn main() -> eyre::Result<Infallible> {
 
 This will start both the main Alpaca server as well as an auto-discovery responder.
 
-See [`examples/camera-server.rs`](examples/camera-server.rs) for a complete example that implements Alpaca `Camera` server for a webcam.
+#### Server examples
+
+- [`examples/camera-server.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-server.rs):
+  A cross-platform example exposing your connected webcam(s) as Alpaca `Camera`s.
 
 ### Accessing devices from a client
 
@@ -172,7 +176,12 @@ Also, same device server can be discovered multiple times if it's available on m
 While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like `HashMap`.
 It will leverage `unique_id` for device comparisons under the hood.
 
-You can find a simple discovery example in [`examples/discover.rs`](examples/discover.rs) and a cross-platform GUI client example for cameras in [`examples/camera-client.rs`](examples/camera-client.rs).
+#### Client examples
+
+- [`examples/discover.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/discover.rs):
+  A simple discovery example listing all the found servers and devices.
+- [`examples/camera-client.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-client.rs):
+  A cross-platform GUI example showing a live preview stream from discovered Alpaca cameras.
 
 ### Logging and tracing
 
