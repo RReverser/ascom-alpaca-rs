@@ -1,8 +1,11 @@
 [package]
 name = "ascom-alpaca"
-version = "1.0.0"
+version = "1.0.0-alpha"
 edition = "2021"
 authors = ["Ingvar Stepanyan <me@rreverser.com>"]
+categories = ["api-bindings", "science", "hardware-support"]
+keywords = ["ascom", "alpaca", "astronomy", "astrophotography"]
+description = "Rust implementation of the ASCOM Alpaca API for astronomy devices"
 
 [dependencies]
 async-fn-stream = "0.2.0"
