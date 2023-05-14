@@ -93,7 +93,7 @@
       </figcaption>
       <ul>
         <% for (number, name) in group { %>
-          <li><a href="/api/v1/<%= DevicePath(group_ty) | disp %>/<%= number %>/setup"><%= name %></a></li>
+          <li><!--a href="/api/v1/<%= DevicePath(group_ty) | disp %>/<%= number %>/setup"--><%= name %><!--/a--></li>
         <% } %>
       </ul>
     </figure>
