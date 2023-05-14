@@ -6,6 +6,8 @@ authors = ["Ingvar Stepanyan <me@rreverser.com>"]
 categories = ["api-bindings", "science", "hardware-support"]
 keywords = ["ascom", "alpaca", "astronomy", "astrophotography"]
 description = "Rust implementation of the ASCOM Alpaca API for astronomy devices"
+repository = "https://github.com/RReverser/ascom-alpaca-rs"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 async-fn-stream = "0.2.0"
