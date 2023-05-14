@@ -59,7 +59,7 @@
     </style>
   </head>
   <body>
-    <h1>Alpaca devices</h1>
+    <h2>Registered devices</h2>
 
     <% if grouped_devices.is_empty() { %>
       <p>No devices are registered on this server.</p>
@@ -93,7 +93,7 @@
       </figcaption>
       <ul>
         <% for (number, name) in group { %>
-          <li><!--a href="/api/v1/<%= DevicePath(group_ty) | disp %>/<%= number %>/setup"--><%= name %><!--/a--></li>
+          <li><a todo-href="/api/v1/<%= DevicePath(group_ty) | disp %>/<%= number %>/setup"><%= name %></a></li>
         <% } %>
       </ul>
     </figure>
