@@ -85,10 +85,18 @@ mod tests {
 
     const TEST_ALPACA_PORT: u16 = 8378;
 
-    async fn run_test(
-        server_addr: IpAddr,
-        expected_addrs: impl AsRef<[IpAddr]> + Send,
-    ) -> eyre::Result<()> {
+    #[derive(Default)]
+    struct ExpectedAddrs {
+        localhost_v4: bool,
+        localhost_v6: bool,
+        default_intf_v4: bool,
+        default_intf_v6: bool,
+    }
+
+    static DEFAULT_INTF: Lazy<default_net::Interface> =
+        Lazy::new(|| default_net::get_default_interface().expect("coudn't get default interface"));
+
+    async fn run_test(server_addr: IpAddr, expected_addrs: ExpectedAddrs) -> eyre::Result<()> {
         let mut server =
             DiscoveryServer::for_alpaca_server_at(SocketAddr::new(server_addr, TEST_ALPACA_PORT));
 
@@ -117,8 +125,17 @@ mod tests {
                     eyre::ensure!(addrs.iter().all(IpAddr::is_ipv4), "IPv4 server can't be discovered via IPv6 address");
                 }
 
-                for addr in expected_addrs.as_ref() {
-                    eyre::ensure!(addrs.contains(addr), "Expected address {:?} not found in {:#?}", addr, addrs);
+                // Collect all expected addresses -> bool pairs so that we can check for both expected and unexpected addresses.
+                let expected_addrs =
+                    [
+                        (IpAddr::from(Ipv4Addr::LOCALHOST), expected_addrs.localhost_v4),
+                        (IpAddr::from(Ipv6Addr::LOCALHOST), expected_addrs.localhost_v6),
+                    ].into_iter()
+                    .chain(DEFAULT_INTF.ipv4.iter().map(|net| (net.addr.into(), expected_addrs.default_intf_v4)))
+                    .chain(DEFAULT_INTF.ipv6.iter().map(|net| (net.addr.into(), expected_addrs.default_intf_v6)));
+
+                for (addr, expected) in expected_addrs {
+                    eyre::ensure!(addrs.contains(&addr) == expected, "Address {addr} was{not} expected", addr = addr, not = if expected { "" } else { " not" });
                 }
 
                 Ok(())
@@ -127,35 +144,27 @@ mod tests {
     }
 
     macro_rules! declare_tests {
-        ($($name:ident = $addr:expr => $expected_addrs:expr;)*) => {
+        ($($name:ident = $addr:expr => $($expected_addrs:ident),+;)*) => {
             $(
                 #[tokio::test]
                 #[serial_test::serial]
                 async fn $name() -> eyre::Result<()> {
-                    run_test($addr.into(), &$expected_addrs).await
+                    run_test(
+                        $addr.into(),
+                        #[allow(clippy::needless_update)]
+                        ExpectedAddrs { $($expected_addrs: true,)+ ..Default::default() }
+                    ).await
                 }
             )*
         };
     }
 
-    static DEFAULT_INTF: Lazy<default_net::Interface> =
-        Lazy::new(|| default_net::get_default_interface().expect("coudn't get default interface"));
-
     declare_tests! {
-        test_loopback_v4 = Ipv4Addr::LOCALHOST => [Ipv4Addr::LOCALHOST.into()];
-        test_loopback_v6 = Ipv6Addr::LOCALHOST => [Ipv6Addr::LOCALHOST.into()];
-        test_unspecified_v4 = Ipv4Addr::UNSPECIFIED => {
-            let mut expected_addrs = vec![Ipv4Addr::LOCALHOST.into()];
-            expected_addrs.extend(DEFAULT_INTF.ipv4.iter().map(|net| IpAddr::from(net.addr)));
-            expected_addrs
-        };
-        test_unspecified_v6 = Ipv6Addr::UNSPECIFIED => {
-            let mut expected_addrs = vec![Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()];
-            expected_addrs.extend(DEFAULT_INTF.ipv4.iter().map(|net| IpAddr::from(net.addr)));
-            expected_addrs.extend(DEFAULT_INTF.ipv6.iter().map(|net| IpAddr::from(net.addr)));
-            expected_addrs
-        };
-        test_external_v4 = DEFAULT_INTF.ipv4[0].addr => DEFAULT_INTF.ipv4.iter().map(|net| net.addr.into()).collect::<Vec<_>>();
-        test_external_v6 = DEFAULT_INTF.ipv6[0].addr => DEFAULT_INTF.ipv6.iter().map(|net| IpAddr::from(net.addr)).collect::<Vec<_>>();
+        test_loopback_v4 = Ipv4Addr::LOCALHOST => localhost_v4;
+        test_loopback_v6 = Ipv6Addr::LOCALHOST => localhost_v6;
+        test_unspecified_v4 = Ipv4Addr::UNSPECIFIED => localhost_v4, default_intf_v4;
+        test_unspecified_v6 = Ipv6Addr::UNSPECIFIED => localhost_v4, localhost_v6, default_intf_v4, default_intf_v6;
+        test_external_v4 = DEFAULT_INTF.ipv4[0].addr => default_intf_v4;
+        test_external_v6 = DEFAULT_INTF.ipv6[0].addr => default_intf_v6;
     }
 }
