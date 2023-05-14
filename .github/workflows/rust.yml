@@ -1,0 +1,29 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    # Try couple of different combinations of features to make sure we didn't mess up with #[cfg(...)]
+    # Try all of them in succession rather than in Github matrix so that build cache is reused more easily.
+    - name: Build client+camera
+      run: cargo build --all-targets --features client,camera
+    - name: Build client+telescope
+      run: cargo build --all-targets --features client,telescope
+    - name: Build server+camera
+      run: cargo build --all-targets --features server,camera
+    - name: Build server+telescope
+      run: cargo build --all-targets --features server,telescope
