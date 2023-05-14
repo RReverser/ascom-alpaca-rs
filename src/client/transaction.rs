@@ -1,5 +1,4 @@
 use crate::macros::auto_increment;
-use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::num::NonZeroU32;
@@ -29,8 +28,7 @@ pub(crate) struct RequestWithTransaction<T> {
     pub(crate) params: T,
 }
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy, Deserialize, Zeroable, Pod)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub(crate) struct ResponseTransaction {
     #[serde(rename = "ClientTransactionID")]
     pub(crate) client_transaction_id: Option<NonZeroU32>,
