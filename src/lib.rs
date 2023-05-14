@@ -263,7 +263,6 @@ Licensed under either of
 
 pub(crate) mod macros;
 
-#[path = "api/mod.autogen.rs"]
 pub mod api;
 
 #[cfg(feature = "client")]

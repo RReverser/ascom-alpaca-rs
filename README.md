@@ -21,15 +21,15 @@ First set is along the client-server axis:
 The second set of features is based on the device type and enables the corresponding trait:
 
 - `all-devices`: Enables all of the below. Not recommended unless you're building a universal astronomy application.
-- `camera`: Enables support for cameras via the `Camera` trait.
-- `covercalibrator`: Enables [...] the `CoverCalibrator` trait.
-- `dome`: Enables `Dome`.
-- `filterwheel`: Enables `FilterWheel`.
-- `focuser`: Enables `Focuser`.
-- `observingconditions`: Enables `ObservingConditions`.
-- `rotator`: Enables `Rotator`.
-- `switch`: Enables `Switch`.
-- `telescope`: Enables `Telescope`.
+- `camera`: Enables support for cameras via the [`Camera`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Camera.html) trait.
+- `covercalibrator`: Enables [...] the [`CoverCalibrator`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.CoverCalibrator.html) trait.
+- `dome`: Enables [`Dome`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Dome.html).
+- `filterwheel`: Enables [`FilterWheel`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.FilterWheel.html).
+- `focuser`: Enables [`Focuser`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Focuser.html).
+- `observingconditions`: Enables [`ObservingConditions`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.ObservingConditions.html).
+- `rotator`: Enables [`Rotator`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Rotator.html).
+- `switch`: Enables [`Switch`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Switch.html).
+- `telescope`: Enables [`Telescope`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Telescope.html).
 
 Once you decided on the features you need, you can add this crate to your `Cargo.toml`. For example, if I'm implementing an Alpaca camera driver, I'd add the following to my `Cargo.toml`:
 
@@ -42,7 +42,7 @@ ascom-alpaca = { version = "0.1", features = ["client", "camera"] }
 
 All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/). They all returns `ASCOMResult<...>`, which is an alias for `Result<..., ASCOMError>`.
 
-All those traits additionally inherit from a special `Device` supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
+All those traits additionally inherit from a special [`Device`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Device.html) supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
 
 - `fn static_name(&self) -> &str`: Returns the static device name. Might differ from the async `name` method result.
 - `fn unique_id(&self) -> &str`: Returns globally-unique device ID.

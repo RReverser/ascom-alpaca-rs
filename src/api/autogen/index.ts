@@ -840,4 +840,4 @@ try {
   console.warn(err);
 }
 
-await writeFile('../mod.autogen.rs', rendered);
+await writeFile('../mod.rs', rendered);
