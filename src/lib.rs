@@ -36,9 +36,11 @@ ascom-alpaca = { version = "0.1", features = ["client", "camera"] }
 
 ### Device methods
 
-All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/). They all returns [`ASCOMResult<...>`](crate::ASCOMResult), which is an alias for [`Result<..., ASCOMError>`](crate::ASCOMError).
+All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/).
 
-All those traits additionally inherit from a special [`Device`](crate::api::Device) supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
+They all return [`ASCOMResult<...>`](crate::ASCOMResult), which is an alias for [`Result<..., ASCOMError>`](crate::ASCOMError). Any skipped methods will return the ASCOM "not implemented" error by default.
+
+All the device type traits also inherit from a [`Device`](crate::api::Device) supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
 
 - [`fn static_name(&self) -> &str`](crate::api::Device::static_name): Returns the static device name. Might differ from the async `name` method result.
 - [`fn unique_id(&self) -> &str`](crate::api::Device::unique_id): Returns globally-unique device ID.
@@ -111,13 +113,12 @@ async fn main() -> eyre::Result<Infallible> {
         ..Default::default()
     };
 
-    // By default, the server will listen on [::] with a randomly assigned port.
+    // By default, the server will listen on dual-stack (IPv4 + IPv6) unspecified address with a randomly assigned port.
     // You can change that by modifying the `listen_addr` field:
     server.listen_addr.set_port(8000);
 
-    // Register your device(s).
-    let my_camera = MyCamera { /* ... */ };
-    server.devices.register(my_camera);
+    // Create and register your device(s).
+    server.devices.register(MyCamera { /* ... */ });
 
     // Start the infinite server loop.
     server.start().await
@@ -258,7 +259,8 @@ Licensed under either of
     clippy::redundant_pub_crate,
     clippy::single_match_else,
     clippy::type_repetition_in_bounds,
-    clippy::let_underscore_untyped
+    clippy::let_underscore_untyped,
+    clippy::struct_excessive_bools
 )]
 
 pub(crate) mod macros;
