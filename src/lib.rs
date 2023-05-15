@@ -179,7 +179,7 @@ bound_client.discover_addrs()
     // create a `Client` for each discovered address
     .map(Client::new_from_addr)
     .try_for_each(|client| async move {
-        /* ... */
+        /* ...do something with devices via each client... */
         Ok(())
     })
     .await?;
@@ -190,8 +190,8 @@ bound_client.discover_addrs()
 Keep in mind that discovery is a UDP-based protocol, so it's not guaranteed to be reliable.
 
 Also, same device server can be discovered multiple times if it's available on multiple network interfaces.
-While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like `HashMap`.
-It will leverage `unique_id` for device comparisons under the hood.
+While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like [`HashSet`](::std::collections::HashSet).
+It will leverage [`unique_id`](crate::api::Device::unique_id) for device comparisons under the hood.
 
 **Examples:**
 
