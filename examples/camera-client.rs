@@ -1,6 +1,6 @@
-use ascom_alpaca::api::{Camera, ImageArray, SensorType, TypedDevice};
+use ascom_alpaca::api::{Camera, ImageArray, SensorType as AlpacaSensorType, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
-use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
+use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Client};
 use eframe::egui::{self, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use futures::{Future, FutureExt, StreamExt, TryStreamExt};
@@ -139,15 +139,43 @@ impl StateCtx {
                             camera_name,
                             exposure_min,
                             exposure_max,
-                            sensor_type,
                             can_abort_exposure,
+                            sensor_type,
                             (gain_mode, gain),
                         ) = tokio::try_join!(
                             camera.name(),
                             camera.exposure_min(),
                             camera.exposure_max(),
-                            camera.sensor_type(),
                             camera.can_abort_exposure(),
+                            async {
+                                Ok(match camera.sensor_type().await? {
+                                    AlpacaSensorType::Monochrome => SensorType::Monochrome,
+                                    AlpacaSensorType::Color => SensorType::Color,
+                                    AlpacaSensorType::RGGB => {
+                                        let (offset_x, offset_y) = tokio::try_join!(
+                                            camera.bayer_offset_x(),
+                                            camera.bayer_offset_y()
+                                        )?;
+                                        SensorType::Bayer(match (offset_x, offset_y) {
+                                            (0, 0) => bayer::CFA::RGGB,
+                                            (1, 0) => bayer::CFA::GRBG,
+                                            (0, 1) => bayer::CFA::GBRG,
+                                            (1, 1) => bayer::CFA::BGGR,
+                                            _ => {
+                                                return Err(ASCOMError::unspecified(
+                                                    format_args!(
+                                                        "Invalid bayer offset: ({offset_x}, {offset_y})"
+                                                    ),
+                                                ))?
+                                            }
+                                        })
+                                    }
+                                    sensor_type => {
+                                        tracing::warn!("Unsupported sensor type {sensor_type:?}, treating as monochrome");
+                                        SensorType::Monochrome
+                                    }
+                                })
+                            },
                             async {
                                 let gain_mode = match if_implemented(camera.gain_min().await)? {
                                     Some(min) => GainMode::Range(min..=camera.gain_max().await?),
@@ -283,6 +311,12 @@ struct CaptureParams {
     gain: i32,
 }
 
+enum SensorType {
+    Monochrome,
+    Color,
+    Bayer(bayer::CFA),
+}
+
 struct CaptureState {
     params_rx: tokio::sync::watch::Receiver<CaptureParams>,
     tx: tokio::sync::mpsc::Sender<eyre::Result<ColorImage>>,
@@ -343,12 +377,12 @@ impl CaptureState {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         let raw_img = self.camera.image_array().await?;
-        to_stretched_color_img(self.sensor_type, &raw_img)
+        to_stretched_color_img(&self.sensor_type, &raw_img)
     }
 }
 
 fn to_stretched_color_img(
-    sensor_type: SensorType,
+    sensor_type: &SensorType,
     raw_img: &ImageArray,
 ) -> Result<ColorImage, eyre::Error> {
     let (width, height, depth) = raw_img.dim();
@@ -370,6 +404,17 @@ fn to_stretched_color_img(
         (u64::from(x) * u64::from(u8::MAX) / u64::from(max)) as u8
     });
     let rgb_buf: Vec<u8> = match sensor_type {
+        SensorType::Monochrome => {
+            eyre::ensure!(
+                depth == 1,
+                "Expected 1 channel for monochrome image but got {}",
+                depth,
+            );
+            stretched_iter
+                // Repeat each gray pixel 3 times to make it RGB.
+                .flat_map(|color| std::iter::repeat(color).take(3))
+                .collect()
+        }
         SensorType::Color => {
             eyre::ensure!(
                 depth == 3,
@@ -378,7 +423,7 @@ fn to_stretched_color_img(
             );
             stretched_iter.collect()
         }
-        SensorType::RGGB => {
+        SensorType::Bayer(cfa) => {
             struct ReadIter<I>(I);
 
             impl<I: ExactSizeIterator<Item = u8>> std::io::Read for ReadIter<I> {
@@ -403,25 +448,11 @@ fn to_stretched_color_img(
             bayer::demosaic::linear::run(
                 &mut ReadIter(stretched_iter),
                 bayer::BayerDepth::Depth8,
-                bayer::CFA::RGGB,
+                *cfa,
                 &mut bayer::RasterMut::new(width, height, bayer::RasterDepth::Depth8, &mut rgb_buf),
             )?;
 
             rgb_buf
-        }
-        other => {
-            if other != SensorType::Monochrome {
-                eyre::bail!("Unsupported Bayer type {:?}, treating as monochrome", other);
-            }
-            eyre::ensure!(
-                depth == 1,
-                "Expected 1 channel for monochrome image but got {}",
-                depth,
-            );
-            stretched_iter
-                // Repeat each gray pixel 3 times to make it RGB.
-                .flat_map(|color| std::iter::repeat(color).take(3))
-                .collect()
         }
     };
     Ok(ColorImage::from_rgb([width, height], &rgb_buf))
