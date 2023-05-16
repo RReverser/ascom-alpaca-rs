@@ -140,12 +140,14 @@ impl StateCtx {
                             exposure_min,
                             exposure_max,
                             sensor_type,
+                            can_abort_exposure,
                             (gain_mode, gain),
                         ) = tokio::try_join!(
                             camera.name(),
                             camera.exposure_min(),
                             camera.exposure_max(),
                             camera.sensor_type(),
+                            camera.can_abort_exposure(),
                             async {
                                 let gain_mode = match if_implemented(camera.gain_min().await)? {
                                     Some(min) => GainMode::Range(min..=camera.gain_max().await?),
@@ -173,6 +175,8 @@ impl StateCtx {
                                 sensor_type,
                                 camera,
                                 ctx,
+                                stored_gain: gain,
+                                can_abort_exposure,
                             }
                             .start_capture_loop(),
                         );
@@ -285,6 +289,8 @@ struct CaptureState {
     camera: Arc<dyn Camera>,
     sensor_type: SensorType,
     ctx: egui::Context,
+    can_abort_exposure: bool,
+    stored_gain: i32,
 }
 
 impl CaptureState {
@@ -303,24 +309,24 @@ impl CaptureState {
     }
 
     async fn capture_image(&mut self) -> eyre::Result<Option<ColorImage>> {
-        let mut params_rx_clone = self.params_rx.clone();
-        let old_gain = self.params_rx.borrow().gain;
+        let gain = self.params_rx.borrow_and_update().gain;
+        if gain != self.stored_gain {
+            self.camera.set_gain(gain).await?;
+            self.stored_gain = gain;
+        }
+        // a separate cheap clone to watch notifications on without borrowing from `self`
+        let mut params_rx = self.params_rx.clone();
 
         tokio::select! {
-            _ = self.tx.closed() => {
-                // the receiver was dropped due to app state change
-                // gracefully abort the exposure and stop the loop
-                self.camera.abort_exposure().await?;
-                Ok(None)
-            }
-            _ = params_rx_clone.changed() => {
-                // exposure parameters were changed
-                // gracefully abort the exposure, update params and continue the loop
-                self.camera.abort_exposure().await?;
-                let new_gain = self.params_rx.borrow_and_update().gain;
-                if new_gain != old_gain {
-                    self.camera.set_gain(new_gain).await?;
+            _ = async {
+                tokio::select! {
+                    // the receiver was dropped due to app state change
+                    _ = self.tx.closed() => {},
+                    // or the exposure params were changed
+                    _ = params_rx.changed() => {},
                 }
+            }, if self.can_abort_exposure => {
+                self.camera.abort_exposure().await?;
                 Ok(None)
             }
             result = self.capture_image_without_cancellation() => {
