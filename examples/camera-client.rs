@@ -193,7 +193,7 @@ impl StateCtx {
                         )?;
                         let (tx, rx) = tokio::sync::mpsc::channel(1);
                         let (params_tx, params_rx) = tokio::sync::watch::channel(CaptureParams {
-                            duration_sec: exposure_min,
+                            duration_sec: 0.05,
                             gain,
                         });
                         let image_loop = tokio::spawn(
