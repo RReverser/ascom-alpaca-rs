@@ -1,9 +1,10 @@
 use ascom_alpaca::api::{Camera, ImageArray, SensorType as AlpacaSensorType, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
-use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Client};
+use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
 use eframe::egui::{self, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
-use futures::{Future, FutureExt, StreamExt, TryStreamExt};
+use eyre::Context;
+use futures::{Future, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use std::collections::HashSet;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -140,13 +141,18 @@ impl StateCtx {
                             exposure_min,
                             exposure_max,
                             can_abort_exposure,
+                            max_adu,
                             sensor_type,
                             (gain_mode, gain),
                         ) = tokio::try_join!(
-                            camera.name(),
-                            camera.exposure_min(),
-                            camera.exposure_max(),
-                            camera.can_abort_exposure(),
+                            camera.name().map_err(eyre::Error::from),
+                            camera.exposure_min().map_err(eyre::Error::from),
+                            camera.exposure_max().map_err(eyre::Error::from),
+                            camera.can_abort_exposure().map_err(eyre::Error::from),
+                            async {
+                                let max_adu = camera.max_adu().await?;
+                                u32::try_from(max_adu).context("Max ADU is out of range")
+                            },
                             async {
                                 Ok(match camera.sensor_type().await? {
                                     AlpacaSensorType::Monochrome => SensorType::Monochrome,
@@ -161,13 +167,7 @@ impl StateCtx {
                                             (1, 0) => bayer::CFA::GRBG,
                                             (0, 1) => bayer::CFA::GBRG,
                                             (1, 1) => bayer::CFA::BGGR,
-                                            _ => {
-                                                return Err(ASCOMError::unspecified(
-                                                    format_args!(
-                                                        "Invalid bayer offset: ({offset_x}, {offset_y})"
-                                                    ),
-                                                ))?
-                                            }
+                                            _ => eyre::bail!("Invalid bayer offset: ({}, {})", offset_x, offset_y),
                                         })
                                     }
                                     sensor_type => {
@@ -205,6 +205,7 @@ impl StateCtx {
                                 ctx,
                                 stored_gain: gain,
                                 can_abort_exposure,
+                                max_adu,
                             }
                             .start_capture_loop(),
                         );
@@ -325,6 +326,7 @@ struct CaptureState {
     ctx: egui::Context,
     can_abort_exposure: bool,
     stored_gain: i32,
+    max_adu: u32,
 }
 
 impl CaptureState {
@@ -377,31 +379,26 @@ impl CaptureState {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         let raw_img = self.camera.image_array().await?;
-        to_stretched_color_img(&self.sensor_type, &raw_img)
+        to_stretched_color_img(&self.sensor_type, self.max_adu, &raw_img)
     }
 }
 
 fn to_stretched_color_img(
     sensor_type: &SensorType,
+    max_adu: u32,
     raw_img: &ImageArray,
 ) -> Result<ColorImage, eyre::Error> {
     let (width, height, depth) = raw_img.dim();
     let mut raw_img = raw_img.view();
     // Convert from width*height*depth encoding layout to height*width*depth graphics layout.
     raw_img.swap_axes(0, 1);
-    let max = raw_img
-        .iter()
-        // ignore negative values
-        .filter_map(|&x| u32::try_from(x).ok())
-        // avoid division by zero
-        .filter(|&x| x != 0)
-        .max()
-        .unwrap_or(1);
     let stretched_iter = raw_img.iter().map(|&x| {
         // clamp sub-zero values
         let x = u32::try_from(x).unwrap_or(0);
-        // Stretch the image, use u64 as a cheap replacement for floating-point math.
-        (u64::from(x) * u64::from(u8::MAX) / u64::from(max)) as u8
+        // Stretch the image from [0; max_adu] to u8 range.
+        // Use u64 as a cheap replacement for floating-point math
+        // that can still fit the temporary math values.
+        (u64::from(x) * u64::from(u8::MAX) / u64::from(max_adu)) as u8
     });
     let rgb_buf: Vec<u8> = match sensor_type {
         SensorType::Monochrome => {
