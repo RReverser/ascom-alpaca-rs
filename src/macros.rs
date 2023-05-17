@@ -31,7 +31,9 @@ macro_rules! rpc_trait {
 
             $(
                 #[http($method_path:literal, method = $http_method:ident $(, via = $via:ident)?)]
-                fn $method_name:ident(&self $(, #[http($param_query:literal $(, via = $param_via:ident)?)] $param:ident: $param_ty:ty)* $(,)?) $(-> $return_type:ty)?;
+                async fn $method_name:ident(
+                    & $self:ident $(, #[http($param_query:literal $(, via = $param_via:ident)?)] $param:ident: $param_ty:ty)* $(,)?
+                ) -> $return_type:ty $default_body:block
 
                 $(#[doc = $docs_after_method:literal])*
             )*
@@ -50,9 +52,9 @@ macro_rules! rpc_trait {
             )*
 
             $(
-                async fn $method_name(&self $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
-                    Err($crate::ASCOMError::NOT_IMPLEMENTED)
-                }
+                async fn $method_name(
+                    & $self $(, $param: $param_ty)*
+                ) -> $return_type $default_body
 
                 $(#[doc = $docs_after_method])*
             )*
@@ -146,7 +148,7 @@ macro_rules! rpc_trait {
 
             $(
                 #[allow(non_camel_case_types)]
-                async fn $method_name(&self $(, $param: $param_ty)*) -> $crate::ASCOMResult$(<$return_type>)? {
+                async fn $method_name(& $self $(, $param: $param_ty)*) -> $return_type {
                     #[derive(Debug, Serialize)]
                     struct OpaqueParams<$($param),*> {
                         $(
@@ -155,7 +157,7 @@ macro_rules! rpc_trait {
                         )*
                     }
 
-                    self
+                    $self
                     .exec_action($crate::client::ActionParams {
                         action: $method_path,
                         method: $crate::client::Method::$http_method,

@@ -661,6 +661,7 @@ mod devices_impl;
 mod server_info;
 
 use bool_param::BoolParam;
+use crate::{ASCOMError, ASCOMResult};
 use crate::macros::{rpc_mod, rpc_trait};
 use crate::response::ValueResponse;
 use macro_rules_attribute::apply;
@@ -853,7 +854,7 @@ ${stringifyIter(
             ? `, via = ${method.returnType.convertVia}`
             : ''
         })]
-          fn ${method.name}(
+          async fn ${method.name}(
             &self,
             ${stringifyIter(
               method.resolvedArgs,
@@ -865,8 +866,15 @@ ${stringifyIter(
                   ${arg.name}: ${arg.type},
                 `
             )}
-          )${method.returnType.ifNotVoid(type => ` -> ${type}`)};
-
+          ) -> ASCOMResult${method.returnType.ifNotVoid(type => `<${type}>`)} {
+            ${
+              method.name.startsWith('can_')
+                ? 'Ok(false)'
+                : device.path === '{device_type}' && method.name === 'name'
+                ? 'Ok(self.static_name().to_owned())'
+                : 'Err(ASCOMError::NOT_IMPLEMENTED)'
+            }
+          }
         `
       )}
     }

@@ -195,10 +195,6 @@ impl Device for Webcam {
         Ok(3)
     }
 
-    async fn name(&self) -> ASCOMResult<String> {
-        Ok(self.name.clone())
-    }
-
     async fn supported_actions(&self) -> ASCOMResult<Vec<String>> {
         Ok(vec![])
     }
@@ -257,26 +253,6 @@ impl Camera for Webcam {
             ExposingState::Idle { .. } => CameraState::Idle,
             ExposingState::Exposing { .. } => CameraState::Exposing,
         })
-    }
-
-    async fn can_asymmetric_bin(&self) -> ASCOMResult<bool> {
-        Ok(false)
-    }
-
-    async fn can_fast_readout(&self) -> ASCOMResult<bool> {
-        Ok(false)
-    }
-
-    async fn can_get_cooler_power(&self) -> ASCOMResult<bool> {
-        Ok(false)
-    }
-
-    async fn can_pulse_guide(&self) -> ASCOMResult<bool> {
-        Ok(false)
-    }
-
-    async fn can_set_ccd_temperature(&self) -> ASCOMResult<bool> {
-        Ok(false)
     }
 
     async fn electrons_per_adu(&self) -> ASCOMResult<f64> {

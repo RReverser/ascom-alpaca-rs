@@ -36,13 +36,11 @@ ascom-alpaca = { version = "0.1", features = ["client", "camera"] }
 
 ### Device methods
 
-All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/).
+All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/). They all return [`ASCOMResult<...>`](crate::ASCOMResult).
 
-They all return [`ASCOMResult<...>`](crate::ASCOMResult), which is an alias for [`Result<..., ASCOMError>`](crate::ASCOMError). Any skipped methods will return the ASCOM "not implemented" error by default.
+The [`Device`](crate::api::Device) supertrait includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as a few custom metadata methods used for the device registration:
 
-All the device type traits also inherit from a [`Device`](crate::api::Device) supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
-
-- [`fn static_name(&self) -> &str`](crate::api::Device::static_name): Returns the static device name. Might differ from the async `name` method result.
+- [`fn static_name(&self) -> &str`](crate::api::Device::static_name): Returns the static device name.
 - [`fn unique_id(&self) -> &str`](crate::api::Device::unique_id): Returns globally-unique device ID.
 
 ### Implementing a device server
@@ -86,7 +84,13 @@ impl Camera for MyCamera {
 }
 ```
 
-Once implemented, you can create a server, register your device(s), and start listening:
+Any skipped methods will default to:
+
+- `can_*` feature detection methods - to `false`
+- [`Device::name`](crate::api::Device::name) - to the result of [`Device::static_name()`](crate::api::Device::static_name)
+- any other methods - to the "not implemented" ASCOM error
+
+Once traits are implemented, you can create a server, register your device(s), and start listening:
 
 ```no_run
 use ascom_alpaca::Server;

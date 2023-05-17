@@ -47,6 +47,7 @@ mod server_info;
 
 use crate::macros::{rpc_mod, rpc_trait};
 use crate::response::ValueResponse;
+use crate::{ASCOMError, ASCOMResult};
 use bool_param::BoolParam;
 use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -561,63 +562,103 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     This method should return an error message and NotImplementedException error number (0x400) if the driver just implements the standard ASCOM device methods and has no bespoke, unique, functionality.
     */
     #[http("action", method = Put, via = ValueResponse)]
-    fn action(
+    async fn action(
         &self,
 
         #[http("Action")] action: String,
 
         #[http("Parameters")] parameters: String,
-    ) -> String;
+    ) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Transmits an arbitrary string to the device and does not wait for a response. Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandblind", method = Put)]
-    fn command_blind(&self, #[http("Command")] command: String, #[http("Raw")] raw: String);
-
-    /// Transmits an arbitrary string to the device and waits for a boolean response. Optionally, protocol framing characters may be added to the string before transmission.
-    #[http("commandbool", method = Put, via = ValueResponse)]
-    fn command_bool(&self, #[http("Command")] command: String, #[http("Raw")] raw: String) -> bool;
-
-    /// Transmits an arbitrary string to the device and waits for a string response. Optionally, protocol framing characters may be added to the string before transmission.
-    #[http("commandstring", method = Put, via = ValueResponse)]
-    fn command_string(
+    async fn command_blind(
         &self,
 
         #[http("Command")] command: String,
 
         #[http("Raw")] raw: String,
-    ) -> String;
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// Transmits an arbitrary string to the device and waits for a boolean response. Optionally, protocol framing characters may be added to the string before transmission.
+    #[http("commandbool", method = Put, via = ValueResponse)]
+    async fn command_bool(
+        &self,
+
+        #[http("Command")] command: String,
+
+        #[http("Raw")] raw: String,
+    ) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// Transmits an arbitrary string to the device and waits for a string response. Optionally, protocol framing characters may be added to the string before transmission.
+    #[http("commandstring", method = Put, via = ValueResponse)]
+    async fn command_string(
+        &self,
+
+        #[http("Command")] command: String,
+
+        #[http("Raw")] raw: String,
+    ) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Retrieves the connected state of the device
     #[http("connected", method = Get, via = ValueResponse)]
-    fn connected(&self) -> bool;
+    async fn connected(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the connected state of the device
     #[http("connected", method = Put)]
-    fn set_connected(&self, #[http("Connected", via = BoolParam)] connected: bool);
+    async fn set_connected(
+        &self,
+
+        #[http("Connected", via = BoolParam)] connected: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The description of the device
     #[http("description", method = Get, via = ValueResponse)]
-    fn description(&self) -> String;
+    async fn description(&self) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The description of the driver
     #[http("driverinfo", method = Get, via = ValueResponse)]
-    fn driver_info(&self) -> String;
+    async fn driver_info(&self) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// A string containing only the major and minor version of the driver.
     #[http("driverversion", method = Get, via = ValueResponse)]
-    fn driver_version(&self) -> String;
+    async fn driver_version(&self) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support previous versions as well as the current version to ensure thay can use the largest number of devices.
     #[http("interfaceversion", method = Get, via = ValueResponse)]
-    fn interface_version(&self) -> i32;
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The name of the device
     #[http("name", method = Get, via = ValueResponse)]
-    fn name(&self) -> String;
+    async fn name(&self) -> ASCOMResult<String> {
+        Ok(self.static_name().to_owned())
+    }
 
     /// Returns the list of action names supported by this driver.
     #[http("supportedactions", method = Get, via = ValueResponse)]
-    fn supported_actions(&self) -> Vec<String>;
+    async fn supported_actions(&self) -> ASCOMResult<Vec<String>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// Camera Specific Methods
@@ -626,139 +667,215 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 pub trait Camera: Device + Send + Sync {
     /// Returns the X offset of the Bayer matrix, as defined in SensorType.
     #[http("bayeroffsetx", method = Get, via = ValueResponse)]
-    fn bayer_offset_x(&self) -> i32;
+    async fn bayer_offset_x(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the Y offset of the Bayer matrix, as defined in SensorType.
     #[http("bayeroffsety", method = Get, via = ValueResponse)]
-    fn bayer_offset_y(&self) -> i32;
+    async fn bayer_offset_y(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the binning factor for the X axis.
     #[http("binx", method = Get, via = ValueResponse)]
-    fn bin_x(&self) -> i32;
+    async fn bin_x(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the binning factor for the X axis.
     #[http("binx", method = Put)]
-    fn set_bin_x(&self, #[http("BinX")] bin_x: i32);
+    async fn set_bin_x(&self, #[http("BinX")] bin_x: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the binning factor for the Y axis.
     #[http("biny", method = Get, via = ValueResponse)]
-    fn bin_y(&self) -> i32;
+    async fn bin_y(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the binning factor for the Y axis.
     #[http("biny", method = Put)]
-    fn set_bin_y(&self, #[http("BinY")] bin_y: i32);
+    async fn set_bin_y(&self, #[http("BinY")] bin_y: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current camera operational state.
     #[http("camerastate", method = Get, via = ValueResponse)]
-    fn camera_state(&self) -> CameraState;
+    async fn camera_state(&self) -> ASCOMResult<CameraState> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the width of the CCD camera chip in unbinned pixels.
     #[http("cameraxsize", method = Get, via = ValueResponse)]
-    fn camera_xsize(&self) -> i32;
+    async fn camera_xsize(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the height of the CCD camera chip in unbinned pixels.
     #[http("cameraysize", method = Get, via = ValueResponse)]
-    fn camera_ysize(&self) -> i32;
+    async fn camera_ysize(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns true if the camera can abort exposures; false if not.
     #[http("canabortexposure", method = Get, via = ValueResponse)]
-    fn can_abort_exposure(&self) -> bool;
+    async fn can_abort_exposure(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Returns a flag showing whether this camera supports asymmetric binning
     #[http("canasymmetricbin", method = Get, via = ValueResponse)]
-    fn can_asymmetric_bin(&self) -> bool;
+    async fn can_asymmetric_bin(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Indicates whether the camera has a fast readout mode.
     #[http("canfastreadout", method = Get, via = ValueResponse)]
-    fn can_fast_readout(&self) -> bool;
+    async fn can_fast_readout(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// If true, the camera's cooler power setting can be read.
     #[http("cangetcoolerpower", method = Get, via = ValueResponse)]
-    fn can_get_cooler_power(&self) -> bool;
+    async fn can_get_cooler_power(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Returns a flag indicating whether this camera supports pulse guiding.
     #[http("canpulseguide", method = Get, via = ValueResponse)]
-    fn can_pulse_guide(&self) -> bool;
+    async fn can_pulse_guide(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Returns a flag indicatig whether this camera supports setting the CCD temperature
     #[http("cansetccdtemperature", method = Get, via = ValueResponse)]
-    fn can_set_ccd_temperature(&self) -> bool;
+    async fn can_set_ccd_temperature(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Returns a flag indicating whether this camera can stop an exposure that is in progress
     #[http("canstopexposure", method = Get, via = ValueResponse)]
-    fn can_stop_exposure(&self) -> bool;
+    async fn can_stop_exposure(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Returns the current CCD temperature in degrees Celsius.
     #[http("ccdtemperature", method = Get, via = ValueResponse)]
-    fn ccd_temperature(&self) -> f64;
+    async fn ccd_temperature(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current cooler on/off state.
     #[http("cooleron", method = Get, via = ValueResponse)]
-    fn cooler_on(&self) -> bool;
+    async fn cooler_on(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Turns on and off the camera cooler. True = cooler on, False = cooler off
     #[http("cooleron", method = Put)]
-    fn set_cooler_on(&self, #[http("CoolerOn", via = BoolParam)] cooler_on: bool);
+    async fn set_cooler_on(
+        &self,
+
+        #[http("CoolerOn", via = BoolParam)] cooler_on: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the present cooler power level, in percent.
     #[http("coolerpower", method = Get, via = ValueResponse)]
-    fn cooler_power(&self) -> f64;
+    async fn cooler_power(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the gain of the camera in photoelectrons per A/D unit.
     #[http("electronsperadu", method = Get, via = ValueResponse)]
-    fn electrons_per_adu(&self) -> f64;
+    async fn electrons_per_adu(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the maximum exposure time supported by StartExposure.
     #[http("exposuremax", method = Get, via = ValueResponse)]
-    fn exposure_max(&self) -> f64;
+    async fn exposure_max(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the Minimium exposure time in seconds that the camera supports through StartExposure.
     #[http("exposuremin", method = Get, via = ValueResponse)]
-    fn exposure_min(&self) -> f64;
+    async fn exposure_min(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the smallest increment in exposure time supported by StartExposure.
     #[http("exposureresolution", method = Get, via = ValueResponse)]
-    fn exposure_resolution(&self) -> f64;
+    async fn exposure_resolution(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns whenther Fast Readout Mode is enabled.
     #[http("fastreadout", method = Get, via = ValueResponse)]
-    fn fast_readout(&self) -> bool;
+    async fn fast_readout(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets whether Fast Readout Mode is enabled.
     #[http("fastreadout", method = Put)]
-    fn set_fast_readout(&self, #[http("FastReadout", via = BoolParam)] fast_readout: bool);
+    async fn set_fast_readout(
+        &self,
+
+        #[http("FastReadout", via = BoolParam)] fast_readout: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Reports the full well capacity of the camera in electrons, at the current camera settings (binning, SetupDialog settings, etc.).
     #[http("fullwellcapacity", method = Get, via = ValueResponse)]
-    fn full_well_capacity(&self) -> f64;
+    async fn full_well_capacity(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The camera's gain (GAIN VALUE MODE) OR the index of the selected camera gain description in the Gains array (GAINS INDEX MODE).
     #[http("gain", method = Get, via = ValueResponse)]
-    fn gain(&self) -> i32;
+    async fn gain(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The camera's gain (GAIN VALUE MODE) OR the index of the selected camera gain description in the Gains array (GAINS INDEX MODE).
     #[http("gain", method = Put)]
-    fn set_gain(&self, #[http("Gain")] gain: i32);
+    async fn set_gain(&self, #[http("Gain")] gain: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the maximum value of Gain.
     #[http("gainmax", method = Get, via = ValueResponse)]
-    fn gain_max(&self) -> i32;
+    async fn gain_max(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the Minimum value of Gain.
     #[http("gainmin", method = Get, via = ValueResponse)]
-    fn gain_min(&self) -> i32;
+    async fn gain_min(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the Gains supported by the camera.
     #[http("gains", method = Get, via = ValueResponse)]
-    fn gains(&self) -> Vec<String>;
+    async fn gains(&self) -> ASCOMResult<Vec<String>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns a flag indicating whether this camera has a mechanical shutter.
     #[http("hasshutter", method = Get, via = ValueResponse)]
-    fn has_shutter(&self) -> bool;
+    async fn has_shutter(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current heat sink temperature (called "ambient temperature" by some manufacturers) in degrees Celsius.
     #[http("heatsinktemperature", method = Get, via = ValueResponse)]
-    fn heat_sink_temperature(&self) -> f64;
+    async fn heat_sink_temperature(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /**
     Returns an array of 32bit integers containing the pixel values from the last exposure. This call can return either a 2 dimension (monochrome images) or 3 dimension (colour or multi-plane images) array of size NumX \* NumY or NumX \* NumY \* NumPlanes. Where applicable, the size of NumPlanes has to be determined by inspection of the returned Array.
@@ -818,163 +935,245 @@ pub trait Camera: Device + Send + Sync {
     Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
     */
     #[http("imagearray", method = Get)]
-    fn image_array(&self) -> ImageArray;
+    async fn image_array(&self) -> ASCOMResult<ImageArray> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns a flag indicating whether the image is ready to be downloaded from the camera.
     #[http("imageready", method = Get, via = ValueResponse)]
-    fn image_ready(&self) -> bool;
+    async fn image_ready(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns a flag indicating whether the camera is currrently in a PulseGuide operation.
     #[http("ispulseguiding", method = Get, via = ValueResponse)]
-    fn is_pulse_guiding(&self) -> bool;
+    async fn is_pulse_guiding(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Reports the actual exposure duration in seconds (i.e. shutter open time).
     #[http("lastexposureduration", method = Get, via = ValueResponse)]
-    fn last_exposure_duration(&self) -> f64;
+    async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Reports the actual exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
     #[http("lastexposurestarttime", method = Get, via = LastExposureStartTime)]
-    fn last_exposure_start_time(&self) -> time::OffsetDateTime;
+    async fn last_exposure_start_time(&self) -> ASCOMResult<time::OffsetDateTime> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Reports the maximum ADU value the camera can produce.
     #[http("maxadu", method = Get, via = ValueResponse)]
-    fn max_adu(&self) -> i32;
+    async fn max_adu(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the maximum allowed binning for the X camera axis
     #[http("maxbinx", method = Get, via = ValueResponse)]
-    fn max_bin_x(&self) -> i32;
+    async fn max_bin_x(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the maximum allowed binning for the Y camera axis
     #[http("maxbiny", method = Get, via = ValueResponse)]
-    fn max_bin_y(&self) -> i32;
+    async fn max_bin_y(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current subframe width, if binning is active, value is in binned pixels.
     #[http("numx", method = Get, via = ValueResponse)]
-    fn num_x(&self) -> i32;
+    async fn num_x(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the current subframe width.
     #[http("numx", method = Put)]
-    fn set_num_x(&self, #[http("NumX")] num_x: i32);
+    async fn set_num_x(&self, #[http("NumX")] num_x: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current subframe height, if binning is active, value is in binned pixels.
     #[http("numy", method = Get, via = ValueResponse)]
-    fn num_y(&self) -> i32;
+    async fn num_y(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the current subframe height.
     #[http("numy", method = Put)]
-    fn set_num_y(&self, #[http("NumY")] num_y: i32);
+    async fn set_num_y(&self, #[http("NumY")] num_y: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
     #[http("offset", method = Get, via = ValueResponse)]
-    fn offset(&self) -> i32;
+    async fn offset(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
     #[http("offset", method = Put)]
-    fn set_offset(&self, #[http("Offset")] offset: i32);
+    async fn set_offset(&self, #[http("Offset")] offset: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the maximum value of offset.
     #[http("offsetmax", method = Get, via = ValueResponse)]
-    fn offset_max(&self) -> i32;
+    async fn offset_max(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the Minimum value of offset.
     #[http("offsetmin", method = Get, via = ValueResponse)]
-    fn offset_min(&self) -> i32;
+    async fn offset_min(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the offsets supported by the camera.
     #[http("offsets", method = Get, via = ValueResponse)]
-    fn offsets(&self) -> Vec<String>;
+    async fn offsets(&self) -> ASCOMResult<Vec<String>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the percentage of the current operation that is complete. If valid, returns an integer between 0 and 100, where 0 indicates 0% progress (function just started) and 100 indicates 100% progress (i.e. completion).
     #[http("percentcompleted", method = Get, via = ValueResponse)]
-    fn percent_completed(&self) -> i32;
+    async fn percent_completed(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the width of the CCD chip pixels in microns.
     #[http("pixelsizex", method = Get, via = ValueResponse)]
-    fn pixel_size_x(&self) -> f64;
+    async fn pixel_size_x(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the Height of the CCD chip pixels in microns.
     #[http("pixelsizey", method = Get, via = ValueResponse)]
-    fn pixel_size_y(&self) -> f64;
+    async fn pixel_size_y(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// ReadoutMode is an index into the array ReadoutModes and returns the desired readout mode for the camera. Defaults to 0 if not set.
     #[http("readoutmode", method = Get, via = ValueResponse)]
-    fn readout_mode(&self) -> i32;
+    async fn readout_mode(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the ReadoutMode as an index into the array ReadoutModes.
     #[http("readoutmode", method = Put)]
-    fn set_readout_mode(&self, #[http("ReadoutMode")] readout_mode: i32);
+    async fn set_readout_mode(&self, #[http("ReadoutMode")] readout_mode: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// This property provides an array of strings, each of which describes an available readout mode of the camera. At least one string must be present in the list.
     #[http("readoutmodes", method = Get, via = ValueResponse)]
-    fn readout_modes(&self) -> Vec<String>;
+    async fn readout_modes(&self) -> ASCOMResult<Vec<String>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The name of the sensor used within the camera.
     #[http("sensorname", method = Get, via = ValueResponse)]
-    fn sensor_name(&self) -> String;
+    async fn sensor_name(&self) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns a value indicating whether the sensor is monochrome, or what Bayer matrix it encodes.
     #[http("sensortype", method = Get, via = ValueResponse)]
-    fn sensor_type(&self) -> SensorType;
+    async fn sensor_type(&self) -> ASCOMResult<SensorType> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current camera cooler setpoint in degrees Celsius.
     #[http("setccdtemperature", method = Get, via = ValueResponse)]
-    fn set_ccd_temperature(&self) -> f64;
+    async fn set_ccd_temperature(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Set's the camera's cooler setpoint in degrees Celsius.
     #[http("setccdtemperature", method = Put)]
-    fn set_set_ccd_temperature(&self, #[http("SetCCDTemperature")] set_ccd_temperature: f64);
+    async fn set_set_ccd_temperature(
+        &self,
+
+        #[http("SetCCDTemperature")] set_ccd_temperature: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the subframe start position for the X axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
     #[http("startx", method = Get, via = ValueResponse)]
-    fn start_x(&self) -> i32;
+    async fn start_x(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the current subframe X axis start position in binned pixels.
     #[http("startx", method = Put)]
-    fn set_start_x(&self, #[http("StartX")] start_x: i32);
+    async fn set_start_x(&self, #[http("StartX")] start_x: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the subframe start position for the Y axis (0 based) and returns the current value. If binning is active, value is in binned pixels.
     #[http("starty", method = Get, via = ValueResponse)]
-    fn start_y(&self) -> i32;
+    async fn start_y(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the current subframe Y axis start position in binned pixels.
     #[http("starty", method = Put)]
-    fn set_start_y(&self, #[http("StartY")] start_y: i32);
+    async fn set_start_y(&self, #[http("StartY")] start_y: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The Camera's sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
     #[http("subexposureduration", method = Get, via = ValueResponse)]
-    fn sub_exposure_duration(&self) -> f64;
+    async fn sub_exposure_duration(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets image sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
     #[http("subexposureduration", method = Put)]
-    fn set_sub_exposure_duration(&self, #[http("SubExposureDuration")] sub_exposure_duration: f64);
+    async fn set_sub_exposure_duration(
+        &self,
+
+        #[http("SubExposureDuration")] sub_exposure_duration: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Aborts the current exposure, if any, and returns the camera to Idle state.
     #[http("abortexposure", method = Put)]
-    fn abort_exposure(&self);
+    async fn abort_exposure(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Activates the Camera's mount control sytem to instruct the mount to move in a particular direction for a given period of time
     #[http("pulseguide", method = Put)]
-    fn pulse_guide(
+    async fn pulse_guide(
         &self,
 
         #[http("Direction")] direction: PutPulseGuideDirection,
 
         #[http("Duration")] duration: i32,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Starts an exposure. Use ImageReady to check when the exposure is complete.
     #[http("startexposure", method = Put)]
-    fn start_exposure(
+    async fn start_exposure(
         &self,
 
         #[http("Duration")] duration: f64,
 
         #[http("Light", via = BoolParam)] light: bool,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Stops the current exposure, if any. If an exposure is in progress, the readout process is initiated. Ignored if readout is already in process.
     #[http("stopexposure", method = Put)]
-    fn stop_exposure(&self);
+    async fn stop_exposure(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// CoverCalibrator Specific Methods
@@ -983,39 +1182,57 @@ pub trait Camera: Device + Send + Sync {
 pub trait CoverCalibrator: Device + Send + Sync {
     /// Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on)
     #[http("brightness", method = Get, via = ValueResponse)]
-    fn brightness(&self) -> i32;
+    async fn brightness(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the state of the calibration device, if present, otherwise returns "NotPresent". The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
     #[http("calibratorstate", method = Get, via = ValueResponse)]
-    fn calibrator_state(&self) -> CalibratorStatus;
+    async fn calibrator_state(&self) -> ASCOMResult<CalibratorStatus> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the state of the device cover, if present, otherwise returns "NotPresent". The cover state mode is specified as an integer value from the CoverStatus Enum.
     #[http("coverstate", method = Get, via = ValueResponse)]
-    fn cover_state(&self) -> CoverStatus;
+    async fn cover_state(&self) -> ASCOMResult<CoverStatus> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The Brightness value that makes the calibrator deliver its maximum illumination.
     #[http("maxbrightness", method = Get, via = ValueResponse)]
-    fn max_brightness(&self) -> i32;
+    async fn max_brightness(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Turns the calibrator off if the device has calibration capability.
     #[http("calibratoroff", method = Put)]
-    fn calibrator_off(&self);
+    async fn calibrator_off(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Turns the calibrator on at the specified brightness if the device has calibration capability.
     #[http("calibratoron", method = Put)]
-    fn calibrator_on(&self, #[http("Brightness")] brightness: i32);
+    async fn calibrator_on(&self, #[http("Brightness")] brightness: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Initiates cover closing if a cover is present.
     #[http("closecover", method = Put)]
-    fn close_cover(&self);
+    async fn close_cover(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Stops any cover movement that may be in progress if a cover is present and cover movement can be interrupted.
     #[http("haltcover", method = Put)]
-    fn halt_cover(&self);
+    async fn halt_cover(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Initiates cover opening if a cover is present.
     #[http("opencover", method = Put)]
-    fn open_cover(&self);
+    async fn open_cover(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// Dome Specific Methods
@@ -1024,103 +1241,153 @@ pub trait CoverCalibrator: Device + Send + Sync {
 pub trait Dome: Device + Send + Sync {
     /// The dome altitude (degrees, horizon zero and increasing positive to 90 zenith).
     #[http("altitude", method = Get, via = ValueResponse)]
-    fn altitude(&self) -> f64;
+    async fn altitude(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Indicates whether the dome is in the home position. This is normally used following a FindHome()  operation. The value is reset with any azimuth slew operation that moves the dome away from the home position. AtHome may also become true durng normal slew operations, if the dome passes through the home position and the dome controller hardware is capable of detecting that; or at the end of a slew operation if the dome comes to rest at the home position.
     #[http("athome", method = Get, via = ValueResponse)]
-    fn at_home(&self) -> bool;
+    async fn at_home(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if the dome is in the programmed park position. Set only following a Park() operation and reset with any slew operation.
     #[http("atpark", method = Get, via = ValueResponse)]
-    fn at_park(&self) -> bool;
+    async fn at_park(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the dome azimuth (degrees, North zero and increasing clockwise, i.e., 90 East, 180 South, 270 West)
     #[http("azimuth", method = Get, via = ValueResponse)]
-    fn azimuth(&self) -> f64;
+    async fn azimuth(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if the dome can move to the home position.
     #[http("canfindhome", method = Get, via = ValueResponse)]
-    fn can_find_home(&self) -> bool;
+    async fn can_find_home(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if the dome is capable of programmed parking (Park() method)
     #[http("canpark", method = Get, via = ValueResponse)]
-    fn can_park(&self) -> bool;
+    async fn can_park(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if driver is capable of setting the dome altitude.
     #[http("cansetaltitude", method = Get, via = ValueResponse)]
-    fn can_set_altitude(&self) -> bool;
+    async fn can_set_altitude(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if driver is capable of setting the dome azimuth.
     #[http("cansetazimuth", method = Get, via = ValueResponse)]
-    fn can_set_azimuth(&self) -> bool;
+    async fn can_set_azimuth(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if driver is capable of setting the dome park position.
     #[http("cansetpark", method = Get, via = ValueResponse)]
-    fn can_set_park(&self) -> bool;
+    async fn can_set_park(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if driver is capable of automatically operating shutter
     #[http("cansetshutter", method = Get, via = ValueResponse)]
-    fn can_set_shutter(&self) -> bool;
+    async fn can_set_shutter(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if driver is capable of slaving to a telescope.
     #[http("canslave", method = Get, via = ValueResponse)]
-    fn can_slave(&self) -> bool;
+    async fn can_slave(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if driver is capable of synchronizing the dome azimuth position using the SyncToAzimuth(Double) method.
     #[http("cansyncazimuth", method = Get, via = ValueResponse)]
-    fn can_sync_azimuth(&self) -> bool;
+    async fn can_sync_azimuth(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Returns the status of the dome shutter or roll-off roof.
     #[http("shutterstatus", method = Get, via = ValueResponse)]
-    fn shutter_status(&self) -> DomeShutterStatus;
+    async fn shutter_status(&self) -> ASCOMResult<DomeShutterStatus> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if the dome is slaved to the telescope in its hardware, else False.
     #[http("slaved", method = Get, via = ValueResponse)]
-    fn slaved(&self) -> bool;
+    async fn slaved(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the current subframe height.
     #[http("slaved", method = Put)]
-    fn set_slaved(&self, #[http("Slaved", via = BoolParam)] slaved: bool);
+    async fn set_slaved(&self, #[http("Slaved", via = BoolParam)] slaved: bool) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if any part of the dome is currently moving, False if all dome components are steady.
     #[http("slewing", method = Get, via = ValueResponse)]
-    fn slewing(&self) -> bool;
+    async fn slewing(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Calling this method will immediately disable hardware slewing (Slaved will become False).
     #[http("abortslew", method = Put)]
-    fn abort_slew(&self);
+    async fn abort_slew(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Close the shutter or otherwise shield telescope from the sky.
     #[http("closeshutter", method = Put)]
-    fn close_shutter(&self);
+    async fn close_shutter(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// After Home position is established initializes Azimuth to the default value and sets the AtHome flag.
     #[http("findhome", method = Put)]
-    fn find_home(&self);
+    async fn find_home(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Open shutter or otherwise expose telescope to the sky.
     #[http("openshutter", method = Put)]
-    fn open_shutter(&self);
+    async fn open_shutter(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// After assuming programmed park position, sets AtPark flag.
     #[http("park", method = Put)]
-    fn park(&self);
+    async fn park(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Set the current azimuth, altitude position of dome to be the park position.
     #[http("setpark", method = Put)]
-    fn set_park(&self);
+    async fn set_park(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Slew the dome to the given altitude position.
     #[http("slewtoaltitude", method = Put)]
-    fn slew_to_altitude(&self, #[http("Altitude")] altitude: f64);
+    async fn slew_to_altitude(&self, #[http("Altitude")] altitude: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Slew the dome to the given azimuth position.
     #[http("slewtoazimuth", method = Put)]
-    fn slew_to_azimuth(&self, #[http("Azimuth")] azimuth: f64);
+    async fn slew_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Synchronize the current position of the dome to the given azimuth.
     #[http("synctoazimuth", method = Put)]
-    fn sync_to_azimuth(&self, #[http("Azimuth")] azimuth: f64);
+    async fn sync_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// FilterWheel Specific Methods
@@ -1129,19 +1396,27 @@ pub trait Dome: Device + Send + Sync {
 pub trait FilterWheel: Device + Send + Sync {
     /// An integer array of filter focus offsets.
     #[http("focusoffsets", method = Get, via = ValueResponse)]
-    fn focus_offsets(&self) -> Vec<i32>;
+    async fn focus_offsets(&self) -> ASCOMResult<Vec<i32>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The names of the filters
     #[http("names", method = Get, via = ValueResponse)]
-    fn names(&self) -> Vec<String>;
+    async fn names(&self) -> ASCOMResult<Vec<String>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current filter wheel position
     #[http("position", method = Get, via = ValueResponse)]
-    fn position(&self) -> i32;
+    async fn position(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the filter wheel position
     #[http("position", method = Put)]
-    fn set_position(&self, #[http("Position")] position: i32);
+    async fn set_position(&self, #[http("Position")] position: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// Focuser Specific Methods
@@ -1150,51 +1425,79 @@ pub trait FilterWheel: Device + Send + Sync {
 pub trait Focuser: Device + Send + Sync {
     /// True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
     #[http("absolute", method = Get, via = ValueResponse)]
-    fn absolute(&self) -> bool;
+    async fn absolute(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if the focuser is currently moving to a new position. False if the focuser is stationary.
     #[http("ismoving", method = Get, via = ValueResponse)]
-    fn is_moving(&self) -> bool;
+    async fn is_moving(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Maximum increment size allowed by the focuser; i.e. the maximum number of steps allowed in one move operation.
     #[http("maxincrement", method = Get, via = ValueResponse)]
-    fn max_increment(&self) -> i32;
+    async fn max_increment(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Maximum step position permitted.
     #[http("maxstep", method = Get, via = ValueResponse)]
-    fn max_step(&self) -> i32;
+    async fn max_step(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Current focuser position, in steps.
     #[http("position", method = Get, via = ValueResponse)]
-    fn position(&self) -> i32;
+    async fn position(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Step size (microns) for the focuser.
     #[http("stepsize", method = Get, via = ValueResponse)]
-    fn step_size(&self) -> f64;
+    async fn step_size(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the state of temperature compensation mode (if available), else always False.
     #[http("tempcomp", method = Get, via = ValueResponse)]
-    fn temp_comp(&self) -> bool;
+    async fn temp_comp(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the state of temperature compensation mode.
     #[http("tempcomp", method = Put)]
-    fn set_temp_comp(&self, #[http("TempComp", via = BoolParam)] temp_comp: bool);
+    async fn set_temp_comp(
+        &self,
+
+        #[http("TempComp", via = BoolParam)] temp_comp: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if focuser has temperature compensation available.
     #[http("tempcompavailable", method = Get, via = ValueResponse)]
-    fn temp_comp_available(&self) -> bool;
+    async fn temp_comp_available(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Current ambient temperature as measured by the focuser.
     #[http("temperature", method = Get, via = ValueResponse)]
-    fn temperature(&self) -> f64;
+    async fn temperature(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Immediately stop any focuser motion due to a previous Move(Int32) method call.
     #[http("halt", method = Put)]
-    fn halt(&self);
+    async fn halt(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Moves the focuser by the specified amount or to the specified position depending on the value of the Absolute property.
     #[http("move", method = Put)]
-    fn move_(&self, #[http("Position")] position: i32);
+    async fn move_(&self, #[http("Position")] position: i32) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// ObservingConditions Specific Methods
@@ -1203,75 +1506,123 @@ pub trait Focuser: Device + Send + Sync {
 pub trait ObservingConditions: Device + Send + Sync {
     /// Gets the time period over which observations will be averaged
     #[http("averageperiod", method = Get, via = ValueResponse)]
-    fn average_period(&self) -> f64;
+    async fn average_period(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the time period over which observations will be averaged
     #[http("averageperiod", method = Put)]
-    fn set_average_period(&self, #[http("AveragePeriod")] average_period: f64);
+    async fn set_average_period(
+        &self,
+
+        #[http("AveragePeriod")] average_period: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the percentage of the sky obscured by cloud
     #[http("cloudcover", method = Get, via = ValueResponse)]
-    fn cloud_cover(&self) -> f64;
+    async fn cloud_cover(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the atmospheric dew point at the observatory reported in °C.
     #[http("dewpoint", method = Get, via = ValueResponse)]
-    fn dew_point(&self) -> f64;
+    async fn dew_point(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the atmospheric  humidity (%) at the observatory
     #[http("humidity", method = Get, via = ValueResponse)]
-    fn humidity(&self) -> f64;
+    async fn humidity(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the atmospheric pressure in hectoPascals at the observatory's altitude - NOT reduced to sea level.
     #[http("pressure", method = Get, via = ValueResponse)]
-    fn pressure(&self) -> f64;
+    async fn pressure(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the rain rate (mm/hour) at the observatory.
     #[http("rainrate", method = Get, via = ValueResponse)]
-    fn rain_rate(&self) -> f64;
+    async fn rain_rate(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the sky brightness at the observatory (Lux)
     #[http("skybrightness", method = Get, via = ValueResponse)]
-    fn sky_brightness(&self) -> f64;
+    async fn sky_brightness(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the sky quality at the observatory (magnitudes per square arc second)
     #[http("skyquality", method = Get, via = ValueResponse)]
-    fn sky_quality(&self) -> f64;
+    async fn sky_quality(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the sky temperature(°C) at the observatory.
     #[http("skytemperature", method = Get, via = ValueResponse)]
-    fn sky_temperature(&self) -> f64;
+    async fn sky_temperature(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the seeing at the observatory measured as star full width half maximum (FWHM) in arc secs.
     #[http("starfwhm", method = Get, via = ValueResponse)]
-    fn star_fwhm(&self) -> f64;
+    async fn star_fwhm(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the temperature(°C) at the observatory.
     #[http("temperature", method = Get, via = ValueResponse)]
-    fn temperature(&self) -> f64;
+    async fn temperature(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the wind direction. The returned value must be between 0.0 and 360.0, interpreted according to the metereological standard, where a special value of 0.0 is returned when the wind speed is 0.0. Wind direction is measured clockwise from north, through east, where East=90.0, South=180.0, West=270.0 and North=360.0.
     #[http("winddirection", method = Get, via = ValueResponse)]
-    fn wind_direction(&self) -> f64;
+    async fn wind_direction(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the peak 3 second wind gust(m/s) at the observatory over the last 2 minutes.
     #[http("windgust", method = Get, via = ValueResponse)]
-    fn wind_gust(&self) -> f64;
+    async fn wind_gust(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the wind speed(m/s) at the observatory.
     #[http("windspeed", method = Get, via = ValueResponse)]
-    fn wind_speed(&self) -> f64;
+    async fn wind_speed(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Forces the driver to immediately query its attached hardware to refresh sensor values.
     #[http("refresh", method = Put)]
-    fn refresh(&self);
+    async fn refresh(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets a description of the sensor with the name specified in the SensorName parameter
     #[http("sensordescription", method = Get, via = ValueResponse)]
-    fn sensor_description(&self, #[http("SensorName")] sensor_name: String) -> String;
+    async fn sensor_description(
+        &self,
+
+        #[http("SensorName")] sensor_name: String,
+    ) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the time since the sensor specified in the SensorName parameter was last updated
     #[http("timesincelastupdate", method = Get, via = ValueResponse)]
-    fn time_since_last_update(&self, #[http("SensorName")] sensor_name: String) -> f64;
+    async fn time_since_last_update(
+        &self,
+
+        #[http("SensorName")] sensor_name: String,
+    ) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// Rotator Specific Methods
@@ -1280,55 +1631,81 @@ pub trait ObservingConditions: Device + Send + Sync {
 pub trait Rotator: Device + Send + Sync {
     /// True if the Rotator supports the Reverse method.
     #[http("canreverse", method = Get, via = ValueResponse)]
-    fn can_reverse(&self) -> bool;
+    async fn can_reverse(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if the rotator is currently moving to a new position. False if the focuser is stationary.
     #[http("ismoving", method = Get, via = ValueResponse)]
-    fn is_moving(&self) -> bool;
+    async fn is_moving(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the raw mechanical position of the rotator in degrees.
     #[http("mechanicalposition", method = Get, via = ValueResponse)]
-    fn mechanical_position(&self) -> f64;
+    async fn mechanical_position(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Current instantaneous Rotator position, in degrees.
     #[http("position", method = Get, via = ValueResponse)]
-    fn position(&self) -> f64;
+    async fn position(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the rotator’s Reverse state.
     #[http("reverse", method = Get, via = ValueResponse)]
-    fn reverse(&self) -> bool;
+    async fn reverse(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the rotator’s Reverse state.
     #[http("reverse", method = Put)]
-    fn set_reverse(&self, #[http("Reverse", via = BoolParam)] reverse: bool);
+    async fn set_reverse(&self, #[http("Reverse", via = BoolParam)] reverse: bool) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The minimum StepSize, in degrees.
     #[http("stepsize", method = Get, via = ValueResponse)]
-    fn step_size(&self) -> f64;
+    async fn step_size(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The destination position angle for Move() and MoveAbsolute().
     #[http("targetposition", method = Get, via = ValueResponse)]
-    fn target_position(&self) -> f64;
+    async fn target_position(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Immediately stop any Rotator motion due to a previous Move or MoveAbsolute method call.
     #[http("halt", method = Put)]
-    fn halt(&self);
+    async fn halt(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
     #[http("move", method = Put)]
-    fn move_(&self, #[http("Position")] position: f64);
+    async fn move_(&self, #[http("Position")] position: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Causes the rotator to move the absolute position of Position degrees.
     #[http("moveabsolute", method = Put)]
-    fn move_absolute(&self, #[http("Position")] position: f64);
+    async fn move_absolute(&self, #[http("Position")] position: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Causes the rotator to move the mechanical position of Position degrees.
     #[http("movemechanical", method = Put)]
-    fn move_mechanical(&self, #[http("Position")] position: f64);
+    async fn move_mechanical(&self, #[http("Position")] position: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Causes the rotator to sync to the position of Position degrees.
     #[http("sync", method = Put)]
-    fn sync(&self, #[http("Position")] position: f64);
+    async fn sync(&self, #[http("Position")] position: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// SafetyMonitor Specific Methods
@@ -1337,7 +1714,9 @@ pub trait Rotator: Device + Send + Sync {
 pub trait SafetyMonitor: Device + Send + Sync {
     /// Indicates whether the monitored state is safe for use. True if the state is safe, False if it is unsafe.
     #[http("issafe", method = Get, via = ValueResponse)]
-    fn is_safe(&self) -> bool;
+    async fn is_safe(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// Switch Specific Methods
@@ -1346,51 +1725,93 @@ pub trait SafetyMonitor: Device + Send + Sync {
 pub trait Switch: Device + Send + Sync {
     /// Returns the number of switch devices managed by this driver. Devices are numbered from 0 to MaxSwitch - 1
     #[http("maxswitch", method = Get, via = ValueResponse)]
-    fn max_switch(&self) -> i32;
+    async fn max_switch(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Reports if the specified switch device can be written to, default true. This is false if the device cannot be written to, for example a limit switch or a sensor.  Devices are numbered from 0 to MaxSwitch - 1
     #[http("canwrite", method = Get, via = ValueResponse)]
-    fn can_write(&self, #[http("Id")] id: u32) -> bool;
+    async fn can_write(&self, #[http("Id")] id: u32) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Return the state of switch device id as a boolean.  Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitch", method = Get, via = ValueResponse)]
-    fn get_switch(&self, #[http("Id")] id: u32) -> bool;
+    async fn get_switch(&self, #[http("Id")] id: u32) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the description of the specified switch device. This is to allow a fuller description of the device to be returned, for example for a tool tip. Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitchdescription", method = Get, via = ValueResponse)]
-    fn get_switch_description(&self, #[http("Id")] id: u32) -> String;
+    async fn get_switch_description(&self, #[http("Id")] id: u32) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the name of the specified switch device. Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitchname", method = Get, via = ValueResponse)]
-    fn get_switch_name(&self, #[http("Id")] id: u32) -> String;
+    async fn get_switch_name(&self, #[http("Id")] id: u32) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1, The value of this switch is expected to be between MinSwitchValue and MaxSwitchValue.
     #[http("getswitchvalue", method = Get, via = ValueResponse)]
-    fn get_switch_value(&self, #[http("Id")] id: u32) -> f64;
+    async fn get_switch_value(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the minimum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
     #[http("minswitchvalue", method = Get, via = ValueResponse)]
-    fn min_switch_value(&self, #[http("Id")] id: u32) -> f64;
+    async fn min_switch_value(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Gets the maximum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
     #[http("maxswitchvalue", method = Get, via = ValueResponse)]
-    fn max_switch_value(&self, #[http("Id")] id: u32) -> f64;
+    async fn max_switch_value(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets a switch controller device to the specified state, true or false.
     #[http("setswitch", method = Put)]
-    fn set_switch(&self, #[http("Id")] id: u32, #[http("State", via = BoolParam)] state: bool);
+    async fn set_switch(
+        &self,
+
+        #[http("Id")] id: u32,
+
+        #[http("State", via = BoolParam)] state: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets a switch device name to the specified value.
     #[http("setswitchname", method = Put)]
-    fn set_switch_name(&self, #[http("Id")] id: u32, #[http("Name")] name: String);
+    async fn set_switch_name(
+        &self,
+
+        #[http("Id")] id: u32,
+
+        #[http("Name")] name: String,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets a switch device value to the specified value.
     #[http("setswitchvalue", method = Put)]
-    fn set_switch_value(&self, #[http("Id")] id: u32, #[http("Value")] value: f64);
+    async fn set_switch_value(
+        &self,
+
+        #[http("Id")] id: u32,
+
+        #[http("Value")] value: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the step size that this device supports (the difference between successive values of the device). Devices are numbered from 0 to MaxSwitch - 1.
     #[http("switchstep", method = Get, via = ValueResponse)]
-    fn switch_step(&self, #[http("Id")] id: u32) -> f64;
+    async fn switch_step(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 /// Telescope Specific Methods
@@ -1399,375 +1820,593 @@ pub trait Switch: Device + Send + Sync {
 pub trait Telescope: Device + Send + Sync {
     /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
     #[http("alignmentmode", method = Get, via = ValueResponse)]
-    fn alignment_mode(&self) -> AlignmentMode;
+    async fn alignment_mode(&self) -> ASCOMResult<AlignmentMode> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The altitude above the local horizon of the mount's current position (degrees, positive up)
     #[http("altitude", method = Get, via = ValueResponse)]
-    fn altitude(&self) -> f64;
+    async fn altitude(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The area of the telescope's aperture, taking into account any obstructions (square meters)
     #[http("aperturearea", method = Get, via = ValueResponse)]
-    fn aperture_area(&self) -> f64;
+    async fn aperture_area(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The telescope's effective aperture diameter (meters)
     #[http("aperturediameter", method = Get, via = ValueResponse)]
-    fn aperture_diameter(&self) -> f64;
+    async fn aperture_diameter(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if the mount is stopped in the Home position. Set only following a FindHome()  operation, and reset with any slew operation. This property must be False if the telescope does not support homing.
     #[http("athome", method = Get, via = ValueResponse)]
-    fn at_home(&self) -> bool;
+    async fn at_home(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if the telescope has been put into the parked state by the seee Park()  method. Set False by calling the Unpark() method.
     #[http("atpark", method = Get, via = ValueResponse)]
-    fn at_park(&self) -> bool;
+    async fn at_park(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The azimuth at the local horizon of the mount's current position (degrees, North-referenced, positive East/clockwise).
     #[http("azimuth", method = Get, via = ValueResponse)]
-    fn azimuth(&self) -> f64;
+    async fn azimuth(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if this telescope is capable of programmed finding its home position (FindHome()  method).
     #[http("canfindhome", method = Get, via = ValueResponse)]
-    fn can_find_home(&self) -> bool;
+    async fn can_find_home(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed parking (Park() method)
     #[http("canpark", method = Get, via = ValueResponse)]
-    fn can_park(&self) -> bool;
+    async fn can_park(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of software-pulsed guiding (via the PulseGuide(GuideDirections, Int32) method)
     #[http("canpulseguide", method = Get, via = ValueResponse)]
-    fn can_pulse_guide(&self) -> bool;
+    async fn can_pulse_guide(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if the DeclinationRate property can be changed to provide offset tracking in the declination axis.
     #[http("cansetdeclinationrate", method = Get, via = ValueResponse)]
-    fn can_set_declination_rate(&self) -> bool;
+    async fn can_set_declination_rate(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if the guide rate properties used for PulseGuide(GuideDirections, Int32) can ba adjusted.
     #[http("cansetguiderates", method = Get, via = ValueResponse)]
-    fn can_set_guide_rates(&self) -> bool;
+    async fn can_set_guide_rates(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed setting of its park position (SetPark() method)
     #[http("cansetpark", method = Get, via = ValueResponse)]
-    fn can_set_park(&self) -> bool;
+    async fn can_set_park(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if the SideOfPier property can be set, meaning that the mount can be forced to flip.
     #[http("cansetpierside", method = Get, via = ValueResponse)]
-    fn can_set_pier_side(&self) -> bool;
+    async fn can_set_pier_side(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if the RightAscensionRate property can be changed to provide offset tracking in the right ascension axis. .
     #[http("cansetrightascensionrate", method = Get, via = ValueResponse)]
-    fn can_set_right_ascension_rate(&self) -> bool;
+    async fn can_set_right_ascension_rate(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if the Tracking property can be changed, turning telescope sidereal tracking on and off.
     #[http("cansettracking", method = Get, via = ValueResponse)]
-    fn can_set_tracking(&self) -> bool;
+    async fn can_set_tracking(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed slewing (synchronous or asynchronous) to equatorial coordinates
     #[http("canslew", method = Get, via = ValueResponse)]
-    fn can_slew(&self) -> bool;
+    async fn can_slew(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed slewing (synchronous or asynchronous) to local horizontal coordinates
     #[http("canslewaltaz", method = Get, via = ValueResponse)]
-    fn can_slew_alt_az(&self) -> bool;
+    async fn can_slew_alt_az(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed asynchronous slewing to local horizontal coordinates
     #[http("canslewaltazasync", method = Get, via = ValueResponse)]
-    fn can_slew_alt_az_async(&self) -> bool;
+    async fn can_slew_alt_az_async(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed asynchronous slewing to equatorial coordinates.
     #[http("canslewasync", method = Get, via = ValueResponse)]
-    fn can_slew_async(&self) -> bool;
+    async fn can_slew_async(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed synching to equatorial coordinates.
     #[http("cansync", method = Get, via = ValueResponse)]
-    fn can_sync(&self) -> bool;
+    async fn can_sync(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed synching to local horizontal coordinates
     #[http("cansyncaltaz", method = Get, via = ValueResponse)]
-    fn can_sync_alt_az(&self) -> bool;
+    async fn can_sync_alt_az(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// True if this telescope is capable of programmed unparking (UnPark() method)
     #[http("canunpark", method = Get, via = ValueResponse)]
-    fn can_unpark(&self) -> bool;
+    async fn can_unpark(&self) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// The declination (degrees) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property. Reading the property will raise an error if the value is unavailable.
     #[http("declination", method = Get, via = ValueResponse)]
-    fn declination(&self) -> f64;
+    async fn declination(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The declination tracking rate (arcseconds per second, default = 0.0)
     #[http("declinationrate", method = Get, via = ValueResponse)]
-    fn declination_rate(&self) -> f64;
+    async fn declination_rate(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the declination tracking rate (arcseconds per second)
     #[http("declinationrate", method = Put)]
-    fn set_declination_rate(&self, #[http("DeclinationRate")] declination_rate: f64);
+    async fn set_declination_rate(
+        &self,
+
+        #[http("DeclinationRate")] declination_rate: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if the telescope or driver applies atmospheric refraction to coordinates.
     #[http("doesrefraction", method = Get, via = ValueResponse)]
-    fn does_refraction(&self) -> bool;
+    async fn does_refraction(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
     #[http("doesrefraction", method = Put)]
-    fn set_does_refraction(&self, #[http("DoesRefraction", via = BoolParam)] does_refraction: bool);
+    async fn set_does_refraction(
+        &self,
+
+        #[http("DoesRefraction", via = BoolParam)] does_refraction: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
     #[http("equatorialsystem", method = Get, via = ValueResponse)]
-    fn equatorial_system(&self) -> EquatorialSystem;
+    async fn equatorial_system(&self) -> ASCOMResult<EquatorialSystem> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The telescope's focal length in meters
     #[http("focallength", method = Get, via = ValueResponse)]
-    fn focal_length(&self) -> f64;
+    async fn focal_length(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The current Declination movement rate offset for telescope guiding (degrees/sec)
     #[http("guideratedeclination", method = Get, via = ValueResponse)]
-    fn guide_rate_declination(&self) -> f64;
+    async fn guide_rate_declination(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the current Declination movement rate offset for telescope guiding (degrees/sec).
     #[http("guideratedeclination", method = Put)]
-    fn set_guide_rate_declination(
+    async fn set_guide_rate_declination(
         &self,
 
         #[http("GuideRateDeclination")] guide_rate_declination: f64,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The current RightAscension movement rate offset for telescope guiding (degrees/sec)
     #[http("guideraterightascension", method = Get, via = ValueResponse)]
-    fn guide_rate_right_ascension(&self) -> f64;
+    async fn guide_rate_right_ascension(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the current RightAscension movement rate offset for telescope guiding (degrees/sec).
     #[http("guideraterightascension", method = Put)]
-    fn set_guide_rate_right_ascension(
+    async fn set_guide_rate_right_ascension(
         &self,
 
         #[http("GuideRateRightAscension")] guide_rate_right_ascension: f64,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if a PulseGuide(GuideDirections, Int32) command is in progress, False otherwise
     #[http("ispulseguiding", method = Get, via = ValueResponse)]
-    fn is_pulse_guiding(&self) -> bool;
+    async fn is_pulse_guiding(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The right ascension (hours) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property
     #[http("rightascension", method = Get, via = ValueResponse)]
-    fn right_ascension(&self) -> f64;
+    async fn right_ascension(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The right ascension tracking rate (arcseconds per second, default = 0.0)
     #[http("rightascensionrate", method = Get, via = ValueResponse)]
-    fn right_ascension_rate(&self) -> f64;
+    async fn right_ascension_rate(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the right ascension tracking rate (arcseconds per second)
     #[http("rightascensionrate", method = Put)]
-    fn set_right_ascension_rate(&self, #[http("RightAscensionRate")] right_ascension_rate: f64);
+    async fn set_right_ascension_rate(
+        &self,
+
+        #[http("RightAscensionRate")] right_ascension_rate: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Indicates the pointing state of the mount.
     #[http("sideofpier", method = Get, via = ValueResponse)]
-    fn side_of_pier(&self) -> SideOfPier;
+    async fn side_of_pier(&self) -> ASCOMResult<SideOfPier> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the pointing state of the mount.
     #[http("sideofpier", method = Put)]
-    fn set_side_of_pier(&self, #[http("SideOfPier")] side_of_pier: SideOfPier);
+    async fn set_side_of_pier(
+        &self,
+
+        #[http("SideOfPier")] side_of_pier: SideOfPier,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The local apparent sidereal time from the telescope's internal clock (hours, sidereal).
     #[http("siderealtime", method = Get, via = ValueResponse)]
-    fn sidereal_time(&self) -> f64;
+    async fn sidereal_time(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The elevation above mean sea level (meters) of the site at which the telescope is located.
     #[http("siteelevation", method = Get, via = ValueResponse)]
-    fn site_elevation(&self) -> f64;
+    async fn site_elevation(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the elevation above mean sea level (metres) of the site at which the telescope is located.
     #[http("siteelevation", method = Put)]
-    fn set_site_elevation(&self, #[http("SiteElevation")] site_elevation: f64);
+    async fn set_site_elevation(
+        &self,
+
+        #[http("SiteElevation")] site_elevation: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The geodetic(map) latitude (degrees, positive North, WGS84) of the site at which the telescope is located.
     #[http("sitelatitude", method = Get, via = ValueResponse)]
-    fn site_latitude(&self) -> f64;
+    async fn site_latitude(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the observing site's latitude (degrees).
     #[http("sitelatitude", method = Put)]
-    fn set_site_latitude(&self, #[http("SiteLatitude")] site_latitude: f64);
+    async fn set_site_latitude(&self, #[http("SiteLatitude")] site_latitude: f64) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The longitude (degrees, positive East, WGS84) of the site at which the telescope is located.
     #[http("sitelongitude", method = Get, via = ValueResponse)]
-    fn site_longitude(&self) -> f64;
+    async fn site_longitude(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the observing site's longitude (degrees, positive East, WGS84).
     #[http("sitelongitude", method = Put)]
-    fn set_site_longitude(&self, #[http("SiteLongitude")] site_longitude: f64);
+    async fn set_site_longitude(
+        &self,
+
+        #[http("SiteLongitude")] site_longitude: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if telescope is currently moving in response to one of the Slew methods or the MoveAxis(TelescopeAxes, Double) method, False at all other times.
     #[http("slewing", method = Get, via = ValueResponse)]
-    fn slewing(&self) -> bool;
+    async fn slewing(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the post-slew settling time (sec.).
     #[http("slewsettletime", method = Get, via = ValueResponse)]
-    fn slew_settle_time(&self) -> i32;
+    async fn slew_settle_time(&self) -> ASCOMResult<i32> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the  post-slew settling time (integer sec.).
     #[http("slewsettletime", method = Put)]
-    fn set_slew_settle_time(&self, #[http("SlewSettleTime")] slew_settle_time: i32);
+    async fn set_slew_settle_time(
+        &self,
+
+        #[http("SlewSettleTime")] slew_settle_time: i32,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The declination (degrees, positive North) for the target of an equatorial slew or sync operation
     #[http("targetdeclination", method = Get, via = ValueResponse)]
-    fn target_declination(&self) -> f64;
+    async fn target_declination(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the declination (degrees, positive North) for the target of an equatorial slew or sync operation
     #[http("targetdeclination", method = Put)]
-    fn set_target_declination(&self, #[http("TargetDeclination")] target_declination: f64);
+    async fn set_target_declination(
+        &self,
+
+        #[http("TargetDeclination")] target_declination: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The right ascension (hours) for the target of an equatorial slew or sync operation
     #[http("targetrightascension", method = Get, via = ValueResponse)]
-    fn target_right_ascension(&self) -> f64;
+    async fn target_right_ascension(&self) -> ASCOMResult<f64> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the right ascension (hours) for the target of an equatorial slew or sync operation
     #[http("targetrightascension", method = Put)]
-    fn set_target_right_ascension(
+    async fn set_target_right_ascension(
         &self,
 
         #[http("TargetRightAscension")] target_right_ascension: f64,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the state of the telescope's sidereal tracking drive.
     #[http("tracking", method = Get, via = ValueResponse)]
-    fn tracking(&self) -> bool;
+    async fn tracking(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the state of the telescope's sidereal tracking drive.
     #[http("tracking", method = Put)]
-    fn set_tracking(&self, #[http("Tracking", via = BoolParam)] tracking: bool);
+    async fn set_tracking(
+        &self,
+
+        #[http("Tracking", via = BoolParam)] tracking: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The current tracking rate of the telescope's sidereal drive.
     #[http("trackingrate", method = Get, via = ValueResponse)]
-    fn tracking_rate(&self) -> DriveRate;
+    async fn tracking_rate(&self) -> ASCOMResult<DriveRate> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the tracking rate of the telescope's sidereal drive.
     #[http("trackingrate", method = Put)]
-    fn set_tracking_rate(&self, #[http("TrackingRate")] tracking_rate: DriveRate);
+    async fn set_tracking_rate(
+        &self,
+
+        #[http("TrackingRate")] tracking_rate: DriveRate,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns an array of supported DriveRates values that describe the permissible values of the TrackingRate property for this telescope type.
     #[http("trackingrates", method = Get, via = ValueResponse)]
-    fn tracking_rates(&self) -> Vec<DriveRate>;
+    async fn tracking_rates(&self) -> ASCOMResult<Vec<DriveRate>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Returns the UTC date/time of the telescope's internal clock.
     #[http("utcdate", method = Get, via = TelescopeUtcdate)]
-    fn utc_date(&self) -> time::OffsetDateTime;
+    async fn utc_date(&self) -> ASCOMResult<time::OffsetDateTime> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the UTC date/time of the telescope's internal clock.
     #[http("utcdate", method = Put)]
-    fn set_utc_date(
+    async fn set_utc_date(
         &self,
 
         #[http("UTCDate", via = TelescopeUtcdate)] utc_date: time::OffsetDateTime,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Immediately Stops a slew in progress.
     #[http("abortslew", method = Put)]
-    fn abort_slew(&self);
+    async fn abort_slew(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// The rates at which the telescope may be moved about the specified axis by the MoveAxis(TelescopeAxes, Double) method.
     #[http("axisrates", method = Get, via = ValueResponse)]
-    fn axis_rates(&self, #[http("Axis")] axis: Axis) -> Vec<AxisRate>;
+    async fn axis_rates(&self, #[http("Axis")] axis: Axis) -> ASCOMResult<Vec<AxisRate>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// True if this telescope can move the requested axis.
     #[http("canmoveaxis", method = Get, via = ValueResponse)]
-    fn can_move_axis(&self, #[http("Axis")] axis: Axis) -> bool;
+    async fn can_move_axis(&self, #[http("Axis")] axis: Axis) -> ASCOMResult<bool> {
+        Ok(false)
+    }
 
     /// Predicts the pointing state that a German equatorial mount will be in if it slews to the given coordinates.
     #[http("destinationsideofpier", method = Get, via = ValueResponse)]
-    fn destination_side_of_pier(
+    async fn destination_side_of_pier(
         &self,
 
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    ) -> SideOfPier;
+    ) -> ASCOMResult<SideOfPier> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Locates the telescope's "home" position (synchronous)
     #[http("findhome", method = Put)]
-    fn find_home(&self);
+    async fn find_home(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Move the telescope in one axis at the given rate.
     #[http("moveaxis", method = Put)]
-    fn move_axis(&self, #[http("Axis")] axis: Axis, #[http("Rate")] rate: f64);
+    async fn move_axis(
+        &self,
+
+        #[http("Axis")] axis: Axis,
+
+        #[http("Rate")] rate: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Move the telescope to its park position, stop all motion (or restrict to a small safe range), and set AtPark to True. )
     #[http("park", method = Put)]
-    fn park(&self);
+    async fn park(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Moves the scope in the given direction for the given interval or time at the rate given by the corresponding guide rate property
     #[http("pulseguide", method = Put)]
-    fn pulse_guide(
+    async fn pulse_guide(
         &self,
 
         #[http("Direction")] direction: PutPulseGuideDirection,
 
         #[http("Duration")] duration: i32,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Sets the telescope's park position to be its current position.
     #[http("setpark", method = Put)]
-    fn set_park(&self);
+    async fn set_park(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Move the telescope to the given local horizontal coordinates, return when slew is complete
     #[http("slewtoaltaz", method = Put)]
-    fn slew_to_alt_az(&self, #[http("Azimuth")] azimuth: f64, #[http("Altitude")] altitude: f64);
-
-    /// Move the telescope to the given local horizontal coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
-    #[http("slewtoaltazasync", method = Put)]
-    fn slew_to_alt_az_async(
+    async fn slew_to_alt_az(
         &self,
 
         #[http("Azimuth")] azimuth: f64,
 
         #[http("Altitude")] altitude: f64,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// Move the telescope to the given local horizontal coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
+    #[http("slewtoaltazasync", method = Put)]
+    async fn slew_to_alt_az_async(
+        &self,
+
+        #[http("Azimuth")] azimuth: f64,
+
+        #[http("Altitude")] altitude: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Move the telescope to the given equatorial coordinates, return when slew is complete
     #[http("slewtocoordinates", method = Put)]
-    fn slew_to_coordinates(
+    async fn slew_to_coordinates(
         &self,
 
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Move the telescope to the given equatorial coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
     #[http("slewtocoordinatesasync", method = Put)]
-    fn slew_to_coordinates_async(
+    async fn slew_to_coordinates_async(
         &self,
 
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete
     #[http("slewtotarget", method = Put)]
-    fn slew_to_target(&self);
+    async fn slew_to_target(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return immediatley after the slew starts. The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
     #[http("slewtotargetasync", method = Put)]
-    fn slew_to_target_async(&self);
+    async fn slew_to_target_async(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Matches the scope's local horizontal coordinates to the given local horizontal coordinates.
     #[http("synctoaltaz", method = Put)]
-    fn sync_to_alt_az(&self, #[http("Azimuth")] azimuth: f64, #[http("Altitude")] altitude: f64);
+    async fn sync_to_alt_az(
+        &self,
+
+        #[http("Azimuth")] azimuth: f64,
+
+        #[http("Altitude")] altitude: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Matches the scope's equatorial coordinates to the given equatorial coordinates.
     #[http("synctocoordinates", method = Put)]
-    fn sync_to_coordinates(
+    async fn sync_to_coordinates(
         &self,
 
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    );
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Matches the scope's equatorial coordinates to the TargetRightAscension and TargetDeclination equatorial coordinates.
     #[http("synctotarget", method = Put)]
-    fn sync_to_target(&self);
+    async fn sync_to_target(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 
     /// Takes telescope out of the Parked state. )
     #[http("unpark", method = Put)]
-    fn unpark(&self);
+    async fn unpark(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
 }
 
 rpc_mod! {

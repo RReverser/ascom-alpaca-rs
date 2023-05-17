@@ -40,13 +40,11 @@ ascom-alpaca = { version = "0.1", features = ["client", "camera"] }
 
 ### Device methods
 
-All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/).
+All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/). They all return `ASCOMResult<...>`.
 
-They all return `ASCOMResult<...>`, which is an alias for `Result<..., ASCOMError>`. Any skipped methods will return the ASCOM "not implemented" error by default.
+The [`Device`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Device.html) supertrait includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as a few custom metadata methods used for the device registration:
 
-All the device type traits also inherit from a [`Device`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Device.html) supertrait. It includes "ASCOM Methods Common To All Devices" from the Alpaca API, as well as few custom metadata methods used for the device registration:
-
-- `fn static_name(&self) -> &str`: Returns the static device name. Might differ from the async `name` method result.
+- `fn static_name(&self) -> &str`: Returns the static device name.
 - `fn unique_id(&self) -> &str`: Returns globally-unique device ID.
 
 ### Implementing a device server
@@ -90,7 +88,13 @@ impl Camera for MyCamera {
 }
 ```
 
-Once implemented, you can create a server, register your device(s), and start listening:
+Any skipped methods will default to:
+
+- `can_*` feature detection methods - to `false`
+- `Device::name` - to the result of `Device::static_name()`
+- any other methods - to the "not implemented" ASCOM error
+
+Once traits are implemented, you can create a server, register your device(s), and start listening:
 
 ```rust
 use ascom_alpaca::Server;
@@ -167,7 +171,7 @@ bound_client.discover_addrs()
     // create a `Client` for each discovered address
     .map(Client::new_from_addr)
     .try_for_each(|client| async move {
-        /* ... */
+        /* ...do something with devices via each client... */
         Ok(())
     })
     .await?;
@@ -176,7 +180,7 @@ bound_client.discover_addrs()
 Keep in mind that discovery is a UDP-based protocol, so it's not guaranteed to be reliable.
 
 Also, same device server can be discovered multiple times if it's available on multiple network interfaces.
-While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like `HashMap`.
+While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like `HashSet`.
 It will leverage `unique_id` for device comparisons under the hood.
 
 **Examples:**
