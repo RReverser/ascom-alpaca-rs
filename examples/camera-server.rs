@@ -190,14 +190,6 @@ impl Device for Webcam {
     async fn driver_version(&self) -> ASCOMResult<String> {
         Ok(env!("CARGO_PKG_VERSION").to_owned())
     }
-
-    async fn interface_version(&self) -> ASCOMResult<i32> {
-        Ok(3)
-    }
-
-    async fn supported_actions(&self) -> ASCOMResult<Vec<String>> {
-        Ok(vec![])
-    }
 }
 
 #[async_trait]

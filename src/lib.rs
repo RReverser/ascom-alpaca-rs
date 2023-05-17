@@ -84,11 +84,13 @@ impl Camera for MyCamera {
 }
 ```
 
-Any skipped methods will default to:
+Any skipped methods will default to the following values:
 
-- `can_*` feature detection methods - to `false`
-- [`Device::name`](crate::api::Device::name) - to the result of [`Device::static_name()`](crate::api::Device::static_name)
-- any other methods - to the "not implemented" ASCOM error
+- `can_*` feature detection methods - to `false`.
+- [`Device::name`](crate::api::Device::name) - to the result of [`Device::static_name()`](crate::api::Device::static_name).
+- [`Device::interface_version`](crate::api::Device::interface_version) - to `3` (latest ASCOM interface version implemented by this crate).
+- [`Device::supported_actions`](crate::api::Device::supported_actions) - to an empty list.
+- All other methods - to [`Err(ASCOMError::NOT_IMPLEMENTED)`](crate::ASCOMError::NOT_IMPLEMENTED). It's your responsibility to consult documentation and implement mandatory methods.
 
 Once traits are implemented, you can create a server, register your device(s), and start listening:
 

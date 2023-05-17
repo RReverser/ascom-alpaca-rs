@@ -866,14 +866,17 @@ ${stringifyIter(
                   ${arg.name}: ${arg.type},
                 `
             )}
-          ) -> ASCOMResult${method.returnType.ifNotVoid(type => `<${type}>`)} {
-            ${
-              method.name.startsWith('can_')
-                ? 'Ok(false)'
-                : device.path === '{device_type}' && method.name === 'name'
-                ? 'Ok(self.static_name().to_owned())'
-                : 'Err(ASCOMError::NOT_IMPLEMENTED)'
-            }
+          ) -> ASCOMResult${method.returnType.ifNotVoid(type => `<${type}>`)}
+          ${
+            method.name.startsWith('can_')
+              ? '{ Ok(false) }'
+              : device.path === '{device_type}' && method.name === 'name'
+              ? '{ Ok(self.static_name().to_owned()) }'
+              : device.path === '{device_type}' && method.name === 'interface_version'
+              ? '{ Ok(3_i32) }'
+              : device.path === '{device_type}' && method.name === 'supported_actions'
+              ? '{ Ok(vec![]) }'
+              : '{ Err(ASCOMError::NOT_IMPLEMENTED) }'
           }
         `
       )}

@@ -645,7 +645,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     /// This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support previous versions as well as the current version to ensure thay can use the largest number of devices.
     #[http("interfaceversion", method = Get, via = ValueResponse)]
     async fn interface_version(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+        Ok(3_i32)
     }
 
     /// The name of the device
@@ -657,7 +657,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     /// Returns the list of action names supported by this driver.
     #[http("supportedactions", method = Get, via = ValueResponse)]
     async fn supported_actions(&self) -> ASCOMResult<Vec<String>> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+        Ok(vec![])
     }
 }
 
