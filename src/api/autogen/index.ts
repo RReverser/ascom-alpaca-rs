@@ -50,7 +50,10 @@ function assertEmpty(obj: object, msg: string) {
 
 function toPropName(name: string) {
   // fixup acronyms so that they're not all-caps
-  name = name.replaceAll(/([A-Z])([A-Z]*)([A-Z][a-z]+)/g, (_, a, b, c) => `${a}${b.toLowerCase()}${c}`);
+  name = name.replaceAll(
+    /([A-Z])([A-Z]*)([A-Z][a-z]+)/g,
+    (_, a, b, c) => `${a}${b.toLowerCase()}${c}`
+  );
   name = toSnakeCase(name);
   if (rustKeywords.has(name)) name += '_';
   return name;
@@ -91,10 +94,13 @@ function getDoc({
   // return summary && summary + (description ? `\n\n${description}` : '');
 }
 
-let types = new Map<string, {
-  features: Set<string>,
-  type: RegisteredType
-}>();
+let types = new Map<
+  string,
+  {
+    features: Set<string>;
+    type: RegisteredType;
+  }
+>();
 let typeBySchema = new WeakMap<OpenAPIV3.SchemaObject, RustType>();
 
 function registerType<T extends RegisteredType>(
@@ -119,7 +125,11 @@ function registerType<T extends RegisteredType>(
 }
 
 // Recursively add given feature flag to the type.
-function addFeature(rustyType: RustType, feature: string, visited = new Set<string>()) {
+function addFeature(
+  rustyType: RustType,
+  feature: string,
+  visited = new Set<string>()
+) {
   let typeName = rustyType.toString();
   if (visited.has(typeName)) {
     return;
@@ -130,7 +140,10 @@ function addFeature(rustyType: RustType, feature: string, visited = new Set<stri
     return;
   }
   registeredType.features.add(feature);
-  if (registeredType.type.kind === 'Enum' || registeredType.type.kind === 'Date') {
+  if (
+    registeredType.type.kind === 'Enum' ||
+    registeredType.type.kind === 'Date'
+  ) {
     return;
   }
   for (let { type } of registeredType.type.properties.values()) {
@@ -313,7 +326,9 @@ function handleType(
       case 'integer':
         return handleIntFormat(schema.format);
       case 'array':
-        return rusty(`Vec<${handleType(devicePath, `${name}Item`, schema.items)}>`);
+        return rusty(
+          `Vec<${handleType(devicePath, `${name}Item`, schema.items)}>`
+        );
       case 'number':
         return rusty('f64');
       case 'string':
@@ -404,10 +419,16 @@ function handleContent(
         isDeepStrictEqual(Object.keys(properties), ['Value'])
       ) {
         let valueType = handleType(devicePath, name, properties.Value);
-        return rusty(valueType.toString(), valueType.convertVia ?? 'ValueResponse');
+        return rusty(
+          valueType.toString(),
+          valueType.convertVia ?? 'ValueResponse'
+        );
       }
 
-      let convertedProps = handleObjectProps(devicePath, name, { properties, required });
+      let convertedProps = handleObjectProps(devicePath, name, {
+        properties,
+        required
+      });
 
       if (baseKind === 'Request') {
         for (let prop of convertedProps.values()) {
@@ -436,7 +457,13 @@ function handleResponse(
   }: OpenAPIV3.OperationObject
 ) {
   assertEmpty(otherResponses, 'Unexpected response status codes');
-  return handleContent(devicePath, prefixName, 'Response', 'application/json', success);
+  return handleContent(
+    devicePath,
+    prefixName,
+    'Response',
+    'application/json',
+    success
+  );
 }
 
 for (let [path, methods = err('Missing methods')] of Object.entries(
@@ -527,7 +554,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(get),
         resolvedArgs,
-        returnType: handleResponse(devicePath, `${device.name}${canonicalMethodName}`, get)
+        returnType: handleResponse(
+          devicePath,
+          `${device.name}${canonicalMethodName}`,
+          get
+        )
       });
     });
 
@@ -587,7 +618,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(put),
         resolvedArgs,
-        returnType: handleResponse(devicePath, `${device.name}${canonicalMethodName}`, put)
+        returnType: handleResponse(
+          devicePath,
+          `${device.name}${canonicalMethodName}`,
+          put
+        )
       });
     });
   });
@@ -635,8 +670,10 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 pub use server_info::*;
 
-${stringifyIter(types, ({features, type}) => {
-  let cfgs = Array.from(features, feature => `feature = "${feature}"`).join(', ');
+${stringifyIter(types, ({ features, type }) => {
+  let cfgs = Array.from(features, feature => `feature = "${feature}"`).join(
+    ', '
+  );
   let cfg: string;
   switch (features.size) {
     case 0:
@@ -645,7 +682,7 @@ ${stringifyIter(types, ({features, type}) => {
 
     default:
       cfgs = `any(${cfgs})`;
-      // fallthrough
+    // fallthrough
 
     case 1:
       cfg = `#[cfg(${cfgs})]`;
@@ -740,7 +777,9 @@ ${stringifyIter(types, ({features, type}) => {
 
         ${cfg}
         impl ${type.name} {
-          const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!("${type.format}");
+          const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!("${
+            type.format
+          }");
 
           fn serialize<S: serde::Serializer>(value: &time::OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error> {
             value
@@ -761,7 +800,9 @@ ${stringifyIter(types, ({features, type}) => {
               }
 
               fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                match time::PrimitiveDateTime::parse(value, ${type.name}::FORMAT) {
+                match time::PrimitiveDateTime::parse(value, ${
+                  type.name
+                }::FORMAT) {
                   Ok(time) => Ok(time.assume_utc()),
                   Err(err) => Err(serde::de::Error::custom(err)),
                 }
@@ -781,10 +822,18 @@ ${stringifyIter(
   device => `
     ${stringifyDoc(device.doc)}
     ${
-      device.path === '{device_type}' ? '' : `#[cfg(feature = "${device.path}")]`
+      device.path === '{device_type}'
+        ? ''
+        : `#[cfg(feature = "${device.path}")]`
     } #[apply(rpc_trait)]
-    pub trait ${device.name}: ${device.path === '{device_type}' ? 'std::fmt::Debug + Send + Sync' : 'Device + Send + Sync'} {
-      ${device.path === '{device_type}' ? `
+    pub trait ${device.name}: ${
+    device.path === '{device_type}'
+      ? 'std::fmt::Debug + Send + Sync'
+      : 'Device + Send + Sync'
+  } {
+      ${
+        device.path === '{device_type}'
+          ? `
         /// Static device name for the configured list.
         #[extra_method(client_impl = &self.name)]
         fn static_name(&self) -> &str;
@@ -792,19 +841,27 @@ ${stringifyIter(
         /// Unique ID of this device.
         #[extra_method(client_impl = &self.unique_id)]
         fn unique_id(&self) -> &str;
-      ` : ''}
+      `
+          : ''
+      }
       ${stringifyIter(
         device.methods,
         method => `
           ${stringifyDoc(method.doc)}
-          #[http("${method.path}", method = ${method.mutable ? 'Put' : 'Get'}${method.returnType.convertVia ? `, via = ${method.returnType.convertVia}` : ''})]
+          #[http("${method.path}", method = ${method.mutable ? 'Put' : 'Get'}${
+          method.returnType.convertVia
+            ? `, via = ${method.returnType.convertVia}`
+            : ''
+        })]
           fn ${method.name}(
             &self,
             ${stringifyIter(
               method.resolvedArgs,
               arg =>
                 `
-                  #[http("${arg.originalName}"${arg.type.convertVia ? `, via = ${arg.type.convertVia}` : ''})]
+                  #[http("${arg.originalName}"${
+                  arg.type.convertVia ? `, via = ${arg.type.convertVia}` : ''
+                })]
                   ${arg.name}: ${arg.type},
                 `
             )}
@@ -816,9 +873,10 @@ ${stringifyIter(
   `
 )}
 
-rpc_mod! {${stringifyIter(
-  devices,
-  device => device.path === '{device_type}' ? '' : `
+rpc_mod! {${stringifyIter(devices, device =>
+  device.path === '{device_type}'
+    ? ''
+    : `
     ${device.name} = "${device.path}",`
 )}
 }
