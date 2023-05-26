@@ -20,22 +20,21 @@ macro_rules! rpc_trait {
     (
         $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
-            $(#[doc = $docs_before_methods:literal])*
+            $(
+                const EXTRA_METHODS: () = {
+                    $(
+                        $(#[doc = $extra_method_doc:literal])*
+                        $($extra_method_name:ident)+ ($($extra_method_params:tt)*) $(-> $extra_method_return:ty)? $extra_method_client_impl:block
+                    )*
+                };
+            )?
 
             $(
-                #[extra_method(client_impl = $client_impl:expr)]
-                $($extra_method_name:ident)+ ($($extra_method_params:tt)*) $(-> $extra_method_return:ty)?;
-
-                $(#[doc = $docs_after_extra_method:literal])*
-            )*
-
-            $(
+                $(#[doc = $doc:literal])*
                 #[http($method_path:literal, method = $http_method:ident $(, via = $via:ident)?)]
                 async fn $method_name:ident(
                     & $self:ident $(, #[http($param_query:literal $(, via = $param_via:ident)?)] $param:ident: $param_ty:ty)* $(,)?
                 ) -> $return_type:ty $default_body:block
-
-                $(#[doc = $docs_after_method:literal])*
             )*
         }
     ) => {
@@ -43,20 +42,18 @@ macro_rules! rpc_trait {
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         #[allow(unused_variables)]
         $pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* {
-            $(#[doc = $docs_before_methods])*
+            $(
+                $(
+                    $(#[doc = $extra_method_doc])*
+                    $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)?;
+                )*
+            )?
 
             $(
-                $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)?;
-
-                $(#[doc = $docs_after_extra_method])*
-            )*
-
-            $(
+                $(#[doc = $doc])*
                 async fn $method_name(
                     & $self $(, $param: $param_ty)*
                 ) -> $return_type $default_body
-
-                $(#[doc = $docs_after_method])*
             )*
         }
 
@@ -141,10 +138,10 @@ macro_rules! rpc_trait {
         #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
         impl $trait_name for $crate::client::RawDeviceClient {
             $(
-                $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)? {
-                    $client_impl
-                }
-            )*
+                $(
+                    $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)? $extra_method_client_impl
+                )*
+            )?
 
             $(
                 #[allow(non_camel_case_types)]

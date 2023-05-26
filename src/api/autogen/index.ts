@@ -835,13 +835,17 @@ ${stringifyIter(
       ${
         device.path === '{device_type}'
           ? `
-        /// Static device name for the configured list.
-        #[extra_method(client_impl = &self.name)]
-        fn static_name(&self) -> &str;
+        const EXTRA_METHODS: () = {
+          /// Static device name for the configured list.
+          fn static_name(&self) -> &str {
+            &self.name
+          }
 
-        /// Unique ID of this device.
-        #[extra_method(client_impl = &self.unique_id)]
-        fn unique_id(&self) -> &str;
+          /// Unique ID of this device.
+          fn unique_id(&self) -> &str {
+            &self.unique_id
+          }
+        };
       `
           : ''
       }
@@ -866,17 +870,18 @@ ${stringifyIter(
                   ${arg.name}: ${arg.type},
                 `
             )}
-          ) -> ASCOMResult${method.returnType.ifNotVoid(type => `<${type}>`)}
-          ${
-            method.name.startsWith('can_')
-              ? '{ Ok(false) }'
+          ) -> ASCOMResult${method.returnType.ifNotVoid(type => `<${type}>`)} {
+            ${
+              method.name.startsWith('can_')
+              ? 'Ok(false)'
               : device.path === '{device_type}' && method.name === 'name'
-              ? '{ Ok(self.static_name().to_owned()) }'
+              ? 'Ok(self.static_name().to_owned())'
               : device.path === '{device_type}' && method.name === 'interface_version'
-              ? '{ Ok(3_i32) }'
+              ? 'Ok(3_i32)'
               : device.path === '{device_type}' && method.name === 'supported_actions'
-              ? '{ Ok(vec![]) }'
-              : '{ Err(ASCOMError::NOT_IMPLEMENTED) }'
+              ? 'Ok(vec![])'
+              : 'Err(ASCOMError::NOT_IMPLEMENTED)'
+            }
           }
         `
       )}

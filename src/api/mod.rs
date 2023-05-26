@@ -537,13 +537,17 @@ pub struct AxisRate {
 /// ASCOM Methods Common To All Devices
 #[apply(rpc_trait)]
 pub trait Device: std::fmt::Debug + Send + Sync {
-    /// Static device name for the configured list.
-    #[extra_method(client_impl = &self.name)]
-    fn static_name(&self) -> &str;
+    const EXTRA_METHODS: () = {
+        /// Static device name for the configured list.
+        fn static_name(&self) -> &str {
+            &self.name
+        }
 
-    /// Unique ID of this device.
-    #[extra_method(client_impl = &self.unique_id)]
-    fn unique_id(&self) -> &str;
+        /// Unique ID of this device.
+        fn unique_id(&self) -> &str {
+            &self.unique_id
+        }
+    };
 
     /**
     Actions and SupportedActions are a standardised means for drivers to extend functionality beyond the built-in capabilities of the ASCOM device interfaces.
