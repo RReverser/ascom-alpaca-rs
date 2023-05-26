@@ -218,7 +218,9 @@ dependencies = [
  "ctor",
  "custom_debug",
  "default-net",
+ "displaydoc",
  "eframe",
+ "enum-tag",
  "eyre",
  "futures",
  "indexmap",
@@ -1180,6 +1182,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd0c93bb4b0c6d9b77f4435b0ae98c24d17f1c45b2ff844c6151a07256ca923b"
 
 [[package]]
+name = "displaydoc"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "487585f4d0c6655fe74905e2504d8ad6908e4db67f744eb140876906c2f3175d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.16",
+]
+
+[[package]]
 name = "dlib"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1323,6 +1336,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071a31f4ee85403370b58aca746f01041ede6f0da2730960ad001edc2b71b394"
 dependencies = [
  "cfg-if 1.0.0",
+]
+
+[[package]]
+name = "enum-tag"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7696ca164c11153f0885c27f03654e874b052c9198f8964b015f4f675fabf390"
+dependencies = [
+ "enum-tag-macro",
+]
+
+[[package]]
+name = "enum-tag-macro"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ccd72f8e71e242f71705868f5478fe7592a6e194c06330d8732421ffdbc554c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.16",
 ]
 
 [[package]]

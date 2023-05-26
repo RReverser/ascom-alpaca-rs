@@ -62,6 +62,8 @@ tracing-subscriber = "0.3.16"
 tracing-error = "0.2.0"
 color-eyre = "0.6.2"
 tracing-forest = { version = "0.1.5", features = ["ansi"] }
+displaydoc = "0.2.4"
+enum-tag = "0.3.0"
 
 [[bench]]
 name = "image_array"

@@ -1,5 +1,5 @@
 use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray, SensorType};
-use ascom_alpaca::{ASCOMError, ASCOMResult, Server};
+use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Server};
 use async_trait::async_trait;
 use eyre::ContextCompat;
 use ndarray::Array3;
@@ -113,8 +113,25 @@ struct Webcam {
 }
 
 fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
-    // TODO: more granular errors
-    ASCOMError::driver_error::<0>(nokhwa)
+    ASCOMError::new(
+        ASCOMErrorCode::new_for_driver(match nokhwa {
+            NokhwaError::UnitializedError => 0,
+            NokhwaError::InitializeError { .. } => 1,
+            NokhwaError::ShutdownError { .. } => 2,
+            NokhwaError::GeneralError(_) => 3,
+            NokhwaError::StructureError { .. } => 4,
+            NokhwaError::OpenDeviceError(_, _) => 5,
+            NokhwaError::GetPropertyError { .. } => 6,
+            NokhwaError::SetPropertyError { .. } => 7,
+            NokhwaError::OpenStreamError(_) => 8,
+            NokhwaError::ReadFrameError(_) => 9,
+            NokhwaError::ProcessFrameError { .. } => 10,
+            NokhwaError::StreamShutdownError(_) => 11,
+            NokhwaError::UnsupportedOperationError(_) => 12,
+            NokhwaError::NotImplementedError(_) => 13,
+        }),
+        nokhwa,
+    )
 }
 
 impl Webcam {

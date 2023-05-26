@@ -31,23 +31,41 @@ const DRIVER_BASE: u16 = 0x500;
 const MAX: u16 = 0xFFF;
 
 impl ASCOMErrorCode {
-    /// Generate a driver-specific error code (supply code starting from `0`).
+    /// Generate ASCOM error code from a zero-based driver error code.
     ///
-    /// This is intentionally limited to be usable only in `const` contexts
-    /// so that you don't accidentally supply invalid values.
+    /// You'll typically want to define an enum for your driver errors and use this in a single
+    /// place - in the [`From`] conversion from your driver error type to the [`ASCOMError`].
     ///
     /// # Example
     ///
+    /// The following example defines an error enum using [`displaydoc`] for error messages and
+    /// [`enum_tag`] for error codes.
+    ///
     /// ```
-    /// # use ascom_alpaca::{ASCOMError, ASCOMErrorCode};
-    /// // Create constants for driver-specific error codes.
-    /// const MY_ERROR_CODE: ASCOMErrorCode = ASCOMErrorCode::new_for_driver::<0>();
-    /// const MY_OTHER_ERROR_CODE: ASCOMErrorCode = ASCOMErrorCode::new_for_driver::<1>();
-    /// // ...somewhere later...
-    /// let error = ASCOMError::new(MY_ERROR_CODE, "Something went wrong");
+    /// use ascom_alpaca::{ASCOMError, ASCOMErrorCode};
+    /// use displaydoc::Display;
+    /// use enum_tag::EnumTag;
+    /// use thiserror::Error;
+    ///
+    /// #[derive(Debug, Display, EnumTag, Error)]
+    /// #[repr(u16)]
+    /// pub enum MyDriverError {
+    ///     /// Port communication error: {0}
+    ///     PortError(std::io::Error) = 0,
+    ///     /// Initialization error: {0}
+    ///     InitializationError(String) = 1,
+    /// }
+    ///
+    /// // this allows you to then use `my_driver.method()?` when implementing Alpaca traits
+    /// // and it will convert your driver error to an ASCOM error automatically
+    /// impl From<MyDriverError> for ASCOMError {
+    ///     fn from(error: MyDriverError) -> Self {
+    ///         ASCOMError::new(ASCOMErrorCode::new_for_driver(error.tag() as u16), error)
+    ///     }
+    /// }
     /// ```
-    pub const fn new_for_driver<const CODE: u16>() -> Self {
-        let raw = match CODE.checked_add(DRIVER_BASE) {
+    pub fn new_for_driver(driver_code: u16) -> Self {
+        let raw = match driver_code.checked_add(DRIVER_BASE) {
             Some(raw) if raw <= MAX => raw,
             _ => panic!("Driver error code is too large"),
         };
@@ -166,14 +184,6 @@ ascom_error_codes! {
 }
 
 impl ASCOMError {
-    /// Generate a driver-specific error with the given code (0-based) and a message.
-    pub fn driver_error<const CODE: u16>(message: impl std::fmt::Display) -> Self {
-        Self {
-            code: ASCOMErrorCode::new_for_driver::<CODE>(),
-            message: message.to_string().into(),
-        }
-    }
-
     /// Create a new "invalid operation" error with the specified message.
     pub fn invalid_operation(message: impl std::fmt::Display) -> Self {
         Self::new(ASCOMErrorCode::INVALID_OPERATION, message)
