@@ -1,6 +1,6 @@
 [package]
 name = "ascom-alpaca"
-version = "1.0.0-beta"
+version = "1.0.0-beta.1"
 edition = "2021"
 authors = ["Ingvar Stepanyan <me@rreverser.com>"]
 categories = ["api-bindings", "science", "hardware-support"]
