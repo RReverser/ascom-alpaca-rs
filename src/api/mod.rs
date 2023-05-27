@@ -101,16 +101,18 @@ pub(crate) struct LastExposureStartTime {
 }
 
 #[cfg(feature = "camera")]
-impl From<time::OffsetDateTime> for LastExposureStartTime {
-    fn from(value: time::OffsetDateTime) -> Self {
-        Self { value }
+impl From<std::time::SystemTime> for LastExposureStartTime {
+    fn from(value: std::time::SystemTime) -> Self {
+        Self {
+            value: value.into(),
+        }
     }
 }
 
 #[cfg(feature = "camera")]
-impl From<LastExposureStartTime> for time::OffsetDateTime {
+impl From<LastExposureStartTime> for std::time::SystemTime {
     fn from(wrapper: LastExposureStartTime) -> Self {
-        wrapper.value
+        wrapper.value.into()
     }
 }
 
@@ -443,16 +445,18 @@ pub(crate) struct TelescopeUtcdate {
 }
 
 #[cfg(feature = "telescope")]
-impl From<time::OffsetDateTime> for TelescopeUtcdate {
-    fn from(value: time::OffsetDateTime) -> Self {
-        Self { value }
+impl From<std::time::SystemTime> for TelescopeUtcdate {
+    fn from(value: std::time::SystemTime) -> Self {
+        Self {
+            value: value.into(),
+        }
     }
 }
 
 #[cfg(feature = "telescope")]
-impl From<TelescopeUtcdate> for time::OffsetDateTime {
+impl From<TelescopeUtcdate> for std::time::SystemTime {
     fn from(wrapper: TelescopeUtcdate) -> Self {
-        wrapper.value
+        wrapper.value.into()
     }
 }
 
@@ -963,7 +967,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Reports the actual exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
     #[http("lastexposurestarttime", method = Get, via = LastExposureStartTime)]
-    async fn last_exposure_start_time(&self) -> ASCOMResult<time::OffsetDateTime> {
+    async fn last_exposure_start_time(&self) -> ASCOMResult<std::time::SystemTime> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -2230,7 +2234,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Returns the UTC date/time of the telescope's internal clock.
     #[http("utcdate", method = Get, via = TelescopeUtcdate)]
-    async fn utc_date(&self) -> ASCOMResult<time::OffsetDateTime> {
+    async fn utc_date(&self) -> ASCOMResult<std::time::SystemTime> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -2239,7 +2243,7 @@ pub trait Telescope: Device + Send + Sync {
     async fn set_utc_date(
         &self,
 
-        #[http("UTCDate", via = TelescopeUtcdate)] utc_date: time::OffsetDateTime,
+        #[http("UTCDate", via = TelescopeUtcdate)] utc_date: std::time::SystemTime,
     ) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }

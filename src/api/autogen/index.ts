@@ -339,7 +339,7 @@ function handleType(
             kind: 'Date',
             format: (schema as any)['date-format']
           }));
-          return rusty('time::OffsetDateTime', `${formatter}`);
+          return rusty('std::time::SystemTime', `${formatter}`);
         }
         return rusty('String');
       case 'boolean':
@@ -763,16 +763,16 @@ ${stringifyIter(types, ({ features, type }) => {
         }
 
         ${cfg}
-        impl From<time::OffsetDateTime> for ${type.name} {
-          fn from(value: time::OffsetDateTime) -> Self {
-            Self { value }
+        impl From<std::time::SystemTime> for ${type.name} {
+          fn from(value: std::time::SystemTime) -> Self {
+            Self { value: value.into() }
           }
         }
 
         ${cfg}
-        impl From<${type.name}> for time::OffsetDateTime {
+        impl From<${type.name}> for std::time::SystemTime {
           fn from(wrapper: ${type.name}) -> Self {
-            wrapper.value
+            wrapper.value.into()
           }
         }
 
