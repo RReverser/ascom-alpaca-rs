@@ -33,6 +33,8 @@ const MAX: u16 = 0xFFF;
 impl ASCOMErrorCode {
     /// Generate ASCOM error code from a zero-based driver error code.
     ///
+    /// Will panic if the driver error code is larger than the maximum allowed (2815).
+    ///
     /// You'll typically want to define an enum for your driver errors and use this in a single
     /// place - in the [`From`] conversion from your driver error type to the [`ASCOMError`].
     ///
@@ -64,12 +66,12 @@ impl ASCOMErrorCode {
     ///     }
     /// }
     /// ```
-    pub fn new_for_driver(driver_code: u16) -> Self {
-        let raw = match driver_code.checked_add(DRIVER_BASE) {
-            Some(raw) if raw <= MAX => raw,
-            _ => panic!("Driver error code is too large"),
-        };
-        Self(raw)
+    pub const fn new_for_driver(driver_code: u16) -> Self {
+        const DRIVER_MAX: u16 = MAX - DRIVER_BASE;
+
+        assert!(driver_code <= DRIVER_MAX, "Driver error code is too large");
+
+        Self(driver_code + DRIVER_BASE)
     }
 
     /// Get the driver-specific error code.
