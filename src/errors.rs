@@ -38,29 +38,29 @@ impl ASCOMErrorCode {
     ///
     /// # Example
     ///
-    /// The following example defines an error enum using [`displaydoc`] for error messages and
-    /// [`enum_tag`] for error codes.
-    ///
     /// ```
     /// use ascom_alpaca::{ASCOMError, ASCOMErrorCode};
-    /// use displaydoc::Display;
-    /// use enum_tag::EnumTag;
     /// use thiserror::Error;
     ///
-    /// #[derive(Debug, Display, EnumTag, Error)]
-    /// #[repr(u16)]
+    /// #[derive(Debug, Error)]
     /// pub enum MyDriverError {
-    ///     /// Port communication error: {0}
-    ///     PortError(std::io::Error) = 0,
-    ///     /// Initialization error: {0}
-    ///     InitializationError(String) = 1,
+    ///     #[error("Port communication error: {0}")]
+    ///     PortError(#[from] std::io::Error),
+    ///     #[error("Initialization error: {0}")]
+    ///     InitializationError(String),
     /// }
     ///
     /// // this allows you to then use `my_driver.method()?` when implementing Alpaca traits
     /// // and it will convert your driver error to an ASCOM error automatically
     /// impl From<MyDriverError> for ASCOMError {
     ///     fn from(error: MyDriverError) -> Self {
-    ///         ASCOMError::new(ASCOMErrorCode::new_for_driver(error.tag() as u16), error)
+    ///         ASCOMError::new(
+    ///             ASCOMErrorCode::new_for_driver(match error {
+    ///                 MyDriverError::PortError(_) => 0,
+    ///                 MyDriverError::InitializationError(_) => 1,
+    ///             }),
+    ///             error,
+    ///         )
     ///     }
     /// }
     /// ```
