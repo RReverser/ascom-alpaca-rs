@@ -171,9 +171,21 @@ let mut bound_client = discovery_client.bind().await?;
 // Now you can discover devices on the local networks.
 bound_client.discover_addrs()
     // create a `Client` for each discovered address
-    .map(Client::new_from_addr)
+    .map(|addr| Ok(Client::new_from_addr(addr)))
     .try_for_each(|client| async move {
         /* ...do something with devices via each client... */
+        Ok(())
+    })
+    .await?;
+```
+
+Or, if you just want to list all available devices and don't care about per-server information or errors:
+
+```rust
+bound_client.discover_devices()
+    .map(Ok)
+    .try_for_each(|device| async move {
+        /* ...do something with each device... */
         Ok(())
     })
     .await?;
@@ -182,8 +194,33 @@ bound_client.discover_addrs()
 Keep in mind that discovery is a UDP-based protocol, so it's not guaranteed to be reliable.
 
 Also, same device server can be discovered multiple times if it's available on multiple network interfaces.
-While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like `HashSet`.
-It will leverage `unique_id` for device comparisons under the hood.
+While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like `HashSet`
+or in the same `Devices` struct that is used for registering arbitrary devices on the server:
+
+```rust
+use ascom_alpaca::api::{Camera, Devices};
+use ascom_alpaca::discovery::DiscoveryClient;
+use ascom_alpaca::Client;
+use futures::prelude::*;
+
+let devices =
+    DiscoveryClient::new()
+    .bind()
+    .await?
+    .discover_devices()
+    .collect::<Devices>()
+    .await;
+
+// Now you can iterate over all the discovered devices via `iter_all`:
+for (typed_device, index_within_category) in devices {
+    println!("Discovered device: {typed_device:#?} (index: {index_within_category})");
+}
+
+// ...or over devices in a specific category via `iter<dyn Trait>`:
+for camera in devices.iter::<dyn Camera>() {
+    println!("Discovered camera: {camera:#?}");
+}
+```
 
 **Examples:**
 

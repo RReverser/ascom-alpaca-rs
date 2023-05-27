@@ -114,7 +114,14 @@ mod tests {
             never_returns = bound_server.start() => match never_returns {},
 
             addrs = async {
-                Ok::<_, eyre::Error>(client.bind().await?.discover_addrs().collect::<Vec<_>>().await)
+                Ok::<_, eyre::Error>(
+                    client
+                    .bind()
+                    .await?
+                    .discover_addrs()
+                    .collect::<Vec<_>>()
+                    .await
+                )
              } => {
                 let addrs = addrs?.iter().filter(|addr|
                     // Filter out unrelated servers potentially running in background.

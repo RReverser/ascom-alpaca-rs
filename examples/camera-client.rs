@@ -101,20 +101,16 @@ impl StateCtx {
                     };
 
                     let cameras = discovery_client
-                        .discover_addrs()
-                        .map(Client::new_from_addr)
-                        .and_then(|client| async move { client.get_devices().await })
-                        .map_ok(|devices| futures::stream::iter(devices.map(Ok::<_, eyre::Error>)))
-                        .try_flatten_unordered(None)
-                        .try_filter_map(|device| async move {
-                            Ok(match device {
+                        .discover_devices()
+                        .filter_map(|device| async move {
+                            match device {
                                 TypedDevice::Camera(camera) => Some(camera),
                                 #[allow(unreachable_patterns)]
                                 _ => None,
-                            })
+                            }
                         })
-                        .try_collect::<HashSet<_>>()
-                        .await?;
+                        .collect::<HashSet<_>>()
+                        .await;
 
                     Ok::<_, eyre::Error>(State::Discovered(cameras))
                 });

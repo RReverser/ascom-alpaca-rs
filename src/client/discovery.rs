@@ -1,8 +1,10 @@
+use crate::api::TypedDevice;
 use crate::discovery::{
     bind_socket, AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG,
 };
 use default_net::interface::InterfaceType;
 use default_net::Interface;
+use futures::StreamExt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 use tokio::net::UdpSocket;
@@ -126,6 +128,30 @@ impl BoundClient {
             }
         })
         .instrument(tracing::error_span!("discover_addrs"))
+    }
+
+    /// Discover all devices on the local network.
+    ///
+    /// This function returns a stream of discovered devices.
+    ///
+    /// Note that it might return duplicates if same server is accessible on multiple network interfaces.
+    /// You can collect devices into [`Devices`](crate::Devices), [`HashSet`](std::collections::HashSet) or a similar data structure to deduplicate them.
+    ///
+    /// This function will log but otherwise ignore errors from discovered but unreachable servers.
+    /// If you need more control, use [`Self::discover_addrs`] and [`crate::Client::new_from_addr`] directly instead.
+    pub fn discover_devices(&mut self) -> impl '_ + futures::Stream<Item = TypedDevice> {
+        self.discover_addrs()
+            .filter_map(|addr| async move {
+                match crate::Client::new_from_addr(addr).get_devices().await {
+                    Ok(devices) => Some(devices),
+                    Err(err) => {
+                        tracing::warn!(%addr, %err, "failed to retrieve list of devices");
+                        None
+                    }
+                }
+            })
+            .flat_map_unordered(None, futures::stream::iter)
+            .instrument(tracing::error_span!("discover_devices"))
     }
 }
 

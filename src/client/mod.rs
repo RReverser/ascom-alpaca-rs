@@ -171,8 +171,9 @@ impl Client {
     }
 
     /// Create a new client with given server address.
-    pub fn new_from_addr(addr: impl Into<SocketAddr>) -> eyre::Result<Self> {
+    pub fn new_from_addr(addr: impl Into<SocketAddr>) -> Self {
         Self::new(format!("http://{}/", addr.into()))
+            .expect("creating client from an address should always succeed")
     }
 
     /// Get a list of all devices registered on the server.
