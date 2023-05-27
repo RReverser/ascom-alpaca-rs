@@ -20,12 +20,12 @@ default-net = "0.14.1"
 eyre = "0.6.8"
 futures = "0.3.26"
 indexmap = { version = "1.9.2", features = ["serde"] }
-macro_rules_attribute = "0.1.3"
+macro_rules_attribute = "0.2.0"
 mediatype = { version = "0.19.11", optional = true }
 mime = { version = "0.3.16", optional = true }
 ndarray = { version = "0.15.6", optional = true }
 net-literals = "0.2.0"
-num_enum = "0.5.9"
+num_enum = "0.6.1"
 once_cell = { version = "1.17.1", optional = true }
 rand = { version = "0.8.5", optional = true }
 reqwest = { version = "0.11.14", optional = true, default-features = false, features = ["json"] }
