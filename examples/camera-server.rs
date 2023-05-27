@@ -8,7 +8,7 @@ use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatT
 use nokhwa::{nokhwa_initialize, NokhwaError};
 use parking_lot::{Mutex, RwLock};
 use std::sync::Arc;
-use time::OffsetDateTime;
+use std::time::SystemTime;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task;
 
@@ -107,7 +107,7 @@ struct Webcam {
     subframe: RwLock<Subframe>,
     #[debug(skip)]
     exposing: Arc<RwLock<ExposingState>>,
-    last_exposure_start_time: RwLock<Option<OffsetDateTime>>,
+    last_exposure_start_time: RwLock<Option<SystemTime>>,
     last_exposure_duration: Arc<RwLock<Option<f64>>>,
     valid_bins: Vec<i32>,
 }
@@ -304,7 +304,7 @@ impl Camera for Webcam {
         ))
     }
 
-    async fn last_exposure_start_time(&self) -> ASCOMResult<OffsetDateTime> {
+    async fn last_exposure_start_time(&self) -> ASCOMResult<SystemTime> {
         self.last_exposure_start_time
             .read()
             .ok_or(ASCOMError::INVALID_OPERATION)
@@ -441,7 +441,7 @@ impl Camera for Webcam {
         // Run long blocking exposing operation on a dedicated I/O thread.
         let (frames_tx, mut frames_rx) =
             mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
-        *self.last_exposure_start_time.write() = Some(OffsetDateTime::now_utc());
+        *self.last_exposure_start_time.write() = Some(SystemTime::now());
         let start = std::time::Instant::now();
 
         let frame_reader_task = task::spawn_blocking(move || {
