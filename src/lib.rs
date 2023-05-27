@@ -275,7 +275,7 @@ for camera in devices.iter::<dyn Camera>() {
 
   Includes support for colour, monochrome and Bayer sensors with automatic colour conversion for the preview.
 
-  <img alt="Screenshot of a live view from the simulator camera" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/fbbc431e-15cc-4167-862c-0399b2a9a9db" width="50%" />
+  <img alt="Screenshot of a live view from the simulator camera" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/faecb549-dc0c-4f07-902f-7d49429b6458" width="50%" />
 
 ### Logging and tracing
 
