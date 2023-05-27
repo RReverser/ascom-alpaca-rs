@@ -1,10 +1,10 @@
 use ascom_alpaca::api::{Camera, ImageArray, SensorType as AlpacaSensorType, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
-use ascom_alpaca::{ASCOMErrorCode, ASCOMResult, Client};
+use ascom_alpaca::{ASCOMErrorCode, ASCOMResult};
 use eframe::egui::{self, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
 use eyre::Context;
-use futures::{Future, FutureExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{Future, FutureExt, StreamExt, TryFutureExt};
 use std::collections::HashSet;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
