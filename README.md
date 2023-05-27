@@ -131,22 +131,22 @@ This will start both the main Alpaca server as well as an auto-discovery respond
 
 - [`examples/camera-server.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-server.rs):
   A cross-platform example exposing your connected webcam(s) as Alpaca `Camera`s.
-  
-  ```
-  > env RUST_LOG=debug { cargo run --example camera-server --release }        
+
+  ```log
+  > env RUST_LOG=debug { cargo run --example camera-server --release }
         Finished release [optimized] target(s) in 0.60s
          Running `target\release\examples\camera-server.exe`
     2023-05-27T15:21:43.336191Z DEBUG camera_server: Registering webcam webcam=Webcam { unique_id: "150ddacb-7ad9-4754-b289-ae56210693e8::0", name: "Integrated Camera", description: "MediaFoundation Camera", max_format: CameraFormat { resolution: Resolution { width_x: 1280, height_y: 720 }, format: MJPEG, frame_rate: 30 }, subframe: RwLock { data: Subframe { bin: Size { x: 1, y: 1 }, offset: Point { x: 0, y: 0 }, size: Size { x: 1280, y: 720 } } }, last_exposure_start_time: RwLock { data: None }, last_exposure_duration: RwLock { data: None }, valid_bins: [1, 2, 4] }
     2023-05-27T15:21:43.339433Z DEBUG ascom_alpaca::server: Binding Alpaca server addr=[::]:8000
     2023-05-27T15:21:43.342897Z  INFO ascom_alpaca::server: Bound Alpaca server bound_addr=[::]:8000
-    2023-05-27T15:21:43.369040Z  WARN join_multicast_groups{listen_addr=::}: ascom_alpaca::server::discovery: err=An unknown, 
+    2023-05-27T15:21:43.369040Z  WARN join_multicast_groups{listen_addr=::}: ascom_alpaca::server::discovery: err=An unknown,
     invalid, or unsupported option or level was specified in a getsockopt or setsockopt call. (os error 10042)
     2023-05-27T15:21:43.370932Z DEBUG join_multicast_groups{listen_addr=::}: ascom_alpaca::server::discovery: return=()
     2023-05-27T15:21:43.371861Z DEBUG ascom_alpaca::server: Bound Alpaca discovery server
     ```
 
   Binning is implemented by switching the webcam to other supported resolutions which are proportional to the original.
-  
+
   Long exposures are simulated by stacking up individual frames up to the total duration.
   This approach can't provide precise requested exposure, but works well enough otherwise.
 
@@ -243,23 +243,13 @@ for camera in devices.iter::<dyn Camera>() {
 
 - [`examples/discover.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/discover.rs):
   A simple discovery example listing all the found servers and devices.
-  
+
 - [`examples/camera-client.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-client.rs):
   A cross-platform GUI example showing a live preview stream from discovered Alpaca cameras.
 
-  <table>
-  <tr>
-    <td>
-      <img alt="Screenshot of the initial page with list of discovered devices" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/2f14803f-c36a-4271-88c2-3af5ff1ee82d" />
-    </td>
-    <td>
-      <img alt="Screenshot of a live view from the simulator camera" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/fbbc431e-15cc-4167-862c-0399b2a9a9db" />
-    </td>
-  </tr>
-  </table>
-
-
   Includes support for colour, monochrome and Bayer sensors with automatic colour conversion for the preview.
+
+  <img alt="Screenshot of a live view from the simulator camera" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/fbbc431e-15cc-4167-862c-0399b2a9a9db" width="50%" />
 
 ### Logging and tracing
 
