@@ -45,7 +45,7 @@ The [`Device`](crate::api::Device) supertrait includes "ASCOM Methods Common To 
 
 ### Implementing a device server
 
-Since async traits are not yet natively supported on stable Rust, the traits are implemented using the [async_trait](https://crates.io/crates/async-trait) crate. Other than that, you should implement trait with all the Alpaca methods as usual:
+Since async traits are not yet natively supported on stable Rust, the traits are implemented using the [async-trait](https://crates.io/crates/async-trait) crate. Other than that, you should implement trait with all the Alpaca methods as usual:
 
 ```no_run
 use ascom_alpaca::ASCOMResult;
@@ -137,6 +137,9 @@ This will start both the main Alpaca server as well as an auto-discovery respond
 
 - [`examples/camera-server.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-server.rs):
   A cross-platform example exposing your connected webcam(s) as Alpaca `Camera`s.
+
+  Long exposures are simulated by stacking up individual frames up to the total duration.
+  This approach can't provide precise requested exposure, but works well enough otherwise.
 - [`star-adventurer-alpaca`](https://github.com/RReverser/star-adventurer-alpaca):
   A fork of [`jsorrell/star-adventurer-alpaca`](https://github.com/jsorrell/star-adventurer-alpaca) which implements the Alpaca API for the Star Adventurer mount over serial port.
   The original project has pretty extensive functionality and used manual implementation of the Alpaca API, so it was a good test case for porting to this library.
@@ -252,6 +255,8 @@ for camera in devices.iter::<dyn Camera>() {
   A simple discovery example listing all the found servers and devices.
 - [`examples/camera-client.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-client.rs):
   A cross-platform GUI example showing a live preview stream from discovered Alpaca cameras.
+
+  Includes support for colour, monochrome and Bayer sensors with automatic colour conversion for the preview.
 
 ### Logging and tracing
 
