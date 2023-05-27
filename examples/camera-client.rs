@@ -191,6 +191,7 @@ impl StateCtx {
                         let (params_tx, params_rx) = tokio::sync::watch::channel(CaptureParams {
                             duration_sec: 0.05,
                             gain,
+                            dynamic_stretch: true
                         });
                         let image_loop = tokio::spawn(
                             CaptureState {
@@ -263,7 +264,10 @@ impl StateCtx {
                             .changed(),
                         GainMode::None => false,
                     };
-                    exposure_changed || gain_changed
+                    let dynamic_stretch_changed = ui
+                        .checkbox(&mut params.dynamic_stretch, "Dynamic stretch")
+                        .changed();
+                    exposure_changed || gain_changed || dynamic_stretch_changed
                 });
                 if let Ok(new_img) = rx.try_recv() {
                     *frame_num += 1;
@@ -306,6 +310,7 @@ impl StateCtx {
 struct CaptureParams {
     duration_sec: f64,
     gain: i32,
+    dynamic_stretch: bool,
 }
 
 enum SensorType {
@@ -368,14 +373,28 @@ impl CaptureState {
     }
 
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, eyre::Error> {
-        let duration_sec = self.params_rx.borrow().duration_sec;
-        self.camera.start_exposure(duration_sec, true).await?;
-        tokio::time::sleep(Duration::from_secs_f64(duration_sec)).await;
+        let params = *self.params_rx.borrow();
+        self.camera
+            .start_exposure(params.duration_sec, true)
+            .await?;
+        tokio::time::sleep(Duration::from_secs_f64(params.duration_sec)).await;
         while !self.camera.image_ready().await? {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         let raw_img = self.camera.image_array().await?;
-        to_stretched_color_img(&self.sensor_type, self.max_adu, &raw_img)
+        to_stretched_color_img(
+            &self.sensor_type,
+            if params.dynamic_stretch {
+                raw_img
+                    .iter()
+                    .max()
+                    .and_then(|&x| u32::try_from(x).ok())
+                    .unwrap_or(1)
+            } else {
+                self.max_adu
+            },
+            &raw_img,
+        )
     }
 }
 
