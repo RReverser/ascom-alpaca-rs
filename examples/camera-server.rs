@@ -607,6 +607,7 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
             .collect::<Vec<_>>();
 
         valid_bins.sort_unstable();
+        valid_bins.dedup();
 
         let camera = nokhwa::Camera::new(
             camera_info.index().clone(),
