@@ -3,6 +3,7 @@ use crate::api::{ImageArrayRank, ImageElementType, TransmissionElementType};
 use crate::server::Response;
 use crate::ASCOMResult;
 use bytemuck::{bytes_of, Zeroable};
+use http::header::{HeaderMap, ACCEPT, CONTENT_TYPE};
 use serde::{Serialize, Serializer};
 use std::mem::size_of;
 
@@ -27,11 +28,8 @@ impl Response for ASCOMResult<ImageBytesResponse> {
             Ok(ImageBytesResponse(img_array)) => {
                 metadata.image_element_type = ImageElementType::I32.into();
                 metadata.transmission_element_type = img_array.transmission_element_type.into();
-                let dims = {
-                    let (dim0, dim1, dim2) = img_array.dim();
-                    [dim0, dim1, dim2]
-                        .map(|dim| i32::try_from(dim).expect("dimension is too large"))
-                };
+                let dims = <[_; 3]>::from(img_array.dim())
+                    .map(|dim| i32::try_from(dim).expect("dimension is too large"));
                 metadata.dimension_1 = dims[0];
                 metadata.dimension_2 = dims[1];
                 metadata.rank = match dims[2] {
@@ -79,11 +77,7 @@ impl Response for ASCOMResult<ImageBytesResponse> {
                 bytes
             }
         };
-        (
-            [(axum::http::header::CONTENT_TYPE, IMAGE_BYTES_TYPE)],
-            bytes,
-        )
-            .into_response()
+        ([(CONTENT_TYPE, IMAGE_BYTES_TYPE)], bytes).into_response()
     }
 }
 
@@ -120,7 +114,7 @@ impl Serialize for ImageArray {
 }
 
 impl ImageArray {
-    pub(crate) fn is_accepted(headers: &axum::headers::HeaderMap) -> bool {
+    pub(crate) fn is_accepted(headers: &HeaderMap) -> bool {
         use mediatype::{MediaType, MediaTypeList};
 
         const MEDIA_TYPE: MediaType<'static> = MediaType::new(
@@ -129,7 +123,7 @@ impl ImageArray {
         );
 
         headers
-            .get_all(axum::http::header::ACCEPT)
+            .get_all(ACCEPT)
             .iter()
             .filter_map(|value| value.to_str().ok())
             .flat_map(MediaTypeList::new)

@@ -1,9 +1,9 @@
 use super::{Error, ResponseTransaction, ResponseWithTransaction};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
-use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
+use http::StatusCode;
 use serde::Serialize;
 
 pub(crate) trait Response: Sized {

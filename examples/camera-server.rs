@@ -623,7 +623,7 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
             description: camera_info.description().to_owned(),
             subframe: RwLock::new(Subframe {
                 offset: Point::default(),
-                size: format.resolution().try_into()?,
+                size: format.resolution().into(),
                 bin: Size { x: 1, y: 1 },
             }),
             max_format: format,

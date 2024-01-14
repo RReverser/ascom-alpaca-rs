@@ -118,7 +118,7 @@ impl From<LastExposureStartTime> for std::time::SystemTime {
 
 #[cfg(feature = "camera")]
 impl LastExposureStartTime {
-    const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!(
+    const FORMAT: &'static [time::format_description::FormatItem<'static>] = time::macros::format_description!(
         "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]"
     );
 
@@ -462,7 +462,7 @@ impl From<TelescopeUtcdate> for std::time::SystemTime {
 
 #[cfg(feature = "telescope")]
 impl TelescopeUtcdate {
-    const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!(
+    const FORMAT: &'static [time::format_description::FormatItem<'static>] = time::macros::format_description!(
         "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]Z"
     );
 

@@ -2,7 +2,7 @@ use ascom_alpaca::api::{Camera, ImageArray, SensorType as AlpacaSensorType, Type
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult};
 use eframe::egui::{self, TextureOptions, Ui};
-use eframe::epaint::{Color32, ColorImage, TextureHandle, Vec2};
+use eframe::epaint::{Color32, ColorImage, TextureHandle};
 use eyre::Context;
 use futures::{Future, FutureExt, StreamExt, TryFutureExt};
 use std::collections::HashSet;
@@ -278,13 +278,7 @@ impl StateCtx {
                 }
                 ui.label(format!("Frame: {frame_num}"));
                 match &*img {
-                    Some(img) => {
-                        let available_size = ui.available_size();
-                        let mut img_size = Vec2::from(img.size().map(|x| x as f32));
-                        // Fit the image to the available space while preserving aspect ratio.
-                        img_size *= (available_size / img_size).min_elem();
-                        ui.image(img, img_size)
-                    }
+                    Some(img) => ui.add(egui::Image::new(img).shrink_to_fit()),
                     None => ui.label("Starting capture stream..."),
                 };
                 if let Some(result) = image_loop.now_or_never() {

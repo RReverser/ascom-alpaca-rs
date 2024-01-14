@@ -21,12 +21,10 @@ use crate::api::{CargoServerInfo, DevicePath, DeviceType, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::Devices;
-use axum::body::HttpBody;
-use axum::extract::{FromRequest, Path};
-use axum::http::Request;
+use axum::extract::{FromRequest, Path, Request};
 use axum::response::IntoResponse;
 use axum::routing::MethodFilter;
-use axum::{BoxError, Router};
+use axum::Router;
 use net_literals::addr;
 use sailfish::TemplateOnce;
 use std::collections::BTreeMap;
@@ -66,19 +64,10 @@ struct ServerHandler {
 }
 
 #[async_trait::async_trait]
-impl<S, B> FromRequest<S, B> for ServerHandler
-where
-    B: HttpBody + Send + Sync + 'static,
-    B::Data: Send,
-    B::Error: Into<BoxError>,
-    S: Send + Sync,
-{
+impl<S: Send + Sync> FromRequest<S> for ServerHandler {
     type Rejection = axum::response::Response;
 
-    async fn from_request(
-        req: Request<B>,
-        state: &S,
-    ) -> std::result::Result<Self, Self::Rejection> {
+    async fn from_request(req: Request, state: &S) -> std::result::Result<Self, Self::Rejection> {
         let path = req.uri().path().to_owned();
         let params = ActionParams::from_request(req, state).await?;
         Ok(Self { path, params })
@@ -93,7 +82,7 @@ impl ServerHandler {
         let request_transaction = match RequestTransaction::extract(&mut self.params) {
             Ok(transaction) => transaction,
             Err(err) => {
-                return (axum::http::StatusCode::BAD_REQUEST, format!("{err:#}")).into_response();
+                return (http::StatusCode::BAD_REQUEST, format!("{err:#}")).into_response();
             }
         };
         let response_transaction =
@@ -179,14 +168,10 @@ impl Server {
         socket.bind(&addr.into())?;
         socket.listen(128)?;
 
-        let server = axum::Server::from_tcp(socket.into())?.serve(
-            self.into_router()
-                // .layer(TraceLayer::new_for_http())
-                .into_make_service(),
-        );
+        let listener = tokio::net::TcpListener::from_std(socket.into())?;
 
         // The address can differ e.g. when using port 0 (auto-assigned).
-        let bound_addr = server.local_addr();
+        let bound_addr = listener.local_addr()?;
 
         tracing::info!(%bound_addr, "Bound Alpaca server");
 
@@ -201,7 +186,13 @@ impl Server {
         Ok(BoundServer {
             axum: Box::pin(
                 async move {
-                    server.await?;
+                    axum::serve(
+                        listener,
+                        self.into_router()
+                            // .layer(TraceLayer::new_for_http())
+                            .into_make_service(),
+                    )
+                    .await?;
                     unreachable!("Alpaca server should never stop without an error")
                 }
                 .instrument(tracing::error_span!("alpaca_server_loop")),
@@ -274,7 +265,7 @@ impl Server {
 
                         ctx.grouped_devices
                             .entry(device.ty)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push((number, device.name));
                     }
 
@@ -282,10 +273,7 @@ impl Server {
                         Ok(html) => Ok(axum::response::Html(html)),
                         Err(err) => {
                             tracing::error!(%err, "Failed to render setup page");
-                            Err((
-                                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                err.to_string(),
-                            ))
+                            Err((http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
                         }
                     }
                 })
@@ -293,13 +281,13 @@ impl Server {
             .route(
                 "/api/v1/:device_type/:device_number/:action",
                 axum::routing::on(
-                    MethodFilter::GET | MethodFilter::PUT,
+                    MethodFilter::or(MethodFilter::GET, MethodFilter::PUT),
                     move |Path((DevicePath(device_type), device_number, action)): Path<(
                         DevicePath,
                         usize,
                         String,
                     )>,
-                          #[cfg(feature = "camera")] headers: axum::http::HeaderMap,
+                          #[cfg(feature = "camera")] headers: http::HeaderMap,
                           server_handler: ServerHandler| async move {
                         if action == "setup" {
                             #[derive(TemplateOnce)]
@@ -312,16 +300,13 @@ impl Server {
 
                             return match ctx.render_once() {
                                 Ok(html) => (
-                                    axum::http::StatusCode::NOT_IMPLEMENTED,
+                                    http::StatusCode::NOT_IMPLEMENTED,
                                     axum::response::Html(html),
                                 )
                                     .into_response(),
                                 Err(err) => {
                                     tracing::error!(%err, "Failed to render device setup page");
-                                    (
-                                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                        err.to_string(),
-                                    )
+                                    (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
                                         .into_response()
                                 }
                             };

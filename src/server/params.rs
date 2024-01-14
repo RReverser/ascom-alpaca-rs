@@ -1,10 +1,9 @@
 use super::case_insensitive_str::CaseInsensitiveStr;
 use super::Error;
-use axum::body::HttpBody;
-use axum::extract::FromRequest;
-use axum::http::{Method, Request, StatusCode};
+use axum::extract::{FromRequest, Request};
 use axum::response::IntoResponse;
-use axum::{BoxError, Form};
+use axum::Form;
+use http::{Method, StatusCode};
 use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -50,16 +49,10 @@ where
 }
 
 #[async_trait::async_trait]
-impl<S, B> FromRequest<S, B> for ActionParams
-where
-    B: HttpBody + Send + Sync + 'static,
-    B::Data: Send,
-    B::Error: Into<BoxError>,
-    S: Send + Sync,
-{
+impl<S: Send + Sync> FromRequest<S> for ActionParams {
     type Rejection = axum::response::Response;
 
-    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         match *req.method() {
             Method::GET => Ok(Self::Get(
                 Form::from_request(req, state)
