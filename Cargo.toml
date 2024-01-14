@@ -44,7 +44,7 @@ tracing = "0.1.40"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.52.0", features = ["Win32_Networking_WinSock", "Win32_System_IO"] }
+windows-sys = { version = "0.52.0", features = ["Win32_Networking_WinSock", "Win32_Foundation", "Win32_System_IO"] }
 
 [dev-dependencies]
 ascom-alpaca = { path = ".", features = ["test"] }
