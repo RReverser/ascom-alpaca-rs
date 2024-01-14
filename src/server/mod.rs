@@ -165,6 +165,7 @@ impl Server {
             socket.set_only_v6(false)?;
         }
 
+        socket.set_nonblocking(true)?;
         socket.bind(&addr.into())?;
         socket.listen(128)?;
 
