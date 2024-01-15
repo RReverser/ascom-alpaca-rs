@@ -638,7 +638,10 @@ function stringifyIter<T>(
 function stringifyDoc(doc: string | undefined = '') {
   doc = doc.trim();
   if (!doc) return '';
-  return doc.includes('\n') ? `/**\n${doc}\n*/` : `/// ${doc}`;
+  return doc
+    .split(/\r?\n/)
+    .map(line => `/// ${line}`)
+    .join('\n');
 }
 
 let rendered = `
@@ -778,7 +781,7 @@ ${stringifyIter(types, ({ features, type }) => {
 
         ${cfg}
         impl ${type.name} {
-          const FORMAT: &[time::format_description::FormatItem<'static>] = time::macros::format_description!("${
+          const FORMAT: &'static [time::format_description::FormatItem<'static>] = time::macros::format_description!("${
             type.format
           }");
 

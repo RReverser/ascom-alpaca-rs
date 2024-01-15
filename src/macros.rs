@@ -39,7 +39,7 @@ macro_rules! rpc_trait {
         }
     ) => {
         $(# $attr)*
-        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
+        #[async_trait::async_trait]
         #[allow(unused_variables)]
         $pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* {
             $(
@@ -51,6 +51,13 @@ macro_rules! rpc_trait {
 
             $(
                 $(#[doc = $doc])*
+                ///
+                /// Definition before the `#[async_trait]` expansion:
+                ///
+                /// ```ignore
+                #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!($return_type))]
+                /// # { unimplemented!() }
+                /// ```
                 async fn $method_name(
                     & $self $(, $param: $param_ty)*
                 ) -> $return_type $default_body
@@ -135,7 +142,7 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(feature = "client")]
-        #[cfg_attr(not(all(doc, feature = "nightly")), async_trait::async_trait)]
+        #[async_trait::async_trait]
         impl $trait_name for $crate::client::RawDeviceClient {
             $(
                 $(

@@ -302,11 +302,7 @@ Licensed under either of
 - Apache License, Version 2.0 ([LICENSE-APACHE-2.0](LICENSE-APACHE-2.0))
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 */
-#![cfg_attr(
-    all(doc, feature = "nightly"),
-    feature(doc_auto_cfg, async_fn_in_trait),
-    allow(incomplete_features)
-)]
+#![cfg_attr(all(doc, feature = "nightly"), feature(doc_auto_cfg))]
 #![warn(
     clippy::pedantic,
     clippy::nursery,
@@ -348,7 +344,9 @@ Licensed under either of
     clippy::single_match_else,
     clippy::type_repetition_in_bounds,
     clippy::let_underscore_untyped,
-    clippy::struct_excessive_bools
+    clippy::struct_excessive_bools,
+    // For cargo-rdme
+    rustdoc::redundant_explicit_links
 )]
 
 pub(crate) mod macros;
