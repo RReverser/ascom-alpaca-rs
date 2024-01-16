@@ -18,20 +18,20 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build maximum configuration with all targets
-      run: cargo build --all-targets --features all-devices,client,server
+      run: cargo clippy --all-targets --features all-devices,client,server
     # Temporarily disable dev-dependencies to verify that library compiles without them.
     # Otherwise it's easy to miss accidental strong dependency on dev-dependencies.
     - name: Disable dev-dependencies
       run: sed -i 's/\[dev-dependencies]/[hide-dev-dependencies]/' Cargo.toml
     - name: Build library with maximum configuration
-      run: cargo build --features all-devices,client,server
+      run: cargo clippy --features all-devices,client,server
     # Try couple of different combinations of features to make sure we didn't mess up with #[cfg(...)]
     # Try all of them in succession rather than in Github matrix so that build cache is reused more easily.
     - name: Build client+camera
-      run: cargo build --features client,camera
+      run: cargo clippy --features client,camera
     - name: Build client+telescope
-      run: cargo build --features client,telescope
+      run: cargo clippy --features client,telescope
     - name: Build server+camera
-      run: cargo build --features server,camera
+      run: cargo clippy --features server,camera
     - name: Build server+telescope
-      run: cargo build --features server,telescope
+      run: cargo clippy --features server,telescope
