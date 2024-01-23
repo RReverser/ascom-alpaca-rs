@@ -150,9 +150,8 @@ This will start both the main Alpaca server as well as an auto-discovery respond
   Long exposures are simulated by stacking up individual frames up to the total duration.
   This approach can't provide precise requested exposure, but works well enough otherwise.
 
-- [`star-adventurer-alpaca`](https://github.com/RReverser/star-adventurer-alpaca):
-  A fork of [`jsorrell/star-adventurer-alpaca`](https://github.com/jsorrell/star-adventurer-alpaca) which implements the Alpaca API for the Star Adventurer mount over serial port.
-  The original project has pretty extensive functionality and used manual implementation of the Alpaca API, so it was a good test case for porting to this library.
+- [`star-adventurer-alpaca`](https://github.com/jsorrell/star-adventurer-alpaca): An implentation of the Alpaca protocol for Star Adventurer trackers.
+- [`qhyccd-alpaca`](https://github.com/ivonnyssen/qhyccd-alpaca): Alpaca driver for QHYCCD cameras and filter wheels written in Rust.
 
 ### Accessing devices from a client
 
@@ -249,7 +248,7 @@ for camera in devices.iter::<dyn Camera>() {
 
   Includes support for colour, monochrome and Bayer sensors with automatic colour conversion for the preview.
 
-  <img alt="Screenshot of a live view from the simulator camera" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/fbbc431e-15cc-4167-862c-0399b2a9a9db" width="50%" />
+  <img alt="Screenshot of a live view from the simulator camera" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/faecb549-dc0c-4f07-902f-7d49429b6458" width="50%" />
 
 ### Logging and tracing
 
