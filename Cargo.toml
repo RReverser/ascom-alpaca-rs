@@ -58,7 +58,7 @@ ndarray = { version = "0.15.6", features = ["rayon"] }
 nokhwa = { version = "0.10.4", features = ["input-native", "output-threaded"] }
 parking_lot = { version = "0.12.1", features = ["arc_lock", "send_guard"] }
 serial_test = "3.0.0"
-time = { version = "0.3.31", features = ["formatting"] }
+time = { version = "0.3.36", features = ["formatting"] }
 tracing-subscriber = "0.3.18"
 tracing-error = "0.2.0"
 color-eyre = "0.6.2"
