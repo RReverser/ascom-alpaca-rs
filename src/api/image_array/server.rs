@@ -127,7 +127,7 @@ impl ImageArray {
             .iter()
             .filter_map(|value| value.to_str().ok())
             .flat_map(MediaTypeList::new)
-            .filter_map(std::result::Result::ok)
+            .filter_map(Result::ok)
             .any(|media_type| media_type.essence() == MEDIA_TYPE)
     }
 }

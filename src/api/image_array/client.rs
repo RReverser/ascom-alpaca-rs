@@ -97,7 +97,7 @@ impl Response for ASCOMResult<ImageArray> {
                 .map(|response| response.map(|response| response.map(|json| json.0)));
         }
         let metadata = bytes
-            .get(..std::mem::size_of::<ImageBytesMetadata>())
+            .get(..size_of::<ImageBytesMetadata>())
             .ok_or_else(|| eyre::eyre!("not enough bytes to read image metadata"))?;
         let metadata = bytemuck::pod_read_unaligned::<ImageBytesMetadata>(metadata);
         eyre::ensure!(
@@ -107,7 +107,7 @@ impl Response for ASCOMResult<ImageArray> {
         );
         let data_start = usize::try_from(metadata.data_start)?;
         eyre::ensure!(
-            data_start >= std::mem::size_of::<ImageBytesMetadata>(),
+            data_start >= size_of::<ImageBytesMetadata>(),
             "image data start offset is within metadata",
         );
         let data = bytes

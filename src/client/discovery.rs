@@ -42,7 +42,7 @@ pub struct BoundClient {
 impl BoundClient {
     #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
     async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &Interface) {
-        match async {
+        let send_op = async {
             if addr.is_multicast() {
                 socket2::SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
             }
@@ -52,9 +52,8 @@ impl BoundClient {
                 .send_to(DISCOVERY_MSG, (addr, self.client.discovery_port))
                 .await?;
             Ok::<_, std::io::Error>(())
-        }
-        .await
-        {
+        };
+        match send_op.await {
             Ok(()) => tracing::trace!("success"),
             Err(err) => tracing::warn!(%err),
         }

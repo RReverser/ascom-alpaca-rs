@@ -331,7 +331,7 @@ Licensed under either of
     unused_macro_rules,
     unused_qualifications,
     unused_results,
-    unused_tuple_struct_fields
+    dead_code
 )]
 #![allow(
     clippy::module_name_repetitions,
@@ -377,7 +377,9 @@ pub use server::{BoundServer, Server};
 fn prepare_test_env() {
     use tracing_subscriber::prelude::*;
 
-    std::env::set_var("RUST_BACKTRACE", "full");
+    unsafe {
+        std::env::set_var("RUST_BACKTRACE", "full");
+    }
 
     tracing_subscriber::registry()
         .with(

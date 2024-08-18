@@ -159,7 +159,7 @@ macro_rules! ascom_error_codes {
 }
 
 ascom_error_codes! {
-    #[doc = ""]
+    #[doc = "Success"]
     OK = 0,
     #[doc = "The requested action is not implemented in this driver"]
     ACTION_NOT_IMPLEMENTED = 0x40C,

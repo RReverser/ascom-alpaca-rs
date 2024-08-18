@@ -49,7 +49,7 @@ pub(crate) async fn bind_socket(
             socket.as_raw_socket() as _,
             SIO_UDP_CONNRESET,
             std::ptr::addr_of!(input).cast(),
-            std::mem::size_of_val(&input) as _,
+            size_of_val(&input) as _,
             std::ptr::null_mut(),
             0,
             std::ptr::addr_of_mut!(output).cast(),
