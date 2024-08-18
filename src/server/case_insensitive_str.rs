@@ -1,28 +1,22 @@
+use bytemuck::{TransparentWrapper, TransparentWrapperAlloc};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 
-#[derive(Serialize)]
+#[derive(Serialize, TransparentWrapper)]
 #[serde(transparent)]
 #[repr(transparent)]
 pub(crate) struct CaseInsensitiveStr(str);
 
 impl AsRef<CaseInsensitiveStr> for str {
     fn as_ref(&self) -> &CaseInsensitiveStr {
-        #[allow(clippy::as_conversions)]
-        unsafe {
-            &*(self as *const _ as *const _)
-        }
+        TransparentWrapper::wrap_ref(self)
     }
 }
 
 impl From<Box<str>> for Box<CaseInsensitiveStr> {
     fn from(s: Box<str>) -> Self {
-        let as_ptr = Box::into_raw(s);
-        #[allow(clippy::as_conversions)]
-        unsafe {
-            Self::from_raw(as_ptr as *mut _)
-        }
+        TransparentWrapperAlloc::wrap_box(s)
     }
 }
 
