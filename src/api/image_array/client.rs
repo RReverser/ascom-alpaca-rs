@@ -1,9 +1,11 @@
 use super::{
-    ImageArray, ImageArrayRank, ImageBytesMetadata, ImageElementType, COLOUR_AXIS, IMAGE_BYTES_TYPE,
+    AsTransmissionElementType, ImageArray, ImageArrayRank, ImageBytesMetadata, ImageElementType,
+    COLOUR_AXIS, IMAGE_BYTES_TYPE,
 };
 use crate::api::TransmissionElementType;
 use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+use bytemuck::PodCastError;
 use bytes::Bytes;
 use mime::Mime;
 use ndarray::{Array2, Array3};
@@ -86,6 +88,14 @@ impl<'de> Deserialize<'de> for JsonImageArray {
     }
 }
 
+fn cast_raw_data<T: AsTransmissionElementType>(data: &[u8]) -> Result<Vec<i32>, PodCastError> {
+    Ok(bytemuck::try_cast_slice::<u8, T>(data)?
+        .iter()
+        .copied()
+        .map(T::into)
+        .collect())
+}
+
 impl Response for ASCOMResult<ImageArray> {
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
@@ -99,7 +109,7 @@ impl Response for ASCOMResult<ImageArray> {
         let metadata = bytes
             .get(..size_of::<ImageBytesMetadata>())
             .ok_or_else(|| eyre::eyre!("not enough bytes to read image metadata"))?;
-        let metadata = bytemuck::pod_read_unaligned::<ImageBytesMetadata>(metadata);
+        let metadata = bytemuck::try_from_bytes::<ImageBytesMetadata>(metadata)?;
         eyre::ensure!(
             metadata.metadata_version == 1_i32,
             "unsupported metadata version {}",
@@ -110,7 +120,7 @@ impl Response for ASCOMResult<ImageArray> {
             data_start >= size_of::<ImageBytesMetadata>(),
             "image data start offset is within metadata",
         );
-        let data = bytes
+        let raw_data = bytes
             .get(data_start..)
             .ok_or_else(|| eyre::eyre!("image data start offset is out of bounds"))?;
         let transaction = ResponseTransaction {
@@ -123,19 +133,11 @@ impl Response for ASCOMResult<ImageArray> {
             let transmission_element_type =
                 TransmissionElementType::try_from_primitive(metadata.transmission_element_type)?;
             let data = match transmission_element_type {
-                TransmissionElementType::I16 => bytemuck::cast_slice::<u8, i16>(data)
-                    .iter()
-                    .copied()
-                    .map(i32::from)
-                    .collect(),
-                TransmissionElementType::I32 => bytemuck::cast_slice::<u8, i32>(data).to_owned(),
-                TransmissionElementType::U8 => data.iter().copied().map(i32::from).collect(),
-                TransmissionElementType::U16 => bytemuck::cast_slice::<u8, u16>(data)
-                    .iter()
-                    .copied()
-                    .map(i32::from)
-                    .collect(),
-            };
+                TransmissionElementType::I16 => cast_raw_data::<i16>(raw_data),
+                TransmissionElementType::I32 => cast_raw_data::<i32>(raw_data),
+                TransmissionElementType::U8 => cast_raw_data::<u8>(raw_data),
+                TransmissionElementType::U16 => cast_raw_data::<u16>(raw_data),
+            }?;
             let shape = ndarray::Ix3(
                 usize::try_from(metadata.dimension_1)?,
                 usize::try_from(metadata.dimension_2)?,
@@ -155,7 +157,7 @@ impl Response for ASCOMResult<ImageArray> {
         } else {
             Err(ASCOMError::new(
                 ASCOMErrorCode::try_from(u16::try_from(metadata.error_number)?)?,
-                std::str::from_utf8(data)?.to_owned(),
+                std::str::from_utf8(raw_data)?.to_owned(),
             ))
         };
         Ok(ResponseWithTransaction {

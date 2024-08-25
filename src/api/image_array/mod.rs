@@ -6,7 +6,7 @@ mod server;
 #[cfg(feature = "server")]
 pub(crate) use server::ImageBytesResponse;
 
-use bytemuck::{Pod, Zeroable};
+use bytemuck::{AnyBitPattern, Pod, Zeroable};
 use ndarray::{Array2, Array3, ArrayView2, ArrayView3, Axis};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -64,7 +64,7 @@ pub(crate) enum ImageElementType {
     I32 = TransmissionElementType::I32 as i32,
 }
 
-trait AsTransmissionElementType: 'static + TryFrom<i32> + Into<i32> + Copy {
+trait AsTransmissionElementType: 'static + Into<i32> + AnyBitPattern {
     const TYPE: TransmissionElementType;
 }
 
