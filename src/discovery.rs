@@ -35,31 +35,31 @@ pub(crate) async fn bind_socket(
     // on Windows. Ideally we'd just ignore the error and move on but those tend to
     // render socket unusable so we'd have to recreate it as well.
     #[cfg(windows)]
-    #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
-    unsafe {
+    {
         use eyre::Context;
         use windows_sys::Win32::Networking::WinSock::{
-            WSAGetLastError, WSAIoctl, SIO_UDP_CONNRESET,
+            ioctlsocket, WSAGetLastError, SIO_UDP_CONNRESET,
         };
 
-        let input: i32 = 0;
-        let mut output: u32 = 0;
+        let mut cmd_io: u32 = 0;
 
-        let error_code = WSAIoctl(
-            socket.as_raw_socket() as _,
-            SIO_UDP_CONNRESET,
-            std::ptr::addr_of!(input).cast(),
-            size_of_val(&input) as _,
-            std::ptr::null_mut(),
-            0,
-            std::ptr::addr_of_mut!(output).cast(),
-            std::ptr::null_mut(),
-            None,
-        );
-        if error_code != 0_i32 {
-            return Err(std::io::Error::from_raw_os_error(WSAGetLastError()))
-                .context("Couldn't configure the UDP socket to ignore ICMP errors");
+        unsafe {
+            #[allow(
+                clippy::as_conversions,
+                clippy::cast_possible_truncation,
+                clippy::cast_possible_wrap
+            )]
+            match ioctlsocket(
+                socket.as_raw_socket() as _,
+                SIO_UDP_CONNRESET as _,
+                &mut cmd_io,
+            ) {
+                0_i32 => Ok(()),
+                _ => Err(WSAGetLastError()),
+            }
         }
+        .map_err(std::io::Error::from_raw_os_error)
+        .context("Couldn't configure the UDP socket to ignore ICMP errors")?;
     }
     let socket = tokio::task::spawn_blocking(move || {
         socket.bind(&addr.into())?;
