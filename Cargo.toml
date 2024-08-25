@@ -38,13 +38,13 @@ serde_plain = "1.0.2"
 serde_repr = "0.1.19"
 socket2 = "0.5.7"
 thiserror = "1.0.63"
-time = { version = "0.3.36", features = ["formatting", "parsing", "macros"] }
+time = { version = "0.3.36", features = ["formatting", "parsing"] }
 tokio = { version = "1.39.3", features = ["net", "rt", "io-util"] }
 tracing = "0.1.40"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock", "Win32_Foundation", "Win32_System_IO"] }
+windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock"] }
 
 [dev-dependencies]
 ascom-alpaca = { path = ".", features = ["test"] }
