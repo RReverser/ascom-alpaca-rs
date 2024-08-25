@@ -130,7 +130,7 @@ macro_rules! ascom_error_codes {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match *self {
                     $(
-                        Self::$name => write!(f, "{}", stringify!($name)),
+                        Self::$name => f.write_str(stringify!($name)),
                     )*
                     _ => match self.as_driver_error() {
                         Ok(driver_code) => write!(f, "DRIVER_ERROR[{driver_code}]"),
@@ -151,11 +151,14 @@ macro_rules! ascom_error_codes {
                 #[doc = $doc]
                 pub const $name: Self = Self {
                     code: ASCOMErrorCode::$name,
-                    message: Cow::Borrowed($doc),
+                    message: Cow::Borrowed(ascom_error_codes!(@msg $name $doc)),
                 };
             )*
         }
     };
+
+    (@msg OK $doc:literal) => ("");
+    (@msg $name:ident $doc:literal) => ($doc);
 }
 
 ascom_error_codes! {
