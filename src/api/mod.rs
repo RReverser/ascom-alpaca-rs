@@ -6,11 +6,13 @@ ASCOM Alpaca Device API v1
 The Alpaca API uses RESTful techniques and TCP/IP to enable ASCOM applications and devices to communicate across modern network environments.
 
 ## Interface Behaviour
-The ASCOM Interface behavioural requirements for Alpaca drivers are the same as for COM based drivers and are documented in the <a href="https://ascom-standards.org/Help/Developer/html/N_ASCOM_DeviceInterface.htm">API Interface Definitions</a> e.g. the <a href="https://ascom-standards.org/Help/Developer/html/M_ASCOM_DeviceInterface_ITelescopeV3_SlewToCoordinates.htm">Telescope.SlewToCoordinates</a> method. This document focuses on how to use the ASCOM Interface standards in their RESTful Alpaca form.
+The ASCOM Interface behavioural requirements for Alpaca drivers are the same as for COM based drivers and are documented in the <a href="https://ascom-standards.org/Help/Developer/html/N_ASCOM_DeviceInterface.htm">API Interface Definitions</a> e.g. the <a href="https://ascom-standards.org/Help/Developer/html/M_ASCOM_DeviceInterface_ITelescopeV3_SlewToCoordinates.htm">Telescope.SlewToCoordinates</a> method.       This document focuses on how to use the ASCOM Interface standards in their RESTful Alpaca form.
 ## Alpaca URLs, Case Sensitivity, Parameters and Returned values
 **Alpaca Device API URLs** are of the form **http(s)://host:port/path** where path comprises **"/api/v1/"** followed by one of the method names below. e.g. for an Alpaca interface running on port 7843 of a device with IP address 192.168.1.89:
 * A telescope "Interface Version" method URL would be **http://192.168.1.89:7843/api/v1/telescope/0/interfaceversion**
+
 * A first focuser "Position" method URL would be  **http://192.168.1.89:7843/api/v1/focuser/0/position**
+
 * A second focuser "StepSize" method URL would be  **http://192.168.1.89:7843/api/v1/focuser/1/stepsize**
 * A rotator "Halt" method URL would be  **http://192.168.1.89:7843/api/v1/rotator/0/halt**
 
@@ -19,7 +21,7 @@ URLs are case sensitive and all elements must be in lower case. This means that 
 
 For GET operations, parameters should be placed in the URL query string and for PUT operations they should be placed in the body of the message.
 
-Responses, as described below, are returned in JSON format and always include a common set of values including the client's transaction number, the server's transaction number together with any error message and error number.
+Responses, as described below, are returned in JSON format and always include a common set of values including the client's transaction number,  the server's transaction number together with any error message and error number.
 If the transaction completes successfully, the ErrorMessage field will be an empty string and the ErrorNumber field will be zero.
 
 ## HTTP Status Codes and ASCOM Error codes
@@ -53,10 +55,17 @@ use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use time::format_description::well_known::Iso8601;
 
 pub use server_info::*;
 
-/// Returned camera state
+#[cfg(feature = "camera")]
+mod image_array;
+
+#[cfg(feature = "camera")]
+pub use image_array::*;
+
+/// Camera state
 #[cfg(feature = "camera")]
 #[derive(
     Debug,
@@ -73,24 +82,24 @@ pub use server_info::*;
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum CameraState {
+    /// At idle state, available to start exposure.
     Idle = 0,
 
+    /// Exposure started but waiting (for shutter, trigger, filter wheel, etc.).
     Waiting = 1,
 
+    /// Exposure currently in progress.
     Exposing = 2,
 
+    /// Sensor array is being read out (digitized).
     Reading = 3,
 
+    /// Downloading data to host.
     Download = 4,
 
+    /// Camera error condition serious enough to prevent further operations.
     Error = 5,
 }
-
-#[cfg(feature = "camera")]
-mod image_array;
-
-#[cfg(feature = "camera")]
-pub use image_array::*;
 
 /// The UTC date/time of exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
 #[cfg(feature = "camera")]
@@ -118,17 +127,13 @@ impl From<LastExposureStartTime> for std::time::SystemTime {
 
 #[cfg(feature = "camera")]
 impl LastExposureStartTime {
-    const FORMAT: &'static [time::format_description::FormatItem<'static>] = time::macros::format_description!(
-        "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]"
-    );
-
     fn serialize<S: serde::Serializer>(
         value: &time::OffsetDateTime,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
         value
             .to_offset(time::UtcOffset::UTC)
-            .format(Self::FORMAT)
+            .format(&Iso8601::DATE_TIME)
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
     }
@@ -146,7 +151,7 @@ impl LastExposureStartTime {
             }
 
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                match time::PrimitiveDateTime::parse(value, LastExposureStartTime::FORMAT) {
+                match time::PrimitiveDateTime::parse(value, &Iso8601::DATE_TIME) {
                     Ok(time) => Ok(time.assume_utc()),
                     Err(err) => Err(serde::de::Error::custom(err)),
                 }
@@ -157,7 +162,7 @@ impl LastExposureStartTime {
     }
 }
 
-/// Returned sensor type
+/// The type of sensor in the camera.
 #[cfg(feature = "camera")]
 #[derive(
     Debug,
@@ -174,22 +179,22 @@ impl LastExposureStartTime {
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum SensorType {
-    /// Camera produces monochrome array with no Bayer encoding
+    /// Single-plane monochrome sensor.
     Monochrome = 0,
 
-    /// Camera produces color image directly, not requiring Bayer decoding
+    /// Multiple-plane color sensor.
     Color = 1,
 
-    /// Camera produces RGGB encoded Bayer array images
+    /// Single-plane Bayer matrix RGGB sensor.
     RGGB = 2,
 
-    /// Camera produces CMYG encoded Bayer array images
+    /// Single-plane Bayer matrix CMYG sensor.
     CMYG = 3,
 
-    /// Camera produces CMYG2 encoded Bayer array images
+    /// Single-plane Bayer matrix CMYG2 sensor.
     CMYG2 = 4,
 
-    /// Camera produces Kodak TRUESENSE LRGB encoded Bayer array images
+    /// Single-plane Bayer matrix LRGB sensor.
     LRGB = 5,
 }
 
@@ -209,7 +214,7 @@ pub enum SensorType {
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
-pub enum PutPulseGuideDirection {
+pub enum GuideDirection {
     North = 0,
 
     South = 1,
@@ -219,7 +224,7 @@ pub enum PutPulseGuideDirection {
     West = 3,
 }
 
-/// Returned side of pier
+/// Describes the state of a calibration device.
 #[cfg(feature = "covercalibrator")]
 #[derive(
     Debug,
@@ -255,7 +260,7 @@ pub enum CalibratorStatus {
     Error = 5,
 }
 
-/// Returned side of pier
+/// Describes the state of a telescope cover.
 #[cfg(feature = "covercalibrator")]
 #[derive(
     Debug,
@@ -291,7 +296,7 @@ pub enum CoverStatus {
     Error = 5,
 }
 
-/// Returned dome shutter status
+/// Indicates the current state of the shutter or roof.
 #[cfg(feature = "dome")]
 #[derive(
     Debug,
@@ -307,19 +312,24 @@ pub enum CoverStatus {
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
-pub enum DomeShutterStatus {
+pub enum ShutterState {
+    /// The shutter or roof is open.
     Open = 0,
 
+    /// The shutter or roof is closed.
     Closed = 1,
 
+    /// The shutter or roof is opening.
     Opening = 2,
 
+    /// The shutter or roof is closing.
     Closing = 3,
 
+    /// The shutter or roof has encountered a problem.
     Error = 4,
 }
 
-/// Returned side of pier
+/// The alignment mode (geometry) of the mount.
 #[cfg(feature = "telescope")]
 #[derive(
     Debug,
@@ -336,17 +346,17 @@ pub enum DomeShutterStatus {
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum AlignmentMode {
-    /// Altitude-Azimuth alignment.
+    /// Altitude-Azimuth type mount.
     AltAz = 0,
 
     /// Polar (equatorial) mount other than German equatorial.
     Polar = 1,
 
-    /// German equatorial mount.
+    /// German equatorial type mount.
     GermanPolar = 2,
 }
 
-/// Returned side of pier
+/// The equatorial coordinate system used by the mount.
 #[cfg(feature = "telescope")]
 #[derive(
     Debug,
@@ -362,17 +372,17 @@ pub enum AlignmentMode {
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
-pub enum EquatorialSystem {
+pub enum EquatorialCoordinateType {
     /// Custom or unknown equinox and/or reference frame.
     Other = 0,
 
-    /// Topocentric coordinates. Coordinates of the object at the current date having allowed for annual aberration, precession and nutation. This is the most common coordinate type for amateur telescopes.
+    /// Topocentric coordinates.
     Topocentric = 1,
 
-    /// J2000 equator/equinox. Coordinates of the object at mid-day on 1st January 2000, ICRS reference frame.
+    /// J2000 equator/equinox.
     J2000 = 2,
 
-    /// J2050 equator/equinox, ICRS reference frame.
+    /// J2050 equator/equinox.
     J2050 = 3,
 
     /// B1950 equinox, FK4 reference frame.
@@ -395,7 +405,7 @@ pub enum EquatorialSystem {
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
-pub enum SideOfPier {
+pub enum PierSide {
     /// Normal pointing state - Mount on the East side of pier (looking West).
     East = 0,
 
@@ -406,7 +416,7 @@ pub enum SideOfPier {
     Unknown = -1,
 }
 
-/// DriveRate enum corresponding to one of the standard drive rates.
+/// Integer value corresponding to one of the standard drive rates.
 #[cfg(feature = "telescope")]
 #[derive(
     Debug,
@@ -423,16 +433,16 @@ pub enum SideOfPier {
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum DriveRate {
-    /// 15.041 arcseconds per second
+    /// Sidereal tracking rate (15.041 arcseconds per second).
     Sidereal = 0,
 
-    /// 14.685 arcseconds per second
+    /// Lunar tracking rate (14.685 arcseconds per second).
     Lunar = 1,
 
-    /// 15.0 arcseconds per second
+    /// Solar tracking rate (15.0 arcseconds per second).
     Solar = 2,
 
-    /// 15.0369 arcseconds per second
+    /// King tracking rate (15.0369 arcseconds per second).
     King = 3,
 }
 
@@ -462,17 +472,13 @@ impl From<TelescopeUtcdate> for std::time::SystemTime {
 
 #[cfg(feature = "telescope")]
 impl TelescopeUtcdate {
-    const FORMAT: &'static [time::format_description::FormatItem<'static>] = time::macros::format_description!(
-        "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]Z"
-    );
-
     fn serialize<S: serde::Serializer>(
         value: &time::OffsetDateTime,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
         value
             .to_offset(time::UtcOffset::UTC)
-            .format(Self::FORMAT)
+            .format(&Iso8601::DATE_TIME_OFFSET)
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
     }
@@ -490,7 +496,7 @@ impl TelescopeUtcdate {
             }
 
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                match time::PrimitiveDateTime::parse(value, TelescopeUtcdate::FORMAT) {
+                match time::PrimitiveDateTime::parse(value, &Iso8601::DATE_TIME_OFFSET) {
                     Ok(time) => Ok(time.assume_utc()),
                     Err(err) => Err(serde::de::Error::custom(err)),
                 }
@@ -501,7 +507,7 @@ impl TelescopeUtcdate {
     }
 }
 
-/// The axis of mount rotation.
+/// The axis about which rate information is desired.
 #[cfg(feature = "telescope")]
 #[derive(
     Debug,
@@ -517,7 +523,7 @@ impl TelescopeUtcdate {
 #[repr(i32)]
 #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
-pub enum Axis {
+pub enum TelescopeAxis {
     Primary = 0,
 
     Secondary = 1,
@@ -554,12 +560,14 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     };
 
     /// Actions and SupportedActions are a standardised means for drivers to extend functionality beyond the built-in capabilities of the ASCOM device interfaces.
+    ///
     /// The key advantage of using Actions is that drivers can expose any device specific functionality required. The downside is that, in order to use these unique features, every application author would need to create bespoke code to present or exploit them.
+    ///
     /// The Action parameter and return strings are deceptively simple, but can support transmission of arbitrarily complex data structures, for example through JSON encoding.
     ///
     /// This capability will be of primary value to:
-    ///  - bespoke software and hardware configurations where a single entity controls both the consuming application software and the hardware / driver environment.
-    ///  - a group of application and device authors to quickly formulate and try out new interface capabilities without requiring an immediate change to the ASCOM device interface, which will take a lot longer than just agreeing a name, input parameters and a standard response for an Action command.
+    ///  * bespoke software and hardware configurations where a single entity controls both the consuming application software and the hardware / driver environment
+    ///  * a group of application and device authors to quickly formulate and try out new interface capabilities without requiring an immediate change to the ASCOM device interface, which will take a lot longer than just agreeing a name, input parameters and a standard response for an Action command
     ///
     ///
     /// The list of Action commands supported by a driver can be discovered through the SupportedActions property.
@@ -646,7 +654,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support previous versions as well as the current version to ensure thay can use the largest number of devices.
+    /// This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
     #[http("interfaceversion", method = Get, via = ValueResponse)]
     async fn interface_version(&self) -> ASCOMResult<i32> {
         Ok(3_i32)
@@ -705,7 +713,7 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the current camera operational state.
+    /// Returns the current camera operational state as an integer.
     #[http("camerastate", method = Get, via = ValueResponse)]
     async fn camera_state(&self) -> ASCOMResult<CameraState> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -881,63 +889,69 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns an array of 32bit integers containing the pixel values from the last exposure. This call can return either a 2 dimension (monochrome images) or 3 dimension (colour or multi-plane images) array of size NumX \* NumY or NumX \* NumY \* NumPlanes. Where applicable, the size of NumPlanes has to be determined by inspection of the returned Array.
+    /// Returns an array of 32bit integers containing the pixel values from the last exposure. This call can return either a 2 dimension (monochrome images) or 3 dimension (colour or multi-plane images) array  of size `NumX * NumY` or `NumX * NumY * NumPlanes`. Where applicable, the size of `NumPlanes` has to be determined by inspection of the returned array.
     ///
-    /// Since 32bit integers are always returned by this call, the returned JSON Type value (0 = Unknown, 1 = short(16bit), 2 = int(32bit), 3 = Double) is always 2. The number of planes is given in the returned Rank value.
+    /// Since 32bit integers are always returned by this call, the returned JSON `Type` value is always 2 (integer).
     ///
-    /// When de-serialising to an object it is essential to know the array Rank beforehand so that the correct data class can be used. This can be achieved through a regular expression or by direct parsing of the returned JSON string to extract the Type and Rank values before de-serialising.
+    /// When de-serialising to an object it is essential to know the array `Rank` beforehand so that the correct data class can be used. This can be achieved through a regular expression or by direct parsing  of the returned JSON string to extract the `Type` and `Rank` values before de-serialising.
     ///
-    /// This regular expression accomplishes the extraction into two named groups Type and Rank, which can then be used to select the correct de-serialisation data class:
+    /// This regular expression accomplishes the extraction into two named groups `Type` and `Rank`, which can then be used to select the correct de-serialisation data class:
     ///
-    /// __`^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`__
+    /// `^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`
     ///
-    /// When the SensorType is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5 and Pxy represents the pixel value at the zero based position x across and y down the image with the origin in the top left corner of the image.
+    /// When the `SensorType` is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5`  and `Pxy` represents the pixel value at the zero based position `x` across and `y` down the image with the origin in the top left corner of the image.  
     ///
-    /// Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly). This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
-    /// ```text
+    /// Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly).  This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
+    ///
+    /// ```
     /// [
-    ///
     ///   [P00,P01,P02,P03,P04],
     ///
     ///   [P10,P11,P12,P13,P14],
-    ///
+    ///   
     ///   [P20,P21,P22,P23,P24],
-    ///
+    ///   
     ///   [P30,P31,P32,P33,P34],
-    ///
+    ///   
     ///   [P40,P41,P42,P43,P44],
-    ///
+    ///   
     ///   [P50,P51,P52,P53,P54],
+    ///   
+    ///   [P60,P61,P62,P63,P64],
     ///
-    ///   [P60,P61,P62,P63,P64]
-    ///
+    ///   …
     /// ]
     /// ```
     ///
-    /// When the SensorType is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5 and Rxy, Gxy and Bxy represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
-    /// ```text
-    /// [
+    /// When the `SensorType` is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5`  and `Rxy`, `Gxy` and `Bxy` represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
     ///
+    /// ```
+    /// [
     ///   [[R00,G00,B00],[R01,G01,B01],[R02,G02,B02],[R03,G03,B03],[R04,G04,B04]],
+    ///
     ///
     ///   [[R10,G10,B10],[R11,G11,B11],[R12,G12,B12],[R13,G13,B13],[R14,G14,B14]],
     ///
+    ///
     ///   [[R20,G20,B20],[R21,G21,B21],[R22,G22,B22],[R23,G23,B23],[R24,G24,B24]],
+    ///
     ///
     ///   [[R30,G30,B30],[R31,G31,B31],[R32,G32,B32],[R33,G33,B33],[R34,G34,B34]],
     ///
+    ///
     ///   [[R40,G40,B40],[R41,G41,B41],[R42,G42,B42],[R43,G43,B43],[R44,G44,B44]],
+    ///
     ///
     ///   [[R50,G50,B50],[R51,G51,B51],[R52,G52,B52],[R53,G53,B53],[R54,G54,B54]],
     ///
+    ///
     ///   [[R60,G60,B60],[R61,G61,B61],[R62,G62,B62],[R63,G63,B63],[R64,G64,B64]],
     ///
+    ///   …
     /// ]
     /// ```
-    ///
-    /// # Performance
-    ///
-    /// Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
+    /// ## Performance
+    /// Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network.  A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time.  It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
     #[http("imagearray", method = Get)]
     async fn image_array(&self) -> ASCOMResult<ImageArray> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1154,7 +1168,7 @@ pub trait Camera: Device + Send + Sync {
     async fn pulse_guide(
         &self,
 
-        #[http("Direction")] direction: PutPulseGuideDirection,
+        #[http("Direction")] direction: GuideDirection,
 
         #[http("Duration")] duration: i32,
     ) -> ASCOMResult {
@@ -1317,7 +1331,7 @@ pub trait Dome: Device + Send + Sync {
 
     /// Returns the status of the dome shutter or roll-off roof.
     #[http("shutterstatus", method = Get, via = ValueResponse)]
-    async fn shutter_status(&self) -> ASCOMResult<DomeShutterStatus> {
+    async fn shutter_status(&self) -> ASCOMResult<ShutterState> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1735,43 +1749,43 @@ pub trait Switch: Device + Send + Sync {
 
     /// Reports if the specified switch device can be written to, default true. This is false if the device cannot be written to, for example a limit switch or a sensor.  Devices are numbered from 0 to MaxSwitch - 1
     #[http("canwrite", method = Get, via = ValueResponse)]
-    async fn can_write(&self, #[http("Id")] id: u32) -> ASCOMResult<bool> {
+    async fn can_write(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
         Ok(false)
     }
 
     /// Return the state of switch device id as a boolean.  Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitch", method = Get, via = ValueResponse)]
-    async fn get_switch(&self, #[http("Id")] id: u32) -> ASCOMResult<bool> {
+    async fn get_switch(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the description of the specified switch device. This is to allow a fuller description of the device to be returned, for example for a tool tip. Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitchdescription", method = Get, via = ValueResponse)]
-    async fn get_switch_description(&self, #[http("Id")] id: u32) -> ASCOMResult<String> {
+    async fn get_switch_description(&self, #[http("Id")] id: i32) -> ASCOMResult<String> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the name of the specified switch device. Devices are numbered from 0 to MaxSwitch - 1
     #[http("getswitchname", method = Get, via = ValueResponse)]
-    async fn get_switch_name(&self, #[http("Id")] id: u32) -> ASCOMResult<String> {
+    async fn get_switch_name(&self, #[http("Id")] id: i32) -> ASCOMResult<String> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1, The value of this switch is expected to be between MinSwitchValue and MaxSwitchValue.
     #[http("getswitchvalue", method = Get, via = ValueResponse)]
-    async fn get_switch_value(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+    async fn get_switch_value(&self, #[http("Id")] id: i32) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the minimum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
     #[http("minswitchvalue", method = Get, via = ValueResponse)]
-    async fn min_switch_value(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+    async fn min_switch_value(&self, #[http("Id")] id: i32) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the maximum value of the specified switch device as a double. Devices are numbered from 0 to MaxSwitch - 1.
     #[http("maxswitchvalue", method = Get, via = ValueResponse)]
-    async fn max_switch_value(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+    async fn max_switch_value(&self, #[http("Id")] id: i32) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1780,7 +1794,7 @@ pub trait Switch: Device + Send + Sync {
     async fn set_switch(
         &self,
 
-        #[http("Id")] id: u32,
+        #[http("Id")] id: i32,
 
         #[http("State", via = BoolParam)] state: bool,
     ) -> ASCOMResult {
@@ -1792,7 +1806,7 @@ pub trait Switch: Device + Send + Sync {
     async fn set_switch_name(
         &self,
 
-        #[http("Id")] id: u32,
+        #[http("Id")] id: i32,
 
         #[http("Name")] name: String,
     ) -> ASCOMResult {
@@ -1804,7 +1818,7 @@ pub trait Switch: Device + Send + Sync {
     async fn set_switch_value(
         &self,
 
-        #[http("Id")] id: u32,
+        #[http("Id")] id: i32,
 
         #[http("Value")] value: f64,
     ) -> ASCOMResult {
@@ -1813,7 +1827,7 @@ pub trait Switch: Device + Send + Sync {
 
     /// Returns the step size that this device supports (the difference between successive values of the device). Devices are numbered from 0 to MaxSwitch - 1.
     #[http("switchstep", method = Get, via = ValueResponse)]
-    async fn switch_step(&self, #[http("Id")] id: u32) -> ASCOMResult<f64> {
+    async fn switch_step(&self, #[http("Id")] id: i32) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 }
@@ -1822,7 +1836,7 @@ pub trait Switch: Device + Send + Sync {
 #[cfg(feature = "telescope")]
 #[apply(rpc_trait)]
 pub trait Telescope: Device + Send + Sync {
-    /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar). The alignment mode is specified as an integer value from the AlignmentModes Enum.
+    /// Returns the alignment mode of the mount (Alt/Az, Polar, German Polar).
     #[http("alignmentmode", method = Get, via = ValueResponse)]
     async fn alignment_mode(&self) -> ASCOMResult<AlignmentMode> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1966,13 +1980,13 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// The declination tracking rate (arcseconds per second, default = 0.0)
+    /// The declination tracking rate (arcseconds per SI second, default = 0.0). Please note that rightascensionrate units are arcseconds per sidereal second.
     #[http("declinationrate", method = Get, via = ValueResponse)]
     async fn declination_rate(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets the declination tracking rate (arcseconds per second)
+    /// Sets the declination tracking rate (arcseconds per SI second). Please note that rightascensionrate units are arcseconds per sidereal second.
     #[http("declinationrate", method = Put)]
     async fn set_declination_rate(
         &self,
@@ -2000,7 +2014,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
     #[http("equatorialsystem", method = Get, via = ValueResponse)]
-    async fn equatorial_system(&self) -> ASCOMResult<EquatorialSystem> {
+    async fn equatorial_system(&self) -> ASCOMResult<EquatorialCoordinateType> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -2054,13 +2068,13 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// The right ascension tracking rate (arcseconds per second, default = 0.0)
+    /// The right ascension tracking rate (arcseconds per sidereal second, default = 0.0). Please note that the declinationrate units are arcseconds per SI second.
     #[http("rightascensionrate", method = Get, via = ValueResponse)]
     async fn right_ascension_rate(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets the right ascension tracking rate (arcseconds per second)
+    /// Sets the right ascension tracking rate (arcseconds per sidereal second). Please note that the declinationrate units are arcseconds per SI second.
     #[http("rightascensionrate", method = Put)]
     async fn set_right_ascension_rate(
         &self,
@@ -2072,17 +2086,13 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Indicates the pointing state of the mount.
     #[http("sideofpier", method = Get, via = ValueResponse)]
-    async fn side_of_pier(&self) -> ASCOMResult<SideOfPier> {
+    async fn side_of_pier(&self) -> ASCOMResult<PierSide> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets the pointing state of the mount.
     #[http("sideofpier", method = Put)]
-    async fn set_side_of_pier(
-        &self,
-
-        #[http("SideOfPier")] side_of_pier: SideOfPier,
-    ) -> ASCOMResult {
+    async fn set_side_of_pier(&self, #[http("SideOfPier")] side_of_pier: PierSide) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -2252,13 +2262,13 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The rates at which the telescope may be moved about the specified axis by the MoveAxis(TelescopeAxes, Double) method.
     #[http("axisrates", method = Get, via = ValueResponse)]
-    async fn axis_rates(&self, #[http("Axis")] axis: Axis) -> ASCOMResult<Vec<AxisRate>> {
+    async fn axis_rates(&self, #[http("Axis")] axis: TelescopeAxis) -> ASCOMResult<Vec<AxisRate>> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// True if this telescope can move the requested axis.
     #[http("canmoveaxis", method = Get, via = ValueResponse)]
-    async fn can_move_axis(&self, #[http("Axis")] axis: Axis) -> ASCOMResult<bool> {
+    async fn can_move_axis(&self, #[http("Axis")] axis: TelescopeAxis) -> ASCOMResult<bool> {
         Ok(false)
     }
 
@@ -2270,7 +2280,7 @@ pub trait Telescope: Device + Send + Sync {
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    ) -> ASCOMResult<SideOfPier> {
+    ) -> ASCOMResult<PierSide> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -2285,7 +2295,7 @@ pub trait Telescope: Device + Send + Sync {
     async fn move_axis(
         &self,
 
-        #[http("Axis")] axis: Axis,
+        #[http("Axis")] axis: TelescopeAxis,
 
         #[http("Rate")] rate: f64,
     ) -> ASCOMResult {
@@ -2303,7 +2313,7 @@ pub trait Telescope: Device + Send + Sync {
     async fn pulse_guide(
         &self,
 
-        #[http("Direction")] direction: PutPulseGuideDirection,
+        #[http("Direction")] direction: GuideDirection,
 
         #[http("Duration")] duration: i32,
     ) -> ASCOMResult {

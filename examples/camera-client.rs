@@ -483,11 +483,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "ascom-alpaca-rs camera demo",
         native_options,
         Box::new(|cc| {
-            Box::new(StateCtx {
+            Ok(Box::new(StateCtx {
                 state: State::Init,
                 ctx: cc.egui_ctx.clone(),
                 discovery_client: Default::default(),
-            })
+            }))
         }),
     )?;
     Ok(())

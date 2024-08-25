@@ -6,18 +6,21 @@ import {
   toPascalCase as toTypeName,
   toPascalCase
 } from 'js-convert-case';
-import { OpenAPIV3 } from 'openapi-types';
+import { OpenAPIV3_1, OpenAPIV3 } from 'openapi-types';
 import * as assert from 'assert/strict';
 import { getCanonicalNames } from './xml-names.js';
 import { rustKeywords } from './rust-keywords.js';
 import { isDeepStrictEqual } from 'util';
 import { fileURLToPath } from 'url';
 
+type ReferenceObject = OpenAPIV3.ReferenceObject;
+type SchemaObject = OpenAPIV3_1.SchemaObject;
+
 process.chdir(fileURLToPath(new URL('./', import.meta.url)));
 
 let api = (await openapi.parse(
   './AlpacaDeviceAPI_v1.yaml'
-)) as OpenAPIV3.Document;
+)) as OpenAPIV3_1.Document;
 let _refs = await openapi.resolve(api);
 let canonicalNames = await getCanonicalNames('{device_type}');
 
@@ -59,19 +62,19 @@ function toPropName(name: string) {
   return name;
 }
 
-function isRef(maybeRef: any): maybeRef is OpenAPIV3.ReferenceObject {
+function isRef(maybeRef: any): maybeRef is ReferenceObject {
   return maybeRef != null && '$ref' in maybeRef;
 }
 
-function getRef(ref: OpenAPIV3.ReferenceObject): unknown {
+function getRef(ref: ReferenceObject): unknown {
   return _refs.get(ref.$ref);
 }
 
-function resolveMaybeRef<T>(maybeRef: T | OpenAPIV3.ReferenceObject): T {
+function resolveMaybeRef<T>(maybeRef: T | ReferenceObject): T {
   return isRef(maybeRef) ? (getRef(maybeRef) as T) : maybeRef;
 }
 
-function nameAndTarget<T>(ref: T | OpenAPIV3.ReferenceObject) {
+function nameAndTarget<T>(ref: T | ReferenceObject) {
   if (isRef(ref)) {
     return {
       name: toTypeName(ref.$ref.match(/([^/]+)$/)![1]),
@@ -101,12 +104,12 @@ let types = new Map<
     type: RegisteredType;
   }
 >();
-let typeBySchema = new WeakMap<OpenAPIV3.SchemaObject, RustType>();
+let typeBySchema = new WeakMap<SchemaObject, RustType>();
 
 function registerType<T extends RegisteredType>(
   devicePath: string,
-  schema: OpenAPIV3.SchemaObject,
-  createType: (schema: OpenAPIV3.SchemaObject) => T | RustType
+  schema: SchemaObject,
+  createType: (schema: SchemaObject) => T | RustType
 ): RustType {
   let rustyType = getOrSet(typeBySchema, schema, schema => {
     let type = createType(schema);
@@ -204,7 +207,7 @@ interface EnumType extends RegisteredTypeBase {
 
 interface DateType extends RegisteredTypeBase {
   kind: 'Date';
-  format: string;
+  trailingZ: boolean;
 }
 
 interface DeviceMethod {
@@ -226,12 +229,8 @@ interface Device {
 let devices: Map<string, Device> = new Map();
 
 function withContext<T>(context: string, fn: () => T) {
-  try {
-    return fn();
-  } catch (e) {
-    (e as Error).message = `in ${context}:\n${(e as Error).message}`;
-    throw e;
-  }
+  Object.defineProperty(fn, 'name', { value: context });
+  return fn();
 }
 
 function handleIntFormat(format: string | undefined): RustType {
@@ -259,7 +258,7 @@ function handleObjectProps(
   {
     properties = err('Missing properties'),
     required = []
-  }: Pick<OpenAPIV3.SchemaObject, 'properties' | 'required'>
+  }: Pick<SchemaObject, 'properties' | 'required'>
 ) {
   let objProperties: ObjectType['properties'] = new Map();
   for (let [propName, propSchema] of Object.entries(properties)) {
@@ -281,49 +280,37 @@ function handleObjectProps(
 function handleType(
   devicePath: string,
   name: string,
-  schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject = err(
+  schema: SchemaObject | ReferenceObject = err(
     'Missing schema'
   )
 ): RustType {
   return withContext(name, () => {
     ({ name = name, target: schema } = nameAndTarget(schema));
-    if (schema.enum) {
-      return registerType(devicePath, schema, schema => {
-        assert.equal(schema.type, 'integer');
-        let enumType: EnumType = {
-          kind: 'Enum',
-          name,
-          doc: getDoc(schema),
-          baseType: handleIntFormat(schema.format),
-          variants: new Map()
-        };
-        let {
-          'x-enum-varnames': names = err('Missing x-enum-varnames'),
-          'x-enum-descriptions': descriptions = []
-        } = schema as any;
-        assert.ok(Array.isArray(names));
-        assert.ok(Array.isArray(descriptions));
-        for (let [i, value] of schema.enum!.entries()) {
-          let name = names[i];
-          assertString(name);
-          let doc = descriptions[i];
-          if (doc === null) {
-            doc = undefined;
-          }
-          if (doc !== undefined) {
-            assertString(doc);
-          }
-          set(enumType.variants, name, {
-            name,
-            doc,
-            value
-          });
-        }
-        return enumType;
-      });
-    }
     switch (schema.type) {
       case 'integer':
+        if (schema.oneOf) {
+          return registerType(devicePath, schema, schema => {
+            let enumType: EnumType = {
+              kind: 'Enum',
+              name,
+              doc: getDoc(schema),
+              baseType: handleIntFormat(schema.format),
+              variants: new Map()
+            };
+            assert.ok(Array.isArray(schema.oneOf));
+            for (let entry of schema.oneOf) {
+              assert.ok(!isRef(entry));
+              assert.ok(Number.isSafeInteger(entry.const));
+              let name = entry.title ?? err('Missing title');
+              set(enumType.variants, name, {
+                name,
+                doc: entry.description,
+                value: entry.const
+              });
+            }
+            return enumType;
+          });
+        }
         return handleIntFormat(schema.format);
       case 'array':
         return rusty(
@@ -332,12 +319,12 @@ function handleType(
       case 'number':
         return rusty('f64');
       case 'string':
-        if (schema.format === 'date') {
+        if (schema.format === 'date-time' || schema.format === 'date-time-fits') {
           let formatter = registerType(devicePath, schema, schema => ({
             name,
             doc: getDoc(schema),
             kind: 'Date',
-            format: (schema as any)['date-format']
+            trailingZ: schema.format === 'date-time',
           }));
           return rusty('std::time::SystemTime', `${formatter}`);
         }
@@ -360,7 +347,7 @@ function handleType(
 function handleOptType(
   devicePath: string,
   name: string,
-  schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | undefined,
+  schema: SchemaObject | ReferenceObject | undefined,
   required: boolean
 ): RustType {
   let type = handleType(devicePath, name, schema);
@@ -373,9 +360,9 @@ function handleContent(
   baseKind: 'Request' | 'Response',
   contentType: string,
   body:
-    | OpenAPIV3.RequestBodyObject
-    | OpenAPIV3.ResponseObject
-    | OpenAPIV3.ReferenceObject = err('Missing content')
+    | OpenAPIV3_1.RequestBodyObject
+    | OpenAPIV3_1.ResponseObject
+    | ReferenceObject = err('Missing content')
 ): RustType {
   let name = `${prefixName}${baseKind}`;
   return withContext(name, () => {
@@ -397,6 +384,10 @@ function handleContent(
       name = name.slice(0, -baseKind.length);
     }
     return registerType(devicePath, schema, schema => {
+      if (name === 'ImageArray') {
+        return rusty('ImageArray');
+      }
+
       doc = getDoc(schema) ?? doc;
       let {
         allOf: [base, extension, ...otherItemsInAllOf] = err('Missing allOf'),
@@ -453,8 +444,8 @@ function handleResponse(
   devicePath: string,
   prefixName: string,
   {
-    responses: { 200: success, 400: error400, 500: error500, ...otherResponses }
-  }: OpenAPIV3.OperationObject
+    responses: { 200: success, 400: error400, 500: error500, ...otherResponses } = err('Missing responses')
+  }: OpenAPIV3_1.OperationObject
 ) {
   assertEmpty(otherResponses, 'Unexpected response status codes');
   return handleContent(
@@ -467,7 +458,7 @@ function handleResponse(
 }
 
 for (let [path, methods = err('Missing methods')] of Object.entries(
-  api.paths
+  api.paths ?? err('Missing paths')
 )) {
   // ImageArrayVariant is a semi-deprecated endpoint. Its handling is somewhat
   // complicated, so just skip it until someone requests to implement it.
@@ -671,8 +662,15 @@ use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use time::format_description::well_known::Iso8601;
 
 pub use server_info::*;
+
+#[cfg(feature = "camera")]
+mod image_array;
+
+#[cfg(feature = "camera")]
+pub use image_array::*;
 
 ${stringifyIter(types, ({ features, type }) => {
   let cfgs = Array.from(features, feature => `feature = "${feature}"`).join(
@@ -690,21 +688,6 @@ ${stringifyIter(types, ({ features, type }) => {
 
     case 1:
       cfg = `#[cfg(${cfgs})]`;
-  }
-
-  if (type.name === 'ImageArray') {
-    // Override with a better implementation.
-    return `
-      ${cfg}
-      mod image_array;
-
-      ${cfg}
-      pub use image_array::*;
-    `;
-  }
-
-  if (type.name === 'ImageArrayType') {
-    return '';
   }
 
   switch (type.kind) {
@@ -756,6 +739,8 @@ ${stringifyIter(types, ({ features, type }) => {
       `;
     }
     case 'Date': {
+      let format = `Iso8601::DATE_TIME${type.trailingZ ? '_OFFSET' : ''}`;
+
       return `
         ${stringifyDoc(type.doc)}
         ${cfg}
@@ -781,14 +766,10 @@ ${stringifyIter(types, ({ features, type }) => {
 
         ${cfg}
         impl ${type.name} {
-          const FORMAT: &'static [time::format_description::FormatItem<'static>] = time::macros::format_description!("${
-            type.format
-          }");
-
           fn serialize<S: serde::Serializer>(value: &time::OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error> {
             value
             .to_offset(time::UtcOffset::UTC)
-            .format(Self::FORMAT)
+            .format(&${format})
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
           }
@@ -804,9 +785,7 @@ ${stringifyIter(types, ({ features, type }) => {
               }
 
               fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                match time::PrimitiveDateTime::parse(value, ${
-                  type.name
-                }::FORMAT) {
+                match time::PrimitiveDateTime::parse(value, &${format}) {
                   Ok(time) => Ok(time.assume_utc()),
                   Err(err) => Err(serde::de::Error::custom(err)),
                 }

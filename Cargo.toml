@@ -10,58 +10,58 @@ repository = "https://github.com/RReverser/ascom-alpaca-rs"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-async-fn-stream = "0.2.0"
-async-trait = "0.1.77"
-axum = { version = "0.7.4", optional = true }
-bytemuck = { version = "1.14.0", features = ["derive", "extern_crate_std"], optional = true }
-bytes = { version = "1.5.0", optional = true }
-custom_debug = "0.5.1"
-default-net = "0.21.0"
-eyre = "0.6.11"
+async-fn-stream = "0.2.2"
+async-trait = "0.1.81"
+axum = { version = "0.7.5", optional = true }
+bytemuck = { version = "1.17.0", features = ["derive", "extern_crate_std"], optional = true }
+bytes = { version = "1.7.1", optional = true }
+custom_debug = "0.6.1"
+default-net = "0.22.0"
+eyre = "0.6.12"
 futures = "0.3.30"
-http = "1.0.0"
-indexmap = { version = "2.1.0", features = ["serde"] }
+http = "1.1.0"
+indexmap = { version = "2.4.0", features = ["serde"] }
 macro_rules_attribute = "0.2.0"
-mediatype = { version = "0.19.17", optional = true }
+mediatype = { version = "0.19.18", optional = true }
 mime = { version = "0.3.17", optional = true }
-ndarray = { version = "0.15.6", optional = true }
+ndarray = { version = "0.16.1", optional = true }
 net-literals = "0.2.0"
-num_enum = "0.7.2"
+num_enum = "0.7.3"
 once_cell = { version = "1.19.0", optional = true }
 rand = { version = "0.8.5", optional = true }
-reqwest = { version = "0.11.23", optional = true, default-features = false, features = ["json"] }
+reqwest = { version = "0.12.5", optional = true, default-features = false, features = ["json"] }
 sailfish = { version = "0.8.3", optional = true }
-serde = { version = "1.0.195", features = ["derive", "rc"] }
-serde-ndim = { version = "1.1.0", optional = true, features = ["ndarray"] }
-serde_json = { version = "1.0.111" }
+serde = { version = "1.0.208", features = ["derive", "rc"] }
+serde-ndim = { version = "2.0.1", optional = true, features = ["ndarray"] }
+serde_json = { version = "1.0.125" }
 serde_plain = "1.0.2"
-serde_repr = "0.1.18"
-socket2 = "0.5.5"
-thiserror = "1.0.56"
-time = { version = "0.3.31", features = ["formatting", "parsing", "macros"] }
-tokio = { version = "1.35.1", features = ["net", "rt"] }
+serde_repr = "0.1.19"
+socket2 = "0.5.7"
+thiserror = "1.0.63"
+time = { version = "0.3.36", features = ["formatting", "parsing", "macros"] }
+tokio = { version = "1.39.3", features = ["net", "rt", "io-util"] }
 tracing = "0.1.40"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.52.0", features = ["Win32_Networking_WinSock", "Win32_Foundation", "Win32_System_IO"] }
+windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock", "Win32_Foundation", "Win32_System_IO"] }
 
 [dev-dependencies]
 ascom-alpaca = { path = ".", features = ["test"] }
 bayer = "0.1.5"
 criterion = { version = "0.5.1", features = ["async_tokio"] }
-ctor = "0.2.6"
-eframe = "0.25.0"
+ctor = "0.2.8"
+eframe = "0.28.1"
 # apparently Cargo doesn't allow `test` to enable `ndarray/rayon` when `ndarray` is an optional dependency
 # hence the duplicate dep with rayon feature
-ndarray = { version = "0.15.6", features = ["rayon"] }
+ndarray = { version = "0.16.1", features = ["rayon"] }
 nokhwa = { version = "0.10.4", features = ["input-native", "output-threaded"] }
-parking_lot = { version = "0.12.1", features = ["arc_lock", "send_guard"] }
-serial_test = "3.0.0"
+parking_lot = { version = "0.12.3", features = ["arc_lock", "send_guard"] }
+serial_test = "3.1.1"
 time = { version = "0.3.36", features = ["formatting"] }
 tracing-subscriber = "0.3.18"
 tracing-error = "0.2.0"
-color-eyre = "0.6.2"
+color-eyre = "0.6.3"
 tracing-forest = { version = "0.1.6", features = ["ansi"] }
 
 [[bench]]
@@ -91,3 +91,7 @@ nightly = []
 
 [package.metadata.docs.rs]
 all-features = true
+
+[patch.crates-io]
+# https://github.com/l1npengtul/nokhwa/issues/177
+nokhwa = { git = "https://github.com/l1npengtul/nokhwa", rev = "74a98ace10368320cfcc2186118ae10d5308ca59" }

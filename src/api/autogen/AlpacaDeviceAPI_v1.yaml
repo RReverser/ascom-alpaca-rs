@@ -1,4 +1,24 @@
-openapi: 3.0.2
+openapi: 3.1.0
+
+## This file is licensed under the MIT license, SPDX identifier: MIT
+
+## Copyright (c) <2023> <ASCOM Initiative, Peter Simpson, Bob Denny, Danial Van Noord>
+
+## Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
+## associated documentation files (the "Software"), to deal in the Software without restriction, 
+## including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+## and/or sell copies of the Software, and to permit persons to whom the Software is furnished to 
+## do so, subject to the following conditions:
+
+## The above copyright notice and this permission notice (including the next paragraph) shall be 
+## included in all copies or substantial portions of the Software.
+
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING 
+## BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+## IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+## LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION 
+## WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+
 servers:
   - description: Within the "Try it out" URLs, the device URL root is the trailing slash in "/ASCOMInitiative/".
     url: https://virtserver.swaggerhub.com/ASCOMInitiative/api/v1
@@ -14,31 +34,31 @@ info:
 
     The ASCOM Interface behavioural requirements for Alpaca drivers are the same as for COM based drivers and are documented in the
     <a href="https://ascom-standards.org/Help/Developer/html/N_ASCOM_DeviceInterface.htm">API Interface Definitions</a> e.g.
-    the <a href="https://ascom-standards.org/Help/Developer/html/M_ASCOM_DeviceInterface_ITelescopeV3_SlewToCoordinates.htm">Telescope.SlewToCoordinates</a> method.
+    the <a href="https://ascom-standards.org/Help/Developer/html/M_ASCOM_DeviceInterface_ITelescopeV3_SlewToCoordinates.htm">Telescope.SlewToCoordinates</a> method.      
     This document focuses on how to use the ASCOM Interface standards in their RESTful Alpaca form.
-
+    
     ## Alpaca URLs, Case Sensitivity, Parameters and Returned values
 
     **Alpaca Device API URLs** are of the form **http(s)://host:port/path** where path comprises **"/api/v1/"** followed by one of the method names below.
     e.g. for an Alpaca interface running on port 7843 of a device with IP address 192.168.1.89:
-
+    
     * A telescope "Interface Version" method URL would be **http://192.168.1.89:7843/api/v1/telescope/0/interfaceversion**
-
+        
     * A first focuser "Position" method URL would be  **http://192.168.1.89:7843/api/v1/focuser/0/position**
-
+        
     * A second focuser "StepSize" method URL would be  **http://192.168.1.89:7843/api/v1/focuser/1/stepsize**
 
     * A rotator "Halt" method URL would be  **http://192.168.1.89:7843/api/v1/rotator/0/halt**
-
-
-
+    
+    
+    
     URLs are case sensitive and all elements must be in lower case. This means that both the device type and command name must always be in lower case. Parameter names are not case sensitive, so clients and drivers should be prepared for parameter names to be supplied and returned with any casing. Parameter values can be in mixed case as required.
-
-
+    
+    
     For GET operations, parameters should be placed in the URL query string and for PUT operations they should be placed in the body of the message.
 
 
-    Responses, as described below, are returned in JSON format and always include a common set of values including the client's transaction number,
+    Responses, as described below, are returned in JSON format and always include a common set of values including the client's transaction number, 
     the server's transaction number together with any error message and error number.
 
     If the transaction completes successfully, the ErrorMessage field will be an empty string and the ErrorNumber field will be zero.
@@ -47,13 +67,13 @@ info:
     ## HTTP Status Codes and ASCOM Error codes
 
     The returned HTTP status code gives a high level view of whether the device understood the request and whether it attempted to process it.
-
-
+    
+    
     Under most circumstances the returned status will be `200`, indicating that the request was correctly formatted and that it was passed to the device's handler to execute.
     A `200` status does not necessarily mean that the operation completed as expected, without error, and you must always check the ErrorMessage and ErrorNumber fields to confirm
     whether the returned result is valid. The `200` status simply means that the transaction was successfully managed by the device's transaction management layer.
-
-
+    
+    
     An HTTP status code of `400` indicates that the device could not interpret the request e.g. an invalid device number or misspelt device type was supplied. Check the body of the response for a text error message.
 
 
@@ -62,8 +82,8 @@ info:
     ## SetupDialog and Alpaca Device Configuration
 
     The SetupDialog method has been omitted from the Alpaca Device API because it presents a user interface rather than returning data. Alpaca device configuration is covered in the "ASCOM Alpaca Management API" specification, which can be selected through the drop-down box at the head of this page.
-
-
+    
+    
 
 paths:
   '/{device_type}/{device_number}/action':
@@ -71,20 +91,22 @@ paths:
       summary: Invokes the named device-specific action.
       description:  >-
         Actions and SupportedActions are a standardised means for drivers to extend functionality beyond the built-in capabilities of the ASCOM device interfaces.
-
+        
+        
         The key advantage of using Actions is that drivers can expose any device specific functionality required. The downside is that, in order to use these unique features, every application author would need to create bespoke code to present or exploit them.
-
+        
+        
         The Action parameter and return strings are deceptively simple, but can support transmission of arbitrarily complex data structures, for example through JSON encoding.
-
-
+        
+        
         This capability will be of primary value to:
-         - bespoke software and hardware configurations where a single entity controls both the consuming application software and the hardware / driver environment.
-         - a group of application and device authors to quickly formulate and try out new interface capabilities without requiring an immediate change to the ASCOM device interface, which will take a lot longer than just agreeing a name, input parameters and a standard response for an Action command.
-
-
+         * bespoke software and hardware configurations where a single entity controls both the consuming application software and the hardware / driver environment
+         * a group of application and device authors to quickly formulate and try out new interface capabilities without requiring an immediate change to the ASCOM device interface, which will take a lot longer than just agreeing a name, input parameters and a standard response for an Action command
+        
+        
         The list of Action commands supported by a driver can be discovered through the SupportedActions property.
-
-
+        
+        
         This method should return an error message and NotImplementedException error number (0x400) if the driver just implements the standard ASCOM device methods and has no bespoke, unique, functionality.
       parameters:
         - $ref: '#/components/parameters/device_type'
@@ -291,7 +313,7 @@ paths:
       summary: The ASCOM Device interface version number that this device supports.
       description: >-
         This method returns the version of the ASCOM device interface contract to which this device complies. Only one interface version is current at a moment in time and all
-        new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support
+        new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support 
         previous versions as well as the current version to ensure thay can use the largest number of devices.
       parameters:
         - $ref: '#/components/parameters/device_type'
@@ -471,7 +493,7 @@ paths:
     get:
       summary: Returns the camera operational state.
       description: >-
-        Returns the current camera operational state.
+        Returns the current camera operational state as an integer.
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -719,7 +741,7 @@ paths:
         - Camera Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/DoubleResponse'
+          $ref: '#/components/responses/PercentDoubleResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -925,7 +947,7 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/gainmin':
     get:
-      summary: Minimum Gain value of that this camera supports
+      summary: Minimum Gain value of that this camera supports 
       description: Returns the Minimum value of Gain.
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -942,7 +964,7 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/gains':
     get:
-      summary: List of Gain names supported by the camera
+      summary: List of Gain names supported by the camera 
       description: Returns the Gains supported by the camera.
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -998,83 +1020,91 @@ paths:
     get:
       summary: Returns an array of integers containing the exposure pixel values
       description: >
-        Returns an array of 32bit integers containing the pixel values from the last exposure. This call can return either a 2 dimension (monochrome images) or 3 dimension (colour or multi-plane images) array of size NumX \* NumY or NumX \* NumY \* NumPlanes. Where applicable, the size of NumPlanes has to be determined by inspection of the returned Array.
+        Returns an array of 32bit integers containing the pixel values from the last exposure. This call can return either a 2 dimension (monochrome images) or 3 dimension (colour or multi-plane images) array 
+        of size `NumX * NumY` or `NumX * NumY * NumPlanes`. Where applicable, the size of `NumPlanes` has to be determined by inspection of the returned array.
 
 
-        Since 32bit integers are always returned by this call, the returned JSON Type value (0 = Unknown, 1 = short(16bit), 2 = int(32bit), 3 = Double) is always 2. The number of planes is given in the returned Rank value.
+        Since 32bit integers are always returned by this call, the returned JSON `Type` value is always 2 (integer).
 
 
-        When de-serialising to an object it is essential to know the array Rank beforehand so that the correct data class can be used. This can be achieved through a regular expression or by direct parsing of the returned JSON string to extract the Type and Rank values before de-serialising.
+        When de-serialising to an object it is essential to know the array `Rank` beforehand so that the correct data class can be used. This can be achieved through a regular expression or by direct parsing 
+        of the returned JSON string to extract the `Type` and `Rank` values before de-serialising.
 
 
-        This regular expression accomplishes the extraction into two named groups Type and Rank, which can then be used to select the correct de-serialisation data class:
+        This regular expression accomplishes the extraction into two named groups `Type` and `Rank`, which can then be used to select the correct de-serialisation data class:
 
 
-        __`^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`__
+        `^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`
 
 
-        When the SensorType is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5
-        and Pxy represents the pixel value at the zero based position x across and y down the image with the origin in the top left corner of the image.
+        When the `SensorType` is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5` 
+        and `Pxy` represents the pixel value at the zero based position `x` across and `y` down the image with the origin in the top left corner of the image.  
 
 
         Please note that this is "column-major" order (column changes most rapidly)
-        from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly).
+        from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly). 
         This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
 
-        ```text
+
+        ```
 
         [
-
           [P00,P01,P02,P03,P04],
 
           [P10,P11,P12,P13,P14],
-
+          
           [P20,P21,P22,P23,P24],
-
+          
           [P30,P31,P32,P33,P34],
-
+          
           [P40,P41,P42,P43,P44],
-
+          
           [P50,P51,P52,P53,P54],
+          
+          [P60,P61,P62,P63,P64],
 
-          [P60,P61,P62,P63,P64]
-
+          …
         ]
 
         ```
 
 
-        When the SensorType is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5
-        and Rxy, Gxy and Bxy represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
+        When the `SensorType` is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5` 
+        and `Rxy`, `Gxy` and `Bxy` represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
 
-        ```text
+
+        ```
 
         [
-
           [[R00,G00,B00],[R01,G01,B01],[R02,G02,B02],[R03,G03,B03],[R04,G04,B04]],
+
 
           [[R10,G10,B10],[R11,G11,B11],[R12,G12,B12],[R13,G13,B13],[R14,G14,B14]],
 
+
           [[R20,G20,B20],[R21,G21,B21],[R22,G22,B22],[R23,G23,B23],[R24,G24,B24]],
+
 
           [[R30,G30,B30],[R31,G31,B31],[R32,G32,B32],[R33,G33,B33],[R34,G34,B34]],
 
+
           [[R40,G40,B40],[R41,G41,B41],[R42,G42,B42],[R43,G43,B43],[R44,G44,B44]],
+
 
           [[R50,G50,B50],[R51,G51,B51],[R52,G52,B52],[R53,G53,B53],[R54,G54,B54]],
 
+
           [[R60,G60,B60],[R61,G61,B61],[R62,G62,B62],[R63,G63,B63],[R64,G64,B64]],
 
+          …
         ]
 
         ```
 
+        ## Performance
 
-        # Performance
-
-
-        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network.
-        A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time.
+        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. 
+        A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. 
         It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -1091,107 +1121,98 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/imagearrayvariant':
     get:
-      summary: Returns an array of int containing the exposure pixel values
+      summary: Returns an array of numbers containing the exposure pixel values
       description: >
         Returns an array containing the pixel values from the last exposure.
-        This call can return either a 2 dimension (monochrome images) or 3
-        dimension (colour or multi-plane images) array of size NumX \* NumY  or
-        NumX \* NumY \* NumPlanes. Where applicable, the size of NumPlanes has
-        to be determined by inspection of the returned Array.
-
-
+        This call can return either a 2 dimension (monochrome images) or a 3
+        dimension (colour or multi-plane images) array of size `NumX * NumY` or
+        `NumX * NumY * NumPlanes`. Where applicable, the size of `NumPlanes` has
+        to be determined by inspection of the returned array.
+        
+        
         This call can return values as short(16bit) integers, int(32bit)
         integers or double floating point values. The nature of the returned
-        values is given in the Type parameter: 0 = Unknown, 1 = short(16bit), 2
-        = int(32bit), 3 = Double. The number of planes is given in the returned
-        Rank value.
+        values is given in the `Type` parameter.
+        
+        
+        When de-serialising to an object it is essential to know the array `Rank` beforehand so that the correct data class can be used. This can be achieved through a regular expression or by direct parsing 
+        of the returned JSON string to extract the `Type` and `Rank` values before de-serialising.
 
 
-        When deserialising to an object it helps enormously to know the Type and
-        Rank beforehand so that the correct data class can be used. This can be
-        achieved through a regular expression or by direct parsing of the
-        returned JSON string to extract the Type and Rank values before
-        deserialising.
+        This regular expression accomplishes the extraction into two named groups `Type` and `Rank`, which can then be used to select the correct de-serialisation data class:
 
 
-        This regular expression accomplishes the extraction into two named groups Type and Rank, which can then be used to select the correct de-serialisation data class:
+        `^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`
 
 
-        __`^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`__
-
-
-        When the SensorType is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5
-        and Pxy represents the pixel value at the zero based position x across and y down the image with the origin in the top left corner of the image.
+        When the `SensorType` is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5` 
+        and `Pxy` represents the pixel value at the zero based position `x` across and `y` down the image with the origin in the top left corner of the image.  
 
 
         Please note that this is "column-major" order (column changes most rapidly)
-        from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly).
+        from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly). 
         This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
 
 
-        [
-
-
-        [P00,P01,P02,P03,P04],
-
-
-        [P10,P11,P12,P13,P14],
-
-
-        [P20,P21,P22,P23,P24],
-
-
-        [P30,P31,P32,P33,P34],
-
-
-        [P40,P41,P42,P43,P44],
-
-
-        [P50,P51,P52,P53,P54],
-
-
-        [P60,P61,P62,P63,P64]
-
-
-        ]
-
-
-        When the SensorType is Color, the serialised JSON array should have 3 dimensions. For example, the returned array should appear as below if NumX = 7, NumY = 5
-        and Rxy, Gxy and Bxy represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
-
+        ```
 
         [
+          [P00,P01,P02,P03,P04],
 
+          [P10,P11,P12,P13,P14],
+          
+          [P20,P21,P22,P23,P24],
+          
+          [P30,P31,P32,P33,P34],
+          
+          [P40,P41,P42,P43,P44],
+          
+          [P50,P51,P52,P53,P54],
+          
+          [P60,P61,P62,P63,P64],
 
-        [[R00,G00,B00],[R01,G01,B01],[R02,G02,B02],[R03,G03,B03],[R04,G04,B04]],
-
-
-        [[R10,G10,B10],[R11,G11,B11],[R12,G12,B12],[R13,G13,B13],[R14,G14,B14]],
-
-
-        [[R20,G20,B20],[R21,G21,B21],[R22,G22,B22],[R23,G23,B23],[R24,G24,B24]],
-
-
-        [[R30,G30,B30],[R31,G31,B31],[R32,G32,B32],[R33,G33,B33],[R34,G34,B34]],
-
-
-        [[R40,G40,B40],[R41,G41,B41],[R42,G42,B42],[R43,G43,B43],[R44,G44,B44]],
-
-
-        [[R50,G50,B50],[R51,G51,B51],[R52,G52,B52],[R53,G53,B53],[R54,G54,B54]],
-
-
-        [[R60,G60,B60],[R61,G61,B61],[R62,G62,B62],[R63,G63,B63],[R64,G64,B64]],
-
-
+          …
         ]
 
+        ```
 
-        __`Performance`__
+
+        When the `SensorType` is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5` 
+        and `Rxy`, `Gxy` and `Bxy` represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
 
 
-        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network.
-        A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time.
+        ```
+
+        [
+          [[R00,G00,B00],[R01,G01,B01],[R02,G02,B02],[R03,G03,B03],[R04,G04,B04]],
+
+
+          [[R10,G10,B10],[R11,G11,B11],[R12,G12,B12],[R13,G13,B13],[R14,G14,B14]],
+
+
+          [[R20,G20,B20],[R21,G21,B21],[R22,G22,B22],[R23,G23,B23],[R24,G24,B24]],
+
+
+          [[R30,G30,B30],[R31,G31,B31],[R32,G32,B32],[R33,G33,B33],[R34,G34,B34]],
+
+
+          [[R40,G40,B40],[R41,G41,B41],[R42,G42,B42],[R43,G43,B43],[R44,G44,B44]],
+
+
+          [[R50,G50,B50],[R51,G51,B51],[R52,G52,B52],[R53,G53,B53],[R54,G54,B54]],
+
+
+          [[R60,G60,B60],[R61,G61,B61],[R62,G62,B62],[R63,G63,B63],[R64,G64,B64]],
+
+          …
+        ]
+
+        ```
+
+        ## Performance
+
+        Returning an image from an Alpaca device as a JSON array is very inefficient and can result in delays of 30 or more seconds while client and device process and send the huge JSON string over the network. 
+        A new, much faster mechanic called ImageBytes - [Alpaca ImageBytes Concepts and Implementation](https://www.ascom-standards.org/Developer/AlpacaImageBytes.pdf) has been developed that sends data as a binary byte stream and can offer a 10 to 20 fold reduction in transfer time. 
         It is strongly recommended that Alpaca Cameras implement the ImageBytes mechanic as well as the JSON mechanic.
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -1201,7 +1222,7 @@ paths:
         - Camera Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/ImageArrayResponse'
+          $ref: '#/components/responses/ImageArrayVariantResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -1301,7 +1322,7 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/maxbinx':
     get:
-      summary: Maximum  binning for the camera X axis
+      summary: Maximum binning for the camera X axis
       description: Returns the maximum allowed binning for the X camera axis
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -1318,7 +1339,7 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/maxbiny':
     get:
-      summary: Maximum  binning for the camera Y axis
+      summary: Maximum binning for the camera Y axis
       description: Returns the maximum allowed binning for the Y camera axis
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -1495,7 +1516,7 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/offsetmin':
     get:
-      summary: Minimum offset value of that this camera supports
+      summary: Minimum offset value of that this camera supports 
       description: Returns the Minimum value of offset.
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -1512,7 +1533,7 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/offsets':
     get:
-      summary: List of offset names supported by the camera
+      summary: List of offset names supported by the camera 
       description: Returns the offsets supported by the camera.
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -1543,7 +1564,7 @@ paths:
         - Camera Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/IntResponse'
+          $ref: '#/components/responses/PercentIntResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -1911,7 +1932,21 @@ paths:
         '500':
           $ref: '#/components/responses/500'
       requestBody:
-        $ref: '#/components/requestBodies/putPulseGuide'
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/AlpacaRequest'
+                - properties:
+                    Direction:
+                      $ref: '#/components/schemas/GuideDirection'
+                    Duration:
+                      description: Duration of movement in milli-seconds
+                      type: integer
+                      format: int32
+                  required:
+                    - Direction
+                    - Duration
   '/camera/{device_number}/startexposure':
     put:
       summary: Starts an exposure
@@ -1969,7 +2004,7 @@ paths:
   '/covercalibrator/{device_number}/brightness':
     get:
       summary: Returns the current calibrator brightness
-      description: Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on)
+      description: Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on) 
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -2005,7 +2040,7 @@ paths:
           $ref: '#/components/responses/500'
   '/covercalibrator/{device_number}/coverstate':
     get:
-      summary: Returns the state of the device cover"
+      summary: Returns the state of the device cover" 
       description: >-
         Returns the state of the device cover, if present, otherwise returns "NotPresent".
         The cover state mode is specified as an integer value from the
@@ -2026,7 +2061,7 @@ paths:
   '/covercalibrator/{device_number}/maxbrightness':
     get:
       summary: Returns the calibrator's maximum Brightness value.
-      description: The Brightness value that makes the calibrator deliver its maximum illumination.
+      description: The Brightness value that makes the calibrator deliver its maximum illumination. 
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -2088,7 +2123,7 @@ paths:
                     - Brightness
   '/covercalibrator/{device_number}/closecover':
     put:
-      summary: Initiates cover closing
+      summary: Initiates cover closing 
       description: 'Initiates cover closing if a cover is present.'
       parameters:
         - $ref: '#/components/parameters/device_number'
@@ -2369,7 +2404,7 @@ paths:
         - Dome Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/DomeShutterStatusResponse'
+          $ref: '#/components/responses/ShutterStateResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -2984,7 +3019,7 @@ paths:
         - ObservingConditions Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/DoubleResponse'
+          $ref: '#/components/responses/PercentDoubleResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -3767,7 +3802,7 @@ paths:
                     Id:
                       description: The device number (0 to MaxSwitch - 1)
                       type: integer
-                      format: uint32
+                      format: int32
                     State:
                       description: The required control state (True or False)
                       type: boolean
@@ -3799,7 +3834,7 @@ paths:
                     Id:
                       description: The device number (0 to MaxSwitch - 1)
                       type: integer
-                      format: uint32
+                      format: int32
                     Name:
                       description: The name of the device
                       type: string
@@ -3831,7 +3866,7 @@ paths:
                     Id:
                       description: The device number (0 to MaxSwitch - 1)
                       type: integer
-                      format: uint32
+                      format: int32
                     Value:
                       description: 'The value to be set, between MinSwitchValue and MaxSwitchValue'
                       type: number
@@ -3866,8 +3901,6 @@ paths:
       summary: Returns the current mount alignment mode
       description: >-
         Returns the alignment mode of the mount (Alt/Az, Polar, German Polar).
-        The alignment mode is specified as an integer value from the
-        AlignmentModes Enum.
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -4324,7 +4357,7 @@ paths:
   '/telescope/{device_number}/declinationrate':
     get:
       summary: Returns the telescope's declination tracking rate.
-      description: 'The declination tracking rate (arcseconds per second, default = 0.0)'
+      description: 'The declination tracking rate (arcseconds per SI second, default = 0.0). Please note that rightascensionrate units are arcseconds per sidereal second.'
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -4340,7 +4373,7 @@ paths:
           $ref: '#/components/responses/500'
     put:
       summary: Sets the telescope's declination tracking rate.
-      description: Sets the declination tracking rate (arcseconds per second)
+      description: 'Sets the declination tracking rate (arcseconds per SI second). Please note that rightascensionrate units are arcseconds per sidereal second.'
       parameters:
         - $ref: '#/components/parameters/device_number'
       tags:
@@ -4360,7 +4393,7 @@ paths:
                 - $ref: '#/components/schemas/AlpacaRequest'
                 - properties:
                     DeclinationRate:
-                      description: Declination tracking rate (arcseconds per second)
+                      description: Declination tracking rate (arcseconds per SI second). Please note that rightascensionrate units are arcseconds per sidereal second.
                       type: number
                       format: double
                   required:
@@ -4428,7 +4461,7 @@ paths:
         - Telescope Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/EquatorialSystemResponse'
+          $ref: '#/components/responses/EquatorialCoordinateTypeResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -4582,7 +4615,7 @@ paths:
         - Telescope Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/DoubleResponse'
+          $ref: '#/components/responses/RightAscensionResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -4590,7 +4623,7 @@ paths:
   '/telescope/{device_number}/rightascensionrate':
     get:
       summary: Returns the telescope's right ascension tracking rate.
-      description: 'The right ascension tracking rate (arcseconds per second, default = 0.0)'
+      description: 'The right ascension tracking rate (arcseconds per sidereal second, default = 0.0). Please note that the declinationrate units are arcseconds per SI second.'
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -4606,7 +4639,7 @@ paths:
           $ref: '#/components/responses/500'
     put:
       summary: Sets the telescope's right ascension tracking rate.
-      description: Sets the right ascension tracking rate (arcseconds per second)
+      description: 'Sets the right ascension tracking rate (arcseconds per sidereal second). Please note that the declinationrate units are arcseconds per SI second.'
       parameters:
         - $ref: '#/components/parameters/device_number'
       tags:
@@ -4626,7 +4659,7 @@ paths:
                 - $ref: '#/components/schemas/AlpacaRequest'
                 - properties:
                     RightAscensionRate:
-                      description: Right ascension tracking rate (arcseconds per second)
+                      description: Right ascension tracking rate (arcseconds per sideral second). Please note that the declinationrate units are arcseconds per SI second.
                       type: number
                       format: double
                   required:
@@ -4634,7 +4667,8 @@ paths:
   '/telescope/{device_number}/sideofpier':
     get:
       summary: Returns the mount's pointing state.
-      description: Indicates the pointing state of the mount.
+      description: >-
+        Indicates the pointing state of the mount.
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -4643,7 +4677,7 @@ paths:
         - Telescope Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/SideOfPierResponse'
+          $ref: '#/components/responses/PierSideResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -4670,7 +4704,7 @@ paths:
                 - $ref: '#/components/schemas/AlpacaRequest'
                 - properties:
                     SideOfPier:
-                      $ref: '#/components/schemas/SideOfPier'
+                      $ref: '#/components/schemas/PierSide'
                   required:
                     - SideOfPier
   '/telescope/{device_number}/siderealtime':
@@ -4910,7 +4944,7 @@ paths:
         - Telescope Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/DoubleResponse'
+          $ref: '#/components/responses/DeclinationResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -5212,7 +5246,7 @@ paths:
         - Telescope Specific Methods
       responses:
         '200':
-          $ref: '#/components/responses/SideOfPierResponse'
+          $ref: '#/components/responses/PierSideResponse'
         '400':
           $ref: '#/components/responses/400'
         '500':
@@ -5257,10 +5291,11 @@ paths:
                 - $ref: '#/components/schemas/AlpacaRequest'
                 - properties:
                     Axis:
-                      $ref: '#/components/schemas/Axis'
+                      $ref: '#/components/schemas/TelescopeAxis'
                     Rate:
-                      description: The rate of motion (deg/sec) about the specified axis.
+                      description: The rate of motion (deg/sec) about the specified axis
                       type: number
+                      default: 0
                   required:
                     - Axis
                     - Rate
@@ -5301,7 +5336,22 @@ paths:
         '500':
           $ref: '#/components/responses/500'
       requestBody:
-        $ref: '#/components/requestBodies/putPulseGuide'
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/AlpacaRequest'
+                - properties:
+                    Direction:
+                      $ref: '#/components/schemas/GuideDirection'
+                    Duration:
+                      description: The duration of the guide-rate motion (milliseconds)
+                      type: integer
+                      format: int32
+                      default: 5
+                  required:
+                    - Direction
+                    - Duration
   '/telescope/{device_number}/setpark':
     put:
       summary: Sets the telescope's park position
@@ -5524,8 +5574,18 @@ components:
       required: true
       schema:
         type: string
-        default: telescope
-        pattern: '^[a-z]*$'
+        enum:
+          - camera
+          - covercalibrator
+          - dome
+          - filterwheel
+          - focuser
+          - observingconditions
+          - rotator
+          - safetymonitor
+          - switch
+          - telescope
+
     device_number:
       name: device_number
       description: Zero based device number as set on the server (0 to 4294967295)
@@ -5535,50 +5595,48 @@ components:
         type: integer
         format: uint32
         default: 0
+        minimum: 0
+        maximum: 4294967295
     ClientIDQuery:
       name: ClientID
-      description: Client's unique ID. (0 to 4294967295). The client should choose a value at start-up, e.g. a random value between 0 and 65535, and send this value on every transaction to help associate entries in device logs with this particular client.
+      description: Client's unique ID. (1 to 4294967295). The client should choose a value at start-up, e.g. a random value between 1 and 65535, and send this on every transaction to associate entries in device logs with this particular client.  Zero is a reserved value that clients should not use.
       in: query
       required: false
       schema:
         type: integer
         format: uint32
         default: 1
+        minimum: 1
+        maximum: 4294967295
     ClientTransactionIDQuery:
       name: ClientTransactionID
-      description: Client's transaction ID. (0 to 4294967295). The client should start this count at 1 and increment by one on each successive transaction. This will aid associating entries in device logs with corresponding entries in client side logs.
+      description: Client's transaction ID. (1 to 4294967295). The client should start this count at 1 and increment by one on each successive transaction. This will aid associating entries in device logs with corresponding entries in client side logs.  Zero is a reserved value that clients should not use.
       in: query
       required: false
       schema:
         type: integer
         format: uint32
         default: 1234
+        minimum: 1
+        maximum: 4294967295
     RightAscensionQuery:
       name: RightAscension
-      description: Right Ascension coordinate (0.0 to 23.99999999 hours)
       in: query
       required: true
       schema:
-        type: number
-        default: 3.0
-        minimum: 0.0
-        maximum: 23.9999999999
+        $ref: '#/components/schemas/RightAscension'
     DeclinationQuery:
       name: Declination
-      description: Declination coordinate (-90.0 to +90.0 degrees)
       in: query
       required: true
       schema:
-        type: number
-        default: 0.0
-        minimum: -90.0
-        maximum: 90.0
+        $ref: '#/components/schemas/Declination'
     AxisQuery:
       name: Axis
       in: query
       required: true
       schema:
-        $ref: '#/components/schemas/Axis'
+        $ref: '#/components/schemas/TelescopeAxis'
     SwitchNumberQuery:
       name: Id
       description: The device number (0 to MaxSwitch - 1)
@@ -5586,8 +5644,10 @@ components:
       required: true
       schema:
         type: integer
-        format: uint32
+        format: int32
         default: 0
+        minimum: 0
+        maximum: 2147483647
   requestBodies:
     put_devicetype_Devicenumber_commandblind:
       content:
@@ -5650,45 +5710,12 @@ components:
               - $ref: '#/components/schemas/AlpacaRequest'
               - properties:
                   RightAscension:
-                    description: Right Ascension coordinate (hours)
-                    type: number
+                    $ref: '#/components/schemas/RightAscension'
                   Declination:
-                    description: Declination coordinate (degrees)
-                    type: number
+                    $ref: '#/components/schemas/Declination'
                 required:
                   - RightAscension
                   - Declination
-    putPulseGuide:
-      content:
-        application/x-www-form-urlencoded:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaRequest'
-              - properties:
-                  Direction:
-                    description: >-
-                      The direction in which the guide-rate motion is to be made.
-                    type: integer
-                    format: int32
-                    default: 0
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                    x-enum-varnames:
-                      - North
-                      - South
-                      - East
-                      - West
-                  Duration:
-                    description: The duration of the guide-rate motion (milliseconds)
-                    type: integer
-                    format: int32
-                    default: 5
-                required:
-                  - Direction
-                  - Duration
   responses:
     MethodResponse:
       description: Transaction complete or exception.
@@ -5696,6 +5723,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/AlpacaResponse'
+    '400':
+      description: 'The device did not understand which operation was being requested or insufficient information was given to complete the operation. Check the error message for detailed information.'
+      content:
+        text/plain:
+          schema:
+            type: string
+            description: Error message describing why the command cannot be processed
+    '500':
+      description: 'Server internal error. Check the error message for detailed information.'
+      content:
+        text/plain:
+          schema:
+            type: string
+            description: Error message describing why the command cannot be processed
     ImageArrayResponse:
       description: Transaction complete or exception.
       content:
@@ -5707,34 +5748,97 @@ components:
                   Type:
                     type: integer
                     format: int32
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                    x-enum-varnames:
-                      - Unknown
-                      - Short
-                      - Integer
-                      - Double
-                    x-enum-descriptions:
-                      -
-                      - int16
-                      - int32
-                      - Double precision real number
-                  Rank:
-                    type: integer
-                    format: int32
-                    description: The array's rank, will be 2 (single plane image (monochrome)) or 3 (multi-plane image).
-                    minimum: 2
-                    maximum: 3
-                  Value:
-                    type: array
-                    items:
+                    const: 2
+                    description: Must always be 2 representing a 32bit integer.
+              - oneOf:
+                - title: SinglePlane
+                  description: Single-plane image array
+                  properties:
+                    Rank:
+                      type: integer
+                      format: int32
+                      const: 2
+                    Value:
                       type: array
                       items:
-                        type: number
-                        description: Returned integer or double value
+                        type: array
+                        items:
+                          type: integer
+                          format: int32
+                          description: Integer values
+                - title: MultiPlane
+                  description: Multi-plane image array
+                  properties:
+                    Rank:
+                      type: integer
+                      format: int32
+                      const: 3
+                    Value:
+                      type: array
+                      items:
+                        type: array
+                        items:
+                          type: array
+                          items:
+                            type: integer
+                            format: int32
+                            description: Integer values
+    ImageArrayVariantResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Type:
+                    description: Data type of image array pixel values.
+                    type: integer
+                    format: int32
+                    oneOf:
+                      - title: Unknown
+                        description: Unknown data type.
+                        const: 0
+                      - title: Short
+                        description: 16-bit integer data type.
+                        const: 1
+                      - title: Integer
+                        description: 32-bit integer data type.
+                        const: 2
+                      - title: Double
+                        description: Double precision floating point data type.
+                        const: 3
+              - oneOf:
+                - title: SinglePlane
+                  description: Single-plane image array
+                  properties:
+                    Rank:
+                      type: integer
+                      format: int32
+                      const: 2
+                    Value:
+                      type: array
+                      items:
+                        type: array
+                        items:
+                          type: number
+                          description: Integer or double pixel values
+                - title: MultiPlane
+                  description: Multi-plane image array
+                  properties:
+                    Rank:
+                      type: integer
+                      format: int32
+                      const: 3
+                    Value:
+                      type: array
+                      items:
+                        type: array
+                        items:
+                          type: array
+                          items:
+                            type: number
+                            description: Integer or double pixel values
     BoolResponse:
       description: Transaction complete or exception.
       content:
@@ -5770,219 +5874,6 @@ components:
                     type: integer
                     format: int32
                     description: Returned integer value
-    CameraStateResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    type: integer
-                    format: int32
-                    description: Returned camera state
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                      - 4
-                      - 5
-                    x-enum-varnames:
-                      - Idle
-                      - Waiting
-                      - Exposing
-                      - Reading
-                      - Download
-                      - Error
-    SensorTypeResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    type: integer
-                    format: int32
-                    description: Returned sensor type
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                      - 4
-                      - 5
-                    x-enum-varnames:
-                      - Monochrome
-                      - Color
-                      - RGGB
-                      - CMYG
-                      - CMYG2
-                      - LRGB
-                    x-enum-descriptions:
-                      - Camera produces monochrome array with no Bayer encoding
-                      - Camera produces color image directly, not requiring Bayer decoding
-                      - Camera produces RGGB encoded Bayer array images
-                      - Camera produces CMYG encoded Bayer array images
-                      - Camera produces CMYG2 encoded Bayer array images
-                      - Camera produces Kodak TRUESENSE LRGB encoded Bayer array images
-    DomeShutterStatusResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    type: integer
-                    format: int32
-                    description: Returned dome shutter status
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                      - 4
-                    x-enum-varnames:
-                      - Open
-                      - Closed
-                      - Opening
-                      - Closing
-                      - Error
-    SideOfPierResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    $ref: '#/components/schemas/SideOfPier'
-    CalibratorStatusResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    type: integer
-                    format: int32
-                    description: Returned side of pier
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                      - 4
-                      - 5
-                    x-enum-varnames:
-                      - NotPresent
-                      - 'Off'
-                      - NotReady
-                      - Ready
-                      - Unknown
-                      - Error
-                    x-enum-descriptions:
-                      - This device does not have a calibration capability.
-                      - The calibrator is off.
-                      - The calibrator is stabilising or is not yet in the commanded state.
-                      - The calibrator is ready for use.
-                      - The calibrator state is unknown.
-                      - The calibrator encountered an error when changing state.
-    CoverStatusResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    type: integer
-                    format: int32
-                    description: Returned side of pier
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                      - 4
-                      - 5
-                    x-enum-varnames:
-                      - NotPresent
-                      - Closed
-                      - Moving
-                      - Open
-                      - Unknown
-                      - Error
-                    x-enum-descriptions:
-                      - This device does not have a cover that can be closed independently.
-                      - The cover is closed.
-                      - The cover is moving to a new position.
-                      - The cover is open.
-                      - The state of the cover is unknown.
-                      - The device encountered an error when changing state.
-    AlignmentModeResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    type: integer
-                    format: int32
-                    description: Returned side of pier
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                    x-enum-varnames:
-                      - AltAz
-                      - Polar
-                      - GermanPolar
-                    x-enum-descriptions:
-                      - Altitude-Azimuth alignment.
-                      - Polar (equatorial) mount other than German equatorial.
-                      - German equatorial mount.
-    EquatorialSystemResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    type: integer
-                    format: int32
-                    description: Returned side of pier
-                    enum:
-                      - 0
-                      - 1
-                      - 2
-                      - 3
-                      - 4
-                    x-enum-varnames:
-                      - Other
-                      - Topocentric
-                      - J2000
-                      - J2050
-                      - B1950
-                    x-enum-descriptions:
-                      - Custom or unknown equinox and/or reference frame.
-                      - Topocentric coordinates. Coordinates of the object at the current date having allowed for annual aberration, precession and nutation. This is the most common coordinate type for amateur telescopes.
-                      - J2000 equator/equinox. Coordinates of the object at mid-day on 1st January 2000, ICRS reference frame.
-                      - J2050 equator/equinox, ICRS reference frame.
-                      - B1950 equinox, FK4 reference frame.
     IntArrayResponse:
       description: Transaction complete or exception.
       content:
@@ -6008,26 +5899,6 @@ components:
                   Value:
                     type: string
                     description: String response from the device.
-    TelescopeUTCDateResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    $ref: '#/components/schemas/TelescopeUTCDate'
-    LastExposureStartTimeResponse:
-      description: Transaction complete or exception.
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/AlpacaResponse'
-              - properties:
-                  Value:
-                    $ref: '#/components/schemas/LastExposureStartTime'
     StringArrayResponse:
       description: Transaction complete or exception.
       content:
@@ -6081,20 +5952,154 @@ components:
                     uniqueItems: true
                     items:
                       $ref: '#/components/schemas/DriveRate'
-    '400':
-      description: 'Method or parameter value error, check error message'
+    RightAscensionResponse:
+      description: Transaction complete or exception.
       content:
-        text/plain:
+        application/json:
           schema:
-            type: string
-            description: Error message describing why the command cannot be processed
-    '500':
-      description: 'Server internal error, check error message'
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/RightAscension'
+    DeclinationResponse:
+      description: Transaction complete or exception.
       content:
-        text/plain:
+        application/json:
           schema:
-            type: string
-            description: Error message describing why the command cannot be processed
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/Declination'
+    PierSideResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/PierSide'
+    TelescopeUTCDateResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/TelescopeUTCDate'
+    LastExposureStartTimeResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/LastExposureStartTime'
+    CameraStateResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/CameraState'
+    SensorTypeResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/SensorType'
+    ShutterStateResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/ShutterState'
+    CalibratorStatusResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/CalibratorStatus'
+    CoverStatusResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/CoverStatus'
+    AlignmentModeResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/AlignmentMode'
+    EquatorialCoordinateTypeResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    $ref: '#/components/schemas/EquatorialCoordinateType'
+    PercentIntResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    type: integer
+                    format: int32
+                    minimum: 0
+                    maximum: 100
+                    description: Returned percentage value between 0 and 100.
+    PercentDoubleResponse:
+      description: Transaction complete or exception.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/AlpacaResponse'
+              - properties:
+                  Value:
+                    type: number
+                    format: double
+                    minimum: 0
+                    maximum: 100
+                    description: Returned percentage value between 0 and 100.
   schemas:
     AxisRate:
       description: Axis rate object
@@ -6119,92 +6124,278 @@ components:
       type: object
       properties:
         ClientID:
-          description: Client's unique ID. (0 to 4294967295). The client should choose a value at start-up, e.g. a random value between 0 and 65535, and send this value on every transaction to help associate entries in device logs with this particular client.
+          description: Client's unique ID. (1 to 4294967295). The client should choose a value at start-up, e.g. a random value between 1 and 65535, and send this on every transaction to associate entries in device logs with this particular client.  Zero is a reserved value that clients should not use.
           type: integer
           format: uint32
+          minimum: 1
+          maximum: 4294967295
         ClientTransactionID:
-          description: Client's transaction ID. (0 to 4294967295). The client should start this count at 1 and increment by one on each successive transaction. This will aid associating entries in device logs with corresponding entries in client side logs.
+          description: Client's transaction ID. (1 to 4294967295). The client should start this count at 1 and increment by one on each successive transaction. This will aid associating entries in device logs with corresponding entries in client side logs.  Zero is a reserved value that clients should not use.
           type: integer
           format: uint32
+          minimum: 1
+          maximum: 4294967295
     AlpacaResponse:
       type: object
       properties:
         ClientTransactionID:
           type: integer
           format: uint32
-          description: Client's transaction ID (0 to 4294967295), as supplied by the client in the command request.
+          minimum: 0
+          maximum: 4294967295
+          description: Client's transaction ID (1 to 4294967295), as supplied by the client in the command request, or zero indicating that a valid value was not supplied.
         ServerTransactionID:
           type: integer
           format: uint32
-          description: Server's transaction ID (0 to 4294967295), should be unique for each client transaction so that log messages on the client can be associated with logs on the device.
+          minimum: 1
+          maximum: 4294967295
+          description: Server's transaction ID (1 to 4294967295), must be unique for each client transaction so that log messages on the client can be associated with logs on the device. The server should start this count at 1 and increment by one on each successive transaction. 
         ErrorNumber:
           type: integer
           format: int32
-          description: >-
-            Zero for a successful transaction, or a non-zero integer (-2147483648 to 2147483647) if the device encountered an issue. Devices must use ASCOM reserved error numbers whenever appropriate so that clients can take informed actions. E.g. returning 0x401 (1025) to indicate that an invalid value was received (see Alpaca API definition and developer documentation for further information).
+          description: Zero for a successful transaction, or a non-zero integer (0x400 to 0xFFF) if the device encountered an issue.
+          oneOf:
+            - title: Success
+              description: Successful transaction.
+              const: 0
+            - title: Error
+              description: >
+                Error encountered.
+
+                Devices must use ASCOM reserved error numbers whenever appropriate so that clients can take informed actions. E.g. returning 0x401 (1025) to indicate that an invalid value was received (see Alpaca API definition and developer documentation for further information).
+              minimum: 0x400
+              maximum: 0xFFF
         ErrorMessage:
           type: string
           description: Empty string for a successful transaction, or a message describing the issue that was encountered. If an error message is returned, a non zero error number must also be returned.
     DriveRate:
-      description: >-
-        DriveRate enum corresponding to one of the standard drive rates.
+      description: Integer value corresponding to one of the standard drive rates.
       type: integer
       format: int32
-      enum:
-        - 0
-        - 1
-        - 2
-        - 3
-      x-enum-varnames:
-        - Sidereal
-        - Lunar
-        - Solar
-        - King
-      x-enum-descriptions:
-        - 15.041 arcseconds per second
-        - 14.685 arcseconds per second
-        - 15.0 arcseconds per second
-        - 15.0369 arcseconds per second
-    SideOfPier:
+      oneOf:
+        - title: Sidereal
+          description: Sidereal tracking rate (15.041 arcseconds per second).
+          const: 0
+        - title: Lunar
+          description: Lunar tracking rate (14.685 arcseconds per second).
+          const: 1
+        - title: Solar
+          description: Solar tracking rate (15.0 arcseconds per second).
+          const: 2
+        - title: King
+          description: King tracking rate (15.0369 arcseconds per second).
+          const: 3
+    TelescopeAxis:
+      description: The axis about which rate information is desired.
+      type: integer
+      format: int32
+      oneOf:
+        - title: Primary
+          const: 0
+        - title: Secondary
+          const: 1
+        - title: Tertiary
+          const: 2
+    RightAscension:
+      type: number
+      description: Right Ascension coordinate (0.0 to 23.99999999 hours)
+      default: 3.0
+      minimum: 0.0
+      maximum: 23.9999999999
+    Declination:
+      description: Declination coordinate (-90.0 to +90.0 degrees)
+      type: number
+      default: 0.0
+      minimum: -90.0
+      maximum: 90.0
+    PierSide:
       type: integer
       format: int32
       description: Returned side of pier
-      enum:
-        - 0
-        - 1
-        - -1
-      x-enum-varnames:
-        - East
-        - West
-        - Unknown
-      x-enum-descriptions:
-        - Normal pointing state - Mount on the East side of pier (looking West).
-        - Through the pole pointing state - Mount on the West side of pier (looking East).
-        - Unknown or indeterminate.
-    Axis:
-      description: The axis of mount rotation.
-      type: integer
-      format: int32
-      default: 0
-      enum:
-        - 0
-        - 1
-        - 2
-      x-enum-varnames:
-        - Primary
-        - Secondary
-        - Tertiary
+      oneOf:
+        - title: East
+          description: Normal pointing state - Mount on the East side of pier (looking West).
+          const: 0
+        - title: West
+          description: Through the pole pointing state - Mount on the West side of pier (looking East).
+          const: 1
+        - title: Unknown
+          description: Unknown or indeterminate.
+          const: -1
     TelescopeUTCDate:
       type: string
-      format: date
+      # The described date format is the same as the standard OpenAPI format.
+      # https://swagger.io/docs/specification/data-models/data-types/
+      format: date-time
+      pattern: '^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?Z$'
       description: >-
         The UTC date/time of the telescope's internal clock in ISO 8601 format including fractional seconds.
         The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ, e.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z.
         Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
-      date-format: '[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]Z'
     LastExposureStartTime:
       type: string
-      format: date
+      # Custom format for FITS standard date-time.
+      # Not defined in standard OpenAPI, but used by downstream tooling processing this YAML.
+      format: date-time-fits
+      pattern: '^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$'
       description: >-
         The UTC date/time of exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
-      date-format: '[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond]]]'
+    CameraState:
+      description: Camera state
+      type: integer
+      format: int32
+      oneOf:
+        - title: Idle
+          description: At idle state, available to start exposure.
+          const: 0
+        - title: Waiting
+          description: Exposure started but waiting (for shutter, trigger, filter wheel, etc.).
+          const: 1
+        - title: Exposing
+          description: Exposure currently in progress.
+          const: 2
+        - title: Reading
+          description: Sensor array is being read out (digitized).
+          const: 3
+        - title: Download
+          description: Downloading data to host.
+          const: 4
+        - title: Error
+          description: Camera error condition serious enough to prevent further operations.
+          const: 5
+    GuideDirection:
+      description: The direction in which the guide-rate motion is to be made.
+      type: integer
+      format: int32
+      oneOf:
+        - title: North
+          const: 0
+        - title: South
+          const: 1
+        - title: East
+          const: 2
+        - title: West
+          const: 3
+    SensorType:
+      description: The type of sensor in the camera.
+      type: integer
+      format: int32
+      oneOf:
+        - title: Monochrome
+          description: Single-plane monochrome sensor.
+          const: 0
+        - title: Color
+          description: Multiple-plane color sensor.
+          const: 1
+        - title: RGGB
+          description: Single-plane Bayer matrix RGGB sensor.
+          const: 2
+        - title: CMYG
+          description: Single-plane Bayer matrix CMYG sensor.
+          const: 3
+        - title: CMYG2
+          description: Single-plane Bayer matrix CMYG2 sensor.
+          const: 4
+        - title: LRGB
+          description: Single-plane Bayer matrix LRGB sensor.
+          const: 5
+    ShutterState:
+      description: Indicates the current state of the shutter or roof.
+      type: integer
+      format: int32
+      oneOf:
+        - title: Open
+          description: The shutter or roof is open.
+          const: 0
+        - title: Closed
+          description: The shutter or roof is closed.
+          const: 1
+        - title: Opening
+          description: The shutter or roof is opening.
+          const: 2
+        - title: Closing
+          description: The shutter or roof is closing.
+          const: 3
+        - title: Error
+          description: The shutter or roof has encountered a problem.
+          const: 4
+    CalibratorStatus:
+      description: Describes the state of a calibration device.
+      type: integer
+      format: int32
+      oneOf:
+        - title: NotPresent
+          description: This device does not have a calibration capability.
+          const: 0
+        - title: Off
+          description: The calibrator is off.
+          const: 1
+        - title: NotReady
+          description: The calibrator is stabilising or is not yet in the commanded state.
+          const: 2
+        - title: Ready
+          description: The calibrator is ready for use.
+          const: 3
+        - title: Unknown
+          description: The calibrator state is unknown.
+          const: 4
+        - title: Error
+          description: The calibrator encountered an error when changing state.
+          const: 5
+    CoverStatus:
+      description: Describes the state of a telescope cover.
+      type: integer
+      format: int32
+      oneOf:
+        - title: NotPresent
+          description: This device does not have a cover that can be closed independently.
+          const: 0
+        - title: Closed
+          description: The cover is closed.
+          const: 1
+        - title: Moving
+          description: The cover is moving to a new position.
+          const: 2
+        - title: Open
+          description: The cover is open.
+          const: 3
+        - title: Unknown
+          description: The state of the cover is unknown.
+          const: 4
+        - title: Error
+          description: The device encountered an error when changing state.
+          const: 5
+    AlignmentMode:
+      description: The alignment mode (geometry) of the mount.
+      type: integer
+      format: int32
+      oneOf:
+        - title: AltAz
+          description: Altitude-Azimuth type mount.
+          const: 0
+        - title: Polar
+          description: Polar (equatorial) mount other than German equatorial.
+          const: 1
+        - title: GermanPolar
+          description: German equatorial type mount.
+          const: 2
+    EquatorialCoordinateType:
+      description: The equatorial coordinate system used by the mount.
+      type: integer
+      format: int32
+      oneOf:
+        - title: Other
+          description: Custom or unknown equinox and/or reference frame.
+          const: 0
+        - title: Topocentric
+          description: Topocentric coordinates.
+          const: 1
+        - title: J2000
+          description: J2000 equator/equinox.
+          const: 2
+        - title: J2050
+          description: J2050 equator/equinox.
+          const: 3
+        - title: B1950
+          description: B1950 equinox, FK4 reference frame.
+          const: 4

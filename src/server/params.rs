@@ -30,7 +30,7 @@ where
         name: &'static str,
     ) -> super::Result<Option<T>> {
         self.0
-            .remove(name.as_ref())
+            .swap_remove(name.as_ref())
             .map(|value| serde_plain::from_str(&value))
             .transpose()
             .map_err(|err| Error::BadParameter { name, err })

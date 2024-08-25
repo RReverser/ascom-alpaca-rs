@@ -23,15 +23,21 @@
         </member>
         <member name="M:ASCOM.DriverAccess.AscomDriver.Dispose">
             <summary>
-            Releases the unmanaged late bound COM object
+            This method is a "clean-up" method that is primarily of use to drivers that are written in languages such as C# and VB.NET where resource clean-up is initially managed by the language's 
+            runtime garbage collection mechanic. Driver authors should take care to ensure that a client or runtime calling Dispose() does not adversely affect other connected clients.
+            Applications should not call this method.
             </summary>
-            <exception cref = "T:ASCOM.DriverException" >An error occurred that is not described by one of the more specific ASCOM exceptions.</exception>
         </member>
         <member name="M:ASCOM.DriverAccess.AscomDriver.Dispose(System.Boolean)">
             <summary>
             Disposes of managed and unmanaged resources
             </summary>
             <param name="disposing">True to dispose of managed resources, false to dispose of unmanaged resources</param>
+        </member>
+        <member name="P:ASCOM.DriverAccess.AscomDriver.HasConnectAndDeviceState">
+            <summary>
+            Returns <see langword="true"/> if the device has a Platform 7 or later interface that supports Connect / Disconnect and DeviceState
+            </summary>
         </member>
         <member name="P:ASCOM.DriverAccess.AscomDriver.MemberFactory">
             <summary>
@@ -47,6 +53,47 @@
             <remarks>
             This method reads the interface version on the first call and caches it, returning the cached value on subsequent calls.
             It also handles interface version 1 drivers that don't have InterfaceVersion properties
+            </remarks>
+        </member>
+        <member name="M:ASCOM.DriverAccess.AscomDriver.Connect">
+            <summary>
+            Connect to the device asynchronously
+            </summary>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception> 
+            <remarks><p style="color:red"><b>This is a mandatory method and must not throw a <see cref="T:ASCOM.MethodNotImplementedException"/>.</b></p></remarks>
+        </member>
+        <member name="M:ASCOM.DriverAccess.AscomDriver.Disconnect">
+            <summary>
+            Disconnect from the device asynchronously
+            </summary>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception> 
+            <remarks><p style="color:red"><b>This is a mandatory method and must not throw a <see cref="T:ASCOM.MethodNotImplementedException"/>.</b></p></remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.AscomDriver.Connecting">
+            <summary>
+            Returns True while the device is undertaking an asynchronous connect or disconnect operation.
+            </summary>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception> 
+            <remarks><p style="color:red"><b>This is a mandatory property and must not throw a <see cref="T:ASCOM.PropertyNotImplementedException"/>.</b></p></remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.AscomDriver.DeviceState">
+            <summary>
+            Returns the device's operational state in a single call.
+            </summary>
+            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception> 
+            <remarks>
+            <p style="color:red"><b>This is a mandatory property and must not throw a <see cref="T:ASCOM.PropertyNotImplementedException"/>.</b></p>
+            <para><b>Devices</b></para>
+            <para>Devices must return all operational values that are definitively known but can omit entries where values are unknown.
+            Devices must not throw exceptions / return errors when values are not known.</para>
+            <para>An empty list must be returned if no values are known.</para>
+            <para><b>Client Applications</b></para>
+            <para>
+            Applications must expect that, from time to time, some operational state values may not be present in the device response and must be prepared to handle “missing” values.
+            </para>
+            <para><b>Further Information</b></para>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on implementation support within the ASCOM Platform.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.AscomDriver.Connected">
@@ -173,8 +220,12 @@
             <exception cref="T:ASCOM.MethodNotImplementedException">If the method is not implemented</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>
-            <p style="color:red"><b>Can throw a not implemented exception</b></p>
+            <remarks><p style="color:red"><b>May throw a NotImplementedException.</b></p>
+            <para>The CommandXXX methods are a historic mechanic that provides clients with direct and unimpeded access to change device hardware configuration. While highly enabling for clients, this mechanic is inherently risky
+            because clients can fundamentally change hardware operation without the driver being aware that a change is taking / has taken place.</para>
+            <para>The newer Action / SupportedActions mechanic provides discrete, named, functions that can deliver any functionality required.They do need driver authors to make provision for them within the 
+            driver, but this approach is much lower risk than using the CommandXXX methods because it enables the driver to resolve conflicts between standard device interface commands and extended commands 
+            provided as Actions.The driver is always aware of what is happening and can adapt more effectively to client needs.</para>
             </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.AscomDriver.CommandBool(System.String,System.Boolean)">
@@ -193,8 +244,12 @@
             <exception cref="T:ASCOM.MethodNotImplementedException">If the method is not implemented</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>
-            <p style="color:red"><b>Can throw a not implemented exception</b></p>
+            <remarks><p style="color:red"><b>May throw a NotImplementedException.</b></p>
+            <para>The CommandXXX methods are a historic mechanic that provides clients with direct and unimpeded access to change device hardware configuration. While highly enabling for clients, this mechanic is inherently risky
+            because clients can fundamentally change hardware operation without the driver being aware that a change is taking / has taken place.</para>
+            <para>The newer Action / SupportedActions mechanic provides discrete, named, functions that can deliver any functionality required.They do need driver authors to make provision for them within the 
+            driver, but this approach is much lower risk than using the CommandXXX methods because it enables the driver to resolve conflicts between standard device interface commands and extended commands 
+            provided as Actions.The driver is always aware of what is happening and can adapt more effectively to client needs.</para>
             </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.AscomDriver.CommandString(System.String,System.Boolean)">
@@ -213,8 +268,12 @@
             <exception cref="T:ASCOM.MethodNotImplementedException">If the method is not implemented</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>
-            <p style="color:red"><b>Can throw a not implemented exception</b></p>
+            <remarks><p style="color:red"><b>May throw a NotImplementedException.</b></p>
+            <para>The CommandXXX methods are a historic mechanic that provides clients with direct and unimpeded access to change device hardware configuration. While highly enabling for clients, this mechanic is inherently risky
+            because clients can fundamentally change hardware operation without the driver being aware that a change is taking / has taken place.</para>
+            <para>The newer Action / SupportedActions mechanic provides discrete, named, functions that can deliver any functionality required.They do need driver authors to make provision for them within the 
+            driver, but this approach is much lower risk than using the CommandXXX methods because it enables the driver to resolve conflicts between standard device interface commands and extended commands 
+            provided as Actions.The driver is always aware of what is happening and can adapt more effectively to client needs.</para>
             </remarks>
         </member>
         <member name="T:ASCOM.DriverAccess.Camera">
@@ -240,10 +299,19 @@
             The DriverID of the user selected camera. Null if the dialogue is cancelled.
             </returns>
         </member>
+        <member name="P:ASCOM.DriverAccess.Camera.CameraDeviceState">
+            <summary>
+            Camera device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
+        </member>
         <member name="M:ASCOM.DriverAccess.Camera.AbortExposure">
             <summary>
             Aborts the current exposure, if any, and returns the camera to Idle state.
             </summary>
+            <exception cref="T:ASCOM.MethodNotImplementedException">If CanAbortExposure is false.</exception>
             <exception cref="T:ASCOM.InvalidOperationException">Thrown if abort is not currently possible (e.g. during download).</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
@@ -480,14 +548,16 @@
         </member>
         <member name="P:ASCOM.DriverAccess.Camera.ImageArray">
             <summary>
-            Returns a safearray of int of size <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> * <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> containing the pixel values from the last exposure. 
+            Returns an array of int of size <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> * <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> containing the pixel values from the last exposure.
             </summary>
             <value>The image array.</value>
             <exception cref="T:ASCOM.InvalidOperationException">If no image data is available.</exception>
-            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
-            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
+            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception>
             <remarks>
-            The application must inspect the Safearray parameters to determine the dimensions. 
+            <para>This is a synchronous call and clients should be prepared for it to take a long time to complete when large images are being transferred.</para>
+            <para>Drivers written in C++ must return the image as a SafeArray.</para>
+            <para>Developers of Alpaca camera devices are strongly advised to implement the ImageBytes mechanic, which is specified in the Alpaca API Reference, to ensure fast image transfer to the client.</para>>
             <para>Note: if <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> or <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> is changed after a call to <see cref="M:ASCOM.DriverAccess.Camera.StartExposure(System.Double,System.Boolean)">StartExposure</see> it will 
             have no effect on the size of this array. This is the preferred method for programs (not scripts) to download 
             images since it requires much less memory.</para>
@@ -508,24 +578,26 @@
             values are held in memory in column major order despite being stored in row major order from an <b>infrastructure</b> perspective.
             </para>
             <para>We consider the <b>application</b> view to have primacy and thus consider the returned array to be column major in structure, regardless of the form in which it is stored in memory.</para>
-            <para>Furthermore, for the avoidence of doubt, the pixel at coordinate 0,0 is the top left image pixel.</para>
+            <para>Furthermore, for the avoidance of doubt, the pixel at coordinate 0,0 is the top left image pixel.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Camera.ImageArrayVariant">
             <summary>
-            Returns a safearray of Variant of size <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> * <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> containing the pixel values from the last exposure. 
+            Returns an array of COM-Variant of size <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> * <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> containing the pixel values from the last exposure.
             </summary>
             <value>The image array variant.</value>
             <exception cref="T:ASCOM.InvalidOperationException">If no image data is available.</exception>
-            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
-            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
+            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception>
             <remarks>
-            The application must inspect the Safearray parameters to
-            determine the dimensions. Note: if <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> or <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> is changed after a call to
+            <para>This property is used only in Windows ASCOM/COM drivers. Alpaca drivers and stand-alone Alpaca cameras must raise a <see cref="T:ASCOM.PropertyNotImplementedException"/>.</para>
+            <para>This is a synchronous call and clients should be prepared for it to take a long time to complete when large images are being transferred.</para>
+            <para>Drivers written in C++ must return the image as a SafeArray.</para>
+            <para>Note: if <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> or <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> is changed after a call to
             <see cref="M:ASCOM.DriverAccess.Camera.StartExposure(System.Double,System.Boolean)">StartExposure</see> it will have no effect on the size of this array. This property
             should only be used from scripts due to the extremely high memory utilization on
             large image arrays (26 bytes per pixel). Pixels values should be in Short, int,
-            or Double format.
+            or Double format.</para>
             <para>For colour or multispectral cameras, will produce an array of <see cref="P:ASCOM.DriverAccess.Camera.NumX" /> * <see cref="P:ASCOM.DriverAccess.Camera.NumY" /> *
             NumPlanes.  If the application cannot handle multispectral images, it should use
             just the first plane.</para>
@@ -680,7 +752,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
-            This method returns only after the move has completed.
+            <para>This method must be implemented asynchronously using <see cref="P:ASCOM.DriverAccess.Camera.IsPulseGuiding"/>  as the completion property.</para>
             <para>
             The (symbolic) values for GuideDirections are:
             <list type="bullet">
@@ -697,7 +769,7 @@
         </member>
         <member name="P:ASCOM.DriverAccess.Camera.SetCCDTemperature">
             <summary>
-            Sets the camera cooler setpoint in degrees Celsius, and returns the current setpoint.
+            Sets the camera cooler set-point in degrees Celsius, and returns the current set-point.
             </summary>
             <value>The set CCD temperature.</value>
             <exception cref="T:ASCOM.InvalidValueException">Must throw an InvalidValueException if an attempt is made to set a value is outside the camera's valid temperature setpoint range.</exception>
@@ -705,6 +777,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
+            <para>This method should be short-lived because it is only expected to ‘set’ the new set point and must not block until the set point has been reached.</para>
             <para>The driver should throw an <see cref="T:ASCOM.InvalidValueException" /> if an attempt is made to set <see cref="P:ASCOM.DriverAccess.Camera.SetCCDTemperature" /> 
             outside the valid range for the camera. As an assistance to driver authors, to protect equipment and prevent harm to individuals, 
             Conform will report an issue if it is possible to set <see cref="P:ASCOM.DriverAccess.Camera.SetCCDTemperature" /> below -280C or above +100C.</para>
@@ -723,6 +796,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
+            <para>Must be implemented asynchronously using <see cref="P:ASCOM.DriverAccess.Camera.ImageReady"/> to determine if the exposure has been successfully completed and the image data is ready for access via <see cref="P:ASCOM.DriverAccess.Camera.ImageArray"/>.</para>
             <para>A dark frame or bias exposure may be shorter than the V2 <see cref="P:ASCOM.DriverAccess.Camera.ExposureMin" /> value and for a bias frame can be zero.
             Check the value of <see cref="M:ASCOM.DriverAccess.Camera.StartExposure(System.Double,System.Boolean)">Light</see> and allow exposures down to 0 seconds 
             if <see cref="M:ASCOM.DriverAccess.Camera.StartExposure(System.Double,System.Boolean)">Light</see> is False.  If the hardware will not
@@ -760,6 +834,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
+            <para>Must be implemented asynchronously using <see cref="P:ASCOM.DriverAccess.Camera.ImageReady"/> to determine if the exposure has been successfully completed and the image data is ready for access via <see cref="P:ASCOM.DriverAccess.Camera.ImageArray"/>.</para>
             If an exposure is in progress, the readout process is initiated.  Ignored if readout is already in process.
             </remarks>
         </member>
@@ -1051,7 +1126,6 @@
             Sensor name, Interface Version 2 and later
             </summary>
             <returns>The name of sensor used within the camera</returns>
-            <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if not supported.</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
@@ -1885,18 +1959,29 @@
             <param name="coverCalibratorId">CoverCalibrator ProgID for default or null for None</param>
             <returns>ProgID for chosen CoverCalibrator or null for none</returns>
         </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibrator.CoverCalibratorState">
+            <summary>
+            CoverCalibrator device state
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
+            </summary>
+        </member>
         <member name="P:ASCOM.DriverAccess.CoverCalibrator.CoverState">
             <summary>
             Returns the state of the device cover, if present, otherwise returns "NotPresent"
             </summary>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            /// <remarks>
+            <remarks>
             <para>This is a mandatory property that must return a value, it must not throw a <see cref="T:ASCOM.PropertyNotImplementedException"/>.</para>
+            <para>Whenever the cover is moving both <see cref="P:ASCOM.DriverAccess.CoverCalibrator.CoverMoving"/> must be True and CoverState must be <see cref="F:ASCOM.DeviceInterface.CoverStatus.Moving"/>.</para>
             <para>The <see cref="F:ASCOM.DeviceInterface.CoverStatus.Unknown"/> state must only be returned if the device is unaware of the cover's state e.g. if the hardware does not report the open / closed state and the cover has just been powered on.
             Clients do not need to take special action if this state is returned, they must carry on as usual, issuing  <see cref="M:ASCOM.DriverAccess.CoverCalibrator.OpenCover"/> or <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CloseCover"/> commands as required.</para>
             <para>If the cover hardware cannot report its state, the device could mimic this by recording the last configured state and returning this. Driver authors or device manufacturers may also wish to offer users
             the capability of powering up in a known state e.g. Open or Closed and driving the hardware to this state when Connected is set <see langword="true"/>.</para>
+            <para>This property is intended to be available under all but the most disastrous driver conditions.If something has gone wrong, the CoverState must be <see cref="F:ASCOM.DeviceInterface.CoverStatus.Error"/>
+            rather than throwing an exception.</para>
             </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.CoverCalibrator.OpenCover">
@@ -1946,11 +2031,14 @@
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
             <para>This is a mandatory property that must return a value, it must not throw a <see cref="T:ASCOM.PropertyNotImplementedException"/>.</para>
+            <para>Whenever the calibrator is changing both <see cref="P:ASCOM.DriverAccess.CoverCalibrator.CalibratorChanging"/> must be True and CalibratorState must be <see cref="F:ASCOM.DeviceInterface.CalibratorStatus.NotReady"/>.</para>
             <para>The <see cref="F:ASCOM.DeviceInterface.CalibratorStatus.Unknown"/> state must only be returned if the device is unaware of the calibrator's state e.g. if the hardware does not report the device's state and 
             the calibrator has just been powered on. Clients do not need to take special action if this state is returned, they must carry on as usual, issuing <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CalibratorOn(System.Int32)"/> and 
             <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CalibratorOff"/> commands as required.</para>
             <para>If the calibrator hardware cannot report its state, the device could mimic this by recording the last configured state and returning this. Driver authors or device manufacturers may also wish to offer users
             the capability of powering up in a known state and driving the hardware to this state when Connected is set <see langword="true"/>.</para>
+            <para>This property is intended to be available under all but the most disastrous driver conditions.If something has gone wrong, the CoverState must be <see cref="F:ASCOM.DeviceInterface.CalibratorStatus.Error"/>
+            rather than throwing an exception.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.CoverCalibrator.Brightness">
@@ -2010,6 +2098,535 @@
             <para>For devices with both cover and calibrator capabilities, this method will return the <see cref="P:ASCOM.DriverAccess.CoverCalibrator.CoverState"/> to its status prior to calling <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CalibratorOn(System.Int32)"/>.</para>
             <para>If an error condition arises while turning off the calibrator, <see cref="P:ASCOM.DriverAccess.CoverCalibrator.CalibratorState"/> must be set to <see cref="F:ASCOM.DeviceInterface.CalibratorStatus.Error"/> rather than <see cref="F:ASCOM.DeviceInterface.CalibratorStatus.Unknown"/>.</para>
             </remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibrator.CalibratorChanging">
+            <summary>
+            Flag showing whether a calibrator brightness state change is in progress. 
+            </summary>
+            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception> 
+            <returns>
+            True while the calibrator brightness is not stable following a <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CalibratorOn(System.Int32)"/> or <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CalibratorOff"/> command.
+            </returns>
+            <remarks>
+            <p style="color:red"><b>This is a mandatory property and must not throw a <see cref="T:ASCOM.PropertyNotImplementedException"/>.</b></p>
+            <para>
+            This property must throw an exception ff an issue arises while changing calibrator brightness. The exception must continue to be thrown until a new <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CalibratorOn(System.Int32)"/> or
+            <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CalibratorOff"/> command is received.</para>
+            </remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibrator.CoverMoving">
+            <summary>
+            Flag showing whether the cover is moving. 
+            </summary>
+            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
+            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. Include sufficient detail in the message text to enable the issue to be accurately diagnosed by someone other than yourself.</exception> 
+            <returns>
+            True while the cover is in motion following an <see cref="M:ASCOM.DriverAccess.CoverCalibrator.OpenCover"/> or <see cref="M:ASCOM.DriverAccess.CoverCalibrator.CloseCover"/> command.
+            </returns>
+            <remarks>
+            <p style="color:red"><b>This is a mandatory property and must not throw a <see cref="T:ASCOM.PropertyNotImplementedException"/>.</b></p>
+            </remarks>
+        </member>
+        <member name="T:ASCOM.DriverAccess.CameraDeviceState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.CameraDeviceState.#ctor">
+            <summary>
+            Create a new CameraDeviceState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.CameraDeviceState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new CameraDeviceState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.CameraState">
+            <summary>
+            The device's CameraState
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.CCDTemperature">
+            <summary>
+            The device's CCDTemperature
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.CoolerPower">
+            <summary>
+            The device's CoolerPower
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.HeatSinkTemperature">
+            <summary>
+            The device's HeatSinkTemperature
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.ImageReady">
+            <summary>
+            The device's ImageReady property
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.IsPulseGuiding">
+            <summary>
+            The device's IsPulseGuiding property
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.PercentCompleted">
+            <summary>
+            The device's PercentCompleted property
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CameraDeviceState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.CoverCalibratorState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.CoverCalibratorState.#ctor">
+            <summary>
+            Create a new CoverCalibratorState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.CoverCalibratorState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new CoverCalibratorState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibratorState.Brightness">
+            <summary>
+            The device's Brightness
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibratorState.CalibratorState">
+            <summary>
+            The device's CalibratorState
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibratorState.CoverState">
+            <summary>
+            The device's CoverState
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibratorState.CalibratorChanging">
+            <summary>
+            The device's CalibratorChanging state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibratorState.CoverMoving">
+            <summary>
+            The device's CoverMoving state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.CoverCalibratorState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.DomeState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.DomeState.#ctor">
+            <summary>
+            Create a new DomeState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.DomeState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new DomeState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.DomeState.Altitude">
+            <summary>
+            Dome altitude
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.DomeState.AtHome">
+            <summary>
+            Dome is at home
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.DomeState.AtPark">
+            <summary>
+            Dome is parked
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.DomeState.Azimuth">
+            <summary>
+            Dome azimuth
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.DomeState.ShutterStatus">
+            <summary>
+            Dome shutter state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.DomeState.Slewing">
+            <summary>
+            Dome is slewing
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.DomeState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.FilterWheelState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.FilterWheelState.#ctor">
+            <summary>
+            Create a new FilterWheelState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.FilterWheelState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new FilterWheelState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.FilterWheelState.Position">
+            <summary>
+            FilterWheel position
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.FilterWheelState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.FocuserState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.FocuserState.#ctor">
+            <summary>
+            Create a new FocuserState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.FocuserState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new FocuserState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.FocuserState.IsMoving">
+            <summary>
+            Focuser IsMoving state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.FocuserState.Position">
+            <summary>
+            Focuser position
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.FocuserState.Temperature">
+            <summary>
+            Focuser temperature
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.FocuserState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.ObservingConditionsState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.ObservingConditionsState.#ctor">
+            <summary>
+            Create a new ObservingConditionsState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.ObservingConditionsState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new ObservingConditionsState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.CloudCover">
+            <summary>
+            Telescope altitude
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.DewPoint">
+            <summary>
+            Telescope is at home
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.Humidity">
+            <summary>
+            Telescope is parked
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.Pressure">
+            <summary>
+            Telescope azimuth
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.RainRate">
+            <summary>
+            Telescope declination
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.SkyBrightness">
+            <summary>
+            Telescope is pulse guiding
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.SkyQuality">
+            <summary>
+            Telescope right ascension
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.SkyTemperature">
+            <summary>
+            Telescope pointing state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.StarFWHM">
+            <summary>
+            Telescope sidereal time
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.Temperature">
+            <summary>
+            Telescope is slewing
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.WindDirection">
+            <summary>
+            Telescope  is tracking
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.WindGust">
+            <summary>
+            Telescope UTC date and time
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.WindSpeed">
+            <summary>
+            Telescope UTC date and time
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditionsState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.RotatorState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.RotatorState.#ctor">
+            <summary>
+            Create a new RotatorState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.RotatorState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new RotatorState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.RotatorState.IsMoving">
+            <summary>
+            Rotator is moving state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.RotatorState.Position">
+            <summary>
+            Rotator position
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.RotatorState.MechanicalPosition">
+            <summary>
+            Rotator mechanical position
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.RotatorState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.SafetyMonitorState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.SafetyMonitorState.#ctor">
+            <summary>
+            Create a new FocuserState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.SafetyMonitorState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new FocuserState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.SafetyMonitorState.IsSafe">
+            <summary>
+            Focuser IsMoving state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.SafetyMonitorState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.TelescopeState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.TelescopeState.#ctor">
+            <summary>
+            Create a new TelescopeState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.TelescopeState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new TelescopeState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.Altitude">
+            <summary>
+            Telescope altitude
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.AtHome">
+            <summary>
+            Telescope is at home
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.AtPark">
+            <summary>
+            Telescope is parked
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.Azimuth">
+            <summary>
+            Telescope azimuth
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.Declination">
+            <summary>
+            Telescope declination
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.IsPulseGuiding">
+            <summary>
+            Telescope is pulse guiding
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.RightAscension">
+            <summary>
+            Telescope right ascension
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.SideOfPier">
+            <summary>
+            Telescope pointing state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.SiderealTime">
+            <summary>
+            Telescope sidereal time
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.Slewing">
+            <summary>
+            Telescope is slewing
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.Tracking">
+            <summary>
+            Telescope  is tracking
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.UTCDate">
+            <summary>
+            Telescope UTC date and time
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.TelescopeState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
+        </member>
+        <member name="T:ASCOM.DriverAccess.VideoState">
+            <summary>
+            Class that presents the device's operation state as a set of nullable properties
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.VideoState.#ctor">
+            <summary>
+            Create a new VideoState instance
+            </summary>
+        </member>
+        <member name="M:ASCOM.DriverAccess.VideoState.#ctor(ASCOM.DeviceInterface.IStateValueCollection,System.Object)">
+            <summary>
+            Create a new VideoState instance from the device's DeviceState response.
+            </summary>
+            <param name="deviceStateArrayList">The device's DeviceState response.</param>
+            <param name="TL">Debug TraceLogger instance. The type of this parameter is Object - see remarks.</param>
+            <remarks>This class supports .NET Framework 3.5, 4.x and .NET Standard 2.0. In order to avoid use of dynamic and inclusion of projects or packages that define the TraceLogger
+            component, the TL parameter is typed as an object and a reflection method is used to call the LogMessage member.</remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.VideoState.CameraState">
+            <summary>
+            Focuser IsMoving state
+            </summary>
+        </member>
+        <member name="P:ASCOM.DriverAccess.VideoState.TimeStamp">
+            <summary>
+            The time at which the state was recorded
+            </summary>
         </member>
         <member name="T:ASCOM.DriverAccess.Dome">
             <summary>
@@ -2076,6 +2693,14 @@
             </summary>
             <param name="domeId">Prog ID of the default dome to select. Null if no default is to be set.</param>
             <returns>The Prog ID of the Dome chosen, or Null if no dome is chose, or the dialog is canceled.</returns>
+        </member>
+        <member name="P:ASCOM.DriverAccess.Dome.DomeState">
+            <summary>
+            Dome device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.Dome.AbortSlew">
             <summary>Immediately stops any and all movement.</summary>
@@ -2413,6 +3038,14 @@
             <param name="filterWheelId">FilterWheel Prog ID for default or null for None</param>
             <returns>Prog ID for chosen FilterWheel or null for none</returns>
         </member>
+        <member name="P:ASCOM.DriverAccess.FilterWheel.FilterWheelState">
+            <summary>
+            FilterWheel device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
+        </member>
         <member name="P:ASCOM.DriverAccess.FilterWheel.FocusOffsets">
              <summary>
              Focus offset of each filter in the wheel
@@ -2443,25 +3076,27 @@
              </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.FilterWheel.Position">
-            <summary>
-            Sets or returns the current filter wheel position
-            </summary>
-            <exception cref="T:ASCOM.InvalidValueException">Must throw an InvalidValueException if an invalid position is set</exception>
-            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
-            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>
-            Write a position number between 0 and N-1, where N is the number of filter slots (see
-            <see cref="P:ASCOM.DriverAccess.FilterWheel.Names"/>). Starts filter wheel rotation immediately when written. Reading
-            the property gives current slot number (if wheel stationary) or -1 if wheel is
-            moving. 
-            <para>Returning a position of -1 is <b>mandatory</b> while the filter wheel is in motion; valid slot numbers must not be reported back while
-            the filter wheel is rotating past filter positions.</para>
-            <para><b>Note</b></para>
-            <para>Some filter wheels are built into the camera (one driver, two
-            interfaces).  Some cameras may not actually rotate the wheel until the
-            exposure is triggered.  In this case, the written value is available
-            immediately as the read value, and -1 is never produced.</para>
-            </remarks>
+             <summary>
+             Sets or returns the current filter wheel position
+             </summary>
+             <exception cref="T:ASCOM.InvalidValueException">Must throw an InvalidValueException if an invalid position is set</exception>
+             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
+             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
+             <remarks>
+            <para>This is an asynchronous operation: Writing to Position must return as soon as the filter change operation has been successfully started. Reading the Position property must return -1 while the change
+             is in progress. After the requested position has been successfully reached and motion stops, reading Position must return the requested new filter number.</para>
+             <para>Write a position number between 0 and N-1, where N is the number of filter slots (see
+             <see cref="P:ASCOM.DriverAccess.FilterWheel.Names"/>). Starts filter wheel rotation immediately when written. Reading
+             the property gives current slot number (if wheel stationary) or -1 if wheel is
+             moving.</para>
+             <para>Returning a position of -1 is <b>mandatory</b> while the filter wheel is in motion; valid slot numbers must not be reported back while
+             the filter wheel is rotating past filter positions.</para>
+             <para><b>Note</b></para>
+             <para>Some filter wheels are built into the camera (one driver, two
+             interfaces).  Some cameras may not actually rotate the wheel until the
+             exposure is triggered.  In this case, the written value is available
+             immediately as the read value, and -1 is never produced.</para>
+             </remarks>
         </member>
         <member name="T:ASCOM.DriverAccess.Focuser">
             <summary>
@@ -2481,6 +3116,14 @@
             <param name="focuserId">Focuser Prog ID for default or null for None</param>
             <returns>Prog ID for chosen focuser or null for none</returns>
         </member>
+        <member name="P:ASCOM.DriverAccess.Focuser.FocuserState">
+            <summary>
+            Focuser device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
+        </member>
         <member name="P:ASCOM.DriverAccess.Focuser.Absolute">
             <summary>
             True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
@@ -2496,7 +3139,8 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
-            Some focusers may not support this function, in which case an exception will be raised. 
+            <para>This method must be short-lived; it is defined as synchronous in this specification.</para>
+            <para>Some focusers may not support this function, in which case an exception will be raised.</para>
             <para><b>Recommendation:</b> Host software should call this method upon initialization and,
             if it fails, disable the Halt button in the user interface.</para>
             </remarks>
@@ -2556,9 +3200,12 @@
              <exception cref="T:ASCOM.NotConnectedException">If the device is not connected.</exception>
              <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
              <remarks>
+             <para>This is <see langword="and"/>asynchronous method and must return as soon as the focus change operation has been successfully started, with the <see cref="P:ASCOM.DriverAccess.Focuser.IsMoving"/> property = True.
+             After the requested position is successfully reached and motion stops, the <see cref="P:ASCOM.DriverAccess.Focuser.IsMoving"/> property becomes False.</para>
+             <para>
              If the <see cref="P:ASCOM.DriverAccess.Focuser.Absolute" /> property is True, then this is an absolute positioning focuser. 
              The <see cref="M:ASCOM.DriverAccess.Focuser.Move(System.Int32)">Move</see> command tells the focuser to move to an exact step position, and the Position parameter 
-             of the <see cref="M:ASCOM.DriverAccess.Focuser.Move(System.Int32)">Move</see> method is an integer between 0 and <see cref="P:ASCOM.DriverAccess.Focuser.MaxStep" />.
+             of the <see cref="M:ASCOM.DriverAccess.Focuser.Move(System.Int32)">Move</see> method is an integer between 0 and <see cref="P:ASCOM.DriverAccess.Focuser.MaxStep" />.</para>
              <para>If the <see cref="P:ASCOM.DriverAccess.Focuser.Absolute" /> property is False, then this is a relative positioning focuser. The <see cref="M:ASCOM.DriverAccess.Focuser.Move(System.Int32)">Move</see> command tells 
              the focuser to move in a relative direction, and the Position parameter of the <see cref="M:ASCOM.DriverAccess.Focuser.Move(System.Int32)">Move</see> method (in this case, step distance) 
              is an integer between minus <see cref="P:ASCOM.DriverAccess.Focuser.MaxIncrement" /> and plus <see cref="P:ASCOM.DriverAccess.Focuser.MaxIncrement" />.</para>
@@ -2634,7 +3281,7 @@
             <para>Raises an exception if ambient temperature is not available. Commonly available on focusers with a built-in temperature compensation mode.</para>
             <para><b>Clarification - October 2019</b></para>
             <para>Historically no units were specified for this property. Henceforth, if applications need to process the supplied temperature, they should proceed on the basis that the 
-            units are degrees Celsius for consistency with <see cref="P:ASCOM.DeviceInterface.IObservingConditions.Temperature"/>. Conversion to other temperature units can be achieved through the <see cref="M:ASCOM.Utilities.Util.ConvertUnits(System.Double,ASCOM.Utilities.Units,ASCOM.Utilities.Units)"/> utility method.</para>
+            units are degrees Celsius for consistency with <see cref="P:ASCOM.DeviceInterface.IObservingConditionsV2.Temperature"/>. Conversion to other temperature units can be achieved through the <see cref="M:ASCOM.Utilities.Util.ConvertUnits(System.Double,ASCOM.Utilities.Units,ASCOM.Utilities.Units)"/> utility method.</para>
             </remarks>
         </member>
         <member name="T:ASCOM.DriverAccess.MemberFactory">
@@ -2712,8 +3359,8 @@
             for recording astronomical data or determining refraction corrections.
             </summary>
             <remarks>It is NOT intended as a general purpose environmental sensor system.
-            The <see cref="M:ASCOM.DeviceInterface.IObservingConditions.Action(System.String,System.String)">Action</see> method and 
-            <see cref="P:ASCOM.DeviceInterface.IObservingConditions.SupportedActions">SupportedActions</see> property 
+            The <see cref="M:ASCOM.DeviceInterface.IObservingConditionsV2.Action(System.String,System.String)">Action</see> method and 
+            <see cref="P:ASCOM.DeviceInterface.IObservingConditionsV2.SupportedActions">SupportedActions</see> property 
             can be used to add driver-specific sensors.
             </remarks>
         </member>
@@ -2729,6 +3376,14 @@
             </summary>
             <param name="observingConditionsId">ObservingConditions Prog ID for default or null for None</param>
             <returns>Prog ID for chosen ObservingConditions or null for none</returns>
+        </member>
+        <member name="P:ASCOM.DriverAccess.ObservingConditions.ObservingConditionsState">
+            <summary>
+            ObservingConditions device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.ObservingConditions.AveragePeriod">
             <summary>
@@ -2974,7 +3629,7 @@
              <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
              <remarks>
              <p style="color:red"><b>Must NOT throw a MethodNotImplementedException when the specified sensor is implemented but must throw a MethodNotImplementedException when the specified sensor is not implemented.</b></p>
-            <para>PropertyName must be the name of one of the sensor properties specified in the <see cref="T:ASCOM.DeviceInterface.IObservingConditions"/> interface. If the caller supplies some other value, throw an InvalidValueException.</para>
+            <para>PropertyName must be the name of one of the sensor properties specified in the <see cref="T:ASCOM.DeviceInterface.IObservingConditionsV2"/> interface. If the caller supplies some other value, throw an InvalidValueException.</para>
              <para>Return a negative value to indicate that no valid value has ever been received from the hardware.</para>
              <para>If an empty string is supplied as the PropertyName, the driver must return the time since the most recent update of any sensor. A MethodNotImplementedException must not be thrown in this circumstance.</para>
              </remarks>
@@ -2992,7 +3647,7 @@
             <remarks>
             <p style="color:red"><b>Must NOT throw a MethodNotImplementedException when the specified sensor is implemented 
             but must throw a MethodNotImplementedException when the specified sensor is not implemented.</b></p>
-            <para>PropertyName must be the name of one of the sensor properties specified in the <see cref="T:ASCOM.DeviceInterface.IObservingConditions"/> interface. If the caller supplies some other value, throw an InvalidValueException.</para>
+            <para>PropertyName must be the name of one of the sensor properties specified in the <see cref="T:ASCOM.DeviceInterface.IObservingConditionsV2"/> interface. If the caller supplies some other value, throw an InvalidValueException.</para>
             <para>If the sensor is implemented, this must return a valid string, even if the driver is not connected, so that applications can use this to determine what sensors are available.</para>
             <para>If the sensor is not implemented, this must throw a MethodNotImplementedException.</para>
             </remarks>
@@ -3006,6 +3661,8 @@
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
             <p style="color:red"><b>Optional method, can throw a MethodNotImplementedException</b></p>
+            <para>This must be a short-lived synchronous call that triggers a refresh. It must not wait for long running processes to complete. 
+            It is the client's responsibility to poll , <see cref="M:ASCOM.DriverAccess.ObservingConditions.TimeSinceLastUpdate(System.String)"/> to determine whether / when the data has been refreshed.</para>
             </remarks>
         </member>
         <member name="T:ASCOM.DriverAccess.Rotator">
@@ -3025,6 +3682,14 @@
             </summary>
             <param name="rotatorId">Rotator ProgID for default or null for None</param>
             <returns>ProgID for chosen Rotator or null for none</returns>
+        </member>
+        <member name="P:ASCOM.DriverAccess.Rotator.RotatorState">
+            <summary>
+            Rotator device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Rotator.CanReverse">
             <summary>
@@ -3072,6 +3737,9 @@
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
             <p style="color:red;margin-bottom:0"><b>Must be implemented.</b></p>
+            <para>This is an asynchronous method that returns as soon as the rotation operation has been successfully started, with the
+            <see cref="P:ASCOM.DriverAccess.Rotator.IsMoving"/> property True (unless already at the requested position). After the requested angle is successfully reached and motion stops, 
+            the <see cref="P:ASCOM.DriverAccess.Rotator.IsMoving"/> property must become False.</para>
             <para>Calling <see cref="M:ASCOM.DriverAccess.Rotator.Move(System.Single)">Move</see> causes the <see cref="P:ASCOM.DriverAccess.Rotator.TargetPosition" /> property to change to the sum of the current angular position
             and the value of the <see cref="P:ASCOM.DriverAccess.Rotator.Position" /> parameter (modulo 360 degrees), then starts rotation to <see cref="P:ASCOM.DriverAccess.Rotator.TargetPosition" />.</para>
             <para><b>NOTE</b></para>
@@ -3088,7 +3756,9 @@
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
             <p style="color:red;margin-bottom:0"><b>Must be implemented.</b></p>
-            <p style="color:red"><b>SPECIFICATION REVISION - IRotatorV3 - Platform 6.5</b></p>
+            <para>This is an asynchronous method that returns as soon as the rotation operation has been successfully started, with the
+            <see cref="P:ASCOM.DriverAccess.Rotator.IsMoving"/> property True (unless already at the requested position). After the requested angle is successfully reached and motion stops, 
+            the <see cref="P:ASCOM.DriverAccess.Rotator.IsMoving"/> property must become False.</para>
             <para>
             Calling <see cref="M:ASCOM.DriverAccess.Rotator.MoveAbsolute(System.Single)"/> causes the <see cref="P:ASCOM.DriverAccess.Rotator.TargetPosition" /> property to change to the value of the
             <see cref="P:ASCOM.DriverAccess.Rotator.Position" /> parameter, then starts rotation to <see cref="P:ASCOM.DriverAccess.Rotator.TargetPosition" />. 
@@ -3206,7 +3876,9 @@
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
             <p style="color:red"><b>Must be implemented.</b></p>
-            <p style="color:red"><b>Introduced in IRotatorV3.</b></p>
+            <para>This is an asynchronous method that returns as soon as the rotation operation has been successfully started, with the
+            <see cref="P:ASCOM.DriverAccess.Rotator.IsMoving"/> property True (unless already at the requested position). After the requested angle is successfully reached and motion stops, 
+            the <see cref="P:ASCOM.DriverAccess.Rotator.IsMoving"/> property must become False.</para>
             <para>Moves the rotator to the requested mechanical angle, independent of any sync offset that may have been set. This method is to address requirements that need a physical rotation
             angle such as taking sky flats.</para>
             <para>Client applications should use the <see cref="M:ASCOM.DriverAccess.Rotator.MoveAbsolute(System.Single)"/> method in preference to this method when imaging.</para>
@@ -3229,6 +3901,14 @@
             </summary>
             <param name="safetyMonitorId">SafetyMonitor Prog ID for default or null for None</param>
             <returns>Prog ID for chosen SafetyMonitor or null for none</returns>
+        </member>
+        <member name="P:ASCOM.DriverAccess.SafetyMonitor.SafetyMonitorState">
+            <summary>
+            SafetyMonitor device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.SafetyMonitor.IsSafe">
             <summary>
@@ -3470,6 +4150,77 @@
             <para>This method was first introduced in Version 2.</para>
             </remarks>
         </member>
+        <member name="M:ASCOM.DriverAccess.Switch.SetAsync(System.Int16,System.Boolean)">
+            <summary>
+            Set a boolean switch's state asynchronously
+            </summary>
+            <exception cref="T:ASCOM.MethodNotImplementedException">When CanAsync(id) is false.</exception>
+            <param name="id">Switch number.</param>
+            <param name="state">New boolean state.</param>
+            <remarks>
+            <p style="color:red"><b>This is an optional method and can throw a <see cref="T:ASCOM.MethodNotImplementedException"/> when <see cref="M:ASCOM.DriverAccess.Switch.CanAsync(System.Int16)"/> is <see langword="false"/>.</b></p>
+            <para>
+            This is an asynchronous method that must return as soon as the state change operation has been successfully started, with
+            <see cref="M:ASCOM.DriverAccess.Switch.StateChangeComplete(System.Int16)"/> for the given switch Id = False. After the state change has completed <see cref="M:ASCOM.DriverAccess.Switch.StateChangeComplete(System.Int16)"/> becomes True.
+            </para>
+            <para>
+            <see cref="M:ASCOM.DriverAccess.Switch.GetSwitchValue(System.Int16)"/> must return <see cref="M:ASCOM.DriverAccess.Switch.MaxSwitchValue(System.Int16)" /> if the set state is true and <see cref="M:ASCOM.DriverAccess.Switch.MinSwitchValue(System.Int16)" /> if the set state is false.
+            </para>
+            <para>
+            Devices are numbered from 0 to <see cref="P:ASCOM.DriverAccess.Switch.MaxSwitch"/> - 1
+            </para>
+            </remarks>
+        </member>
+        <member name="M:ASCOM.DriverAccess.Switch.SetAsyncValue(System.Int16,System.Double)">
+            <summary>
+            Set a switch's value asynchronously
+            </summary>
+            <param name="id">Switch number.</param>
+            <param name="value">New double value.</param>
+            <p style="color:red"><b>This is an optional method and can throw a <see cref="T:ASCOM.MethodNotImplementedException"/> when <see cref="M:ASCOM.DriverAccess.Switch.CanAsync(System.Int16)"/> is <see langword="false"/>.</b></p>
+            <exception cref="T:ASCOM.MethodNotImplementedException">When CanAsync(id) is false.</exception>
+            <remarks>
+            <p style="color:red"><b>This is an optional method and can throw a <see cref="T:ASCOM.MethodNotImplementedException"/> when <see cref="M:ASCOM.DriverAccess.Switch.CanAsync(System.Int16)"/> is <see langword="false"/>.</b></p>
+            <para>This is an asynchronous method that must return as soon as the state change operation has been successfully started, with
+            <see cref="M:ASCOM.DriverAccess.Switch.StateChangeComplete(System.Int16)"/> for the given switch Id = False. After the state change has completed <see cref="M:ASCOM.DriverAccess.Switch.StateChangeComplete(System.Int16)"/> becomes True.</para>
+            <para>If the value is more than <see cref="M:ASCOM.DriverAccess.Switch.MaxSwitchValue(System.Int16)"/> or less than <see cref="M:ASCOM.DriverAccess.Switch.MinSwitchValue(System.Int16)"/> the method must throw an <see cref="T:ASCOM.InvalidValueException"/>.</para>
+            <para>A set value that is intermediate between the values specified by <see cref="M:ASCOM.DriverAccess.Switch.SwitchStep(System.Int16)"/> must result in the device being set to an achievable value close to the requested set value.</para>
+            <para>Devices are numbered from 0 to <see cref="P:ASCOM.DriverAccess.Switch.MaxSwitch"/> - 1.</para>
+            <para>This is a Version 2 method.</para>
+            </remarks>
+        </member>
+        <member name="M:ASCOM.DriverAccess.Switch.CanAsync(System.Int16)">
+            <summary>
+            Flag indicating whether this switch can operate asynchronously.
+            </summary>
+            <param name="id">Switch number.</param>
+            <returns>True if the switch can operate asynchronously.</returns>
+            <exception cref="T:ASCOM.MethodNotImplementedException">When CanAsync(id) is false.</exception>
+            <remarks>
+            <p style="color:red"><b>This is a mandatory method and must not throw a <see cref="T:ASCOM.MethodNotImplementedException"/>.</b></p>
+            </remarks>
+        </member>
+        <member name="M:ASCOM.DriverAccess.Switch.StateChangeComplete(System.Int16)">
+            <summary>
+            Completion variable for asynchronous switch state change operations.
+            </summary>
+            <param name="id">Switch number.</param>
+            <exception cref="T:ASCOM.OperationCancelledException">When an in-progress operation is cancelled by the <see cref="M:ASCOM.DriverAccess.Switch.CancelAsync(System.Int16)"/> method.</exception>
+            <returns>False while an asynchronous operation is underway and true when it has completed.</returns>
+            <remarks>
+            <p style="color:red"><b>This is a mandatory method and must not throw a <see cref="T:ASCOM.MethodNotImplementedException"/>.</b></p>
+            </remarks>
+        </member>
+        <member name="M:ASCOM.DriverAccess.Switch.CancelAsync(System.Int16)">
+            <summary>
+            Cancels an in-progress asynchronous state change operation.
+            </summary>
+            <param name="id">Switch number.</param>
+            <remarks>
+            <p style="color:red"><b>This is an optional method and can throw a <see cref="T:ASCOM.MethodNotImplementedException"/>.</b></p>
+            This method must be implemented if it is possible for the device to cancel an asynchronous state change operation, otherwise it must throw a <see cref="T:ASCOM.MethodNotImplementedException"/>.
+            </remarks>
+        </member>
         <member name="T:ASCOM.DriverAccess.Telescope">
             <summary>
             Implements a telescope class to access any registered ASCOM telescope
@@ -3491,6 +4242,14 @@
             <param name="telescopeId">Optional DriverID of the previously selected telescope that is to be the pre-selected telescope in the list. </param>
             <returns>The DriverID of the user selected telescope. Null if the dialogue is cancelled.</returns>
         </member>
+        <member name="P:ASCOM.DriverAccess.Telescope.TelescopeState">
+            <summary>
+            State response from the device
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
+        </member>
         <member name="M:ASCOM.DriverAccess.Telescope.AbortSlew">
             <summary>
             Stops a slew in progress.
@@ -3505,6 +4264,11 @@
             Tracking is returned to its pre-slew state.
             Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is true. 
             </remarks>
+        </member>
+        <member name="P:ASCOM.DriverAccess.Telescope.CanCallBack">
+            <summary>
+            True if the device supports asynchronous operations event notifications.
+            </summary>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.AlignmentMode">
             <summary>
@@ -3548,11 +4312,14 @@
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.AtHome">
-            <summary>
-            True if the telescope is stopped in the Home position. Set only following a FindHome() operation, and reset with any slew operation. This property must be False if the telescope does not support homing. 
-            </summary>
-            <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
-            <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
+             <summary>
+             True if the telescope is stopped in the Home position. Set only following a FindHome() operation, and reset with any slew operation. This property must be False if the telescope does not support homing. 
+             </summary>
+             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
+             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
+             <remarks>
+             <para>This is the correct property to use to determine successful completion of the (asynchronous) <see cref="M:ASCOM.DriverAccess.Telescope.FindHome"/> operation.</para>
+            </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.AtPark">
             <summary>
@@ -3683,7 +4450,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            This will always return False for non-German-equatorial mounts that do not have to be flipped. 
+            This will always return False for mounts that do not have to be flipped. 
             May raise an error if the telescope is not connected. 
             <para>This is only available for telescope InterfaceVersions 2 and later.</para>
             </remarks>
@@ -3715,9 +4482,9 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            If this is true, then only the synchronous equatorial slewing methods are guaranteed to be supported.
-            See the <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAsync" /> property for the asynchronous slewing capability flag. 
-            May raise an error if the telescope is not connected. 
+            If this is true, the <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAsync" /> property must also return true because all drivers must implement asynchronous slewing in this interface version.
+            May raise an error if the telescope is not connected.
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.CanSlewAltAz">
@@ -3727,9 +4494,9 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            If this is true, then only the synchronous local horizontal slewing methods are guaranteed to be supported.
-            See the <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAltAzAsync" /> property for the asynchronous slewing capability flag. 
+            If this is true, the <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAltAzAsync" /> property must also return true because all drivers must implement asynchronous slewing in this interface version.
             May raise an error if the telescope is not connected. 
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.CanSlewAltAzAsync">
@@ -3739,9 +4506,9 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            This indicates the asynchronous local horizontal slewing methods are supported.
-            If this is True, then <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAltAz" /> will also be true. 
+            If this is true, the <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAltAz" /> property must also return true because all drivers must implement synchronous slewing in this interface version to ensure backward compatibility with older clients..
             May raise an error if the telescope is not connected. 
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.CanSlewAsync">
@@ -3751,9 +4518,9 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            This indicates the asynchronous equatorial slewing methods are supported.
-            If this is True, then <see cref="P:ASCOM.DriverAccess.Telescope.CanSlew" /> will also be true.
+            If this is true, the <see cref="P:ASCOM.DriverAccess.Telescope.CanSlew" /> property must also return true because all drivers must implement synchronous slewing in this interface version to ensure backward compatibility with older clients..
             May raise an error if the telescope is not connected. 
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.CanSync">
@@ -3899,8 +4666,8 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            Returns only after the home position has been found.
-            At this point the <see cref="P:ASCOM.DriverAccess.Telescope.AtHome" /> property will be True.
+            <para>This is an asynchronous method: Use the <see cref="P:ASCOM.DriverAccess.Telescope.Slewing"/> property to monitor the operation's progress. 
+            When the mount has successfully reached its home position, <see cref="P:ASCOM.DriverAccess.Telescope.Slewing"/> becomes False and <see cref="P:ASCOM.DriverAccess.Telescope.AtHome"/> becomes True.</para>
             Raises an error if there is a problem. 
             Raises an error if AtPark is true. 
             <para>This is only available for telescope InterfaceVersions 2 and later.</para>
@@ -4032,6 +4799,8 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
+            <para>This is an asynchronous method: Use the <see cref="P:ASCOM.DriverAccess.Telescope.Slewing"/> property to monitor the operation's progress. 
+            When the mount has successfully reached its home position, <see cref="P:ASCOM.DriverAccess.Telescope.Slewing"/> becomes False and <see cref="P:ASCOM.DriverAccess.Telescope.AtPark"/> becomes True.</para>
             Raises an error if there is a problem communicating with the telescope or if parking fails. 
             Parking should put the telescope into a state where its pointing accuracy 
             will not be lost if it is power-cycled (without moving it).
@@ -4053,7 +4822,9 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            This method returns immediately if the hardware is capable of back-to-back moves e.g. dual-axis moves. For hardware not having dual-axis capability, the method returns only after the move has completed.
+            This method is asynchronous and should return quickly using IsPulseGuiding as the completion property. 
+            If the hardware is not capable of simultaneous asynchronous north-south and east-west moves, the guide movements must be effected sequentially and <see cref="P:ASCOM.DriverAccess.Telescope.IsPulseGuiding"/> must remain 
+            True until both moves have completed.
             <para>
             <b>NOTES:</b>
             <list type="bullet">
@@ -4139,6 +4910,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
+            <para>This is an asynchronous method and <see cref="P:ASCOM.DriverAccess.Telescope.Slewing"/> should be set True while the operation is in progress.</para>
             <para>For historical reasons, this property's name does not reflect its true meaning. The name will not be changed (so as to preserve 
             compatibility), but the meaning has since become clear. All conventional mounts have two pointing states for a given equatorial (sky) position. 
             Mechanical limitations often make it impossible for the mount to position the optics at given HA/Dec in one of the two pointing 
@@ -4287,19 +5059,20 @@
             <exception cref="T:ASCOM.ParkedException">If the telescope is parked</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
-            <remarks>
-            This Method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAltAz" /> returns True.
-            Raises an error if the slew fails. 
-            The slew may fail if the target coordinates are beyond limits imposed within the driver component.
-            Such limits include mechanical constraints imposed by the mount or attached instruments,
-            building or dome enclosure restrictions, etc.
-            <para>
-            The <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" /> and <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" /> properties are not changed by this method. 
-            Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is True. 
-            This is only available for telescope InterfaceVersions 2 and later.</para>
-            </remarks>
             <param name="Azimuth">Target azimuth (degrees, North-referenced, positive East/clockwise).</param>
             <param name="Altitude">Target altitude (degrees, positive up)</param>
+            <remarks>
+            <p style="color:red"><b>Deprecated for client applications.</b></p>
+            <para>This method must not be used by applications, use the asynchronous <see cref="M:ASCOM.DriverAccess.Telescope.SlewToAltAzAsync(System.Double,System.Double)"/> method instead.
+            If the mount is capable of slewing, drivers must implement this method to ensure backward compatibility with older clients.</para>
+            <para>
+            This Method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAltAz" /> returns True. Raises an error if the slew fails. The slew may fail if the target coordinates are beyond limits imposed within the driver component.
+            Such limits include mechanical constraints imposed by the mount or attached instruments, building or dome enclosure restrictions, etc.
+            </para>
+            <para>The <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" /> and <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" /> properties are not changed by this method.
+            Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is True. This is only available for telescope InterfaceVersions 2 and later.</para>
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
+            </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.Telescope.SlewToAltAzAsync(System.Double,System.Double)">
             <summary>
@@ -4310,6 +5083,8 @@
             <exception cref="T:ASCOM.ParkedException">If the telescope is parked</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
+            <param name="Azimuth">Azimuth to which to move</param>
+            <param name="Altitude">Altitude to which to move to</param>
             <remarks>
             This method should only be implemented if the properties <see cref="P:ASCOM.DriverAccess.Telescope.Altitude" />, <see cref="P:ASCOM.DriverAccess.Telescope.Azimuth" />,
             <see cref="P:ASCOM.DriverAccess.Telescope.RightAscension" />, <see cref="P:ASCOM.DriverAccess.Telescope.Declination" /> and <see cref="P:ASCOM.DriverAccess.Telescope.Slewing" /> can be read while the scope is slewing.
@@ -4323,9 +5098,9 @@
             <para>
             Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is True.</para>
             <para>This is only available for telescope InterfaceVersions 2 and later.</para>
+            <para>For drivers, <see cref="M:ASCOM.DriverAccess.Telescope.SlewToAltAz(System.Double,System.Double)"/> must also be implemented and <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAltAz"/> must return True when this method is implemented.</para>
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
-            <param name="Azimuth">Azimuth to which to move</param>
-            <param name="Altitude">Altitude to which to move to</param>
         </member>
         <member name="M:ASCOM.DriverAccess.Telescope.SlewToCoordinates(System.Double,System.Double)">
             <summary>
@@ -4336,16 +5111,23 @@
             <exception cref="T:ASCOM.InvalidValueException">If an invalid RightAscension or Declination is specified</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
+            <param name="RightAscension">The destination right ascension (hours). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" />.</param>
+            <param name="Declination">The destination declination (degrees, positive North). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" />.</param>
             <remarks>
-            This Method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlew" /> returns True. Raises an error if the slew fails. 
+            <p style="color:red"><b>Deprecated for client applications.</b></p>
+            <para>This method must not be used by applications, use the asynchronous <see cref="M:ASCOM.DriverAccess.Telescope.SlewToCoordinates(System.Double,System.Double)"/> method instead.
+            If the mount is capable of slewing, drivers must implement this method to ensure backward compatibility with older clients.
+            </para>
+            <para>
+            This Method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlew" /> returns True. Raises an error if the slew fails.
             The slew may fail if the target coordinates are beyond limits imposed within the driver component.
             Such limits include mechanical constraints imposed by the mount or attached instruments,
             building or dome enclosure restrictions, etc. The target coordinates are copied to
-            <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" /> and <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" /> whether or not the slew succeeds. 
+            <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" /> and <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" /> whether or not the slew succeeds.
+            </para>
             <para>Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is False.</para>
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
-            <param name="RightAscension">The destination right ascension (hours). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" />.</param>
-            <param name="Declination">The destination declination (degrees, positive North). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" />.</param>
         </member>
         <member name="M:ASCOM.DriverAccess.Telescope.SlewToCoordinatesAsync(System.Double,System.Double)">
             <summary>
@@ -4356,19 +5138,21 @@
             <exception cref="T:ASCOM.InvalidValueException">If an invalid RightAscension or Declination is specified</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
+            <param name="RightAscension">The destination right ascension (hours). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" />.</param>
+            <param name="Declination">The destination declination (degrees, positive North). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" />.</param>
             <remarks>
-            This method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAsync" /> returns True. Raises an error if starting the slew failed. 
-            Returns immediately after starting the slew. The client may monitor the progress of the slew by reading
+            <para>This method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAsync" /> returns True.Raises an error if starting the slew failed.</para>
+            <para>Returns immediately after starting the slew. The client may monitor the progress of the slew by reading
             the <see cref="P:ASCOM.DriverAccess.Telescope.RightAscension" />, <see cref="P:ASCOM.DriverAccess.Telescope.Declination" />, and <see cref="P:ASCOM.DriverAccess.Telescope.Slewing" /> properties during the slew. When the slew completes,
             <see cref="P:ASCOM.DriverAccess.Telescope.Slewing" /> becomes False. The slew may fail to start if the target coordinates are beyond limits
             imposed within the driver component. Such limits include mechanical constraints imposed
             by the mount or attached instruments, building or dome enclosure restrictions, etc. 
+            </para>
             <para>The target coordinates are copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" /> and <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" />
             whether or not the slew succeeds. 
             Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is False.</para>
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
-            <param name="RightAscension">The destination right ascension (hours). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetRightAscension" />.</param>
-            <param name="Declination">The destination declination (degrees, positive North). Copied to <see cref="P:ASCOM.DriverAccess.Telescope.TargetDeclination" />.</param>
         </member>
         <member name="M:ASCOM.DriverAccess.Telescope.SlewToTarget">
             <summary>
@@ -4379,11 +5163,18 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            This Method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlew" /> returns True. Raises an error if the slew fails. 
-            The slew may fail if the target coordinates are beyond limits imposed within the driver component.
-            Such limits include mechanical constraints imposed by the mount or attached
-            instruments, building or dome enclosure restrictions, etc. 
-            Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is False. 
+            <p style="color:red"><b>Deprecated for client applications.</b></p>
+            <para>
+            This method must not be used by applications, use the asynchronous <see cref="M:ASCOM.DriverAccess.Telescope.SlewToTargetAsync"/> method instead.
+            If the mount is capable of slewing, drivers must implement this method to ensure backward compatibility with older clients.
+            </para>
+            <para>This Method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlew" /> returns True.</para>
+            <para>
+            Raises an error if the slew fails. The slew may fail if the target coordinates are beyond limits imposed within the driver component.
+            Such limits include mechanical constraints imposed by the mount or attached instruments, building or dome enclosure restrictions, etc.
+            </para>
+            <para>Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is False.</para>
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.Telescope.SlewToTargetAsync">
@@ -4396,15 +5187,14 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            This Method must be implemented if  <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAsync" /> returns True.
-            Raises an error if starting the slew failed. 
-            Returns immediately after starting the slew. The client may
-            monitor the progress of the slew by reading the RightAscension, Declination,
-            and Slewing properties during the slew. When the slew completes,  <see cref="P:ASCOM.DriverAccess.Telescope.Slewing" /> becomes False. 
-            The slew may fail to start if the target coordinates are beyond limits imposed within 
-            the driver component. Such limits include mechanical constraints imposed by the mount
-            or attached instruments, building or dome enclosure restrictions, etc. 
-            Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is False. 
+            <para>
+            <para>This Method must be implemented if <see cref="P:ASCOM.DriverAccess.Telescope.CanSlewAsync" /> returns True.</para>
+            Raises an error if starting the slew failed. Returns immediately after starting the slew. The client may monitor the progress of the slew by reading the RightAscension, Declination,
+            and Slewing properties during the slew. When the slew completes,  <see cref="P:ASCOM.DriverAccess.Telescope.Slewing" /> becomes False. The slew may fail to start if the target coordinates are beyond limits imposed within
+            the driver component. Such limits include mechanical constraints imposed by the mount or attached instruments, building or dome enclosure restrictions, etc.
+            Raises an error if <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> is True, or if <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> is False.
+            </para>
+            <para>See <conceptualLink target="c37349a5-a535-47d6-8c30-11c620932213"/> for important COM and Alpaca implementation requirements.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Telescope.Slewing">
@@ -4423,6 +5213,7 @@
             <see cref="M:ASCOM.DriverAccess.Telescope.PulseGuide(ASCOM.DeviceInterface.GuideDirections,System.Int32)">PulseGuide</see>, <see cref="P:ASCOM.DriverAccess.Telescope.RightAscensionRate" />, and <see cref="P:ASCOM.DriverAccess.Telescope.DeclinationRate" />.
             It reflects only motion caused by one of the Slew commands, 
             flipping caused by changing the <see cref="P:ASCOM.DriverAccess.Telescope.SideOfPier" /> property, or <see cref="M:ASCOM.DriverAccess.Telescope.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" />. 
+            <para>For drivers, <see cref="M:ASCOM.DriverAccess.Telescope.SlewToTarget"/> must also be implemented and <see cref="P:ASCOM.DriverAccess.Telescope.CanSlew"/> must return True when this method is implemented.</para>
             </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.Telescope.SyncToAltAz(System.Double,System.Double)">
@@ -4576,10 +5367,14 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception>
             <remarks>
-            The state of <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> after unparking is undetermined. 
-            Valid only after <see cref="M:ASCOM.DriverAccess.Telescope.Park" />.
-            Applications must check and change Tracking as needed after unparking. 
-            Raises an error if unparking fails. Calling this with <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> = False does nothing (harmless) 
+            <para>
+            This is an asynchronous method and <see cref="P:ASCOM.DriverAccess.Telescope.Slewing"/> must be set True while the mount is parking and False when the operation is complete. 
+            <see cref="P:ASCOM.DriverAccess.Telescope.AtPark"/> will be set True when the mount has parked successfully.
+            </para>
+            <para>
+            The state of <see cref="P:ASCOM.DriverAccess.Telescope.Tracking" /> after unparking is undetermined. Valid only after <see cref="M:ASCOM.DriverAccess.Telescope.Park" />. Applications must check and change Tracking as needed after unparking.
+            Raises an error if unparking fails. Calling this with <see cref="P:ASCOM.DriverAccess.Telescope.AtPark" /> = False does nothing (harmless)
+            </para>
             </remarks>
         </member>
         <member name="T:ASCOM.DriverAccess._Rate">
@@ -4647,13 +5442,13 @@
         </member>
         <member name="T:ASCOM.DriverAccess.AxisRates">
             <summary>
-            A collection of rates at which the telescope may be moved about the specified axis by the <see cref="M:ASCOM.DeviceInterface.ITelescopeV3.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> method.
+            A collection of rates at which the telescope may be moved about the specified axis by the <see cref="M:ASCOM.DeviceInterface.ITelescopeV4.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> method.
             This is only used if the telescope interface version is 2 or 3
             </summary>
-            <remarks><para>See the description of the <see cref="M:ASCOM.DeviceInterface.ITelescopeV3.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> method for more information.</para>
-            <para>This method must return an empty collection if <see cref="M:ASCOM.DeviceInterface.ITelescopeV3.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> is not supported.</para>
+            <remarks><para>See the description of the <see cref="M:ASCOM.DeviceInterface.ITelescopeV4.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> method for more information.</para>
+            <para>This method must return an empty collection if <see cref="M:ASCOM.DeviceInterface.ITelescopeV4.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> is not supported.</para>
             <para>The values used in <see cref="T:ASCOM.DeviceInterface.IRate" /> members must be non-negative; forward and backward motion is achieved by the application
-            applying an appropriate sign to the returned <see cref="T:ASCOM.DeviceInterface.IRate" /> values in the <see cref="M:ASCOM.DeviceInterface.ITelescopeV3.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> command.</para>
+            applying an appropriate sign to the returned <see cref="T:ASCOM.DeviceInterface.IRate" /> values in the <see cref="M:ASCOM.DeviceInterface.ITelescopeV4.MoveAxis(ASCOM.DeviceInterface.TelescopeAxes,System.Double)" /> command.</para>
             </remarks>
         </member>
         <member name="M:ASCOM.DriverAccess.AxisRates.#ctor">
@@ -4746,7 +5541,7 @@
         </member>
         <member name="T:ASCOM.DriverAccess.Video">
             <summary>
-            Provides universal access to Video drivers
+            Defines the IVideo Interface. - NOW DEPRECATED, ONLY RETAINED FOR BACKWARD COMPATIBILITY
             </summary>
         </member>
         <member name="M:ASCOM.DriverAccess.Video.#ctor(System.String)">
@@ -4761,6 +5556,14 @@
             </summary>
             <param name="videoId">Video Prog ID for default or null for None</param>
             <returns>Prog ID for chosen Video or null for none</returns>
+        </member>
+        <member name="P:ASCOM.DriverAccess.Video.VideoState">
+            <summary>
+            VideoState device state
+            </summary>
+            <remarks>
+            <para>See <conceptualLink target="320982e4-105d-46d8-b5f9-efce3f4dafd4"/> for further information on using the class returned by this property.</para>
+            </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.VideoCaptureDeviceName">
             <summary>
@@ -4779,7 +5582,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
-            This value is for information purposes only. The exposure cannot be set directly in seconds, use <see cref="P:ASCOM.DeviceInterface.IVideo.IntegrationRate"/> property to change the exposure. 
+            This value is for information purposes only. The exposure cannot be set directly in seconds, use <see cref="P:ASCOM.DeviceInterface.IVideoV2.IntegrationRate"/> property to change the exposure. 
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.ExposureMin">
@@ -4789,7 +5592,7 @@
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
-            This value is for information purposes only. The exposure cannot be set directly in seconds, use <see cref="P:ASCOM.DeviceInterface.IVideo.IntegrationRate"/> property to change the exposure. 
+            This value is for information purposes only. The exposure cannot be set directly in seconds, use <see cref="P:ASCOM.DeviceInterface.IVideoV2.IntegrationRate"/> property to change the exposure. 
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.FrameRate">
@@ -4801,7 +5604,7 @@
             <remarks>
             Analogue cameras run in one of the two fixed frame rates - 25fps for PAL video and 29.97fps for NTSC video. 
             Digital cameras usually can run at a variable frame rate. This value is for information purposes only and cannot be set. The FrameRate has the same value during the entire operation of the device. 
-            Changing the <see cref="P:ASCOM.DeviceInterface.IVideo.IntegrationRate"/> property may change the actual variable frame rate but cannot change the return value of this property.
+            Changing the <see cref="P:ASCOM.DeviceInterface.IVideoV2.IntegrationRate"/> property may change the actual variable frame rate but cannot change the return value of this property.
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.SupportedIntegrationRates">
@@ -4820,16 +5623,16 @@
         </member>
         <member name="P:ASCOM.DriverAccess.Video.IntegrationRate">
             <summary>
-            Index into the <see cref="P:ASCOM.DeviceInterface.IVideo.SupportedIntegrationRates"/> array for the selected camera integration rate.
+            Index into the <see cref="P:ASCOM.DeviceInterface.IVideoV2.SupportedIntegrationRates"/> array for the selected camera integration rate.
             </summary>
             <exception cref="T:ASCOM.InvalidValueException">Must throw an exception if not valid.</exception>
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if the camera supports only one integration rate (exposure) that cannot be changed.</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
-            <see cref="P:ASCOM.DeviceInterface.IVideo.IntegrationRate"/> can be used to adjust the integration rate (exposure) of the camera, if supported. A 0-based array of strings - <see cref="P:ASCOM.DeviceInterface.IVideo.SupportedIntegrationRates"/>, 
-            which correspond to different discrete integration rate settings supported by the camera will be returned. <see cref="P:ASCOM.DeviceInterface.IVideo.IntegrationRate"/> must be set to an integer in this range.
-            <para>The driver must default <see cref="P:ASCOM.DeviceInterface.IVideo.IntegrationRate"/> to a valid value when integration rate is supported by the camera. </para>
+            <see cref="P:ASCOM.DeviceInterface.IVideoV2.IntegrationRate"/> can be used to adjust the integration rate (exposure) of the camera, if supported. A 0-based array of strings - <see cref="P:ASCOM.DeviceInterface.IVideoV2.SupportedIntegrationRates"/>, 
+            which correspond to different discrete integration rate settings supported by the camera will be returned. <see cref="P:ASCOM.DeviceInterface.IVideoV2.IntegrationRate"/> must be set to an integer in this range.
+            <para>The driver must default <see cref="P:ASCOM.DeviceInterface.IVideoV2.IntegrationRate"/> to a valid value when integration rate is supported by the camera. </para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.LastVideoFrame">
@@ -4863,7 +5666,7 @@
             <para>The most common usage of this property is to select approximate colour balance parameters to be applied to 
             the Bayer matrix of one-shot colour sensors.  Application authors should assume that an appropriate IR cut-off filter is 
             in place for colour sensors.</para>
-            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with 
+            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with 
             the camera hardware, to ensure that the driver is aware of the capabilities of the specific camera model.</para>
             </remarks>
         </member>
@@ -4875,7 +5678,7 @@
              <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
              <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
                <remarks>
-                   <para><see cref="P:ASCOM.DeviceInterface.IVideo.SensorType"/> returns a value indicating whether the sensor is monochrome, or what Bayer matrix it encodes.  
+                   <para><see cref="P:ASCOM.DeviceInterface.IVideoV2.SensorType"/> returns a value indicating whether the sensor is monochrome, or what Bayer matrix it encodes.  
             The following values are defined:</para>
                    <para>
                        <table style="width:76.24%;" cellspacing="0" width="76.24%">
@@ -5129,7 +5932,7 @@
                            </tr>
                        </table>
                    </para>
-                   <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with the camera hardware, to ensure that 
+                   <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with the camera hardware, to ensure that 
             the driver is aware of the capabilities of the specific camera model.</para>
                </remarks>
         </member>
@@ -5206,7 +6009,7 @@
             <value>The size of the video frame buffer. </value>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks><p style="color:red"><b>Must be implemented</b></p> When retrieving video frames using the <see cref="P:ASCOM.DeviceInterface.IVideo.LastVideoFrame" /> property 
+            <remarks><p style="color:red"><b>Must be implemented</b></p> When retrieving video frames using the <see cref="P:ASCOM.DeviceInterface.IVideoV2.LastVideoFrame" /> property 
             the driver may use a buffer to queue the frames waiting to be read by the client. This property returns the size of the buffer in frames or 
             if no buffering is supported then the value of less than 2 should be returned. The size of the buffer can be controlled by the end user from the driver setup dialogue. 
             </remarks>
@@ -5253,55 +6056,55 @@
         </member>
         <member name="P:ASCOM.DriverAccess.Video.GainMax">
             <summary>
-            Maximum value of <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/>.
+            Maximum value of <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/>.
             </summary>
             <value>Short integer representing the maximum gain value supported by the camera.</value>
             <returns>The maximum gain value that this camera supports</returns>
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if GainMax is not supported.</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>When specifying the gain setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideo.GainMax"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideo.GainMin"/> to 
+            <remarks>When specifying the gain setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMax"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMin"/> to 
             specify the range of valid settings.
-            <para><see cref="P:ASCOM.DeviceInterface.IVideo.GainMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideo.GainMin"/>. If either is available, then both must be available.</para>
-            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/> for more information.</para>
-            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with the camera hardware, to ensure 
+            <para><see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMin"/>. If either is available, then both must be available.</para>
+            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/> for more information.</para>
+            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with the camera hardware, to ensure 
             that the driver is aware of the capabilities of the specific camera model.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.GainMin">
             <summary>
-            Minimum value of <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/>.
+            Minimum value of <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/>.
             </summary>
             <returns>The minimum gain value that this camera supports</returns>
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if GainMin is not supported.</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>When specifying the gain setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideo.GainMin"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideo.GainMax"/> to 
+            <remarks>When specifying the gain setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMin"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMax"/> to 
             specify the range of valid settings.
-            <para><see cref="P:ASCOM.DeviceInterface.IVideo.GainMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideo.GainMin"/>. If either is available, then both must be available.</para>
-            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/> for more information.</para>
-            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with the camera hardware, to ensure 
+            <para><see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMin"/>. If either is available, then both must be available.</para>
+            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/> for more information.</para>
+            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with the camera hardware, to ensure 
             that the driver is aware of the capabilities of the specific camera model.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.Gain">
             <summary>
-            Index into the <see cref="P:ASCOM.DeviceInterface.IVideo.Gains"/> array for the selected camera gain.
+            Index into the <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gains"/> array for the selected camera gain.
             </summary>
-            <value>Short integer index for the current camera gain in the <see cref="P:ASCOM.DeviceInterface.IVideo.Gains"/> string array.</value>
+            <value>Short integer index for the current camera gain in the <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gains"/> string array.</value>
             <returns>Index into the Gains array for the selected camera gain</returns>
             <exception cref="T:ASCOM.InvalidValueException">Must throw an exception if not valid.</exception>
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if gain is not supported.</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
-            <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/> can be used to adjust the gain setting of the camera, if supported. There are two typical usage scenarios:
+            <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/> can be used to adjust the gain setting of the camera, if supported. There are two typical usage scenarios:
             <ul>
-            	<li>Discrete gain video cameras will return a 0-based array of strings - <see cref="P:ASCOM.DeviceInterface.IVideo.Gains"/>, which correspond to different discrete gain settings supported by the camera. <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/> must be set to an integer in this range. <see cref="P:ASCOM.DeviceInterface.IVideo.GainMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideo.GainMax"/> must thrown an exception if 
+            	<li>Discrete gain video cameras will return a 0-based array of strings - <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gains"/>, which correspond to different discrete gain settings supported by the camera. <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/> must be set to an integer in this range. <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMax"/> must thrown an exception if 
             this mode is used.</li>
-            	<li>Adjustable gain video cameras - <see cref="P:ASCOM.DeviceInterface.IVideo.GainMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideo.GainMax"/> return integers, which specify the valid range for <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/>.</li>
+            	<li>Adjustable gain video cameras - <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMax"/> return integers, which specify the valid range for <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/>.</li>
             </ul>
-            <para>The driver must default <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/> to a valid value. </para>
+            <para>The driver must default <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/> to a valid value. </para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.Gains">
@@ -5312,66 +6115,66 @@
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if Gains is not supported</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks><see cref="P:ASCOM.DeviceInterface.IVideo.Gains"/> provides a 0-based array of available gain settings.
+            <remarks><see cref="P:ASCOM.DeviceInterface.IVideoV2.Gains"/> provides a 0-based array of available gain settings.
             Typically the application software will display the available gain settings in a drop list. The application will then supply 
-            the selected index to the driver via the <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/> property. 
-            <para>The <see cref="P:ASCOM.DeviceInterface.IVideo.Gain"/> setting may alternatively be specified using integer values; if this mode is used then <see cref="P:ASCOM.DeviceInterface.IVideo.Gains"/> is invalid 
-            and must throw an exception. Please see <see cref="P:ASCOM.DeviceInterface.IVideo.GainMax"/> and <see cref="P:ASCOM.DeviceInterface.IVideo.GainMin"/> for more information.</para>
-            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with the camera hardware, 
+            the selected index to the driver via the <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/> property. 
+            <para>The <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gain"/> setting may alternatively be specified using integer values; if this mode is used then <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gains"/> is invalid 
+            and must throw an exception. Please see <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMax"/> and <see cref="P:ASCOM.DeviceInterface.IVideoV2.GainMin"/> for more information.</para>
+            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with the camera hardware, 
             to ensure that the driver is aware of the capabilities of the specific camera model.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.GammaMax">
             <summary>
-            Maximum value of <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/>.
+            Maximum value of <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/>.
             </summary>
             <value>Short integer representing the maximum gamma value supported by the camera.</value>
             <returns>The maximum gain value that this camera supports</returns>
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if GammaMax is not supported</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>When specifying the gamma setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMax"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMin"/> to 
+            <remarks>When specifying the gamma setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMax"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMin"/> to 
             specify the range of valid settings.
-            <para><see cref="P:ASCOM.DeviceInterface.IVideo.GammaMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMin"/>. If either is available, then both must be available.</para>
-            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/> for more information.</para>
-            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with the camera hardware, to ensure 
+            <para><see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMin"/>. If either is available, then both must be available.</para>
+            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/> for more information.</para>
+            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with the camera hardware, to ensure 
             that the driver is aware of the capabilities of the specific camera model.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.GammaMin">
             <summary>
-            Minimum value of <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/>.
+            Minimum value of <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/>.
             </summary>
             <returns>The minimum gamma value that this camera supports</returns>
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if GammaMin is not supported.</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks>When specifying the gamma setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMin"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMax"/> to 
+            <remarks>When specifying the gamma setting with an integer value, <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMin"/> is used in conjunction with <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMax"/> to 
             specify the range of valid settings.
-            <para><see cref="P:ASCOM.DeviceInterface.IVideo.GammaMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMin"/>. If either is available, then both must be available.</para>
-            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/> for more information.</para>
-            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with the camera hardware, to ensure 
+            <para><see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMax"/> shall be greater than <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMin"/>. If either is available, then both must be available.</para>
+            <para>Please see <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/> for more information.</para>
+            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with the camera hardware, to ensure 
             that the driver is aware of the capabilities of the specific camera model.</para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.Gamma">
             <summary>
-            Index into the <see cref="P:ASCOM.DeviceInterface.IVideo.Gammas"/> array for the selected camera gamma.
+            Index into the <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gammas"/> array for the selected camera gamma.
             </summary>
-            <value>Short integer index for the current camera gamma in the <see cref="P:ASCOM.DeviceInterface.IVideo.Gammas"/> string array.</value>
+            <value>Short integer index for the current camera gamma in the <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gammas"/> string array.</value>
             <returns>Index into the Gammas array for the selected camera gamma</returns>
             <exception cref="T:ASCOM.InvalidValueException">Must throw an exception if not valid.</exception>
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if gamma is not supported.</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
             <remarks>
-            <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/> can be used to adjust the gamma setting of the camera, if supported. There are two typical usage scenarios:
+            <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/> can be used to adjust the gamma setting of the camera, if supported. There are two typical usage scenarios:
             <ul>
-            	<li>Discrete gamma video cameras will return a 0-based array of strings - <see cref="P:ASCOM.DeviceInterface.IVideo.Gammas"/>, which correspond to different discrete gamma settings supported by the camera. <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/> must be set to an integer in this range. <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMax"/> must thrown an exception if 
+            	<li>Discrete gamma video cameras will return a 0-based array of strings - <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gammas"/>, which correspond to different discrete gamma settings supported by the camera. <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/> must be set to an integer in this range. <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMax"/> must thrown an exception if 
             this mode is used.</li>
-            	<li>Adjustable gain video cameras - <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMax"/> return integers, which specify the valid range for <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/>.</li>
+            	<li>Adjustable gain video cameras - <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMin"/> and <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMax"/> return integers, which specify the valid range for <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/>.</li>
             </ul>
-            <para>The driver must default <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/> to a valid value. </para>
+            <para>The driver must default <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/> to a valid value. </para>
             </remarks>
         </member>
         <member name="P:ASCOM.DriverAccess.Video.Gammas">
@@ -5382,18 +6185,18 @@
             <exception cref="T:ASCOM.PropertyNotImplementedException">Must throw an exception if Gammas is not supported</exception>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
-            <remarks><see cref="P:ASCOM.DeviceInterface.IVideo.Gammas"/> provides a 0-based array of available gamma settings. This list can contain the widely used values of <b>OFF</b>, <b>LO</b> and <b>HI</b> that correspond to gammas of <b>1.00</b>, <b>0.45</b> and <b>0.35</b> as well as other extended values.
+            <remarks><see cref="P:ASCOM.DeviceInterface.IVideoV2.Gammas"/> provides a 0-based array of available gamma settings. This list can contain the widely used values of <b>OFF</b>, <b>LO</b> and <b>HI</b> that correspond to gammas of <b>1.00</b>, <b>0.45</b> and <b>0.35</b> as well as other extended values.
             Typically the application software will display the available gamma settings in a drop list. The application will then supply 
-            the selected index to the driver via the <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/> property. 
-            <para>The <see cref="P:ASCOM.DeviceInterface.IVideo.Gamma"/> setting may alternatively be specified using integer values; if this mode is used then <see cref="P:ASCOM.DeviceInterface.IVideo.Gammas"/> is invalid 
-            and must throw an exception. Please see <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMax"/> and <see cref="P:ASCOM.DeviceInterface.IVideo.GammaMin"/> for more information.</para>
-            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideo.Connected">connection</see> is established with the camera hardware, 
+            the selected index to the driver via the <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/> property. 
+            <para>The <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gamma"/> setting may alternatively be specified using integer values; if this mode is used then <see cref="P:ASCOM.DeviceInterface.IVideoV2.Gammas"/> is invalid 
+            and must throw an exception. Please see <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMax"/> and <see cref="P:ASCOM.DeviceInterface.IVideoV2.GammaMin"/> for more information.</para>
+            <para>It is recommended that this function be called only after a <see cref="P:ASCOM.DeviceInterface.IVideoV2.Connected">connection</see> is established with the camera hardware, 
             to ensure that the driver is aware of the capabilities of the specific camera model.</para>
             </remarks>	
         </member>
         <member name="P:ASCOM.DriverAccess.Video.CanConfigureDeviceProperties">
             <summary>
-            Returns True if the driver supports custom device properties configuration via the <see cref="M:ASCOM.DeviceInterface.IVideo.ConfigureDeviceProperties"/> method.
+            Returns True if the driver supports custom device properties configuration via the <see cref="M:ASCOM.DeviceInterface.IVideoV2.ConfigureDeviceProperties"/> method.
             </summary>
             <exception cref="T:ASCOM.NotConnectedException">If the device is not connected</exception>
             <exception cref="T:ASCOM.DriverException">An error occurred that is not described by one of the more specific ASCOM exceptions. The device did not successfully complete the request.</exception> 
@@ -5410,9 +6213,9 @@
             <remarks>
             <para>The dialogue could also provide buttons for cameras that can be controlled via 'on screen display' menus and a set of navigation buttons such as Up, Down, Left, Right and Enter. 
             This dialogue is not intended to be used in unattended mode but can give greater control over video cameras that provide special features. The dialogue may also allow 
-            changing standard <see cref="T:ASCOM.DeviceInterface.IVideo"/> interface settings such as Gamma and Gain. If a client software 
-            displays any <see cref="T:ASCOM.DeviceInterface.IVideo"/> interface settings then it should take care to keep in sync the values changed by this method and those changed directly via the interface.</para>
-            <para>To support automated and unattended control over the specialized device settings or functions available on this dialogue the driver should also allow their control via <see cref="P:ASCOM.DeviceInterface.IVideo.SupportedActions"/>. 
+            changing standard <see cref="T:ASCOM.DeviceInterface.IVideoV2"/> interface settings such as Gamma and Gain. If a client software 
+            displays any <see cref="T:ASCOM.DeviceInterface.IVideoV2"/> interface settings then it should take care to keep in sync the values changed by this method and those changed directly via the interface.</para>
+            <para>To support automated and unattended control over the specialized device settings or functions available on this dialogue the driver should also allow their control via <see cref="P:ASCOM.DeviceInterface.IVideoV2.SupportedActions"/>. 
             This dialogue is meant to be used by the applications to allow the user to adjust specialized device settings when those applications don't specifically use the specialized settings in their functionality.</para>
             <para>Examples for specialized settings that could be supported are white balance and sharpness.</para>
             </remarks>
