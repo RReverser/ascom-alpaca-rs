@@ -178,14 +178,16 @@ ascom_error_codes! {
     NOT_CONNECTED = 0x407,
     #[doc = "Property or method not implemented"]
     NOT_IMPLEMENTED = 0x400,
-    #[doc = "The requested item is not present in the ASCOM cache"]
-    NOT_IN_CACHE = 0x40D,
-    #[doc = "Settings error"]
-    SETTINGS = 0x40A,
-    #[doc = "Unspecified error"]
-    UNSPECIFIED = 0x4FF,
     #[doc = "A value has not been set"]
     VALUE_NOT_SET = 0x402,
+}
+
+impl ASCOMErrorCode {
+    /// Unspecified error.
+    ///
+    /// Exists to map internal client errors to the Alpaca error structure.
+    /// Internal use only.
+    pub(crate) const UNSPECIFIED: Self = Self(0x4FF);
 }
 
 impl ASCOMError {
