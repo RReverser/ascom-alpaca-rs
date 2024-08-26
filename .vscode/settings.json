@@ -3,5 +3,6 @@
 		"all-devices",
 		"client",
 		"server",
-	]
+	],
+	"rust-analyzer.check.workspace": false
 }

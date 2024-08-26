@@ -9,22 +9,32 @@ description = "Rust implementation of the ASCOM Alpaca API for astronomy devices
 repository = "https://github.com/RReverser/ascom-alpaca-rs"
 license = "MIT OR Apache-2.0"
 
-[dependencies]
-async-fn-stream = "0.2.2"
+[workspace.dependencies]
 async-trait = "0.1.81"
-axum = { version = "0.7.5", optional = true }
-bytemuck = { version = "1.17.0", features = ["derive", "extern_crate_std"] }
-bytes = { version = "1.7.1", optional = true }
 custom_debug = "0.6.1"
-default-net = "0.22.0"
 eyre = "0.6.12"
 futures = "0.3.30"
-http = "1.1.0"
-indexmap = { version = "2.4.0", features = ["serde"] }
+ndarray = { version = "0.16.1" }
+tokio = "1.39.3"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+
+[dependencies]
+async-fn-stream = { version = "0.2.2", optional = true }
+async-trait = { workspace = true }
+axum = { version = "0.7.5", optional = true }
+bytemuck = { version = "1.17.0", features = ["derive", "extern_crate_std"], optional = true }
+bytes = { version = "1.7.1", optional = true }
+custom_debug = { workspace = true }
+default-net = "0.22.0"
+eyre = { workspace = true }
+futures = { workspace = true, optional = true }
+http = { version = "1.1.0", optional = true }
+indexmap = { version = "2.4.0", features = ["serde"], optional = true }
 macro_rules_attribute = "0.2.0"
 mediatype = { version = "0.19.18", optional = true }
 mime = { version = "0.3.17", optional = true }
-ndarray = { version = "0.16.1", optional = true }
+ndarray = { workspace = true, optional = true }
 net-literals = "0.2.0"
 num_enum = "0.7.3"
 once_cell = { version = "1.19.0", optional = true }
@@ -34,33 +44,28 @@ sailfish = { version = "0.8.3", optional = true }
 serde = { version = "1.0.208", features = ["derive", "rc"] }
 serde-ndim = { version = "2.0.1", optional = true, features = ["ndarray"] }
 serde_json = { version = "1.0.125" }
-serde_plain = "1.0.2"
+serde_plain = { version = "1.0.2", optional = true }
 serde_repr = "0.1.19"
 socket2 = "0.5.7"
 thiserror = "1.0.63"
 time = { version = "0.3.36", features = ["formatting", "parsing"], optional = true }
-tokio = { version = "1.39.3", features = ["net", "rt", "io-util"] }
-tracing = "0.1.40"
-tracing-futures = { version = "0.2.5", features = ["futures-03"] }
+tokio = { workspace = true, features = ["net", "rt", "io-util"] }
+tracing = { workspace = true }
+tracing-futures = { version = "0.2.5", features = ["futures-03"], optional = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock"] }
 
 [dev-dependencies]
-ascom-alpaca = { path = ".", features = ["test"] }
-bayer = "0.1.5"
+ascom-alpaca = { path = ".", features = ["client", "server"] }
 criterion = { version = "0.5.1", features = ["async_tokio"] }
 ctor = "0.2.8"
-eframe = "0.28.1"
-# apparently Cargo doesn't allow `test` to enable `ndarray/rayon` when `ndarray` is an optional dependency
-# hence the duplicate dep with rayon feature
-nokhwa = { version = "0.10.4", features = ["input-native", "output-threaded"] }
-parking_lot = { version = "0.12.3", features = ["arc_lock", "send_guard"] }
 serial_test = "3.1.1"
-tracing-subscriber = "0.3.18"
 tracing-error = "0.2.0"
 color-eyre = "0.6.3"
 tracing-forest = { version = "0.1.6", features = ["ansi"] }
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [[bench]]
 name = "image_array"
@@ -69,27 +74,26 @@ harness = false
 [features]
 all-devices = ["camera", "covercalibrator", "dome", "filterwheel", "focuser", "observingconditions", "rotator", "safetymonitor", "switch", "telescope"]
 
-camera = ["dep:mediatype", "dep:ndarray", "dep:serde-ndim", "dep:time"]
-covercalibrator = []
-dome = []
-filterwheel = []
-focuser = []
-observingconditions = []
-rotator = []
-safetymonitor = []
-switch = []
-telescope = ["dep:time"]
+__anydevice = []
 
-client = ["dep:reqwest", "dep:bytes", "dep:mime", "dep:rand", "dep:once_cell", "time/parsing"]
-server = ["dep:axum", "dep:sailfish", "tokio/macros", "time/formatting"]
+camera = ["__anydevice", "dep:bytemuck", "dep:mediatype", "dep:ndarray", "dep:serde-ndim", "dep:time"]
+covercalibrator = ["__anydevice"]
+dome = ["__anydevice"]
+filterwheel = ["__anydevice"]
+focuser = ["__anydevice"]
+observingconditions = ["__anydevice"]
+rotator = ["__anydevice"]
+safetymonitor = ["__anydevice"]
+switch = ["__anydevice"]
+telescope = ["__anydevice", "dep:time"]
 
-test = ["client", "server", "camera", "tokio/macros", "tokio/rt-multi-thread", "ndarray/rayon"]
+client = ["dep:async-fn-stream", "dep:futures", "dep:tracing-futures", "dep:reqwest", "dep:bytes", "dep:mime", "dep:rand", "dep:once_cell"]
+server = ["dep:bytemuck", "dep:axum", "dep:http", "dep:sailfish", "dep:indexmap", "dep:serde_plain"]
 
 nightly = []
 
 [package.metadata.docs.rs]
 all-features = true
 
-[patch.crates-io]
-# https://github.com/l1npengtul/nokhwa/issues/177
-nokhwa = { git = "https://github.com/l1npengtul/nokhwa", rev = "74a98ace10368320cfcc2186118ae10d5308ca59" }
+[workspace]
+members = ["examples/*"]

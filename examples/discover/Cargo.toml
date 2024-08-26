@@ -1,0 +1,13 @@
+[package]
+name = "discover"
+edition = "2021"
+publish = false
+
+[dependencies]
+ascom-alpaca = { path = "../..", features = ["client", "all-devices"] }
+
+eyre = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

@@ -52,8 +52,10 @@ use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
 use bool_param::BoolParam;
 use macro_rules_attribute::apply;
+#[cfg_attr(not(feature = "all-devices"), allow(unused_imports))]
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
+#[cfg_attr(not(feature = "all-devices"), allow(unused_imports))]
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 pub use server_info::*;

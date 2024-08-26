@@ -1,0 +1,19 @@
+[package]
+name = "camera-server"
+edition = "2021"
+publish = false
+
+[dependencies]
+ascom-alpaca = { path = "../..", features = ["server", "camera"] }
+
+async-trait = { workspace = true }
+custom_debug = { workspace = true }
+eyre = { workspace = true }
+ndarray = { workspace = true, features = ["rayon"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# https://github.com/l1npengtul/nokhwa/issues/177
+nokhwa = { git = "https://github.com/l1npengtul/nokhwa", rev = "74a98ace10368320cfcc2186118ae10d5308ca59", features = ["input-native", "output-threaded"] }
+parking_lot = { version = "0.12.3", features = ["arc_lock", "send_guard"] }

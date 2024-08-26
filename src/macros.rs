@@ -182,9 +182,6 @@ pub(crate) use rpc_trait;
 
 macro_rules! rpc_mod {
     ($($trait_name:ident = $path:literal,)*) => {
-        #[cfg(not(any( $(feature = $path),* )))]
-        compile_error!(concat!("At least one device type must be enabled via Cargo features:" $(, "\n - ", $path)*));
-
         pub(crate) mod internal {
             // Not really public, needed for a Voldemort trait RetrieavableDevice.
             #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
@@ -220,10 +217,10 @@ macro_rules! rpc_mod {
         #[cfg(feature = "server")]
         impl TypedDevice {
             pub(crate) fn to_configured_device(&self, as_number: usize) -> $crate::api::ConfiguredDevice<DeviceType> {
-                match self {
+                match *self {
                     $(
                         #[cfg(feature = $path)]
-                        Self::$trait_name(device) => $crate::api::ConfiguredDevice {
+                        Self::$trait_name(ref device) => $crate::api::ConfiguredDevice {
                             name: device.static_name().to_owned(),
                             ty: DeviceType::$trait_name,
                             number: as_number,

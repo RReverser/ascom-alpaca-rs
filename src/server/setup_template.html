@@ -65,7 +65,7 @@
       <p>No devices are registered on this server.</p>
     <% } %>
 
-    <% for (group_ty, group) in grouped_devices { %>
+    <% #[cfg(feature = "__anydevice")] for (group_ty, group) in grouped_devices { %>
     <figure>
       <figcaption>
         <%= match group_ty {
