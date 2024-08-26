@@ -13,7 +13,7 @@ license = "MIT OR Apache-2.0"
 async-fn-stream = "0.2.2"
 async-trait = "0.1.81"
 axum = { version = "0.7.5", optional = true }
-bytemuck = { version = "1.17.0", features = ["derive", "extern_crate_std"], optional = true }
+bytemuck = { version = "1.17.0", features = ["derive", "extern_crate_std"] }
 bytes = { version = "1.7.1", optional = true }
 custom_debug = "0.6.1"
 default-net = "0.22.0"
@@ -38,7 +38,7 @@ serde_plain = "1.0.2"
 serde_repr = "0.1.19"
 socket2 = "0.5.7"
 thiserror = "1.0.63"
-time = { version = "0.3.36", features = ["formatting", "parsing"] }
+time = { version = "0.3.36", features = ["formatting", "parsing"], optional = true }
 tokio = { version = "1.39.3", features = ["net", "rt", "io-util"] }
 tracing = "0.1.40"
 tracing-futures = { version = "0.2.5", features = ["futures-03"] }
@@ -54,11 +54,9 @@ ctor = "0.2.8"
 eframe = "0.28.1"
 # apparently Cargo doesn't allow `test` to enable `ndarray/rayon` when `ndarray` is an optional dependency
 # hence the duplicate dep with rayon feature
-ndarray = { version = "0.16.1", features = ["rayon"] }
 nokhwa = { version = "0.10.4", features = ["input-native", "output-threaded"] }
 parking_lot = { version = "0.12.3", features = ["arc_lock", "send_guard"] }
 serial_test = "3.1.1"
-time = { version = "0.3.36", features = ["formatting"] }
 tracing-subscriber = "0.3.18"
 tracing-error = "0.2.0"
 color-eyre = "0.6.3"
@@ -71,7 +69,7 @@ harness = false
 [features]
 all-devices = ["camera", "covercalibrator", "dome", "filterwheel", "focuser", "observingconditions", "rotator", "safetymonitor", "switch", "telescope"]
 
-camera = ["dep:mediatype", "dep:bytemuck", "dep:ndarray", "dep:serde-ndim"]
+camera = ["dep:mediatype", "dep:ndarray", "dep:serde-ndim", "dep:time"]
 covercalibrator = []
 dome = []
 filterwheel = []
@@ -80,12 +78,12 @@ observingconditions = []
 rotator = []
 safetymonitor = []
 switch = []
-telescope = []
+telescope = ["dep:time"]
 
-client = ["dep:reqwest", "dep:bytes", "dep:mime", "dep:rand", "dep:once_cell"]
-server = ["dep:axum", "dep:sailfish", "tokio/macros"]
+client = ["dep:reqwest", "dep:bytes", "dep:mime", "dep:rand", "dep:once_cell", "time/parsing"]
+server = ["dep:axum", "dep:sailfish", "tokio/macros", "time/formatting"]
 
-test = ["client", "server", "camera", "tokio/macros", "tokio/rt-multi-thread"]
+test = ["client", "server", "camera", "tokio/macros", "tokio/rt-multi-thread", "ndarray/rayon"]
 
 nightly = []
 

@@ -31,7 +31,11 @@ jobs:
       run: cargo clippy --features client,camera
     - name: Build client+telescope
       run: cargo clippy --features client,telescope
+    - name: Build client+focuser
+      run: cargo clippy --features client,focuser
     - name: Build server+camera
       run: cargo clippy --features server,camera
     - name: Build server+telescope
       run: cargo clippy --features server,telescope
+    - name: Build server+focuser
+      run: cargo clippy --features server,focuser

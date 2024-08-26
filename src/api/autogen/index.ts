@@ -207,7 +207,7 @@ interface EnumType extends RegisteredTypeBase {
 
 interface DateType extends RegisteredTypeBase {
   kind: 'Date';
-  trailingZ: boolean;
+  formatName: string;
 }
 
 interface DeviceMethod {
@@ -325,7 +325,8 @@ function handleType(
             name,
             doc: getDoc(schema),
             kind: 'Date',
-            trailingZ: schema.format === 'date-time'
+            formatName:
+              schema.format === 'date-time' ? 'DATE_TIME_OFFSET' : 'DATE_TIME'
           }));
           return rusty('std::time::SystemTime', `${formatter}`);
         }
@@ -668,7 +669,6 @@ use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use time::format_description::well_known::Iso8601;
 
 pub use server_info::*;
 
@@ -745,7 +745,7 @@ ${stringifyIter(types, ({ features, type }) => {
       `;
     }
     case 'Date': {
-      let format = `Iso8601::DATE_TIME${type.trailingZ ? '_OFFSET' : ''}`;
+      let format = `&time::format_description::well_known::Iso8601::${type.formatName}`;
 
       return `
         ${stringifyDoc(type.doc)}
@@ -775,7 +775,7 @@ ${stringifyIter(types, ({ features, type }) => {
           fn serialize<S: serde::Serializer>(value: &time::OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error> {
             value
             .to_offset(time::UtcOffset::UTC)
-            .format(&${format})
+            .format(${format})
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
           }
@@ -791,10 +791,8 @@ ${stringifyIter(types, ({ features, type }) => {
               }
 
               fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                match time::PrimitiveDateTime::parse(value, &${format}) {
-                  Ok(time) => Ok(time.assume_utc()),
-                  Err(err) => Err(serde::de::Error::custom(err)),
-                }
+                time::OffsetDateTime::parse(value, ${format})
+                .map_err(serde::de::Error::custom)
               }
             }
 

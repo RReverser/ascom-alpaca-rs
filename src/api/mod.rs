@@ -55,7 +55,6 @@ use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use time::format_description::well_known::Iso8601;
 
 pub use server_info::*;
 
@@ -133,7 +132,7 @@ impl LastExposureStartTime {
     ) -> Result<S::Ok, S::Error> {
         value
             .to_offset(time::UtcOffset::UTC)
-            .format(&Iso8601::DATE_TIME)
+            .format(&time::format_description::well_known::Iso8601::DATE_TIME)
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
     }
@@ -151,10 +150,11 @@ impl LastExposureStartTime {
             }
 
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                match time::PrimitiveDateTime::parse(value, &Iso8601::DATE_TIME) {
-                    Ok(time) => Ok(time.assume_utc()),
-                    Err(err) => Err(serde::de::Error::custom(err)),
-                }
+                time::OffsetDateTime::parse(
+                    value,
+                    &time::format_description::well_known::Iso8601::DATE_TIME,
+                )
+                .map_err(serde::de::Error::custom)
             }
         }
 
@@ -478,7 +478,7 @@ impl TelescopeUtcdate {
     ) -> Result<S::Ok, S::Error> {
         value
             .to_offset(time::UtcOffset::UTC)
-            .format(&Iso8601::DATE_TIME_OFFSET)
+            .format(&time::format_description::well_known::Iso8601::DATE_TIME_OFFSET)
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
     }
@@ -496,10 +496,11 @@ impl TelescopeUtcdate {
             }
 
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                match time::PrimitiveDateTime::parse(value, &Iso8601::DATE_TIME_OFFSET) {
-                    Ok(time) => Ok(time.assume_utc()),
-                    Err(err) => Err(serde::de::Error::custom(err)),
-                }
+                time::OffsetDateTime::parse(
+                    value,
+                    &time::format_description::well_known::Iso8601::DATE_TIME_OFFSET,
+                )
+                .map_err(serde::de::Error::custom)
             }
         }
 
