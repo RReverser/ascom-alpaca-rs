@@ -1,8 +1,8 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(transparent)]
-pub(crate) struct BoolParam(#[serde(deserialize_with = "BoolParam::deserialize")] bool);
+pub(crate) struct BoolParam(bool);
 
 impl From<bool> for BoolParam {
     fn from(b: bool) -> Self {
@@ -16,8 +16,8 @@ impl From<BoolParam> for bool {
     }
 }
 
-impl BoolParam {
-    fn deserialize<'de, D>(deserializer: D) -> Result<bool, D::Error>
+impl<'de> Deserialize<'de> for BoolParam {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -41,6 +41,6 @@ impl BoolParam {
             }
         }
 
-        deserializer.deserialize_str(Visitor)
+        deserializer.deserialize_str(Visitor).map(Self)
     }
 }
