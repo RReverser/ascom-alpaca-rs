@@ -29,7 +29,6 @@ type ArcArray3<T> = ndarray::ArcArray<T, ndarray::Ix3>;
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub enum ImageArrayRank {
     /// 2D
     Rank2 = 2_i32,
@@ -39,7 +38,6 @@ pub enum ImageArrayRank {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 pub(crate) enum TransmissionElementType {
     I16 = 1,
     I32 = 2,

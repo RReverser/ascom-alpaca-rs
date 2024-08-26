@@ -731,7 +731,6 @@ ${stringifyIter(types, ({ features, type }) => {
         ${cfg}
         #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
         #[repr(${type.baseType})]
-        #[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
         #[allow(missing_docs)] // some enum variants might not have docs and that's okay
         pub enum ${type.name} {
           ${stringifyIter(

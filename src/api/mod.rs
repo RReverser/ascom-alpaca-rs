@@ -78,7 +78,6 @@ pub use image_array::*;
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum CameraState {
     /// At idle state, available to start exposure.
@@ -176,7 +175,6 @@ impl LastExposureStartTime {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum SensorType {
     /// Single-plane monochrome sensor.
@@ -212,7 +210,6 @@ pub enum SensorType {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum GuideDirection {
     North = 0,
@@ -238,7 +235,6 @@ pub enum GuideDirection {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum CalibratorStatus {
     /// This device does not have a calibration capability.
@@ -274,7 +270,6 @@ pub enum CalibratorStatus {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum CoverStatus {
     /// This device does not have a cover that can be closed independently.
@@ -310,7 +305,6 @@ pub enum CoverStatus {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum ShutterState {
     /// The shutter or roof is open.
@@ -343,7 +337,6 @@ pub enum ShutterState {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum AlignmentMode {
     /// Altitude-Azimuth type mount.
@@ -370,7 +363,6 @@ pub enum AlignmentMode {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum EquatorialCoordinateType {
     /// Custom or unknown equinox and/or reference frame.
@@ -403,7 +395,6 @@ pub enum EquatorialCoordinateType {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum PierSide {
     /// Normal pointing state - Mount on the East side of pier (looking West).
@@ -430,7 +421,6 @@ pub enum PierSide {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum DriveRate {
     /// Sidereal tracking rate (15.041 arcseconds per second).
@@ -522,7 +512,6 @@ impl TelescopeUtcdate {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[allow(clippy::default_numeric_fallback)] // false positive https://github.com/rust-lang/rust-clippy/issues/9656
 #[allow(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum TelescopeAxis {
     Primary = 0,
