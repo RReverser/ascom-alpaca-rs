@@ -41,19 +41,13 @@ pub(crate) async fn bind_socket(
             ioctlsocket, WSAGetLastError, SIO_UDP_CONNRESET,
         };
 
-        let mut cmd_io: u32 = 0;
-
         unsafe {
             #[allow(
                 clippy::as_conversions,
                 clippy::cast_possible_truncation,
                 clippy::cast_possible_wrap
             )]
-            match ioctlsocket(
-                socket.as_raw_socket() as _,
-                SIO_UDP_CONNRESET as _,
-                &mut cmd_io,
-            ) {
+            match ioctlsocket(socket.as_raw_socket() as _, SIO_UDP_CONNRESET as _, &mut 0) {
                 0_i32 => Ok(()),
                 _ => Err(WSAGetLastError()),
             }
