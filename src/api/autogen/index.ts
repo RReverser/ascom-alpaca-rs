@@ -280,9 +280,7 @@ function handleObjectProps(
 function handleType(
   devicePath: string,
   name: string,
-  schema: SchemaObject | ReferenceObject = err(
-    'Missing schema'
-  )
+  schema: SchemaObject | ReferenceObject = err('Missing schema')
 ): RustType {
   return withContext(name, () => {
     ({ name = name, target: schema } = nameAndTarget(schema));
@@ -319,12 +317,15 @@ function handleType(
       case 'number':
         return rusty('f64');
       case 'string':
-        if (schema.format === 'date-time' || schema.format === 'date-time-fits') {
+        if (
+          schema.format === 'date-time' ||
+          schema.format === 'date-time-fits'
+        ) {
           let formatter = registerType(devicePath, schema, schema => ({
             name,
             doc: getDoc(schema),
             kind: 'Date',
-            trailingZ: schema.format === 'date-time',
+            trailingZ: schema.format === 'date-time'
           }));
           return rusty('std::time::SystemTime', `${formatter}`);
         }
@@ -444,7 +445,12 @@ function handleResponse(
   devicePath: string,
   prefixName: string,
   {
-    responses: { 200: success, 400: error400, 500: error500, ...otherResponses } = err('Missing responses')
+    responses: {
+      200: success,
+      400: error400,
+      500: error500,
+      ...otherResponses
+    } = err('Missing responses')
   }: OpenAPIV3_1.OperationObject
 ) {
   assertEmpty(otherResponses, 'Unexpected response status codes');
@@ -855,14 +861,16 @@ ${stringifyIter(
           ) -> ASCOMResult${method.returnType.ifNotVoid(type => `<${type}>`)} {
             ${
               method.name.startsWith('can_')
-              ? 'Ok(false)'
-              : device.path === '{device_type}' && method.name === 'name'
-              ? 'Ok(self.static_name().to_owned())'
-              : device.path === '{device_type}' && method.name === 'interface_version'
-              ? 'Ok(3_i32)'
-              : device.path === '{device_type}' && method.name === 'supported_actions'
-              ? 'Ok(vec![])'
-              : 'Err(ASCOMError::NOT_IMPLEMENTED)'
+                ? 'Ok(false)'
+                : device.path === '{device_type}' && method.name === 'name'
+                ? 'Ok(self.static_name().to_owned())'
+                : device.path === '{device_type}' &&
+                  method.name === 'interface_version'
+                ? 'Ok(3_i32)'
+                : device.path === '{device_type}' &&
+                  method.name === 'supported_actions'
+                ? 'Ok(vec![])'
+                : 'Err(ASCOMError::NOT_IMPLEMENTED)'
             }
           }
         `
