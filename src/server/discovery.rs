@@ -1,5 +1,7 @@
 use super::DEFAULT_DISCOVERY_PORT;
-use crate::discovery::{bind_socket, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
+use crate::discovery::{
+    bind_socket, get_active_interfaces, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG,
+};
 use netdev::Interface;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
@@ -23,22 +25,20 @@ fn join_multicast_group(socket: &UdpSocket, intf: &Interface) {
 
 #[tracing::instrument(level = "debug", ret, skip(socket))]
 fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
-    let interfaces = netdev::get_interfaces();
     if listen_addr.is_unspecified() {
         // If it's [::], join multicast on every available interface with IPv6 support.
-        for intf in interfaces {
+        for intf in get_active_interfaces() {
             if !intf.ipv6.is_empty() {
                 join_multicast_group(socket, &intf);
             }
         }
     } else {
         // If it's a specific address, find corresponding interface and join multicast on it.
-        let intf = interfaces
-            .iter()
+        let intf = get_active_interfaces()
             .find(|intf| intf.ipv6.iter().any(|net| net.addr == listen_addr))
             .expect("internal error: couldn't find the interface of an already bound socket");
 
-        join_multicast_group(socket, intf);
+        join_multicast_group(socket, &intf);
     }
 }
 

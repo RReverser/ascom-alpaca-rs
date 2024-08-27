@@ -14,6 +14,12 @@ pub(crate) struct AlpacaPort {
     pub(crate) alpaca_port: u16,
 }
 
+pub(crate) fn get_active_interfaces() -> impl Iterator<Item = Interface> {
+    netdev::get_interfaces()
+        .into_iter()
+        .filter(Interface::is_running)
+}
+
 #[tracing::instrument(level = "trace")]
 pub(crate) async fn bind_socket(
     addr: impl Into<SocketAddr> + std::fmt::Debug + Send,
@@ -67,6 +73,7 @@ pub(crate) async fn bind_socket(
 pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
 #[cfg(feature = "server")]
 pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
+use netdev::Interface;
 #[cfg(windows)]
 use std::os::windows::prelude::AsRawSocket;
 
@@ -136,7 +143,7 @@ mod tests {
                     .chain(DEFAULT_INTF.ipv6.iter().map(|net| (net.addr.into(), expected_addrs.default_intf_v6)));
 
                 for (addr, expected) in expected_addrs {
-                    eyre::ensure!(addrs.contains(&addr) == expected, "Address {addr} was{not} expected", addr = addr, not = if expected { "" } else { " not" });
+                    eyre::ensure!(addrs.contains(&addr) == expected, "Address {addr} was{not} expected", not = if expected { "" } else { " not" });
                 }
 
                 Ok(())

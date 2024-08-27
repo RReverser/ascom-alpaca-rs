@@ -1,6 +1,7 @@
 use crate::api::TypedDevice;
 use crate::discovery::{
-    bind_socket, AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG,
+    bind_socket, get_active_interfaces, AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6,
+    DISCOVERY_MSG,
 };
 use futures::StreamExt;
 use netdev::interface::InterfaceType;
@@ -168,7 +169,7 @@ impl Client {
     #[tracing::instrument(level = "error")]
     pub async fn bind(self) -> eyre::Result<BoundClient> {
         let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0)).await?;
-        let interfaces = tokio::task::spawn_blocking(netdev::get_interfaces).await?;
+        let interfaces = tokio::task::spawn_blocking(|| get_active_interfaces().collect()).await?;
         Ok(BoundClient {
             client: self,
             socket,
