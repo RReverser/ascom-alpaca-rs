@@ -87,8 +87,8 @@ mod tests {
         default_intf_v6: bool,
     }
 
-    static DEFAULT_INTF: Lazy<default_net::Interface> =
-        Lazy::new(|| default_net::get_default_interface().expect("coudn't get default interface"));
+    static DEFAULT_INTF: Lazy<netdev::Interface> =
+        Lazy::new(|| netdev::get_default_interface().expect("coudn't get default interface"));
 
     async fn run_test(server_addr: IpAddr, expected_addrs: ExpectedAddrs) -> eyre::Result<()> {
         let mut server =

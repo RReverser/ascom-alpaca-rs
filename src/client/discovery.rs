@@ -2,9 +2,9 @@ use crate::api::TypedDevice;
 use crate::discovery::{
     bind_socket, AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG,
 };
-use default_net::interface::InterfaceType;
-use default_net::Interface;
 use futures::StreamExt;
+use netdev::interface::InterfaceType;
+use netdev::Interface;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 use tokio::net::UdpSocket;
@@ -168,7 +168,7 @@ impl Client {
     #[tracing::instrument(level = "error")]
     pub async fn bind(self) -> eyre::Result<BoundClient> {
         let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0)).await?;
-        let interfaces = tokio::task::spawn_blocking(default_net::get_interfaces).await?;
+        let interfaces = tokio::task::spawn_blocking(netdev::get_interfaces).await?;
         Ok(BoundClient {
             client: self,
             socket,

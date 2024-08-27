@@ -248,7 +248,6 @@ dependencies = [
  "criterion",
  "ctor",
  "custom_debug",
- "default-net",
  "eyre",
  "futures",
  "http",
@@ -258,6 +257,7 @@ dependencies = [
  "mime",
  "ndarray",
  "net-literals",
+ "netdev",
  "num_enum",
  "once_cell",
  "rand",
@@ -1389,23 +1389,6 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 2.0.76",
-]
-
-[[package]]
-name = "default-net"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c5a6569a908354d49b10db3c516d69aca1eccd97562fd31c98b13f00b73ca66"
-dependencies = [
- "dlopen2",
- "libc",
- "memalloc",
- "netlink-packet-core",
- "netlink-packet-route",
- "netlink-sys",
- "once_cell",
- "system-configuration",
- "windows 0.48.0",
 ]
 
 [[package]]
@@ -2872,6 +2855,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "netdev"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7516ad2c46cc25da098ed7d6b9a0cbe9e1fbffbd04b1596148b95f2841179c83"
+dependencies = [
+ "dlopen2",
+ "libc",
+ "memalloc",
+ "netlink-packet-core",
+ "netlink-packet-route",
+ "netlink-sys",
+ "once_cell",
+ "system-configuration",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "netlink-packet-core"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4268,20 +4268,20 @@ dependencies = [
 
 [[package]]
 name = "system-configuration"
-version = "0.5.1"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
+checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.6.0",
  "core-foundation 0.9.4",
  "system-configuration-sys",
 ]
 
 [[package]]
 name = "system-configuration-sys"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
+checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys 0.8.7",
  "libc",

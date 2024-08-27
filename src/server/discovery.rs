@@ -1,6 +1,6 @@
 use super::DEFAULT_DISCOVERY_PORT;
 use crate::discovery::{bind_socket, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG};
-use default_net::Interface;
+use netdev::Interface;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 
@@ -23,7 +23,7 @@ fn join_multicast_group(socket: &UdpSocket, intf: &Interface) {
 
 #[tracing::instrument(level = "debug", ret, skip(socket))]
 fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
-    let interfaces = default_net::get_interfaces();
+    let interfaces = netdev::get_interfaces();
     if listen_addr.is_unspecified() {
         // If it's [::], join multicast on every available interface with IPv6 support.
         for intf in interfaces {
@@ -61,7 +61,7 @@ impl Server {
     pub async fn bind(self) -> eyre::Result<BoundServer> {
         let mut socket = bind_socket(self.listen_addr).await?;
         if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
-            // Both default_net::get_interfaces and join_multicast_group can take a long time.
+            // Both netdev::get_interfaces and join_multicast_group can take a long time.
             // Spawn them all off to the async runtime.
             socket = tokio::task::spawn_blocking(move || {
                 join_multicast_groups(&socket, listen_addr);
