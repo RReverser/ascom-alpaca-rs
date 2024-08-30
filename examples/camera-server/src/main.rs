@@ -7,10 +7,23 @@ use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
 use nokhwa::{nokhwa_initialize, NokhwaError};
 use parking_lot::{Mutex, RwLock};
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task;
+
+const ERR_EXPOSURE_FAILED_TO_STOP: ASCOMError = ASCOMError {
+    code: ASCOMErrorCode::new_for_driver(0),
+    message: Cow::Borrowed("Exposure failed to stop correctly"),
+};
+
+const ERR_EXPOSING_STATE_CHANGED_UNEXPECTEDLY: ASCOMError = ASCOMError {
+    code: ASCOMErrorCode::new_for_driver(1),
+    message: Cow::Borrowed(
+        "Internal error: exposing state changed unexpectedly during an active exposure",
+    ),
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct Point {
@@ -152,7 +165,7 @@ impl Webcam {
         let done_res = done_rx.wait_for(|&done| done).await;
         match done_res {
             Ok(_) => Ok(()),
-            Err(_) => Err(ASCOMError::unspecified("Exposure failed to stop correctly")),
+            Err(_) => Err(ERR_EXPOSURE_FAILED_TO_STOP),
         }
     }
 }
@@ -466,7 +479,7 @@ impl Camera for Webcam {
             let stop_res = tokio::select! {
                 stop_res = stop_rx => match stop_res {
                     Ok(stop) => Ok(stop),
-                    Err(_) => Err(ASCOMError::unspecified("Internal error: exposing state changed unexpectedly during an active exposure")),
+                    Err(_) => Err(ERR_EXPOSING_STATE_CHANGED_UNEXPECTEDLY),
                 },
                 stop_res = async {
                     let mut single_frame_buffer = Array3::<u8>::zeros((size.y as usize, size.x as usize, 3));
