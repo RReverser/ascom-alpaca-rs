@@ -50,5 +50,6 @@ macro_rules! CargoServerInfo_1bc8c806_8cb9_4aaf_b57a_8f94c4d1b59d {
     };
 }
 
+/// A helper that constructs a [`ServerInfo`](crate::api::ServerInfo) instance populated with metadata from `Cargo.toml`.
 #[doc(inline)]
 pub use CargoServerInfo_1bc8c806_8cb9_4aaf_b57a_8f94c4d1b59d as CargoServerInfo;
