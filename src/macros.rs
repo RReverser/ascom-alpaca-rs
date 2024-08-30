@@ -335,16 +335,17 @@ macro_rules! rpc_mod {
 
         impl<'de> Deserialize<'de> for DevicePath {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                Ok(DevicePath(match String::deserialize(deserializer)?.as_str() {
+                #[derive(Deserialize)]
+                #[serde(remote = "DeviceType")]
+                enum DevicePathRepr {
                     $(
                         #[cfg(feature = $path)]
-                        $path => DeviceType::$trait_name,
+                        #[serde(rename = $path)]
+                        $trait_name,
                     )*
-                    other => return Err(serde::de::Error::unknown_variant(other, &[ $(
-                        #[cfg(feature = $path)]
-                        $path
-                    ),* ])),
-                }))
+                }
+
+                DevicePathRepr::deserialize(deserializer).map(Self)
             }
         }
 
