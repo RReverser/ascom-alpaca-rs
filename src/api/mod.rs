@@ -527,8 +527,7 @@ pub enum TelescopeAxis {
 
 /// Axis rate object
 #[cfg(feature = "telescope")]
-#[allow(missing_copy_implementations)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct AxisRate {
     /// The maximum rate (degrees per second) This must always be a positive number. It indicates the maximum rate in either direction about the axis.

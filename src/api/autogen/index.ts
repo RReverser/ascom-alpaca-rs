@@ -706,8 +706,7 @@ ${stringifyIter(types, ({ features, type }) => {
       return `
         ${stringifyDoc(type.doc)}
         ${cfg}
-        #[allow(missing_copy_implementations)]
-        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
         pub struct ${type.name} {
           ${stringifyIter(
