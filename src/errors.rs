@@ -118,11 +118,11 @@ impl ASCOMError {
 pub type ASCOMResult<T = ()> = Result<T, ASCOMError>;
 
 macro_rules! ascom_error_codes {
-    ($(#[doc = $doc:literal] $name:ident = $value:literal,)*) => {
+    ($(#[doc = $doc:literal] $vis:vis $name:ident = $value:literal,)*) => {
         impl ASCOMErrorCode {
             $(
                 #[doc = $doc]
-                pub const $name: Self = Self($value);
+                $vis const $name: Self = Self($value);
             )*
         }
 
@@ -146,10 +146,11 @@ macro_rules! ascom_error_codes {
             }
         }
 
+        #[allow(unused)]
         impl ASCOMError {
             $(
                 #[doc = $doc]
-                pub const $name: Self = Self {
+                $vis const $name: Self = Self {
                     code: ASCOMErrorCode::$name,
                     message: Cow::Borrowed(ascom_error_codes!(@msg $name $doc)),
                 };
@@ -163,31 +164,30 @@ macro_rules! ascom_error_codes {
 
 ascom_error_codes! {
     #[doc = "Success"]
-    OK = 0,
-    #[doc = "The requested action is not implemented in this driver"]
-    ACTION_NOT_IMPLEMENTED = 0x40C,
-    #[doc = "The requested operation can not be undertaken at this time"]
-    INVALID_OPERATION = 0x40B,
-    #[doc = "Invalid value"]
-    INVALID_VALUE = 0x401,
-    #[doc = "The attempted operation is invalid because the mount is currently in a Parked state"]
-    INVALID_WHILE_PARKED = 0x408,
-    #[doc = "The attempted operation is invalid because the mount is currently in a Slaved state"]
-    INVALID_WHILE_SLAVED = 0x409,
-    #[doc = "The communications channel is not connected"]
-    NOT_CONNECTED = 0x407,
-    #[doc = "Property or method not implemented"]
-    NOT_IMPLEMENTED = 0x400,
-    #[doc = "A value has not been set"]
-    VALUE_NOT_SET = 0x402,
-}
+    pub OK = 0,
 
-impl ASCOMErrorCode {
-    /// Unspecified error.
-    ///
-    /// Exists to map internal client errors to the Alpaca error structure.
-    /// Internal use only.
-    pub(crate) const UNSPECIFIED: Self = Self(0x4FF);
+    // Well-known Alpaca error codes as per the specification.
+    #[doc = "The requested action is not implemented in this driver"]
+    pub ACTION_NOT_IMPLEMENTED = 0x40C,
+    #[doc = "The requested operation can not be undertaken at this time"]
+    pub INVALID_OPERATION = 0x40B,
+    #[doc = "Invalid value"]
+    pub INVALID_VALUE = 0x401,
+    #[doc = "The attempted operation is invalid because the mount is currently in a Parked state"]
+    pub INVALID_WHILE_PARKED = 0x408,
+    #[doc = "The attempted operation is invalid because the mount is currently in a Slaved state"]
+    pub INVALID_WHILE_SLAVED = 0x409,
+    #[doc = "The communications channel is not connected"]
+    pub NOT_CONNECTED = 0x407,
+    #[doc = "Property or method not implemented"]
+    pub NOT_IMPLEMENTED = 0x400,
+    #[doc = "A value has not been set"]
+    pub VALUE_NOT_SET = 0x402,
+
+    // Exists to map internal client errors to the Alpaca error structure.
+    // Internal use only.
+    #[doc = "Unspecified error"]
+    pub(crate) UNSPECIFIED = 0x4FF,
 }
 
 impl ASCOMError {
@@ -202,7 +202,7 @@ impl ASCOMError {
     }
 
     /// Create a new error with unspecified error code and the given message.
-    pub fn unspecified(message: impl std::fmt::Display) -> Self {
+    pub(crate) fn unspecified(message: impl std::fmt::Display) -> Self {
         Self::new(ASCOMErrorCode::UNSPECIFIED, message)
     }
 }
