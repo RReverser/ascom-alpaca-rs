@@ -216,12 +216,7 @@ macro_rules! rpc_mod {
                 match *self {
                     $(
                         #[cfg(feature = $path)]
-                        Self::$trait_name(ref device) => $crate::api::ConfiguredDevice {
-                            name: device.static_name().to_owned(),
-                            ty: DeviceType::$trait_name,
-                            number: as_number,
-                            unique_id: device.unique_id().to_owned(),
-                        },
+                        Self::$trait_name(ref device) => device.to_configured_device(as_number),
                     )*
                 }
             }
@@ -239,20 +234,7 @@ macro_rules! rpc_mod {
             }
         }
 
-        pub(crate) struct FallibleDeviceType(
-            pub(crate) Result<DeviceType, String>,
-        );
-
-        impl std::fmt::Debug for FallibleDeviceType {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                match &self.0 {
-                    Ok(ty) => ty.fmt(f),
-                    Err(ty) => write!(f, "Unsupported({})", ty),
-                }
-            }
-        }
-
-        impl<'de> Deserialize<'de> for FallibleDeviceType {
+        impl<'de> Deserialize<'de> for $crate::api::devices_impl::FallibleDeviceType {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 #[derive(Deserialize)]
                 #[serde(field_identifier)]
@@ -264,7 +246,7 @@ macro_rules! rpc_mod {
                     Unknown(String),
                 }
 
-                Ok(FallibleDeviceType(match MaybeDeviceType::deserialize(deserializer)? {
+                Ok($crate::api::devices_impl::FallibleDeviceType(match MaybeDeviceType::deserialize(deserializer)? {
                     $(
                         #[cfg(feature = $path)]
                         MaybeDeviceType::$trait_name => Ok(DeviceType::$trait_name),
@@ -285,28 +267,7 @@ macro_rules! rpc_mod {
             }
         }
 
-        impl std::fmt::Display for DeviceType {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-
-        impl std::fmt::Debug for DeviceType {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Display::fmt(self, f)
-            }
-        }
-
-        impl Serialize for DeviceType {
-            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                self.as_str().serialize(serializer)
-            }
-        }
-
-        #[derive(PartialEq, Eq, Clone, Copy)]
-        pub(crate) struct DevicePath(pub(crate) DeviceType);
-
-        impl DevicePath {
+        impl $crate::api::devices_impl::DevicePath {
             const fn as_str(self) -> &'static str {
                 match self.0 {
                     $(
@@ -317,19 +278,7 @@ macro_rules! rpc_mod {
             }
         }
 
-        impl std::fmt::Display for DevicePath {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-
-        impl std::fmt::Debug for DevicePath {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Display::fmt(self, f)
-            }
-        }
-
-        impl<'de> Deserialize<'de> for DevicePath {
+        impl<'de> Deserialize<'de> for $crate::api::devices_impl::DevicePath {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 #[derive(Deserialize)]
                 #[serde(remote = "DeviceType")]
@@ -368,22 +317,6 @@ macro_rules! rpc_mod {
                     }
                 )*
                 f.finish()
-            }
-        }
-
-        impl Extend<TypedDevice> for Devices {
-            fn extend<T: IntoIterator<Item = TypedDevice>>(&mut self, iter: T) {
-                for client in iter {
-                    self.register(client);
-                }
-            }
-        }
-
-        impl FromIterator<TypedDevice> for Devices {
-            fn from_iter<T: IntoIterator<Item = TypedDevice>>(iter: T) -> Self {
-                let mut devices = Self::default();
-                devices.extend(iter);
-                devices
             }
         }
 

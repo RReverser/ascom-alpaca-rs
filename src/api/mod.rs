@@ -58,6 +58,8 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(not(feature = "all-devices"), allow(unused_imports))]
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+pub(crate) use devices_impl::*;
+
 pub use server_info::*;
 
 #[cfg(feature = "camera")]
