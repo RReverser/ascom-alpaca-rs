@@ -393,6 +393,18 @@ macro_rules! rpc_mod {
                 })
             }
         }
+
+        #[cfg(test)]
+        #[allow(non_snake_case)]
+        mod passthrough {
+            $(
+                #[cfg(feature = $path)]
+                #[tokio::test]
+                async fn $trait_name() -> eyre::Result<()> {
+                    $crate::test_device_type(super::DeviceType::$trait_name).await
+                }
+            )*
+        }
     };
 }
 

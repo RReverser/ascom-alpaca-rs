@@ -405,3 +405,59 @@ fn prepare_test_env() {
         .install()
         .expect("Failed to install color_eyre");
 }
+
+#[cfg(test)]
+async fn test_device_type(ty: api::DeviceType) -> eyre::Result<()> {
+    use std::process::Stdio;
+    use tokio::process::Command;
+    use tokio::sync::OnceCell;
+
+    static START_SERVERS: OnceCell<eyre::Result<String>> = OnceCell::const_new();
+
+    let api_path = START_SERVERS
+        .get_or_init(|| async {
+            let _ =
+                Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
+                    .stdin(Stdio::null())
+                    .spawn()?;
+
+            let mut server = Server::default();
+
+            server
+                .devices
+                .extend(Client::new("http://127.0.0.1:32323")?.get_devices().await?);
+
+            server
+                .listen_addr
+                .set_ip(std::net::Ipv4Addr::LOCALHOST.into());
+
+            let bound_server = server.bind().await?;
+
+            // Get the IP and the random port assigned by the OS.
+            let listen_addr = bound_server.listen_addr();
+
+            drop(tokio::spawn(bound_server.start()));
+
+            Ok(format!("http://{listen_addr}/api/v1/"))
+        })
+        .await
+        .as_ref()
+        .expect("Couldn't initialize the servers for passthrough / roundtrip tests");
+
+    let exit_status = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
+        .arg("alpacaprotocol")
+        .arg(format!(
+            "{api_path}{device_path}/0",
+            device_path = api::DevicePath(ty)
+        ))
+        .stdin(Stdio::null())
+        .status()
+        .await?;
+
+    eyre::ensure!(
+        exit_status.success(),
+        "ConformU check for {ty} exited with an error code: {exit_status}"
+    );
+
+    Ok(())
+}
