@@ -190,8 +190,9 @@ macro_rules! rpc_mod {
             )*
         }
 
-        #[allow(missing_docs)]
+        /// A tagged enum wrapper for a type-erased instance of a device.
         #[derive(Clone, Debug)]
+        #[allow(missing_docs)]
         pub enum TypedDevice {
             $(
                 #[cfg(feature = $path)]
