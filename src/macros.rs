@@ -182,17 +182,13 @@ pub(crate) use rpc_trait;
 
 macro_rules! rpc_mod {
     ($($trait_name:ident = $path:literal,)*) => {
-        pub(crate) mod internal {
-            // Not really public, needed for a Voldemort trait RetrieavableDevice.
-            #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
-            pub enum DeviceType {
-                $(
-                    #[cfg(feature = $path)]
-                    $trait_name,
-                )*
-            }
+        #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+        pub(crate) enum DeviceType {
+            $(
+                #[cfg(feature = $path)]
+                $trait_name,
+            )*
         }
-        pub(crate) use internal::DeviceType;
 
         #[allow(missing_docs)]
         #[derive(Clone, Debug)]
@@ -392,11 +388,6 @@ macro_rules! rpc_mod {
         }
 
         impl Devices {
-            /// Iterate over all devices of a given type.
-            pub fn iter<DynTrait: ?Sized + $crate::api::devices_impl::RetrieavableDevice>(&self) -> impl '_ + Iterator<Item = std::sync::Arc<DynTrait>> {
-                DynTrait::get_storage(self).iter().map(std::sync::Arc::clone)
-            }
-
             /// Iterate over all registered devices.
             ///
             /// The second element of the tuple is the index of the device within its category
