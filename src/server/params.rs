@@ -10,10 +10,16 @@ use serde::Deserialize;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(transparent)]
 #[serde(bound(deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"))]
 pub(crate) struct OpaqueParams<ParamStr: ?Sized>(IndexMap<Box<ParamStr>, String>);
+
+impl<ParamStr: ?Sized + Debug> Debug for OpaqueParams<ParamStr> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 #[derive(Debug)]
 pub(crate) enum ActionParams {
