@@ -106,7 +106,6 @@ impl BoundClient {
     /// Discover Alpaca servers on the local network.
     ///
     /// This function returns a stream of discovered device addresses.
-    #[allow(clippy::panic_in_result_fn)] // unreachable! is fine here
     pub fn discover_addrs(&mut self) -> impl '_ + futures::Stream<Item = SocketAddr> {
         async_fn_stream::fn_stream(|emitter| async move {
             self.seen.clear();
