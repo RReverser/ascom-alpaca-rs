@@ -401,7 +401,7 @@ macro_rules! rpc_mod {
                 #[cfg(feature = $path)]
                 #[tokio::test]
                 async fn $trait_name() -> eyre::Result<()> {
-                    $crate::test_device_type(super::DeviceType::$trait_name).await
+                    $crate::test_utils::test_device_type(super::DeviceType::$trait_name).await
                 }
             )*
         }

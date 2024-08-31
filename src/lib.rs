@@ -373,52 +373,59 @@ pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 pub use server::{BoundServer, Server};
 
 #[cfg(test)]
-#[ctor::ctor]
-fn prepare_test_env() {
+mod test_utils {
+    use crate::api::{DevicePath, DeviceType};
+    use crate::{Client, Server};
+    use std::process::Stdio;
+    use std::sync::Mutex;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::process::{Child, Command};
+    use tokio::sync::OnceCell;
     use tracing_subscriber::prelude::*;
 
-    unsafe {
-        std::env::set_var("RUST_BACKTRACE", "full");
+    #[ctor::ctor]
+    fn prepare_test_env() {
+        unsafe {
+            std::env::set_var("RUST_BACKTRACE", "full");
+        }
+
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::filter::Targets::new()
+                    .with_target("ascom_alpaca", tracing::Level::TRACE),
+            )
+            .with(tracing_forest::ForestLayer::new(
+                tracing_forest::printer::TestCapturePrinter::new(),
+                tracing_forest::tag::NoTag,
+            ))
+            .with(tracing_error::ErrorLayer::default())
+            .init();
+
+        color_eyre::config::HookBuilder::default()
+            .add_frame_filter(Box::new(|frames| {
+                frames.retain(|frame| {
+                    frame.filename.as_ref().map_or(false, |filename| {
+                        // Only keep our own files in the backtrace to reduce noise.
+                        filename.starts_with(env!("CARGO_MANIFEST_DIR"))
+                    })
+                });
+            }))
+            .install()
+            .expect("Failed to install color_eyre");
     }
 
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::filter::Targets::new()
-                .with_target("ascom_alpaca", tracing::Level::TRACE),
-        )
-        .with(tracing_forest::ForestLayer::new(
-            tracing_forest::printer::TestCapturePrinter::new(),
-            tracing_forest::tag::NoTag,
-        ))
-        .with(tracing_error::ErrorLayer::default())
-        .init();
+    struct StartedServers {
+        simulators: Mutex<Child>,
+        api_path: String,
+    }
 
-    color_eyre::config::HookBuilder::default()
-        .add_frame_filter(Box::new(|frames| {
-            frames.retain(|frame| {
-                frame.filename.as_ref().map_or(false, |filename| {
-                    // Only keep our own files in the backtrace to reduce noise.
-                    filename.starts_with(env!("CARGO_MANIFEST_DIR"))
-                })
-            });
-        }))
-        .install()
-        .expect("Failed to install color_eyre");
-}
-
-#[cfg(test)]
-async fn test_device_type(ty: api::DeviceType) -> eyre::Result<()> {
-    use std::process::Stdio;
-    use tokio::process::Command;
-    use tokio::sync::OnceCell;
-
-    static START_SERVERS: OnceCell<eyre::Result<String>> = OnceCell::const_new();
-
-    let api_path = START_SERVERS
-        .get_or_init(|| async {
-            let _ =
+    impl StartedServers {
+        async fn try_new() -> eyre::Result<Self> {
+            let simulators =
                 Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
                     .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
                     .spawn()?;
 
             let mut server = Server::default();
@@ -438,26 +445,121 @@ async fn test_device_type(ty: api::DeviceType) -> eyre::Result<()> {
 
             drop(tokio::spawn(bound_server.start()));
 
-            Ok(format!("http://{listen_addr}/api/v1/"))
-        })
-        .await
-        .as_ref()
-        .expect("Couldn't initialize the servers for passthrough / roundtrip tests");
+            Ok(Self {
+                simulators: Mutex::new(simulators),
+                api_path: format!("http://{listen_addr}/api/v1/"),
+            })
+        }
 
-    let exit_status = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
-        .arg("alpacaprotocol")
-        .arg(format!(
-            "{api_path}{device_path}/0",
-            device_path = api::DevicePath(ty)
-        ))
-        .stdin(Stdio::null())
-        .status()
-        .await?;
+        #[allow(clippy::unwrap_used)]
+        fn kill(&self) {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut simulators = self.simulators.lock().unwrap();
+                simulators.kill().await.unwrap();
+                simulators.wait().await.unwrap();
+            });
+        }
+    }
 
-    eyre::ensure!(
-        exit_status.success(),
-        "ConformU check for {ty} exited with an error code: {exit_status}"
-    );
+    static START_SERVERS: OnceCell<eyre::Result<StartedServers>> = OnceCell::const_new();
 
-    Ok(())
+    #[ctor::dtor]
+    fn stop_simulators() {
+        if let Some(Ok(started_servers)) = START_SERVERS.get() {
+            started_servers.kill();
+        }
+    }
+
+    pub(crate) async fn test_device_type(ty: DeviceType) -> eyre::Result<()> {
+        let api_path = &START_SERVERS
+            .get_or_init(StartedServers::try_new)
+            .await
+            .as_ref()
+            .expect("Couldn't initialize the servers for passthrough / roundtrip tests")
+            .api_path;
+
+        let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
+            .arg("alpacaprotocol")
+            .arg(format!(
+                "{api_path}{device_path}/0",
+                device_path = DevicePath(ty)
+            ))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        let output = conformu.stdout.take().expect("stdout should be piped");
+
+        let reader = BufReader::new(output);
+        let mut lines = reader.lines();
+
+        while let Some(line) = lines.next_line().await? {
+            // This is fragile, but ConformU doesn't provide structured output.
+            // Use known widths of the fields to parse them.
+            // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
+
+            // Skip empty lines.
+            if line.is_empty() {
+                continue;
+            }
+
+            // We're not interested in the summaries.
+            if line.trim_ascii_end() == "Error Summary" {
+                let _ = tokio::io::copy(lines.get_mut(), &mut tokio::io::sink()).await?;
+                break;
+            }
+
+            if !parse_log_line(&line) && !line.starts_with("   at ") {
+                tracing::debug!("[ConformU] {line}");
+            }
+        }
+
+        let exit_status = conformu.wait().await?;
+
+        eyre::ensure!(
+            exit_status.success(),
+            "ConformU check for {ty} exited with an error code: {exit_status}"
+        );
+
+        Ok(())
+    }
+
+    fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'line str> {
+        if *line.as_bytes().get(len)? != b' ' {
+            return None;
+        }
+        let part = line[..len].trim_end_matches(' ');
+        *line = &line[len + 1..];
+        Some(part)
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn parse_log_line(mut line: &str) -> bool {
+        let Some(http_method) = split_with_whitespace(&mut line, 3) else {
+            return false;
+        };
+        if !matches!(http_method, "GET" | "PUT" | "") {
+            return false;
+        }
+
+        let Some(method) = split_with_whitespace(&mut line, 25) else {
+            return false;
+        };
+
+        let Some(outcome) = split_with_whitespace(&mut line, 6) else {
+            return false;
+        };
+        match outcome {
+            "OK" => tracing::trace!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
+            "INFO" => tracing::info!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
+            "WARN" => tracing::warn!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
+            "DEBUG" | "" => tracing::debug!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
+            "ISSUE" | "ERROR" => {
+                tracing::error!(?http_method, ?method, ?outcome, "[ConformU] {line}");
+            }
+            _ => return false,
+        }
+
+        true
+    }
 }
