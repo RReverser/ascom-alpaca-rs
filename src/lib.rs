@@ -453,7 +453,6 @@ mod test_utils {
             })
         }
 
-        #[instrument(level = "error", skip(self))]
         pub(crate) async fn test_device_type(&self, ty: DeviceType) -> eyre::Result<()> {
             let api_path = &self.api_path;
 

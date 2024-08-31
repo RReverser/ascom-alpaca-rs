@@ -395,26 +395,50 @@ macro_rules! rpc_mod {
         }
 
         #[cfg(test)]
-        #[tokio::test]
-        async fn test_passthrough_devices() -> eyre::Result<()> {
-            let env = $crate::test_utils::PassthroughTestEnv::try_new().await?;
+        mod test_passthrough {
+            use std::sync::{Arc, Weak};
+            use tokio::sync::Mutex;
+            use $crate::test_utils::PassthroughTestEnv;
+            use super::DeviceType;
 
-            let mut failed = 0_usize;
-            let mut total = 0_usize;
+            // Note: the static variable should only contain a Weak copy, otherwise the test environment
+            // would never be dropped, and we want it to be dropped at the end of the last strong copy
+            // (last running test).
+            static TEST_ENV: Mutex<Weak<PassthroughTestEnv>> = Mutex::const_new(Weak::new());
+
+            /// Get the shared test environment with an incremented refcount.
+            ///
+            /// If one is already available - which should happen when running tests in parallel - then just acquire a refcounted copy.
+            /// If not, put a new one in place.
+            ///
+            /// This way, each test increases the refcount at start and decreases it at the end, so whichever happens to run last,
+            /// kills the simulator running in the background.
+            ///
+            /// This is a workaround for Rust test framework not having an "after all" hook.
+            async fn acquire_test_env() -> eyre::Result<Arc<PassthroughTestEnv>> {
+                let mut lock = TEST_ENV.lock().await;
+
+                Ok(match lock.upgrade() {
+                    Some(env) => env,
+                    None => {
+                        let env = Arc::new(PassthroughTestEnv::try_new().await?);
+                        *lock = Arc::downgrade(&env);
+                        env
+                    }
+                })
+            }
 
             $(
                 #[cfg(feature = $path)]
-                {
-                    if env.test_device_type(DeviceType::$trait_name).await.is_err() {
-                        failed += 1;
-                    }
-                    total += 1;
+                #[tokio::test]
+                #[allow(non_snake_case)]
+                async fn $trait_name() -> eyre::Result<()> {
+                    acquire_test_env()
+                    .await?
+                    .test_device_type(DeviceType::$trait_name)
+                    .await
                 }
             )*
-
-            eyre::ensure!(failed == 0, "{failed}/{total} devices have failed ConformU checks");
-
-            Ok(())
         }
     };
 }
