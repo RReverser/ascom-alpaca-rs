@@ -377,10 +377,11 @@ mod test_utils {
     use crate::api::{DevicePath, DeviceType};
     use crate::{Client, Server};
     use std::process::Stdio;
+    use std::sync::{Arc, Weak};
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::{Child, Command};
+    use tokio::sync::Mutex;
     use tokio::task::AbortHandle;
-    use tracing::instrument;
     use tracing_subscriber::prelude::*;
 
     #[ctor::ctor]
@@ -414,6 +415,11 @@ mod test_utils {
             .expect("Failed to install color_eyre");
     }
 
+    pub(crate) enum TestKind {
+        Protocol,
+        Conformance,
+    }
+
     pub(crate) struct PassthroughTestEnv {
         simulators: Child,
         server_abort: AbortHandle,
@@ -421,7 +427,7 @@ mod test_utils {
     }
 
     impl PassthroughTestEnv {
-        pub(crate) async fn try_new() -> eyre::Result<Self> {
+        async fn try_new() -> eyre::Result<Self> {
             let simulators =
                 Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
                     .stdin(Stdio::null())
@@ -453,11 +459,14 @@ mod test_utils {
             })
         }
 
-        pub(crate) async fn test_device_type(&self, ty: DeviceType) -> eyre::Result<()> {
+        async fn run_test(&self, ty: DeviceType, kind: TestKind) -> eyre::Result<()> {
             let api_path = &self.api_path;
 
             let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
-                .arg("alpacaprotocol")
+                .arg(match kind {
+                    TestKind::Protocol => "alpacaprotocol",
+                    TestKind::Conformance => "conformance",
+                })
                 .arg(format!(
                     "{api_path}{device_path}/0",
                     device_path = DevicePath(ty)
@@ -500,6 +509,42 @@ mod test_utils {
             );
 
             Ok(())
+        }
+
+        async fn run_tests(&self, ty: DeviceType) -> eyre::Result<()> {
+            self.run_test(ty, TestKind::Protocol).await?;
+            self.run_test(ty, TestKind::Conformance).await
+        }
+
+        /// Get the shared test environment with an incremented refcount.
+        ///
+        /// If one is already available - which should happen when running tests in parallel - then just acquire a refcounted copy.
+        /// If not, put a new one in place.
+        ///
+        /// This way, each test increases the refcount at start and decreases it at the end, so whichever happens to run last,
+        /// kills the simulator running in the background.
+        ///
+        /// This is a workaround for Rust test framework not having an "after all" hook.
+        async fn acquire() -> eyre::Result<Arc<Self>> {
+            // Note: the static variable should only contain a Weak copy, otherwise the test environment
+            // would never be dropped, and we want it to be dropped at the end of the last strong copy
+            // (last running test).
+            static TEST_ENV: Mutex<Weak<PassthroughTestEnv>> = Mutex::const_new(Weak::new());
+
+            let mut lock = TEST_ENV.lock().await;
+
+            Ok(match lock.upgrade() {
+                Some(env) => env,
+                None => {
+                    let env = Arc::new(Self::try_new().await?);
+                    *lock = Arc::downgrade(&env);
+                    env
+                }
+            })
+        }
+
+        pub(crate) async fn acquire_and_test(ty: DeviceType) -> eyre::Result<()> {
+            Self::acquire().await?.run_tests(ty).await
         }
     }
 
