@@ -377,10 +377,10 @@ mod test_utils {
     use crate::api::{DevicePath, DeviceType};
     use crate::{Client, Server};
     use std::process::Stdio;
-    use std::sync::Mutex;
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::{Child, Command};
-    use tokio::sync::OnceCell;
+    use tokio::task::AbortHandle;
+    use tracing::instrument;
     use tracing_subscriber::prelude::*;
 
     #[ctor::ctor]
@@ -414,13 +414,14 @@ mod test_utils {
             .expect("Failed to install color_eyre");
     }
 
-    struct StartedServers {
-        simulators: Mutex<Child>,
+    pub(crate) struct PassthroughTestEnv {
+        simulators: Child,
+        server_abort: AbortHandle,
         api_path: String,
     }
 
-    impl StartedServers {
-        async fn try_new() -> eyre::Result<Self> {
+    impl PassthroughTestEnv {
+        pub(crate) async fn try_new() -> eyre::Result<Self> {
             let simulators =
                 Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
                     .stdin(Stdio::null())
@@ -443,85 +444,74 @@ mod test_utils {
             // Get the IP and the random port assigned by the OS.
             let listen_addr = bound_server.listen_addr();
 
-            drop(tokio::spawn(bound_server.start()));
+            let server_abort = tokio::spawn(bound_server.start()).abort_handle();
 
             Ok(Self {
-                simulators: Mutex::new(simulators),
+                simulators,
+                server_abort,
                 api_path: format!("http://{listen_addr}/api/v1/"),
             })
         }
 
-        #[allow(clippy::unwrap_used)]
-        fn kill(&self) {
-            tokio::runtime::Handle::current().block_on(async move {
-                let mut simulators = self.simulators.lock().unwrap();
-                simulators.kill().await.unwrap();
-                simulators.wait().await.unwrap();
+        #[instrument(level = "error", skip(self))]
+        pub(crate) async fn test_device_type(&self, ty: DeviceType) -> eyre::Result<()> {
+            let api_path = &self.api_path;
+
+            let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
+                .arg("alpacaprotocol")
+                .arg(format!(
+                    "{api_path}{device_path}/0",
+                    device_path = DevicePath(ty)
+                ))
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .spawn()?;
+
+            let output = conformu.stdout.take().expect("stdout should be piped");
+
+            let reader = BufReader::new(output);
+            let mut lines = reader.lines();
+
+            while let Some(line) = lines.next_line().await? {
+                // This is fragile, but ConformU doesn't provide structured output.
+                // Use known widths of the fields to parse them.
+                // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
+
+                // Skip empty lines.
+                if line.is_empty() {
+                    continue;
+                }
+
+                // We're not interested in the summaries.
+                if line.trim_ascii_end() == "Error Summary" {
+                    let _ = tokio::io::copy(lines.get_mut(), &mut tokio::io::sink()).await?;
+                    break;
+                }
+
+                if !parse_log_line(&line) && !line.starts_with("   at ") {
+                    tracing::debug!("{line}");
+                }
+            }
+
+            let exit_status = conformu.wait().await?;
+
+            eyre::ensure!(
+                exit_status.success(),
+                "ConformU check for {ty} exited with an error code: {exit_status}"
+            );
+
+            Ok(())
+        }
+    }
+
+    impl Drop for PassthroughTestEnv {
+        fn drop(&mut self) {
+            self.server_abort.abort();
+
+            self.simulators.start_kill().unwrap_or_else(|err| {
+                tracing::error!(?err, "Failed to kill simulators");
             });
         }
-    }
-
-    static START_SERVERS: OnceCell<eyre::Result<StartedServers>> = OnceCell::const_new();
-
-    #[ctor::dtor]
-    fn stop_simulators() {
-        if let Some(Ok(started_servers)) = START_SERVERS.get() {
-            started_servers.kill();
-        }
-    }
-
-    pub(crate) async fn test_device_type(ty: DeviceType) -> eyre::Result<()> {
-        let api_path = &START_SERVERS
-            .get_or_init(StartedServers::try_new)
-            .await
-            .as_ref()
-            .expect("Couldn't initialize the servers for passthrough / roundtrip tests")
-            .api_path;
-
-        let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
-            .arg("alpacaprotocol")
-            .arg(format!(
-                "{api_path}{device_path}/0",
-                device_path = DevicePath(ty)
-            ))
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .spawn()?;
-
-        let output = conformu.stdout.take().expect("stdout should be piped");
-
-        let reader = BufReader::new(output);
-        let mut lines = reader.lines();
-
-        while let Some(line) = lines.next_line().await? {
-            // This is fragile, but ConformU doesn't provide structured output.
-            // Use known widths of the fields to parse them.
-            // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
-
-            // Skip empty lines.
-            if line.is_empty() {
-                continue;
-            }
-
-            // We're not interested in the summaries.
-            if line.trim_ascii_end() == "Error Summary" {
-                let _ = tokio::io::copy(lines.get_mut(), &mut tokio::io::sink()).await?;
-                break;
-            }
-
-            if !parse_log_line(&line) && !line.starts_with("   at ") {
-                tracing::debug!("[ConformU] {line}");
-            }
-        }
-
-        let exit_status = conformu.wait().await?;
-
-        eyre::ensure!(
-            exit_status.success(),
-            "ConformU check for {ty} exited with an error code: {exit_status}"
-        );
-
-        Ok(())
     }
 
     fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'line str> {

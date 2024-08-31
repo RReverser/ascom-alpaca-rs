@@ -395,15 +395,26 @@ macro_rules! rpc_mod {
         }
 
         #[cfg(test)]
-        #[allow(non_snake_case)]
-        mod passthrough {
+        #[tokio::test]
+        async fn test_passthrough_devices() -> eyre::Result<()> {
+            let env = $crate::test_utils::PassthroughTestEnv::try_new().await?;
+
+            let mut failed = 0_usize;
+            let mut total = 0_usize;
+
             $(
                 #[cfg(feature = $path)]
-                #[tokio::test]
-                async fn $trait_name() -> eyre::Result<()> {
-                    $crate::test_utils::test_device_type(super::DeviceType::$trait_name).await
+                {
+                    if env.test_device_type(DeviceType::$trait_name).await.is_err() {
+                        failed += 1;
+                    }
+                    total += 1;
                 }
             )*
+
+            eyre::ensure!(failed == 0, "{failed}/{total} devices have failed ConformU checks");
+
+            Ok(())
         }
     };
 }
