@@ -586,13 +586,22 @@ mod test_utils {
         let Some(outcome) = split_with_whitespace(&mut line, 6) else {
             return false;
         };
+
         match outcome {
-            "OK" => tracing::trace!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
-            "INFO" => tracing::info!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
-            "WARN" => tracing::warn!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
-            "DEBUG" | "" => tracing::debug!(?http_method, ?method, ?outcome, "[ConformU] {line}"),
+            "OK" => {
+                tracing::trace!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
+            }
+            "INFO" => {
+                tracing::info!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
+            }
+            "WARN" => {
+                tracing::warn!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
+            }
+            "DEBUG" | "" => {
+                tracing::debug!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
+            }
             "ISSUE" | "ERROR" => {
-                tracing::error!(?http_method, ?method, ?outcome, "[ConformU] {line}");
+                tracing::error!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
             }
             _ => return false,
         }
