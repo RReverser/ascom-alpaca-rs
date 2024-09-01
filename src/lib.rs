@@ -436,6 +436,7 @@ mod test_utils {
                     .stdin(Stdio::null())
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
+                    .kill_on_drop(true)
                     .spawn()?;
 
             let mut server = Server::default();
@@ -554,10 +555,6 @@ mod test_utils {
     impl Drop for PassthroughTestEnv {
         fn drop(&mut self) {
             self.server_abort.abort();
-
-            self.simulators.start_kill().unwrap_or_else(|err| {
-                tracing::error!(?err, "Failed to kill simulators");
-            });
         }
     }
 
