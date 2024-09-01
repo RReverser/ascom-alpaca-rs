@@ -421,7 +421,7 @@ mod test_utils {
     }
 
     pub(crate) struct PassthroughTestEnv {
-        simulators: Child,
+        _simulators: Child,
         server_abort: AbortHandle,
         api_path: String,
     }
@@ -457,7 +457,7 @@ mod test_utils {
             let server_abort = tokio::spawn(bound_server.start()).abort_handle();
 
             Ok(Self {
-                simulators,
+                _simulators: simulators,
                 server_abort,
                 api_path: format!("http://{listen_addr}/api/v1/"),
             })
