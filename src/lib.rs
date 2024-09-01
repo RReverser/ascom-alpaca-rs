@@ -428,8 +428,11 @@ mod test_utils {
 
     impl PassthroughTestEnv {
         async fn try_new() -> eyre::Result<Self> {
+            const SIMULATOR_URL: &str = "http://127.0.0.1:32323";
+
             let simulators =
                 Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
+                    .arg(format!("--urls={SIMULATOR_URL}"))
                     .stdin(Stdio::null())
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
@@ -439,7 +442,7 @@ mod test_utils {
 
             server
                 .devices
-                .extend(Client::new("http://127.0.0.1:32323")?.get_devices().await?);
+                .extend(Client::new(SIMULATOR_URL)?.get_devices().await?);
 
             server
                 .listen_addr
