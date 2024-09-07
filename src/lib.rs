@@ -415,6 +415,7 @@ mod test_utils {
             .expect("Failed to install color_eyre");
     }
 
+    #[derive(Clone, Copy)]
     pub(crate) enum TestKind {
         Protocol,
         Conformance,
@@ -483,11 +484,23 @@ mod test_utils {
 
             let reader = BufReader::new(output);
             let mut lines = reader.lines();
+            let done_line = match kind {
+                TestKind::Conformance => "Conformance test has finished",
+                TestKind::Protocol => "Information Message Summary",
+            };
 
             while let Some(line) = lines.next_line().await? {
                 // This is fragile, but ConformU doesn't provide structured output.
                 // Use known widths of the fields to parse them.
                 // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
+
+                let line = match kind {
+                    // skip date and time before doing any other checks
+                    TestKind::Conformance => line.get(13..).unwrap_or(&line),
+                    // In protocol tests, the date and time are not present
+                    TestKind::Protocol => &line,
+                }
+                .trim_ascii_end();
 
                 // Skip empty lines.
                 if line.is_empty() {
@@ -495,12 +508,12 @@ mod test_utils {
                 }
 
                 // We're not interested in the summaries.
-                if line.trim_ascii_end() == "Error Summary" {
+                if line == done_line {
                     let _ = tokio::io::copy(lines.get_mut(), &mut tokio::io::sink()).await?;
                     break;
                 }
 
-                if !parse_log_line(&line) && !line.starts_with("   at ") {
+                if !parse_log_line(line, kind) && !line.starts_with("   at ") {
                     tracing::debug!("{line}");
                 }
             }
@@ -568,39 +581,54 @@ mod test_utils {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    fn parse_log_line(mut line: &str) -> bool {
-        let Some(http_method) = split_with_whitespace(&mut line, 3) else {
-            return false;
-        };
-        if !matches!(http_method, "GET" | "PUT" | "") {
-            return false;
+    fn parse_log_line(mut line: &str, kind: TestKind) -> bool {
+        macro_rules! trace_outcome {
+            ($outcome:expr, $($args:tt)*) => {
+                match $outcome {
+                    "OK" => tracing::trace!(target: "ascom_alpaca::conformu", $($args)*),
+                    "INFO" => tracing::info!(target: "ascom_alpaca::conformu", $($args)*),
+                    "WARN" => tracing::warn!(target: "ascom_alpaca::conformu", $($args)*),
+                    "DEBUG" | "" => tracing::debug!(target: "ascom_alpaca::conformu", $($args)*),
+                    "ISSUE" | "ERROR" => tracing::error!(target: "ascom_alpaca::conformu", $($args)*),
+                    _ => return false,
+                }
+            };
         }
 
-        let Some(method) = split_with_whitespace(&mut line, 25) else {
-            return false;
-        };
+        match kind {
+            TestKind::Protocol => {
+                let Some(http_method) = split_with_whitespace(&mut line, 3) else {
+                    return false;
+                };
+                if !matches!(http_method, "GET" | "PUT" | "") {
+                    return false;
+                }
 
-        let Some(outcome) = split_with_whitespace(&mut line, 6) else {
-            return false;
-        };
+                let Some(method) = split_with_whitespace(&mut line, 25) else {
+                    return false;
+                };
 
-        match outcome {
-            "OK" => {
-                tracing::trace!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
+                let Some(outcome) = split_with_whitespace(&mut line, 6) else {
+                    return false;
+                };
+
+                trace_outcome!(outcome, ?http_method, ?method, "{line}");
             }
-            "INFO" => {
-                tracing::info!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
+            TestKind::Conformance => {
+                let Some(method) = split_with_whitespace(&mut line, 35) else {
+                    return false;
+                };
+
+                if method.is_empty() {
+                    return false;
+                }
+
+                let Some(outcome) = split_with_whitespace(&mut line, 8) else {
+                    return false;
+                };
+
+                trace_outcome!(outcome, ?method, "{line}");
             }
-            "WARN" => {
-                tracing::warn!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
-            }
-            "DEBUG" | "" => {
-                tracing::debug!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
-            }
-            "ISSUE" | "ERROR" => {
-                tracing::error!(target: "ascom_alpaca::conformu", ?http_method, ?method, ?outcome, "{line}");
-            }
-            _ => return false,
         }
 
         true
