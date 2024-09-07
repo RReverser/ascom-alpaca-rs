@@ -5,6 +5,9 @@ ASCOM Alpaca Device API v1
 
 The Alpaca API uses RESTful techniques and TCP/IP to enable ASCOM applications and devices to communicate across modern network environments.
 
+## Interface Versions
+These interface definitions include the updates introduced in **ASCOM Platform 7**.
+
 ## Interface Behaviour
 The ASCOM Interface behavioural requirements for Alpaca drivers are the same as for COM based drivers and are documented in the <a href="https://ascom-standards.org/Help/Developer/html/N_ASCOM_DeviceInterface.htm">API Interface Definitions</a> e.g. the <a href="https://ascom-standards.org/Help/Developer/html/M_ASCOM_DeviceInterface_ITelescopeV3_SlewToCoordinates.htm">Telescope.SlewToCoordinates</a> method.       This document focuses on how to use the ASCOM Interface standards in their RESTful Alpaca form.
 ## Alpaca URLs, Case Sensitivity, Parameters and Returned values
@@ -58,8 +61,6 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(not(feature = "all-devices"), allow(unused_imports))]
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
-pub(crate) use devices_impl::*;
-
 pub use server_info::*;
 
 #[cfg(feature = "camera")]
@@ -67,6 +68,16 @@ mod image_array;
 
 #[cfg(feature = "camera")]
 pub use image_array::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct DeviceStateItem {
+    /// The property name. The name casing must match the casing in the relevant interface definition.
+    pub name: String,
+
+    /// The corresponding value of the named operational property. This is an object variable that can hold one of several basic types  including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format). The  data type must be inferred from the property name.
+    pub value: serde_json::Value,
+}
 
 /// Camera state
 #[cfg(feature = "camera")]
@@ -613,6 +624,14 @@ pub trait Device: std::fmt::Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// The Connecting property will be true until device initialisation is complete.
+    ///
+    /// _Platform 7 onward._
+    #[http("connect", method = Put)]
+    async fn connect(&self) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
     /// Retrieves the connected state of the device
     #[http("connected", method = Get, via = ValueResponse)]
     async fn connected(&self) -> ASCOMResult<bool> {
@@ -629,9 +648,33 @@ pub trait Device: std::fmt::Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// Returns true while the device is connecting or disconnecting.
+    ///
+    /// _Platform 7 onward._
+    #[http("connecting", method = Get, via = ValueResponse)]
+    async fn connecting(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
     /// The description of the device
     #[http("description", method = Get, via = ValueResponse)]
     async fn description(&self) -> ASCOMResult<String> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// Devices must return all operational values that are definitively known but can omit entries where values are unknown.Devices must not throw exceptions / return errors when values are not known. An empty list must  be returned if no values are known. Client Applications must expect that, from time to time, some operational state values may not be present in the device response and must be prepared to handle “missing” values.
+    ///
+    /// _Platform 7 onward._
+    #[http("devicestate", method = Get, via = ValueResponse)]
+    async fn device_state(&self) -> ASCOMResult<Vec<DeviceStateItem>> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// The Connecting property will be true until device disconneciton is complete.
+    ///
+    /// _Platform 7 onward._
+    #[http("disconnect", method = Put)]
+    async fn disconnect(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1134,13 +1177,17 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// The Camera's sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
+    /// The Camera's sub exposure duration in seconds.
+    ///
+    /// _ICameraV3 and later._
     #[http("subexposureduration", method = Get, via = ValueResponse)]
     async fn sub_exposure_duration(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets image sub exposure duration in seconds. Only available in Camera Interface Version 3 and later.
+    /// Sets image sub exposure duration in seconds.
+    ///
+    /// _ICameraV3 and later._
     #[http("subexposureduration", method = Put)]
     async fn set_sub_exposure_duration(
         &self,
@@ -1197,9 +1244,25 @@ pub trait CoverCalibrator: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// True if the calibrator is not yet stable.
+    ///
+    /// _ICoverCalibratorV2 and later._
+    #[http("calibratorchanging", method = Get, via = ValueResponse)]
+    async fn calibrator_changing(&self) -> ASCOMResult<bool> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
     /// Returns the state of the calibration device, if present, otherwise returns "NotPresent". The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
     #[http("calibratorstate", method = Get, via = ValueResponse)]
     async fn calibrator_state(&self) -> ASCOMResult<CalibratorStatus> {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// True if the cover is moving.
+    ///
+    /// _ICoverCalibratorV2 and later._
+    #[http("covermoving", method = Get, via = ValueResponse)]
+    async fn cover_moving(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1740,6 +1803,14 @@ pub trait Switch: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// This endpoint must be implemented and indicates whether the given switch can operate asynchronously.
+    ///
+    /// _ISwitchV3 and later._
+    #[http("canasync", method = Get, via = ValueResponse)]
+    async fn can_async(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
+        Ok(false)
+    }
+
     /// Reports if the specified switch device can be written to, default true. This is false if the device cannot be written to, for example a limit switch or a sensor.  Devices are numbered from 0 to MaxSwitch - 1
     #[http("canwrite", method = Get, via = ValueResponse)]
     async fn can_write(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
@@ -1782,6 +1853,34 @@ pub trait Switch: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// This is an asynchronous method that must return as soon as the state change operation has been successfully started,  with StateChangeComplete(Int16) for the given switch Id = False.  After the state change has completed StateChangeComplete(Int16) becomes True.
+    ///
+    /// _ISwitchV3 and later._
+    #[http("setasync", method = Put)]
+    async fn set_async(
+        &self,
+
+        #[http("Id")] id: i32,
+
+        #[http("State", via = BoolParam)] state: bool,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// This is an asynchronous method that must return as soon as the state change operation has been successfully started,  with StateChangeComplete(Int16) for the given switch Id = False.  After the state change has completed StateChangeComplete(Int16) becomes True.
+    ///
+    /// _ISwitchV3 and later._
+    #[http("setasyncvalue", method = Put)]
+    async fn set_async_value(
+        &self,
+
+        #[http("Id")] id: i32,
+
+        #[http("Value")] value: f64,
+    ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
     /// Sets a switch controller device to the specified state, true or false.
     #[http("setswitch", method = Put)]
     async fn set_switch(
@@ -1815,6 +1914,14 @@ pub trait Switch: Device + Send + Sync {
 
         #[http("Value")] value: f64,
     ) -> ASCOMResult {
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// True if the state of the specified switch is changing, otherwise false.
+    ///
+    /// _ISwitchV3 and later._
+    #[http("statechangecomplete", method = Get, via = ValueResponse)]
+    async fn state_change_complete(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

@@ -244,14 +244,6 @@ function handleIntFormat(format: string | undefined): RustType {
   }
 }
 
-function assertString(value: any): asserts value is string {
-  assert.equal(
-    typeof value,
-    'string',
-    `${JSON.stringify(value)} is not a string`
-  );
-}
-
 function handleObjectProps(
   devicePath: string,
   objName: string,
@@ -341,6 +333,10 @@ function handleType(
           properties: handleObjectProps(devicePath, name, schema)
         }));
       }
+    }
+    if (name === 'DeviceStateItemValue') {
+      // This is a variadic type, handle it manually by forwarding to serde_json.
+      return rusty('serde_json::Value');
     }
     throw new Error(`Unknown type ${schema.type}`);
   });
@@ -637,6 +633,7 @@ function stringifyDoc(doc: string | undefined = '') {
   doc = doc.trim();
   if (!doc) return '';
   return doc
+    .replace(/^`(.+?)\.?`\s*(.*)$/s, '$2\n\n_$1._')
     .split(/\r?\n/)
     .map(line => `/// ${line}`)
     .join('\n');
@@ -706,7 +703,7 @@ ${stringifyIter(types, ({ features, type }) => {
       return `
         ${stringifyDoc(type.doc)}
         ${cfg}
-        #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+        #[derive(Debug, Clone${type.name !== 'DeviceStateItem' ? ', Copy' : ''}, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
         pub struct ${type.name} {
           ${stringifyIter(
