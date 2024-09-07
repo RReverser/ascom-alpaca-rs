@@ -71,13 +71,14 @@ mod image_array;
 #[cfg(feature = "camera")]
 pub use image_array::*;
 
+/// A DeviceState object representing an operational property of this device
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct DeviceStateItem {
     /// The property name. The name casing must match the casing in the relevant interface definition.
     pub name: String,
 
-    /// The corresponding value of the named operational property. This is an object variable that can hold one of several basic types  including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format). The  data type must be inferred from the property name.
+    /// The corresponding value of the named operational property. This is dynamically-typed value that can hold one of several basic types  including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format). The  data type must be inferred from the property name.
     pub value: serde_json::Value,
 }
 

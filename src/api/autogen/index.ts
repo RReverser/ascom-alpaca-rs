@@ -694,7 +694,7 @@ ${stringifyIter(types, ({ features, type }) => {
     // fallthrough
 
     case 1:
-      cfg = `#[cfg(${cfgs})]`;
+      cfg = `#[cfg(${cfgs})] `;
   }
 
   switch (type.kind) {
@@ -704,8 +704,7 @@ ${stringifyIter(types, ({ features, type }) => {
     case 'Response': {
       return `
         ${stringifyDoc(type.doc)}
-        ${cfg}
-        #[derive(Debug, Clone${type.name !== 'DeviceStateItem' ? ', Copy' : ''}, Serialize, Deserialize)]
+        ${cfg}#[derive(Debug, Clone${type.name !== 'DeviceStateItem' ? ', Copy' : ''}, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
         pub struct ${type.name} {
           ${stringifyIter(
@@ -728,8 +727,7 @@ ${stringifyIter(types, ({ features, type }) => {
     case 'Enum': {
       return `
         ${stringifyDoc(type.doc)}
-        ${cfg}
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
+        ${cfg}#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
         #[repr(${type.baseType})]
         #[allow(missing_docs)] // some enum variants might not have docs and that's okay
         pub enum ${type.name} {
@@ -748,8 +746,7 @@ ${stringifyIter(types, ({ features, type }) => {
 
       return `
         ${stringifyDoc(type.doc)}
-        ${cfg}
-        #[derive(Debug, Serialize, Deserialize)]
+        ${cfg}#[derive(Debug, Serialize, Deserialize)]
         pub(crate) struct ${type.name} {
           #[serde(rename = "Value", with = "${type.name}")]
           pub(crate) value: time::OffsetDateTime,
