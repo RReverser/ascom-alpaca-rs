@@ -446,8 +446,6 @@ mod test_utils {
                 )
                 .arg(format!("--urls=http://{ADDR}"))
                 .stdin(Stdio::null())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
                 .kill_on_drop(true)
                 .spawn()?,
 
