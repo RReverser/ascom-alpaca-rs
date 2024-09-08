@@ -375,13 +375,14 @@ pub use server::{BoundServer, Server};
 #[cfg(test)]
 mod test_utils {
     use crate::api::{DevicePath, DeviceType};
-    use crate::{Client, Server};
+    use crate::{Client, Devices, Server};
+    use net_literals::addr;
+    use std::net::SocketAddr;
     use std::process::Stdio;
     use std::sync::{Arc, Weak};
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::process::{Child, Command};
     use tokio::sync::Mutex;
-    use tokio::task::AbortHandle;
     use tracing_subscriber::prelude::*;
 
     #[ctor::ctor]
@@ -421,152 +422,138 @@ mod test_utils {
         Conformance,
     }
 
-    pub(crate) struct PassthroughTestEnv {
-        _simulators: Child,
-        server_abort: AbortHandle,
-        api_path: String,
+    pub(crate) struct TestEnv {
+        _server: Child,
+        devices: Devices,
     }
 
-    impl PassthroughTestEnv {
-        async fn try_new() -> eyre::Result<Self> {
-            const SIMULATOR_URL: &str = "http://127.0.0.1:32323";
-
-            let simulators =
-                Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
-                    .arg(format!("--urls={SIMULATOR_URL}"))
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .kill_on_drop(true)
-                    .spawn()?;
-
-            let mut server = Server::default();
-
-            server
-                .devices
-                .extend(Client::new(SIMULATOR_URL)?.get_devices().await?);
-
-            server
-                .listen_addr
-                .set_ip(std::net::Ipv4Addr::LOCALHOST.into());
-
-            let bound_server = server.bind().await?;
-
-            // Get the IP and the random port assigned by the OS.
-            let listen_addr = bound_server.listen_addr();
-
-            let server_abort = tokio::spawn(bound_server.start()).abort_handle();
+    impl TestEnv {
+        async fn new() -> eyre::Result<Self> {
+            const ADDR: SocketAddr = addr!("127.0.0.1:32323");
 
             Ok(Self {
-                _simulators: simulators,
-                server_abort,
-                api_path: format!("http://{listen_addr}/api/v1/"),
+                _server: Command::new(
+                    r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe",
+                )
+                .arg(format!("--urls=http://{ADDR}"))
+                .stdin(Stdio::null())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .kill_on_drop(true)
+                .spawn()?,
+
+                devices: Client::new_from_addr(ADDR).get_devices().await?.collect(),
             })
         }
 
-        async fn run_test(&self, ty: DeviceType, kind: TestKind) -> eyre::Result<()> {
-            let api_path = &self.api_path;
-
-            let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
-                .arg(match kind {
-                    TestKind::Protocol => "alpacaprotocol",
-                    TestKind::Conformance => "conformance",
-                })
-                .arg(format!(
-                    "{api_path}{device_path}/0",
-                    device_path = DevicePath(ty)
-                ))
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .spawn()?;
-
-            let output = conformu.stdout.take().expect("stdout should be piped");
-
-            let reader = BufReader::new(output);
-            let mut lines = reader.lines();
-
-            while let Some(line) = lines.next_line().await? {
-                // This is fragile, but ConformU doesn't provide structured output.
-                // Use known widths of the fields to parse them.
-                // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
-
-                let line = match kind {
-                    // skip date and time before doing any other checks
-                    TestKind::Conformance => line.get(13..).unwrap_or(&line),
-                    // In protocol tests, the date and time are not present
-                    TestKind::Protocol => &line,
-                }
-                .trim_ascii_end();
-
-                match line {
-                    // Skip empty lines.
-                    "" => continue,
-                    // Skip .NET stacktraces.
-                    _ if line.starts_with("   at ") => continue,
-                    // Stop on summary headers.
-                    "Conformance test has finished"
-                    | "Information Message Summary"
-                    | "Issue Summary" => break,
-                    // Handle everything else.
-                    _ => {}
-                }
-
-                if !parse_log_line(line, kind) {
-                    tracing::debug!("{line}");
-                }
-            }
-
-            let exit_status = conformu.wait().await?;
-
-            eyre::ensure!(
-                exit_status.success(),
-                "ConformU check for {ty} exited with an error code: {exit_status}"
-            );
-
-            Ok(())
-        }
-
-        async fn run_tests(&self, ty: DeviceType) -> eyre::Result<()> {
-            self.run_test(ty, TestKind::Protocol).await?;
-            self.run_test(ty, TestKind::Conformance).await
-        }
-
-        /// Get the shared test environment with an incremented refcount.
-        ///
-        /// If one is already available - which should happen when running tests in parallel - then just acquire a refcounted copy.
-        /// If not, put a new one in place.
-        ///
-        /// This way, each test increases the refcount at start and decreases it at the end, so whichever happens to run last,
-        /// kills the simulator running in the background.
-        ///
-        /// This is a workaround for Rust test framework not having an "after all" hook.
-        async fn acquire() -> eyre::Result<Arc<Self>> {
+        // Get or create a shared instance of the test environment.
+        // While one is acquired, the simulators process is guaranteed to run in the background.
+        pub(crate) async fn acquire() -> eyre::Result<Arc<Self>> {
             // Note: the static variable should only contain a Weak copy, otherwise the test environment
             // would never be dropped, and we want it to be dropped at the end of the last strong copy
             // (last running test).
-            static TEST_ENV: Mutex<Weak<PassthroughTestEnv>> = Mutex::const_new(Weak::new());
+            static TEST_ENV: Mutex<Weak<TestEnv>> = Mutex::const_new(Weak::new());
 
             let mut lock = TEST_ENV.lock().await;
 
             Ok(match lock.upgrade() {
                 Some(env) => env,
                 None => {
-                    let env = Arc::new(Self::try_new().await?);
+                    let env = Arc::new(Self::new().await?);
                     *lock = Arc::downgrade(&env);
                     env
                 }
             })
         }
 
-        pub(crate) async fn acquire_and_test(ty: DeviceType) -> eyre::Result<()> {
-            Self::acquire().await?.run_tests(ty).await
+        pub(crate) async fn run_tests(&self, ty: DeviceType) -> eyre::Result<()> {
+            let proxy = Server {
+                devices: self.devices.clone(),
+                listen_addr: addr!("127.0.0.1:0"),
+                ..Default::default()
+            };
+
+            let proxy = proxy.bind().await?;
+
+            // Get the IP and the random port assigned by the OS.
+            let listen_addr = proxy.listen_addr();
+
+            let proxy_task = proxy.start();
+
+            let device_url = format!(
+                "http://{listen_addr}/api/v1/{device_path}/0",
+                device_path = DevicePath(ty)
+            );
+
+            let tests_task = async {
+                for kind in [TestKind::Protocol, TestKind::Conformance] {
+                    run_test(&device_url, kind).await?;
+                }
+                Ok(())
+            };
+
+            tokio::select! {
+                proxy_result = proxy_task => match proxy_result? {},
+                tests_result = tests_task => tests_result,
+            }
         }
     }
 
-    impl Drop for PassthroughTestEnv {
-        fn drop(&mut self) {
-            self.server_abort.abort();
+    async fn run_test(device_url: &str, kind: TestKind) -> eyre::Result<()> {
+        let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
+            .arg(match kind {
+                TestKind::Protocol => "alpacaprotocol",
+                TestKind::Conformance => "conformance",
+            })
+            .arg(device_url)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        let output = conformu.stdout.take().expect("stdout should be piped");
+
+        let reader = BufReader::new(output);
+        let mut lines = reader.lines();
+
+        while let Some(line) = lines.next_line().await? {
+            // This is fragile, but ConformU doesn't provide structured output.
+            // Use known widths of the fields to parse them.
+            // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
+
+            let line = match kind {
+                // skip date and time before doing any other checks
+                TestKind::Conformance => line.get(13..).unwrap_or(&line),
+                // In protocol tests, the date and time are not present
+                TestKind::Protocol => &line,
+            }
+            .trim_ascii_end();
+
+            match line {
+                // Skip empty lines.
+                "" => continue,
+                // Skip .NET stacktraces.
+                _ if line.starts_with("   at ") => continue,
+                // Stop on summary headers.
+                "Conformance test has finished"
+                | "Information Message Summary"
+                | "Issue Summary" => break,
+                // Handle everything else.
+                _ => {}
+            }
+
+            if !parse_log_line(line, kind) {
+                tracing::debug!("{line}");
+            }
         }
+
+        let exit_status = conformu.wait().await?;
+
+        eyre::ensure!(
+            exit_status.success(),
+            "ConformU exited with an error code: {exit_status}"
+        );
+
+        Ok(())
     }
 
     fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'line str> {

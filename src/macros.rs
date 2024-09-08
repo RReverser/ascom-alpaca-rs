@@ -300,7 +300,7 @@ macro_rules! rpc_mod {
         /// This data structure holds devices of arbitrary categories (cameras, telescopes, etc.)
         /// and allows to register and access them by their kind and index.
         #[allow(non_snake_case)]
-        #[derive(Default)]
+        #[derive(Clone, Default)]
         pub struct Devices {
             $(
                 #[cfg(feature = $path)]
@@ -397,14 +397,15 @@ macro_rules! rpc_mod {
         #[cfg(test)]
         mod conformu {
             use super::DeviceType;
-            use $crate::test_utils::PassthroughTestEnv;
+            use $crate::test_utils::TestEnv;
 
             $(
                 #[cfg(feature = $path)]
                 #[tokio::test]
                 #[allow(non_snake_case)]
                 async fn $trait_name() -> eyre::Result<()> {
-                    PassthroughTestEnv::acquire_and_test(DeviceType::$trait_name).await
+                    TestEnv::acquire().await?
+                    .run_tests(DeviceType::$trait_name).await
                 }
             )*
         }
