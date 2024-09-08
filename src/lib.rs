@@ -597,7 +597,9 @@ mod test_utils {
                     return false;
                 };
 
-                trace_outcome!(outcome, ?http_method, ?method, "{line}");
+                let (test, line) = line.split_once(" - ").unwrap_or(("", line));
+
+                trace_outcome!(outcome, ?http_method, ?method, ?test, "{line}");
             }
             TestKind::Conformance => {
                 let Some(method) = split_with_whitespace(&mut line, 35) else {
