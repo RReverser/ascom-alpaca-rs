@@ -484,10 +484,6 @@ mod test_utils {
 
             let reader = BufReader::new(output);
             let mut lines = reader.lines();
-            let done_line = match kind {
-                TestKind::Conformance => "Conformance test has finished",
-                TestKind::Protocol => "Information Message Summary",
-            };
 
             while let Some(line) = lines.next_line().await? {
                 // This is fragile, but ConformU doesn't provide structured output.
@@ -502,18 +498,20 @@ mod test_utils {
                 }
                 .trim_ascii_end();
 
-                // Skip empty lines.
-                if line.is_empty() {
-                    continue;
+                match line {
+                    // Skip empty lines.
+                    "" => continue,
+                    // Skip .NET stacktraces.
+                    _ if line.starts_with("   at ") => continue,
+                    // Stop on summary headers.
+                    "Conformance test has finished"
+                    | "Information Message Summary"
+                    | "Issue Summary" => break,
+                    // Handle everything else.
+                    _ => {}
                 }
 
-                // We're not interested in the summaries.
-                if line == done_line {
-                    let _ = tokio::io::copy(lines.get_mut(), &mut tokio::io::sink()).await?;
-                    break;
-                }
-
-                if !parse_log_line(line, kind) && !line.starts_with("   at ") {
+                if !parse_log_line(line, kind) {
                     tracing::debug!("{line}");
                 }
             }
