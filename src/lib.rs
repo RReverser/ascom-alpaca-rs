@@ -416,10 +416,19 @@ mod test_utils {
             .expect("Failed to install color_eyre");
     }
 
-    #[derive(Clone, Copy)]
+    #[derive(Debug, Clone, Copy)]
     pub(crate) enum TestKind {
-        Protocol,
+        AlpacaProtocol,
         Conformance,
+    }
+
+    impl TestKind {
+        const fn as_arg(self) -> &'static str {
+            match self {
+                Self::AlpacaProtocol => "alpacaprotocol",
+                Self::Conformance => "conformance",
+            }
+        }
     }
 
     pub(crate) struct TestEnv {
@@ -486,7 +495,7 @@ mod test_utils {
             );
 
             let tests_task = async {
-                for kind in [TestKind::Protocol, TestKind::Conformance] {
+                for kind in [TestKind::AlpacaProtocol, TestKind::Conformance] {
                     run_test(&device_url, kind).await?;
                 }
                 Ok(())
@@ -501,10 +510,7 @@ mod test_utils {
 
     async fn run_test(device_url: &str, kind: TestKind) -> eyre::Result<()> {
         let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
-            .arg(match kind {
-                TestKind::Protocol => "alpacaprotocol",
-                TestKind::Conformance => "conformance",
-            })
+            .arg(kind.as_arg())
             .arg(device_url)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -520,19 +526,22 @@ mod test_utils {
             // Use known widths of the fields to parse them.
             // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
 
+            // Skip .NET stacktraces.
+            if line.starts_with("   at ") {
+                continue;
+            }
+
             let line = match kind {
                 // skip date and time before doing any other checks
                 TestKind::Conformance => line.get(13..).unwrap_or(&line),
                 // In protocol tests, the date and time are not present
-                TestKind::Protocol => &line,
+                TestKind::AlpacaProtocol => &line,
             }
             .trim_ascii_end();
 
             match line {
                 // Skip empty lines.
                 "" => continue,
-                // Skip .NET stacktraces.
-                _ if line.starts_with("   at ") => continue,
                 // Stop on summary headers.
                 "Conformance test has finished"
                 | "Information Message Summary"
@@ -541,7 +550,7 @@ mod test_utils {
                 _ => {}
             }
 
-            if !parse_log_line(line, kind) {
+            if parse_log_line(line, kind).is_none() {
                 tracing::debug!("{line}");
             }
         }
@@ -566,58 +575,55 @@ mod test_utils {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    fn parse_log_line(mut line: &str, kind: TestKind) -> bool {
+    fn parse_log_line(mut line: &str, test_kind: TestKind) -> Option<()> {
+        let outcome;
+
         macro_rules! trace_outcome {
-            ($outcome:expr, $($args:tt)*) => {
-                match $outcome {
-                    "OK" => tracing::trace!(target: "ascom_alpaca::conformu", $($args)*),
-                    "INFO" => tracing::info!(target: "ascom_alpaca::conformu", $($args)*),
-                    "WARN" => tracing::warn!(target: "ascom_alpaca::conformu", $($args)*),
-                    "DEBUG" | "" => tracing::debug!(target: "ascom_alpaca::conformu", $($args)*),
-                    "ISSUE" | "ERROR" => tracing::error!(target: "ascom_alpaca::conformu", $($args)*),
-                    _ => return false,
+            (@impl $args:tt) => {
+                match outcome {
+                    "OK" => tracing::trace! $args,
+                    "INFO" => tracing::info! $args,
+                    "WARN" => tracing::warn! $args,
+                    "DEBUG" | "" => tracing::debug! $args,
+                    "ISSUE" | "ERROR" => tracing::error! $args,
+                    _ => return None,
                 }
+            };
+
+            ($($args:tt)*) => {
+                trace_outcome!(@impl (target: "ascom_alpaca::conformu", $($args)*, ?test_kind, "{line}"))
             };
         }
 
-        match kind {
-            TestKind::Protocol => {
-                let Some(http_method) = split_with_whitespace(&mut line, 3) else {
-                    return false;
+        match test_kind {
+            TestKind::AlpacaProtocol => {
+                let http_method = split_with_whitespace(&mut line, 3)
+                    .filter(|&http_method| matches!(http_method, "GET" | "PUT" | ""))?;
+
+                let method = split_with_whitespace(&mut line, 25)?;
+
+                outcome = split_with_whitespace(&mut line, 6)?;
+
+                let test;
+
+                (test, line) = match line.split_once(" - ") {
+                    Some((test, line)) => (Some(test), line),
+                    None => (None, line),
                 };
-                if !matches!(http_method, "GET" | "PUT" | "") {
-                    return false;
-                }
 
-                let Some(method) = split_with_whitespace(&mut line, 25) else {
-                    return false;
-                };
-
-                let Some(outcome) = split_with_whitespace(&mut line, 6) else {
-                    return false;
-                };
-
-                let (test, line) = line.split_once(" - ").unwrap_or(("", line));
-
-                trace_outcome!(outcome, ?http_method, ?method, ?test, "{line}");
+                trace_outcome!(test, method, outcome, http_method);
             }
+
             TestKind::Conformance => {
-                let Some(method) = split_with_whitespace(&mut line, 35) else {
-                    return false;
-                };
+                let method =
+                    split_with_whitespace(&mut line, 35).filter(|&method| !method.is_empty())?;
 
-                if method.is_empty() {
-                    return false;
-                }
+                outcome = split_with_whitespace(&mut line, 8)?;
 
-                let Some(outcome) = split_with_whitespace(&mut line, 8) else {
-                    return false;
-                };
-
-                trace_outcome!(outcome, ?method, "{line}");
+                trace_outcome!(method, outcome);
             }
         }
 
-        true
+        Some(())
     }
 }
