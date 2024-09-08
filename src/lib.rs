@@ -435,8 +435,8 @@ mod test_utils {
                 Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
                     .arg(format!("--urls={SIMULATOR_URL}"))
                     .stdin(Stdio::null())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
                     .kill_on_drop(true)
                     .spawn()?;
 
