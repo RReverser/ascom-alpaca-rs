@@ -25,12 +25,11 @@ use axum::extract::{FromRequest, Path, Request};
 use axum::response::IntoResponse;
 use axum::routing::MethodFilter;
 use axum::Router;
+use futures::future::{BoxFuture, Future, FutureExt};
 use net_literals::addr;
 use sailfish::TemplateOnce;
 use std::collections::BTreeMap;
-use std::future::Future;
 use std::net::SocketAddr;
-use std::pin::Pin;
 use std::sync::Arc;
 use tracing::Instrument;
 
@@ -113,7 +112,7 @@ impl ServerHandler {
 pub struct BoundServer {
     // Axum types are a bit complicated, so just Box it for now.
     #[debug(skip)]
-    axum: Pin<Box<dyn Future<Output = eyre::Result<std::convert::Infallible>> + Send>>,
+    axum: BoxFuture<'static, eyre::Result<std::convert::Infallible>>,
     axum_listen_addr: SocketAddr,
     discovery: BoundDiscoveryServer,
 }
@@ -185,19 +184,18 @@ impl Server {
         tracing::debug!("Bound Alpaca discovery server");
 
         Ok(BoundServer {
-            axum: Box::pin(
-                async move {
-                    axum::serve(
-                        listener,
-                        self.into_router()
-                            // .layer(TraceLayer::new_for_http())
-                            .into_make_service(),
-                    )
-                    .await?;
-                    unreachable!("Alpaca server should never stop without an error")
-                }
-                .instrument(tracing::error_span!("alpaca_server_loop")),
-            ),
+            axum: async move {
+                axum::serve(
+                    listener,
+                    self.into_router()
+                        // .layer(TraceLayer::new_for_http())
+                        .into_make_service(),
+                )
+                .await?;
+                unreachable!("Alpaca server should never stop without an error")
+            }
+            .instrument(tracing::error_span!("alpaca_server_loop"))
+            .boxed(),
             axum_listen_addr: bound_addr,
             discovery: discovery_server,
         })
