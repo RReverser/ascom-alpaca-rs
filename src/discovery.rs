@@ -32,6 +32,8 @@ pub(crate) async fn bind_socket(
     )?;
     // For async code, we need to set the socket to non-blocking mode.
     socket.set_nonblocking(true)?;
+    // Reuse address for parallel server instances in e.g. tests.
+    socket.set_reuse_address(true)?;
     if addr.is_ipv6() {
         // We want to talk to the IPv4 broadcast address from the same socket.
         // Using `socket2` seems to be the only way to do this from safe Rust.
