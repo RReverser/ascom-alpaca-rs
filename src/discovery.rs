@@ -78,6 +78,7 @@ use netdev::Interface;
 use std::os::windows::prelude::AsRawSocket;
 
 #[cfg(test)]
+#[serial_test::serial(discovery)]
 mod tests {
     use super::{DiscoveryClient, DiscoveryServer};
     use futures::StreamExt;
@@ -155,7 +156,6 @@ mod tests {
         ($($name:ident = $addr:expr => $($expected_addrs:ident),+;)*) => {
             $(
                 #[tokio::test]
-                #[serial_test::serial]
                 async fn $name() -> eyre::Result<()> {
                     run_test(
                         $addr.into(),
