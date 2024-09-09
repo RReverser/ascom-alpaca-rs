@@ -583,15 +583,9 @@ mod test_utils {
                     }
                     .trim_ascii_end();
 
-                    match line {
-                        // Skip empty lines.
-                        "" => continue,
-                        // Stop on summary headers.
-                        "Conformance test has finished"
-                        | "Information Message Summary"
-                        | "Issue Summary" => break,
-                        // Handle everything else.
-                        _ => {}
+                    // Skip empty lines.
+                    if line.is_empty() {
+                        continue;
                     }
 
                     if parse_log_line(line, kind).is_none() {
