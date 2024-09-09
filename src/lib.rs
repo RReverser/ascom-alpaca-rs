@@ -502,7 +502,7 @@ mod test_utils {
                     }
                 } => {}
                 server_exited = server.wait() => eyre::bail!("Simulator process exited early: {}", server_exited?),
-                () = tokio::time::sleep(std::time::Duration::from_secs(5)) => eyre::bail!("Simulator process didn't start in time")
+                () = tokio::time::sleep(std::time::Duration::from_secs(10)) => eyre::bail!("Simulator process didn't start in time")
             }
 
             Ok(Self {
