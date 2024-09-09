@@ -531,9 +531,11 @@ mod test_utils {
             })
         }
 
-        pub(crate) async fn run_tests(&self, ty: DeviceType) -> eyre::Result<()> {
+        pub(crate) async fn run_test(ty: DeviceType, kind: TestKind) -> eyre::Result<()> {
+            let env = Self::acquire().await?;
+
             let proxy = Server {
-                devices: self.devices.clone(),
+                devices: env.devices.clone(),
                 listen_addr: addr!("127.0.0.1:0"),
                 ..Default::default()
             };
@@ -551,9 +553,59 @@ mod test_utils {
             );
 
             let tests_task = async {
-                for kind in [TestKind::AlpacaProtocol, TestKind::Conformance] {
-                    run_test(&device_url, kind).await?;
+                let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
+                    .arg(kind.as_arg())
+                    .arg(device_url)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+
+                let output = conformu.stdout.take().expect("stdout should be piped");
+
+                let reader = BufReader::new(output);
+                let mut lines = reader.lines();
+
+                while let Some(line) = lines.next_line().await? {
+                    // This is fragile, but ConformU doesn't provide structured output.
+                    // Use known widths of the fields to parse them.
+                    // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
+
+                    // Skip .NET stacktraces.
+                    if line.starts_with("   at ") {
+                        continue;
+                    }
+
+                    let line = match kind {
+                        // skip date and time before doing any other checks
+                        TestKind::Conformance => line.get(13..).unwrap_or(&line),
+                        // In protocol tests, the date and time are not present
+                        TestKind::AlpacaProtocol => &line,
+                    }
+                    .trim_ascii_end();
+
+                    match line {
+                        // Skip empty lines.
+                        "" => continue,
+                        // Stop on summary headers.
+                        "Conformance test has finished"
+                        | "Information Message Summary"
+                        | "Issue Summary" => break,
+                        // Handle everything else.
+                        _ => {}
+                    }
+
+                    if parse_log_line(line, kind).is_none() {
+                        tracing::debug!("{line}");
+                    }
                 }
+
+                let exit_status = conformu.wait().await?;
+
+                eyre::ensure!(
+                    exit_status.success(),
+                    "ConformU exited with an error code: {exit_status}"
+                );
+
                 Ok(())
             };
 
@@ -562,63 +614,6 @@ mod test_utils {
                 tests_result = tests_task => tests_result,
             }
         }
-    }
-
-    async fn run_test(device_url: &str, kind: TestKind) -> eyre::Result<()> {
-        let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
-            .arg(kind.as_arg())
-            .arg(device_url)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .spawn()?;
-
-        let output = conformu.stdout.take().expect("stdout should be piped");
-
-        let reader = BufReader::new(output);
-        let mut lines = reader.lines();
-
-        while let Some(line) = lines.next_line().await? {
-            // This is fragile, but ConformU doesn't provide structured output.
-            // Use known widths of the fields to parse them.
-            // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
-
-            // Skip .NET stacktraces.
-            if line.starts_with("   at ") {
-                continue;
-            }
-
-            let line = match kind {
-                // skip date and time before doing any other checks
-                TestKind::Conformance => line.get(13..).unwrap_or(&line),
-                // In protocol tests, the date and time are not present
-                TestKind::AlpacaProtocol => &line,
-            }
-            .trim_ascii_end();
-
-            match line {
-                // Skip empty lines.
-                "" => continue,
-                // Stop on summary headers.
-                "Conformance test has finished"
-                | "Information Message Summary"
-                | "Issue Summary" => break,
-                // Handle everything else.
-                _ => {}
-            }
-
-            if parse_log_line(line, kind).is_none() {
-                tracing::debug!("{line}");
-            }
-        }
-
-        let exit_status = conformu.wait().await?;
-
-        eyre::ensure!(
-            exit_status.success(),
-            "ConformU exited with an error code: {exit_status}"
-        );
-
-        Ok(())
     }
 
     fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'line str> {
@@ -647,7 +642,7 @@ mod test_utils {
             };
 
             ($target:literal, $($args:tt)*) => {
-                trace_outcome!(@impl (target: concat!("ascom_alpaca::conformu::", $target), $($args)*, ?test_kind, "{line}"))
+                trace_outcome!(@impl (target: concat!("ascom_alpaca::conformu::", $target), $($args)*, "{line}"))
             };
         }
 

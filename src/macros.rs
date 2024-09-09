@@ -397,15 +397,24 @@ macro_rules! rpc_mod {
         #[cfg(test)]
         mod conformu {
             use super::DeviceType;
-            use $crate::test_utils::TestEnv;
+            use $crate::test_utils::{TestEnv, TestKind};
 
             $(
                 #[cfg(feature = $path)]
-                #[tokio::test]
+                #[serial_test::serial($trait_name)]
                 #[allow(non_snake_case)]
-                async fn $trait_name() -> eyre::Result<()> {
-                    TestEnv::acquire().await?
-                    .run_tests(DeviceType::$trait_name).await
+                mod $trait_name {
+                    use super::*;
+
+                    #[tokio::test]
+                    async fn alpaca() -> eyre::Result<()> {
+                        TestEnv::run_test(DeviceType::$trait_name, TestKind::AlpacaProtocol).await
+                    }
+
+                    #[tokio::test]
+                    async fn conformance() -> eyre::Result<()> {
+                        TestEnv::run_test(DeviceType::$trait_name, TestKind::Conformance).await
+                    }
                 }
             )*
         }
