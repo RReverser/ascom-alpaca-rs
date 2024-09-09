@@ -385,6 +385,26 @@ mod test_utils {
     use tokio::sync::Mutex;
     use tracing_subscriber::prelude::*;
 
+    // A helper that allows to skip spans without events.
+    struct FilteredProcessor<P>(P);
+
+    impl<P: tracing_forest::Processor> tracing_forest::Processor for FilteredProcessor<P> {
+        fn process(&self, tree: tracing_forest::tree::Tree) -> tracing_forest::processor::Result {
+            fn is_used(tree: &tracing_forest::tree::Tree) -> bool {
+                match tree {
+                    tracing_forest::tree::Tree::Span(span) => span.nodes().iter().any(is_used),
+                    tracing_forest::tree::Tree::Event(_) => true,
+                }
+            }
+
+            if is_used(&tree) {
+                self.0.process(tree)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
     #[ctor::ctor]
     fn prepare_test_env() {
         unsafe {
@@ -394,10 +414,10 @@ mod test_utils {
         tracing_subscriber::registry()
             .with(
                 tracing_subscriber::filter::Targets::new()
-                    .with_target("ascom_alpaca", tracing::Level::TRACE),
+                    .with_target("ascom_alpaca", tracing::Level::INFO),
             )
             .with(tracing_forest::ForestLayer::new(
-                tracing_forest::printer::TestCapturePrinter::new(),
+                FilteredProcessor(tracing_forest::printer::TestCapturePrinter::new()),
                 tracing_forest::tag::NoTag,
             ))
             .with(tracing_error::ErrorLayer::default())
