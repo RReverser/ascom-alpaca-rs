@@ -405,6 +405,32 @@ mod test_utils {
         }
     }
 
+    fn target_icon(target: &str) -> Option<char> {
+        let target_parts = target.split("::").collect::<Vec<_>>();
+
+        Some(match target_parts.as_slice() {
+            ["discovery", ..] | [_, "discovery", ..] => '🔍',
+            ["client", ..] => '📡',
+            ["server", ..] => '🏭',
+            ["conformu" | "test_utils", ..] => '🧪',
+            _ => return None,
+        })
+    }
+
+    fn target_tag(event: &tracing::Event<'_>) -> Option<tracing_forest::Tag> {
+        let target = event.metadata().target().strip_prefix("ascom_alpaca::")?;
+
+        let mut builder = tracing_forest::Tag::builder()
+            .prefix(target)
+            .level(*event.metadata().level());
+
+        if let Some(icon) = target_icon(target) {
+            builder = builder.icon(icon);
+        }
+
+        Some(builder.build())
+    }
+
     #[ctor::ctor]
     fn prepare_test_env() {
         unsafe {
@@ -418,7 +444,7 @@ mod test_utils {
             )
             .with(tracing_forest::ForestLayer::new(
                 FilteredProcessor(tracing_forest::printer::TestCapturePrinter::new()),
-                tracing_forest::tag::NoTag,
+                target_tag,
             ))
             .with(tracing_error::ErrorLayer::default())
             .init();
@@ -620,8 +646,8 @@ mod test_utils {
                 }
             };
 
-            ($($args:tt)*) => {
-                trace_outcome!(@impl (target: "ascom_alpaca::conformu", $($args)*, ?test_kind, "{line}"))
+            ($target:literal, $($args:tt)*) => {
+                trace_outcome!(@impl (target: concat!("ascom_alpaca::conformu::", $target), $($args)*, ?test_kind, "{line}"))
             };
         }
 
@@ -641,7 +667,7 @@ mod test_utils {
                     None => (None, line),
                 };
 
-                trace_outcome!(test, method, outcome, http_method);
+                trace_outcome!("alpaca", test, method, outcome, http_method);
             }
 
             TestKind::Conformance => {
@@ -650,7 +676,7 @@ mod test_utils {
 
                 outcome = split_with_whitespace(&mut line, 8)?;
 
-                trace_outcome!(method, outcome);
+                trace_outcome!("conformance", method, outcome);
             }
         }
 
