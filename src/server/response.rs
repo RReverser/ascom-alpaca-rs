@@ -1,6 +1,6 @@
 use super::{Error, ResponseTransaction, ResponseWithTransaction};
 use crate::response::ValueResponse;
-use crate::{ASCOMError, ASCOMResult};
+use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use axum::response::IntoResponse;
 use axum::Json;
 use http::StatusCode;
@@ -29,7 +29,11 @@ impl<T: Serialize> Response for ASCOMResult<T> {
                     value: Some(value),
                 },
                 Err(error) => {
-                    tracing::error!(%error, "Alpaca method returned an error");
+                    if error.code == ASCOMErrorCode::NOT_IMPLEMENTED {
+                        tracing::warn!("Alpaca method is not implemented");
+                    } else {
+                        tracing::error!(%error, "Alpaca method returned an error");
+                    }
                     Repr { error, value: None }
                 }
             },
