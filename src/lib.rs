@@ -440,15 +440,27 @@ mod test_utils {
         async fn new() -> eyre::Result<Self> {
             const ADDR: SocketAddr = addr!("127.0.0.1:32323");
 
-            Ok(Self {
-                _server: Command::new(
-                    r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe",
-                )
-                .arg(format!("--urls=http://{ADDR}"))
-                .stdin(Stdio::null())
-                .kill_on_drop(true)
-                .spawn()?,
+            let mut server =
+                Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
+                    .arg(format!("--urls=http://{ADDR}"))
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .kill_on_drop(true)
+                    .spawn()?;
 
+            tokio::select! {
+                () = async {
+                    while tokio::net::TcpStream::connect(ADDR).await.is_err() {
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    }
+                } => {}
+                server_exited = server.wait() => eyre::bail!("Simulator process exited early: {}", server_exited?),
+                () = tokio::time::sleep(std::time::Duration::from_secs(5)) => eyre::bail!("Simulator process didn't start in time")
+            }
+
+            Ok(Self {
+                _server: server,
                 devices: Client::new_from_addr(ADDR).get_devices().await?.collect(),
             })
         }
