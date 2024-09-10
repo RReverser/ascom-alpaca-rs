@@ -1,8 +1,15 @@
 use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt;
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(transparent)]
 pub(crate) struct BoolParam(bool);
+
+impl fmt::Debug for BoolParam {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl From<bool> for BoolParam {
     fn from(b: bool) -> Self {
@@ -26,7 +33,7 @@ impl<'de> Deserialize<'de> for BoolParam {
         impl serde::de::Visitor<'_> for Visitor {
             type Value = bool;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("'true' or 'false' in any casing")
             }
 
