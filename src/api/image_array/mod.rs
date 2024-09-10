@@ -59,7 +59,8 @@ pub(crate) enum TransmissionElementType {
 )]
 #[repr(i32)]
 pub(crate) enum ImageElementType {
-    I32 = TransmissionElementType::I32 as i32,
+    /// See [`TransmissionElementType::I32`].
+    I32 = 2,
 }
 
 trait AsTransmissionElementType: 'static + Into<i32> + AnyBitPattern {

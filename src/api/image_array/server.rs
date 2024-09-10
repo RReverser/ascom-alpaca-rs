@@ -51,7 +51,11 @@ impl Response for ASCOMResult<ImageBytesResponse> {
                             },
                 );
                 bytes.extend_from_slice(bytes_of(&metadata));
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                #[allow(
+                    clippy::as_conversions,
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss
+                )]
                 match img_array.transmission_element_type {
                     TransmissionElementType::I32 => {
                         bytes.extend(img_array.iter().flat_map(|&i| i.to_le_bytes()));

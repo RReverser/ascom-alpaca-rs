@@ -40,11 +40,7 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
 
 */
 
-#![allow(
-  rustdoc::broken_intra_doc_links,
-  clippy::doc_markdown,
-  clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
-)]
+#![allow(clippy::doc_markdown)]
 
 mod bool_param;
 mod devices_impl;
