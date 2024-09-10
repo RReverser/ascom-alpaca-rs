@@ -1,25 +1,23 @@
-use ascom_alpaca::api::TypedDevice;
-use ascom_alpaca::Client;
+use ascom_alpaca::api::Camera;
+use ascom_alpaca::test_utils::OmniSim;
 use criterion::{criterion_group, criterion_main, Criterion};
 use eyre::ContextCompat;
 use std::time::Duration;
 
 fn download_image_array(c: &mut Criterion) {
-    c.bench_function("download_image_array", |b| {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
 
+    let test_env = runtime
+        .block_on(OmniSim::acquire())
+        .expect("Failed to acquire test environment");
+
+    c.bench_function("download_image_array", move |b| {
         let camera = runtime
-            .block_on(async move {
-                // Create client against the default Alpaca simulators port.
-                let client = Client::new("http://localhost:32323/")?;
-                let camera = client
-                    .get_devices()
-                    .await?
-                    .find_map(|device| match device {
-                        TypedDevice::Camera(camera) => Some(camera),
-                        #[allow(unreachable_patterns)]
-                        _ => None,
-                    })
+            .block_on(async {
+                let camera = test_env
+                    .devices()
+                    .iter::<dyn Camera>()
+                    .next()
                     .context("No camera found")?;
                 camera.set_connected(true).await?;
                 camera.start_exposure(0.001, true).await?;
@@ -33,7 +31,9 @@ fn download_image_array(c: &mut Criterion) {
             })
             .expect("Failed to capture a test image");
 
-        b.iter_with_large_drop(|| runtime.block_on(camera.image_array()).unwrap());
+        b.iter_with_large_drop(|| {
+            runtime.block_on(camera.image_array()).unwrap();
+        });
     });
 }
 

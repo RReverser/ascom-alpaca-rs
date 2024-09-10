@@ -57,7 +57,7 @@ tracing-futures = { version = "0.2.5", features = ["futures-03"], optional = tru
 windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock"] }
 
 [dev-dependencies]
-ascom-alpaca = { path = ".", features = ["client", "server"] }
+ascom-alpaca = { path = ".", features = ["client", "server", "test"] }
 criterion = { version = "0.5.1" }
 ctor = "0.2.8"
 serial_test = "3.1.1"
@@ -70,11 +70,13 @@ tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
 [[bench]]
 name = "image_array"
 harness = false
+required-features = ["client", "camera", "test"]
 
 [features]
 all-devices = ["camera", "covercalibrator", "dome", "filterwheel", "focuser", "observingconditions", "rotator", "safetymonitor", "switch", "telescope"]
 
 __anydevice = []
+test = []
 
 camera = ["__anydevice", "dep:bytemuck", "dep:mediatype", "dep:ndarray", "dep:serde-ndim", "dep:time"]
 covercalibrator = ["__anydevice"]

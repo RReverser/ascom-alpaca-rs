@@ -397,7 +397,7 @@ macro_rules! rpc_mod {
         #[cfg(test)]
         mod conformu {
             use super::DeviceType;
-            use $crate::test_utils::{TestEnv, TestKind};
+            use $crate::test_utils::ConformU;
 
             $(
                 #[cfg(feature = $path)]
@@ -408,12 +408,12 @@ macro_rules! rpc_mod {
 
                     #[tokio::test]
                     async fn alpaca() -> eyre::Result<()> {
-                        TestEnv::run_test(DeviceType::$trait_name, TestKind::AlpacaProtocol).await
+                        ConformU::AlpacaProtocol.run_proxy_test(DeviceType::$trait_name).await
                     }
 
                     #[tokio::test]
                     async fn conformance() -> eyre::Result<()> {
-                        TestEnv::run_test(DeviceType::$trait_name, TestKind::Conformance).await
+                        ConformU::Conformance.run_proxy_test(DeviceType::$trait_name).await
                     }
                 }
             )*
