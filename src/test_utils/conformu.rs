@@ -109,7 +109,13 @@ impl ConformU {
                     None => (None, line),
                 };
 
-                trace_outcome!("alpaca", test, method, outcome, http_method);
+                trace_outcome!(
+                    "alpaca",
+                    test,
+                    method,
+                    outcome = (!outcome.is_empty()).then_some(outcome),
+                    http_method
+                );
             }
 
             Self::Conformance => {
@@ -118,7 +124,11 @@ impl ConformU {
 
                 outcome = split_with_whitespace(&mut line, 8)?;
 
-                trace_outcome!("conformance", method, outcome);
+                trace_outcome!(
+                    "conformance",
+                    method,
+                    outcome = (!outcome.is_empty()).then_some(outcome)
+                );
             }
         }
 
