@@ -7,6 +7,7 @@ use std::time::Duration;
 fn download_image_array(c: &mut Criterion) {
     c.bench_function("download_image_array", |b| {
         let runtime = tokio::runtime::Runtime::new().unwrap();
+
         let camera = runtime
             .block_on(async move {
                 // Create client against the default Alpaca simulators port.
@@ -32,8 +33,7 @@ fn download_image_array(c: &mut Criterion) {
             })
             .expect("Failed to capture a test image");
 
-        b.to_async(runtime)
-            .iter_with_large_drop(|| async { camera.image_array().await.unwrap() });
+        b.iter_with_large_drop(|| runtime.block_on(camera.image_array()).unwrap());
     });
 }
 

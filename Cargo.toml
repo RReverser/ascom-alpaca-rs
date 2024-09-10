@@ -58,7 +58,7 @@ windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock"] }
 
 [dev-dependencies]
 ascom-alpaca = { path = ".", features = ["client", "server"] }
-criterion = { version = "0.5.1", features = ["async_tokio"] }
+criterion = { version = "0.5.1" }
 ctor = "0.2.8"
 serial_test = "3.1.1"
 tracing-error = "0.2.0"
