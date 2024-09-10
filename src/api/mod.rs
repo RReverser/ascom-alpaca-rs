@@ -123,65 +123,63 @@ pub enum CameraState {
 
 /// The UTC date/time of exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
 #[cfg(feature = "camera")]
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct LastExposureStartTime {
-    #[serde(rename = "Value", with = "LastExposureStartTime")]
-    pub(crate) value: time::OffsetDateTime,
-}
+pub(crate) struct LastExposureStartTime(std::time::SystemTime);
 
 #[cfg(feature = "camera")]
-impl From<std::time::SystemTime> for LastExposureStartTime {
-    fn from(value: std::time::SystemTime) -> Self {
-        Self {
-            value: value.into(),
+const _: () = {
+    impl std::fmt::Debug for LastExposureStartTime {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            self.0.fmt(f)
         }
     }
-}
 
-#[cfg(feature = "camera")]
-impl From<LastExposureStartTime> for std::time::SystemTime {
-    fn from(wrapper: LastExposureStartTime) -> Self {
-        wrapper.value.into()
-    }
-}
-
-#[cfg(feature = "camera")]
-impl LastExposureStartTime {
-    fn serialize<S: serde::Serializer>(
-        value: &time::OffsetDateTime,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        value
-            .to_offset(time::UtcOffset::UTC)
-            .format(&time::format_description::well_known::Iso8601::DATE_TIME)
-            .map_err(serde::ser::Error::custom)?
-            .serialize(serializer)
-    }
-
-    fn deserialize<'de, D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<time::OffsetDateTime, D::Error> {
-        struct Visitor;
-
-        impl serde::de::Visitor<'_> for Visitor {
-            type Value = time::OffsetDateTime;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a date string")
-            }
-
-            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                time::OffsetDateTime::parse(
-                    value,
-                    &time::format_description::well_known::Iso8601::DATE_TIME,
-                )
-                .map_err(serde::de::Error::custom)
-            }
+    impl From<std::time::SystemTime> for LastExposureStartTime {
+        fn from(value: std::time::SystemTime) -> Self {
+            Self(value)
         }
-
-        deserializer.deserialize_str(Visitor)
     }
-}
+
+    impl From<LastExposureStartTime> for std::time::SystemTime {
+        fn from(wrapper: LastExposureStartTime) -> Self {
+            wrapper.0
+        }
+    }
+
+    impl Serialize for LastExposureStartTime {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            time::OffsetDateTime::from(self.0)
+                .format(&time::format_description::well_known::Iso8601::DATE_TIME)
+                .map_err(serde::ser::Error::custom)?
+                .serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for LastExposureStartTime {
+        fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            struct Visitor;
+
+            impl serde::de::Visitor<'_> for Visitor {
+                type Value = LastExposureStartTime;
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str("a date string")
+                }
+
+                fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                    match time::OffsetDateTime::parse(
+                        value,
+                        &time::format_description::well_known::Iso8601::DATE_TIME,
+                    ) {
+                        Ok(value) => Ok(LastExposureStartTime(value.into())),
+                        Err(err) => Err(serde::de::Error::custom(err)),
+                    }
+                }
+            }
+
+            deserializer.deserialize_str(Visitor)
+        }
+    }
+};
 
 /// The type of sensor in the camera.
 #[cfg(feature = "camera")]
@@ -462,65 +460,63 @@ pub enum DriveRate {
 ///
 /// The general format (in Microsoft custom date format style) is yyyy-MM-ddTHH:mm:ss.fffffffZ, e.g. 2016-03-04T17:45:31.1234567Z or 2016-11-14T07:03:08.1234567Z. Please note the compulsary trailing Z indicating the 'Zulu', UTC time zone.
 #[cfg(feature = "telescope")]
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct TelescopeUtcdate {
-    #[serde(rename = "Value", with = "TelescopeUtcdate")]
-    pub(crate) value: time::OffsetDateTime,
-}
+pub(crate) struct TelescopeUtcdate(std::time::SystemTime);
 
 #[cfg(feature = "telescope")]
-impl From<std::time::SystemTime> for TelescopeUtcdate {
-    fn from(value: std::time::SystemTime) -> Self {
-        Self {
-            value: value.into(),
+const _: () = {
+    impl std::fmt::Debug for TelescopeUtcdate {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            self.0.fmt(f)
         }
     }
-}
 
-#[cfg(feature = "telescope")]
-impl From<TelescopeUtcdate> for std::time::SystemTime {
-    fn from(wrapper: TelescopeUtcdate) -> Self {
-        wrapper.value.into()
-    }
-}
-
-#[cfg(feature = "telescope")]
-impl TelescopeUtcdate {
-    fn serialize<S: serde::Serializer>(
-        value: &time::OffsetDateTime,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        value
-            .to_offset(time::UtcOffset::UTC)
-            .format(&time::format_description::well_known::Iso8601::DATE_TIME_OFFSET)
-            .map_err(serde::ser::Error::custom)?
-            .serialize(serializer)
-    }
-
-    fn deserialize<'de, D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<time::OffsetDateTime, D::Error> {
-        struct Visitor;
-
-        impl serde::de::Visitor<'_> for Visitor {
-            type Value = time::OffsetDateTime;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a date string")
-            }
-
-            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                time::OffsetDateTime::parse(
-                    value,
-                    &time::format_description::well_known::Iso8601::DATE_TIME_OFFSET,
-                )
-                .map_err(serde::de::Error::custom)
-            }
+    impl From<std::time::SystemTime> for TelescopeUtcdate {
+        fn from(value: std::time::SystemTime) -> Self {
+            Self(value)
         }
-
-        deserializer.deserialize_str(Visitor)
     }
-}
+
+    impl From<TelescopeUtcdate> for std::time::SystemTime {
+        fn from(wrapper: TelescopeUtcdate) -> Self {
+            wrapper.0
+        }
+    }
+
+    impl Serialize for TelescopeUtcdate {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            time::OffsetDateTime::from(self.0)
+                .format(&time::format_description::well_known::Iso8601::DATE_TIME_OFFSET)
+                .map_err(serde::ser::Error::custom)?
+                .serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for TelescopeUtcdate {
+        fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            struct Visitor;
+
+            impl serde::de::Visitor<'_> for Visitor {
+                type Value = TelescopeUtcdate;
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    formatter.write_str("a date string")
+                }
+
+                fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                    match time::OffsetDateTime::parse(
+                        value,
+                        &time::format_description::well_known::Iso8601::DATE_TIME_OFFSET,
+                    ) {
+                        Ok(value) => Ok(TelescopeUtcdate(value.into())),
+                        Err(err) => Err(serde::de::Error::custom(err)),
+                    }
+                }
+            }
+
+            deserializer.deserialize_str(Visitor)
+        }
+    }
+};
 
 /// The axis about which rate information is desired.
 #[cfg(feature = "telescope")]

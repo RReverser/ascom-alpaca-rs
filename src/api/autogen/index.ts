@@ -750,55 +750,61 @@ ${stringifyIter(types, ({ features, type }) => {
 
       return `
         ${stringifyDoc(type.doc)}
-        ${cfg}#[derive(Debug, Serialize, Deserialize)]
-        pub(crate) struct ${type.name} {
-          #[serde(rename = "Value", with = "${type.name}")]
-          pub(crate) value: time::OffsetDateTime,
-        }
+        ${cfg}
+        pub(crate) struct ${type.name}(std::time::SystemTime);
 
         ${cfg}
-        impl From<std::time::SystemTime> for ${type.name} {
-          fn from(value: std::time::SystemTime) -> Self {
-            Self { value: value.into() }
-          }
-        }
-
-        ${cfg}
-        impl From<${type.name}> for std::time::SystemTime {
-          fn from(wrapper: ${type.name}) -> Self {
-            wrapper.value.into()
-          }
-        }
-
-        ${cfg}
-        impl ${type.name} {
-          fn serialize<S: serde::Serializer>(value: &time::OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error> {
-            value
-            .to_offset(time::UtcOffset::UTC)
-            .format(${format})
-            .map_err(serde::ser::Error::custom)?
-            .serialize(serializer)
-          }
-
-          fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<time::OffsetDateTime, D::Error> {
-            struct Visitor;
-
-            impl serde::de::Visitor<'_> for Visitor {
-              type Value = time::OffsetDateTime;
-
-              fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a date string")
-              }
-
-              fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                time::OffsetDateTime::parse(value, ${format})
-                .map_err(serde::de::Error::custom)
-              }
+        const _: () = {
+          impl std::fmt::Debug for ${type.name} {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+              self.0.fmt(f)
             }
-
-            deserializer.deserialize_str(Visitor)
           }
-        }
+
+          impl From<std::time::SystemTime> for ${type.name} {
+            fn from(value: std::time::SystemTime) -> Self {
+              Self(value)
+            }
+          }
+
+          impl From<${type.name}> for std::time::SystemTime {
+            fn from(wrapper: ${type.name}) -> Self {
+              wrapper.0
+            }
+          }
+
+          impl Serialize for ${type.name} {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+              time::OffsetDateTime::from(self.0)
+              .format(${format})
+              .map_err(serde::ser::Error::custom)?
+              .serialize(serializer)
+            }
+          }
+
+          impl<'de> Deserialize<'de> for ${type.name} {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+              struct Visitor;
+
+              impl serde::de::Visitor<'_> for Visitor {
+                type Value = ${type.name};
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                  formatter.write_str("a date string")
+                }
+
+                fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                  match time::OffsetDateTime::parse(value, ${format}) {
+                    Ok(value) => Ok(${type.name}(value.into())),
+                    Err(err) => Err(serde::de::Error::custom(err)),
+                  }
+                }
+              }
+
+              deserializer.deserialize_str(Visitor)
+            }
+          }
+        };
       `;
     }
   }
