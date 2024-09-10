@@ -55,7 +55,8 @@ fn prepare_test_env() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::filter::Targets::new()
-                .with_target("ascom_alpaca", tracing::Level::INFO),
+                .with_target("ascom_alpaca", tracing::Level::INFO)
+                .with_target("ascom_alpaca::conformu", tracing::Level::TRACE),
         )
         .with(tracing_forest::ForestLayer::new(
             FilteredProcessor(tracing_forest::printer::TestCapturePrinter::new()),
