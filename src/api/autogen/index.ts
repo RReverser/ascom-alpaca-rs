@@ -1,5 +1,5 @@
 import openapi from '@readme/openapi-parser';
-import { writeFile } from 'fs/promises';
+import { chmod, open, unlink, writeFile } from 'fs/promises';
 import { spawnSync } from 'child_process';
 import {
   toSnakeCase,
@@ -632,15 +632,17 @@ function stringifyIter<T>(
 function stringifyDoc(doc: string | undefined = '') {
   doc = doc.trim();
   if (!doc) return '';
-  return doc
-    // Change "`InterfaceV1 Only` ...actual description" to be "actual description\n\n_InterfaceV1 Only_"
-    .replace(/^`(.+?)\.?`\s*(.*)$/s, '$2\n\n_$1._')
-    // If there is no summary, split out first sentence as summary.
-    .replace(/^(.*?(?<!e\.g|i\.e)\.) (?=[A-Z])/, '$1\n\n')
-    // Add doc-comment markers to each line.
-    .replace(/^/gm, '/// ')
-    /// Finish with a period.
-    .replace(/(?<!\.)$/, '.');
+  return (
+    doc
+      // Change "`InterfaceV1 Only` ...actual description" to be "actual description\n\n_InterfaceV1 Only_"
+      .replace(/^`(.+?)\.?`\s*(.*)$/s, '$2\n\n_$1._')
+      // If there is no summary, split out first sentence as summary.
+      .replace(/^(.*?(?<!e\.g|i\.e)\.) (?=[A-Z])/, '$1\n\n')
+      // Add doc-comment markers to each line.
+      .replace(/^/gm, '/// ')
+      /// Finish with a period.
+      .replace(/(?<!\.)$/, '.')
+  );
 }
 
 let rendered = `
@@ -652,11 +654,7 @@ ${api.info.title} ${api.info.version}
 ${api.info.description}
 */
 
-#![allow(
-  rustdoc::broken_intra_doc_links,
-  clippy::doc_markdown,
-  clippy::as_conversions, // triggers on derive-generated code https://github.com/rust-lang/rust-clippy/issues/9657
-)]
+#![allow(clippy::doc_markdown)]
 
 mod bool_param;
 mod devices_impl;
@@ -708,7 +706,9 @@ ${stringifyIter(types, ({ features, type }) => {
     case 'Response': {
       return `
         ${stringifyDoc(type.doc)}
-        ${cfg}#[derive(Debug, Clone${type.name !== 'DeviceStateItem' ? ', Copy' : ''}, Serialize, Deserialize)]
+        ${cfg}#[derive(Debug, Clone${
+        type.name !== 'DeviceStateItem' ? ', Copy' : ''
+      }, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
         pub struct ${type.name} {
           ${stringifyIter(
@@ -908,4 +908,8 @@ try {
   console.warn(err);
 }
 
-await writeFile('../mod.rs', rendered);
+await unlink('../mod.rs');
+await writeFile('../mod.rs', rendered, {
+  flag: 'wx',
+  mode: /* readonly */ 0o444
+});
