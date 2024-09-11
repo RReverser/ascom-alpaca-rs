@@ -43,7 +43,7 @@ reqwest = { version = "0.12.7", optional = true, default-features = false, featu
 sailfish = { version = "0.8.3", optional = true }
 serde = { version = "1.0.209", features = ["derive", "rc"] }
 serde-ndim = { version = "2.0.2", optional = true, features = ["ndarray"] }
-serde_json = { version = "1.0.127" }
+serde_json = { version = "1.0.127", features = ["raw_value"] }
 serde_plain = { version = "1.0.2", optional = true }
 serde_repr = "0.1.19"
 socket2 = "0.5.7"

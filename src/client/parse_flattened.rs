@@ -10,6 +10,7 @@ use serde::de::{
     Visitor,
 };
 use serde::forward_to_deserialize_any;
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use thiserror::Error;
 
@@ -52,20 +53,20 @@ impl<'de> Deserializer<'de> for LearnNamesOfSmallType {
     }
 }
 
-struct MapAccessForLargeType<'buf, M> {
+struct MapAccessForLargeType<'de, 'buf, M> {
     inner_map_access: M,
     small_type_fields: &'static [&'static str],
-    small_type_values: &'buf mut Vec<Option<serde_json::Value>>,
+    small_type_values: &'buf mut [Option<&'de serde_json::value::RawValue>],
 }
 
-impl<'de, M: MapAccess<'de>> MapAccess<'de> for MapAccessForLargeType<'_, M> {
+impl<'de, M: MapAccess<'de>> MapAccess<'de> for MapAccessForLargeType<'de, '_, M> {
     type Error = M::Error;
 
     fn next_key_seed<K: DeserializeSeed<'de>>(
         &mut self,
         seed: K,
     ) -> Result<Option<K::Value>, Self::Error> {
-        while let Some(key) = self.inner_map_access.next_key::<String>()? {
+        while let Some(key) = self.inner_map_access.next_key::<Cow<'de, str>>()? {
             if let Some(index) = self
                 .small_type_fields
                 .iter()
@@ -89,7 +90,7 @@ impl<'de, M: MapAccess<'de>> MapAccess<'de> for MapAccessForLargeType<'_, M> {
     }
 }
 
-impl<'de, M: MapAccess<'de>> Deserializer<'de> for MapAccessForLargeType<'_, M> {
+impl<'de, M: MapAccess<'de>> Deserializer<'de> for MapAccessForLargeType<'de, '_, M> {
     type Error = M::Error;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
