@@ -202,6 +202,7 @@ impl ASCOMError {
     }
 
     /// Create a new error with unspecified error code and the given message.
+    #[cfg(feature = "client")]
     pub(crate) fn unspecified(message: impl std::fmt::Display) -> Self {
         Self::new(ASCOMErrorCode::UNSPECIFIED, message)
     }
