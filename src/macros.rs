@@ -31,9 +31,9 @@ macro_rules! rpc_trait {
 
             $(
                 $(#[doc = $doc:literal])*
-                #[http($method_path:literal, method = $http_method:ident $(, via = $via:ident)?)]
+                #[http($method_path:literal, method = $http_method:ident $(, via = $via:path)?)]
                 async fn $method_name:ident(
-                    & $self:ident $(, #[http($param_query:literal $(, via = $param_via:ident)?)] $param:ident: $param_ty:ty)* $(,)?
+                    & $self:ident $(, #[http($param_query:literal $(, via = $param_via:path)?)] $param:ident: $param_ty:ty)* $(,)?
                 ) -> $return_type:ty $default_body:block
             )*
         }
@@ -99,7 +99,7 @@ macro_rules! rpc_trait {
                             $(
                                 let $param =
                                     params.extract($param_query)
-                                    $(.map($param_via::into))?
+                                    $(.map(<$param_via>::into))?
                                     ?;
                             )*
                             params.finish_extraction();
@@ -108,7 +108,7 @@ macro_rules! rpc_trait {
                                 device
                                 .$method_name($($param),*)
                                 .await
-                                $(.map($via::from))?
+                                $(.map(<$via>::from))?
                                 ?;
 
                             ResponseRepr::$method_name(value)
@@ -167,11 +167,11 @@ macro_rules! rpc_trait {
                         action: $method_path,
                         method: $crate::client::Method::$http_method,
                         params: OpaqueParams {
-                            $($param $(: $param_via::from($param))?),*
+                            $($param $(: <$param_via>::from($param))?),*
                         }
                     })
                     .await
-                    $(.map($via::into))?
+                    $(.map(<$via>::into))?
                 }
             )*
         }

@@ -143,10 +143,7 @@ function addFeature(
     return;
   }
   registeredType.features.add(feature);
-  if (
-    registeredType.type.kind === 'Enum' ||
-    registeredType.type.kind === 'Date'
-  ) {
+  if (registeredType.type.kind === 'Enum') {
     return;
   }
   for (let { type } of registeredType.type.properties.values()) {
@@ -179,7 +176,7 @@ interface RegisteredTypeBase {
   doc: string | undefined;
 }
 
-type RegisteredType = ObjectType | EnumType | DateType;
+type RegisteredType = ObjectType | EnumType;
 
 interface Property {
   name: string;
@@ -203,11 +200,6 @@ interface EnumType extends RegisteredTypeBase {
   kind: 'Enum';
   baseType: RustType;
   variants: Map<string, EnumVariant>;
-}
-
-interface DateType extends RegisteredTypeBase {
-  kind: 'Date';
-  formatName: string;
 }
 
 interface DeviceMethod {
@@ -245,6 +237,7 @@ function handleIntFormat(format: string | undefined): RustType {
 }
 
 function handleObjectProps(
+  baseKind: 'Request' | 'Response',
   devicePath: string,
   objName: string,
   {
@@ -258,6 +251,7 @@ function handleObjectProps(
       name: toPropName(propName),
       originalName: propName,
       type: handleOptType(
+        baseKind,
         devicePath,
         `${objName}${propName}`,
         propSchema,
@@ -270,6 +264,7 @@ function handleObjectProps(
 }
 
 function handleType(
+  baseKind: 'Request' | 'Response',
   devicePath: string,
   name: string,
   schema: SchemaObject | ReferenceObject = err('Missing schema')
@@ -304,33 +299,36 @@ function handleType(
         return handleIntFormat(schema.format);
       case 'array':
         return rusty(
-          `Vec<${handleType(devicePath, `${name}Item`, schema.items)}>`
+          `Vec<${handleType(
+            baseKind,
+            devicePath,
+            `${name}Item`,
+            schema.items
+          )}>`
         );
       case 'number':
         return rusty('f64');
-      case 'string':
-        if (
-          schema.format === 'date-time' ||
-          schema.format === 'date-time-fits'
-        ) {
-          let formatter = registerType(devicePath, schema, schema => ({
-            name,
-            doc: getDoc(schema),
-            kind: 'Date',
-            formatName:
-              schema.format === 'date-time' ? 'DATE_TIME_OFFSET' : 'DATE_TIME'
-          }));
-          return rusty('std::time::SystemTime', `${formatter}`);
+      case 'string': {
+        let { format } = schema;
+        if (format === 'date-time' || format === 'date-time-fits') {
+          format = format === 'date-time' ? 'DATE_TIME_OFFSET' : 'DATE_TIME';
+          format = `time::format_description::well_known::Iso8601::${format}`;
+          let viaType = baseKind === 'Request' ? 'TimeParam' : 'TimeResponse';
+          return rusty(
+            'std::time::SystemTime',
+            `time_repr::${viaType}<{ time_repr::config_from(${format}) }>`
+          );
         }
         return rusty('String');
+      }
       case 'boolean':
-        return rusty('bool');
+        return rusty('bool', baseKind === 'Request' ? 'BoolParam' : undefined);
       case 'object': {
         return registerType(devicePath, schema, schema => ({
           kind: 'Object',
           name,
           doc: getDoc(schema),
-          properties: handleObjectProps(devicePath, name, schema)
+          properties: handleObjectProps(baseKind, devicePath, name, schema)
         }));
       }
     }
@@ -343,12 +341,13 @@ function handleType(
 }
 
 function handleOptType(
+  baseKind: 'Request' | 'Response',
   devicePath: string,
   name: string,
   schema: SchemaObject | ReferenceObject | undefined,
   required: boolean
 ): RustType {
-  let type = handleType(devicePath, name, schema);
+  let type = handleType(baseKind, devicePath, name, schema);
   return required ? type : rusty(`Option<${type}>`);
 }
 
@@ -407,26 +406,22 @@ function handleContent(
         properties !== undefined &&
         isDeepStrictEqual(Object.keys(properties), ['Value'])
       ) {
-        let valueType = handleType(devicePath, name, properties.Value);
+        let valueType = handleType(
+          baseKind,
+          devicePath,
+          name,
+          properties.Value
+        );
         return rusty(
           valueType.toString(),
-          valueType.convertVia ?? 'ValueResponse'
+          valueType.convertVia ?? 'ValueResponse<_>'
         );
       }
 
-      let convertedProps = handleObjectProps(devicePath, name, {
+      let convertedProps = handleObjectProps(baseKind, devicePath, name, {
         properties,
         required
       });
-
-      if (baseKind === 'Request') {
-        for (let prop of convertedProps.values()) {
-          if (prop.type.toString() === 'bool') {
-            // Boolean parameters need to be deserialized in special case-insensitive way.
-            prop.type = rusty('bool', 'BoolParam');
-          }
-        }
-      }
 
       return {
         kind: baseKind,
@@ -534,6 +529,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
           originalName: param.name,
           doc: getDoc(param),
           type: handleOptType(
+            'Request',
             devicePath,
             `${device.name}${canonicalMethodName}Request${param.name}`,
             param.schema,
@@ -659,6 +655,7 @@ ${api.info.description}
 mod bool_param;
 mod devices_impl;
 mod server_info;
+mod time_repr;
 
 use bool_param::BoolParam;
 use crate::{ASCOMError, ASCOMResult};
@@ -743,68 +740,6 @@ ${stringifyIter(types, ({ features, type }) => {
             `
           )}
         }
-      `;
-    }
-    case 'Date': {
-      let format = `&time::format_description::well_known::Iso8601::${type.formatName}`;
-
-      return `
-        ${stringifyDoc(type.doc)}
-        ${cfg}
-        pub(crate) struct ${type.name}(std::time::SystemTime);
-
-        ${cfg}
-        const _: () = {
-          impl std::fmt::Debug for ${type.name} {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-              self.0.fmt(f)
-            }
-          }
-
-          impl From<std::time::SystemTime> for ${type.name} {
-            fn from(value: std::time::SystemTime) -> Self {
-              Self(value)
-            }
-          }
-
-          impl From<${type.name}> for std::time::SystemTime {
-            fn from(wrapper: ${type.name}) -> Self {
-              wrapper.0
-            }
-          }
-
-          impl Serialize for ${type.name} {
-            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-              time::OffsetDateTime::from(self.0)
-              .format(${format})
-              .map_err(serde::ser::Error::custom)?
-              .serialize(serializer)
-            }
-          }
-
-          impl<'de> Deserialize<'de> for ${type.name} {
-            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-              struct Visitor;
-
-              impl serde::de::Visitor<'_> for Visitor {
-                type Value = ${type.name};
-
-                fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                  formatter.write_str("a date string")
-                }
-
-                fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                  match time::OffsetDateTime::parse(value, ${format}) {
-                    Ok(value) => Ok(${type.name}(value.into())),
-                    Err(err) => Err(serde::de::Error::custom(err)),
-                  }
-                }
-              }
-
-              deserializer.deserialize_str(Visitor)
-            }
-          }
-        };
       `;
     }
   }
