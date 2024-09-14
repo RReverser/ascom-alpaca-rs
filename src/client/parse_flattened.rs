@@ -118,16 +118,6 @@ struct FlattenedVisitor<S, L> {
     _phantom: PhantomData<fn() -> Flattened<S, L>>,
 }
 
-struct SelfIntoDeserializer<T>(T);
-
-impl<'de, T: Deserializer<'de>> IntoDeserializer<'de, T::Error> for SelfIntoDeserializer<T> {
-    type Deserializer = T;
-
-    fn into_deserializer(self) -> Self::Deserializer {
-        self.0
-    }
-}
-
 impl<'de, S: DeserializeOwned, L: Deserialize<'de>> Visitor<'de> for FlattenedVisitor<S, L> {
     type Value = Flattened<S, L>;
 
@@ -148,10 +138,7 @@ impl<'de, S: DeserializeOwned, L: Deserialize<'de>> Visitor<'de> for FlattenedVi
             self.small_type_fields
                 .iter()
                 .zip(small_type_values)
-                .filter_map(|(&key, value)| {
-                    let value = SelfIntoDeserializer(value?);
-                    Some((key, value))
-                }),
+                .filter_map(|(&key, value)| Some((key, value?))),
         ))
         .map_err(serde::de::Error::custom)?;
 
