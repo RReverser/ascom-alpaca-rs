@@ -65,7 +65,7 @@ tracing-error = "0.2.0"
 color-eyre = "0.6.3"
 tracing-forest = { version = "0.1.6", features = ["ansi"] }
 tracing-subscriber = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [[bench]]
 name = "image_array"
@@ -76,7 +76,7 @@ required-features = ["client", "camera", "test"]
 all-devices = ["camera", "covercalibrator", "dome", "filterwheel", "focuser", "observingconditions", "rotator", "safetymonitor", "switch", "telescope"]
 
 __anydevice = []
-test = []
+test = ["tokio/process"]
 
 camera = ["__anydevice", "dep:bytemuck", "dep:mediatype", "dep:ndarray", "dep:serde-ndim", "dep:time"]
 covercalibrator = ["__anydevice"]
