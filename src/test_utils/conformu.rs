@@ -77,21 +77,21 @@ impl ConformU {
         let outcome;
 
         macro_rules! trace_outcome {
-				(@impl $args:tt) => {
-					match outcome {
-						"OK" => tracing::trace! $args,
-						"INFO" => tracing::info! $args,
-						"WARN" => tracing::warn! $args,
-						"DEBUG" | "" => tracing::debug! $args,
-						"ISSUE" | "ERROR" => tracing::error! $args,
-						_ => return None,
-					}
-				};
+            (@impl $args:tt) => {
+                match outcome {
+                    "OK" => tracing::trace! $args,
+                    "INFO" => tracing::info! $args,
+                    "WARN" => tracing::warn! $args,
+                    "DEBUG" | "" => tracing::debug! $args,
+                    "ISSUE" | "ERROR" => tracing::error! $args,
+                    _ => return None,
+                }
+            };
 
-				($target:literal, $($args:tt)*) => {
-					trace_outcome!(@impl (target: concat!("ascom_alpaca::conformu::", $target), $($args)*, "{line}"))
-				};
-			}
+            ($target:literal, $($args:tt)*) => {
+                trace_outcome!(@impl (target: concat!("ascom_alpaca::conformu::", $target), $($args)*, "{line}"))
+            };
+        }
 
         match self {
             Self::AlpacaProtocol => {
