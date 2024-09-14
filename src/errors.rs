@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use thiserror::Error;
 
 /// Alpaca representation of an ASCOM error code.
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ASCOMErrorCode(u16);
 
