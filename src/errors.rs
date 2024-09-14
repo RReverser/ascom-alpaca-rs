@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::ops::RangeInclusive;
 use thiserror::Error;
+
+/// The starting value for error numbers.
+const BASE: u16 = 0x400;
+/// The starting value for driver-specific error numbers.
+const DRIVER_BASE: u16 = 0x500;
+/// The maximum value for error numbers.
+const MAX: u16 = 0xFFF;
 
 /// Alpaca representation of an ASCOM error code.
 #[derive(Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,23 +20,15 @@ impl TryFrom<u16> for ASCOMErrorCode {
 
     /// Convert a raw error code into an `ASCOMErrorCode` if it's in the valid range.
     fn try_from(raw: u16) -> eyre::Result<Self> {
-        let range = BASE..=MAX;
+        const RANGE: RangeInclusive<u16> = BASE..=MAX;
+
         eyre::ensure!(
-            range.contains(&raw),
-            "Error code {raw:#X} is out of valid range ({range:#X?})",
-            raw = raw,
-            range = range,
+            RANGE.contains(&raw),
+            "Error code {raw:#X} is out of valid range ({RANGE:#X?})"
         );
         Ok(Self(raw))
     }
 }
-
-/// The starting value for error numbers.
-const BASE: u16 = 0x400;
-/// The starting value for driver-specific error numbers.
-const DRIVER_BASE: u16 = 0x500;
-/// The maximum value for error numbers.
-const MAX: u16 = 0xFFF;
 
 impl ASCOMErrorCode {
     /// Generate ASCOM error code from a zero-based driver error code.
@@ -159,35 +159,38 @@ macro_rules! ascom_error_codes {
     };
 
     (@msg OK $doc:literal) => ("");
-    (@msg $name:ident $doc:literal) => ($doc);
+    (@msg $name:ident $doc:literal) => ($doc.trim_ascii());
 }
 
 ascom_error_codes! {
-    #[doc = "Success"]
+    /// Success.
     pub OK = 0,
 
     // Well-known Alpaca error codes as per the specification.
-    #[doc = "The requested action is not implemented in this driver"]
-    pub ACTION_NOT_IMPLEMENTED = 0x40C,
-    #[doc = "The requested operation can not be undertaken at this time"]
-    pub INVALID_OPERATION = 0x40B,
-    #[doc = "Invalid value"]
-    pub INVALID_VALUE = 0x401,
-    #[doc = "The attempted operation is invalid because the mount is currently in a Parked state"]
-    pub INVALID_WHILE_PARKED = 0x408,
-    #[doc = "The attempted operation is invalid because the mount is currently in a Slaved state"]
-    pub INVALID_WHILE_SLAVED = 0x409,
-    #[doc = "The communications channel is not connected"]
-    pub NOT_CONNECTED = 0x407,
-    #[doc = "Property or method not implemented"]
-    pub NOT_IMPLEMENTED = 0x400,
-    #[doc = "A value has not been set"]
-    pub VALUE_NOT_SET = 0x402,
 
-    // Exists to map internal client errors to the Alpaca error structure.
-    // Internal use only.
-    #[doc = "Unspecified error"]
-    pub(crate) UNSPECIFIED = 0x4FF,
+    /// Property or method not implemented.
+    pub NOT_IMPLEMENTED = 0x400,
+    /// Invalid value.
+    pub INVALID_VALUE = 0x401,
+    /// A value has not been set.
+    pub VALUE_NOT_SET = 0x402,
+    /// The communications channel is not connected.
+    pub NOT_CONNECTED = 0x407,
+    /// The attempted operation is invalid because the mount is currently in a Parked state.
+    pub INVALID_WHILE_PARKED = 0x408,
+    /// The attempted operation is invalid because the mount is currently in a Slaved state.
+    pub INVALID_WHILE_SLAVED = 0x409,
+    /// The requested operation can not be undertaken at this time.
+    pub INVALID_OPERATION = 0x40B,
+    /// The requested action is not implemented in this driver.
+    pub ACTION_NOT_IMPLEMENTED = 0x40C,
+    /// In-progress asynchronous operation has been cancelled.
+    pub OPERATION_CANCELLED = 0x40D,
+
+    // Extra codes for internal use only.
+
+    /// Reserved 'catch-all' error code (0x4FF) used when nothing else was specified.
+    UNSPECIFIED = 0x4FF,
 }
 
 impl ASCOMError {
