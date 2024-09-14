@@ -135,10 +135,10 @@ impl<'de, S: DeserializeOwned, L: Deserialize<'de>> Visitor<'de> for FlattenedVi
         })?;
 
         let small_type = S::deserialize(MapDeserializer::new(
-            self.small_type_fields
-                .iter()
-                .zip(small_type_values)
-                .filter_map(|(&key, value)| Some((key, value?))),
+            small_type_values
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, value)| Some((index, value?))),
         ))
         .map_err(serde::de::Error::custom)?;
 
