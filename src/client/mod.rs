@@ -15,8 +15,6 @@ pub(crate) use params::{ActionParams, Method};
 mod response;
 pub(crate) use response::Response;
 
-mod parse_flattened;
-
 use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};

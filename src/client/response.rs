@@ -1,12 +1,31 @@
-use super::parse_flattened::Flattened;
 use super::ResponseWithTransaction;
 use crate::client::ResponseTransaction;
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytes::Bytes;
 use mime::Mime;
+use serde::de::value::UnitDeserializer;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
+
+trait FromJsonBytes: Sized {
+    fn from_json_bytes(bytes: &[u8]) -> serde_json::Result<Self>;
+}
+
+impl<T: DeserializeOwned> FromJsonBytes for T {
+    fn from_json_bytes(bytes: &[u8]) -> serde_json::Result<Self> {
+        serde_json::from_slice(bytes)
+    }
+}
+
+#[derive(Debug)]
+struct Flattened<A, B>(pub(crate) A, pub(crate) B);
+
+impl<A: FromJsonBytes, B: FromJsonBytes> FromJsonBytes for Flattened<A, B> {
+    fn from_json_bytes(bytes: &[u8]) -> serde_json::Result<Self> {
+        Ok(Self(A::from_json_bytes(bytes)?, B::from_json_bytes(bytes)?))
+    }
+}
 
 pub(crate) trait Response: Sized {
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -18,7 +37,7 @@ pub(crate) trait Response: Sized {
 
 struct JsonResponse<T>(T);
 
-impl<T: DeserializeOwned> Response for JsonResponse<T> {
+impl<T: FromJsonBytes> Response for JsonResponse<T> {
     fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
         eyre::ensure!(
             mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),
@@ -31,7 +50,7 @@ impl<T: DeserializeOwned> Response for JsonResponse<T> {
         };
 
         let Flattened(transaction, response) =
-            serde_json::from_slice::<Flattened<ResponseTransaction, T>>(&bytes)?;
+            <Flattened<ResponseTransaction, T>>::from_json_bytes(&bytes)?;
 
         Ok(ResponseWithTransaction {
             transaction,
@@ -47,7 +66,14 @@ impl<T: DeserializeOwned> Response for ASCOMResult<T> {
         impl<'de, T: Deserialize<'de>> Deserialize<'de> for ParseResult<T> {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 Ok(Self(
-                    T::deserialize(deserializer).map_err(|err| eyre::eyre!("{err}")),
+                    if size_of::<T>() == 0 {
+                        // serde doesn't consider empty maps to be a valid source for the `()` type.
+                        // We could tweak the type itself, but it's easier to just special-case empty types here.
+                        T::deserialize(UnitDeserializer::new())
+                    } else {
+                        T::deserialize(deserializer)
+                    }
+                    .map_err(|err| eyre::eyre!("{err}")),
                 ))
             }
         }
