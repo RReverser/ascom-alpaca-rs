@@ -348,6 +348,14 @@ Licensed under either of
     rustdoc::redundant_explicit_links
 )]
 
+#[cfg(not(feature = "__anydevice"))]
+compile_error!(
+    "At least one of the device features must be enabled (`camera`, `telescope`, `dome`, etc)."
+);
+
+#[cfg(not(feature = "__anynetwork"))]
+compile_error!("At least one of the network features must be enabled (`client` and/or `server`).");
+
 pub(crate) mod macros;
 
 pub mod api;
