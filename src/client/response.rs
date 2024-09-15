@@ -2,7 +2,6 @@ use super::ResponseWithTransaction;
 use crate::client::ResponseTransaction;
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
-use bytes::Bytes;
 use mime::Mime;
 use serde::de::value::UnitDeserializer;
 use serde::de::DeserializeOwned;
@@ -32,13 +31,13 @@ pub(crate) trait Response: Sized {
         request
     }
 
-    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>>;
+    fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>>;
 }
 
 struct JsonResponse<T>(T);
 
 impl<T: FromJsonBytes> Response for JsonResponse<T> {
-    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
+    fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
         eyre::ensure!(
             mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),
             "Expected JSON response, got {}",
@@ -50,7 +49,7 @@ impl<T: FromJsonBytes> Response for JsonResponse<T> {
         };
 
         let Flattened(transaction, response) =
-            <Flattened<ResponseTransaction, T>>::from_json_bytes(&bytes)?;
+            <Flattened<ResponseTransaction, T>>::from_json_bytes(bytes)?;
 
         Ok(ResponseWithTransaction {
             transaction,
@@ -60,7 +59,7 @@ impl<T: FromJsonBytes> Response for JsonResponse<T> {
 }
 
 impl<T: DeserializeOwned> Response for ASCOMResult<T> {
-    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
+    fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
         struct ParseResult<T>(eyre::Result<T>);
 
         impl<'de, T: Deserialize<'de>> Deserialize<'de> for ParseResult<T> {
@@ -92,7 +91,7 @@ impl<T: DeserializeOwned> Response for ASCOMResult<T> {
 }
 
 impl<T: DeserializeOwned> Response for ValueResponse<T> {
-    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
+    fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
         Ok(JsonResponse::from_reqwest(mime_type, bytes)?
             .map(|JsonResponse(value_response)| value_response))
     }

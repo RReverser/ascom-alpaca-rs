@@ -6,7 +6,6 @@ use crate::api::TransmissionElementType;
 use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytemuck::PodCastError;
-use bytes::Bytes;
 use mime::Mime;
 use ndarray::{Array2, Array3};
 use num_enum::TryFromPrimitive;
@@ -101,7 +100,7 @@ impl Response for ASCOMResult<ImageArray> {
         request.header(reqwest::header::ACCEPT, IMAGE_BYTES_TYPE)
     }
 
-    fn from_reqwest(mime_type: Mime, bytes: Bytes) -> eyre::Result<ResponseWithTransaction<Self>> {
+    fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
         if mime_type.essence_str() != IMAGE_BYTES_TYPE {
             return <ASCOMResult<JsonImageArray>>::from_reqwest(mime_type, bytes)
                 .map(|response| response.map(|response| response.map(|json| json.0)));

@@ -2,7 +2,6 @@ use super::Response;
 use crate::api::{ConfiguredDevice, FallibleDeviceType, ImageArray};
 use crate::response::ValueResponse;
 use crate::ASCOMResult;
-use bytes::Bytes;
 use criterion::Criterion;
 use mime::APPLICATION_JSON;
 
@@ -18,7 +17,7 @@ macro_rules! declare_parsing_benches {
                         b.iter(move || {
                             <$ty>::from_reqwest(
                                 $mime,
-                                Bytes::from_static(include_bytes!($fixture_path)),
+                                include_bytes!($fixture_path),
                             )
                             .expect("Failed to parse fixture")
                         });

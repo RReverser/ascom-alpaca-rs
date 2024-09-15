@@ -126,7 +126,7 @@ impl RawClient {
             let ResponseWithTransaction {
                 transaction: response_transaction,
                 response,
-            } = Resp::from_reqwest(mime_type, bytes)?;
+            } = Resp::from_reqwest(mime_type, &bytes)?;
 
             tracing::debug!(
                 server_transaction_id = response_transaction.server_transaction_id,
