@@ -4,6 +4,7 @@
 		"client",
 		"server",
 		"test",
+		"criterion",
 	],
 	"rust-analyzer.check.workspace": false
 }
