@@ -375,3 +375,12 @@ pub use client::Client;
 pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 #[cfg(feature = "server")]
 pub use server::{BoundServer, Server};
+
+/// Benchmark groups for Criterion.
+///
+/// They're defined in the library for access to the private types, but actually used from `benches/benches.rs`.
+#[cfg(feature = "criterion")]
+pub mod benches {
+    #[cfg(feature = "client")]
+    pub use crate::client::benches as client;
+}

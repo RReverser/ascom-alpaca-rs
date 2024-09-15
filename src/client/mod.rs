@@ -1,3 +1,8 @@
+#[cfg(feature = "criterion")]
+mod benches;
+#[cfg(feature = "criterion")]
+pub use benches::benches;
+
 mod discovery;
 pub use discovery::{BoundClient as BoundDiscoveryClient, Client as DiscoveryClient};
 
