@@ -7,12 +7,13 @@ use time::macros::format_description;
 use time::parsing::Parsable;
 use time::{format_description, OffsetDateTime};
 
-pub(crate) trait FormatWrapper {
+pub(crate) trait FormatWrapper: std::fmt::Debug {
     type Format: 'static + ?Sized + Parsable + Formattable;
 
     const FORMAT: &'static Self::Format;
 }
 
+#[derive(Debug)]
 pub(crate) struct Iso8601;
 
 impl FormatWrapper for Iso8601 {
@@ -21,6 +22,7 @@ impl FormatWrapper for Iso8601 {
     const FORMAT: &'static Self::Format = &Self::Format::DEFAULT;
 }
 
+#[derive(Debug)]
 pub(crate) struct Fits;
 
 impl FormatWrapper for Fits {
