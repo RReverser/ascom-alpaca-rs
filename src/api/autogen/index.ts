@@ -311,12 +311,11 @@ function handleType(
       case 'string': {
         let { format } = schema;
         if (format === 'date-time' || format === 'date-time-fits') {
-          format = format === 'date-time' ? 'DATE_TIME_OFFSET' : 'DATE_TIME';
-          format = `time::format_description::well_known::Iso8601::${format}`;
+          format = format === 'date-time' ? 'Iso8601' : 'Fits';
           let viaType = baseKind === 'Request' ? 'TimeParam' : 'TimeResponse';
           return rusty(
             'std::time::SystemTime',
-            `time_repr::${viaType}<{ time_repr::config_from(${format}) }>`
+            `time_repr::${viaType}<time_repr::${format}>`
           );
         }
         return rusty('String');

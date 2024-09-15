@@ -910,7 +910,7 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Reports the actual exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
-    #[http("lastexposurestarttime", method = Get, via = time_repr::TimeResponse<{ time_repr::config_from(time::format_description::well_known::Iso8601::DATE_TIME) }>)]
+    #[http("lastexposurestarttime", method = Get, via = time_repr::TimeResponse<time_repr::Fits>)]
     async fn last_exposure_start_time(&self) -> ASCOMResult<std::time::SystemTime> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -2297,7 +2297,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// Returns the UTC date/time of the telescope's internal clock.
-    #[http("utcdate", method = Get, via = time_repr::TimeResponse<{ time_repr::config_from(time::format_description::well_known::Iso8601::DATE_TIME_OFFSET) }>)]
+    #[http("utcdate", method = Get, via = time_repr::TimeResponse<time_repr::Iso8601>)]
     async fn utc_date(&self) -> ASCOMResult<std::time::SystemTime> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -2307,7 +2307,7 @@ pub trait Telescope: Device + Send + Sync {
     async fn set_utc_date(
         &self,
 
-        #[http("UTCDate", via = time_repr::TimeParam<{ time_repr::config_from(time::format_description::well_known::Iso8601::DATE_TIME_OFFSET) }>)]
+        #[http("UTCDate", via = time_repr::TimeParam<time_repr::Iso8601>)]
         utc_date: std::time::SystemTime,
     ) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
