@@ -31,7 +31,7 @@ macro_rules! declare_parsing_benches {
 declare_parsing_benches! {
     parse_configured_devices: ValueResponse<Vec<ConfiguredDevice<FallibleDeviceType>>>
         => (APPLICATION_JSON, "resp_configured_devices.json"),
-    parse_image_array: ASCOMResult<ImageArray>
+    parse_image_array_json: ASCOMResult<ImageArray>
         => (APPLICATION_JSON, "resp_image_array.json"),
     parse_image_array_bin: ASCOMResult<ImageArray>
         => ("application/imagebytes".parse().expect("couldn't parse mime type"), "resp_image_array.bin"),
