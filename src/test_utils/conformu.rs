@@ -31,10 +31,21 @@ impl ConformU {
 
         let output = conformu.stdout.take().expect("stdout should be piped");
 
-        let reader = BufReader::new(output);
-        let mut lines = reader.lines();
+        let mut reader = BufReader::new(output);
+        let mut buf = Vec::new();
 
-        while let Some(line) = lines.next_line().await? {
+        // Note: using `read_until()` instead of `lines()` because ConformU emits Unicode characters without setting the code page.
+        // See more details and pending fix at https://github.com/ASCOMInitiative/ConformU/pull/20.
+        loop {
+            buf.clear();
+            let line_len = reader.read_until(b'\n', &mut buf).await?;
+            // Handle EOF.
+            if line_len == 0 {
+                break;
+            }
+
+            let line = String::from_utf8_lossy(&buf[..line_len]);
+
             // This is fragile, but ConformU doesn't provide structured output.
             // Use known widths of the fields to parse them.
             // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
