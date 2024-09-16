@@ -8,12 +8,12 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
 
 trait FromJsonBytes: Sized {
-    fn from_json_bytes(bytes: &[u8]) -> serde_json::Result<Self>;
+    fn from_json_bytes(bytes: &[u8]) -> eyre::Result<Self>;
 }
 
 impl<T: DeserializeOwned> FromJsonBytes for T {
-    fn from_json_bytes(bytes: &[u8]) -> serde_json::Result<Self> {
-        serde_json::from_slice(bytes)
+    fn from_json_bytes(bytes: &[u8]) -> eyre::Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
     }
 }
 
@@ -21,7 +21,7 @@ impl<T: DeserializeOwned> FromJsonBytes for T {
 struct Flattened<A, B>(pub(crate) A, pub(crate) B);
 
 impl<A: FromJsonBytes, B: FromJsonBytes> FromJsonBytes for Flattened<A, B> {
-    fn from_json_bytes(bytes: &[u8]) -> serde_json::Result<Self> {
+    fn from_json_bytes(bytes: &[u8]) -> eyre::Result<Self> {
         Ok(Self(A::from_json_bytes(bytes)?, B::from_json_bytes(bytes)?))
     }
 }
