@@ -13,7 +13,7 @@ mod params;
 pub(crate) use params::{ActionParams, Method};
 
 mod response;
-pub(crate) use response::Response;
+pub(crate) use response::{JsonResponse, Response};
 
 use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::response::ValueResponse;

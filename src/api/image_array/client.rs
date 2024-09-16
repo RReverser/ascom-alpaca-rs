@@ -3,7 +3,7 @@ use super::{
     COLOUR_AXIS, IMAGE_BYTES_TYPE,
 };
 use crate::api::TransmissionElementType;
-use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
+use crate::client::{JsonResponse, Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytemuck::PodCastError;
 use mime::Mime;
@@ -79,9 +79,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
     }
 }
 
-struct JsonImageArray(ImageArray);
-
-impl<'de> Deserialize<'de> for JsonImageArray {
+impl<'de> Deserialize<'de> for JsonResponse<ImageArray> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_map(ResponseVisitor).map(Self)
     }
@@ -102,7 +100,7 @@ impl Response for ASCOMResult<ImageArray> {
 
     fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
         if mime_type.essence_str() != IMAGE_BYTES_TYPE {
-            return <ASCOMResult<JsonImageArray>>::from_reqwest(mime_type, bytes)
+            return <ASCOMResult<JsonResponse<_>>>::from_reqwest(mime_type, bytes)
                 .map(|response| response.map(|response| response.map(|json| json.0)));
         }
         let metadata = bytes

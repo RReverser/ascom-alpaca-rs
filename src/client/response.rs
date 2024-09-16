@@ -34,7 +34,9 @@ pub(crate) trait Response: Sized {
     fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>>;
 }
 
-struct JsonResponse<T>(T);
+// This wrapper exists solely to work around Rust's lack of specialization (for now).
+// It allows to implement traits that can't be implemented on e.g. `ASCOMResult<T>` because `Result` is a built-in type.
+pub(crate) struct JsonResponse<T>(pub(crate) T);
 
 impl<T: FromJsonBytes> Response for JsonResponse<T> {
     fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
