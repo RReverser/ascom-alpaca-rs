@@ -349,7 +349,7 @@ class TypeContext {
   }
 
   handleContent(
-    prefixName: string,
+    canonicalMethodName: string,
     contentType: string,
     body:
       | OpenAPIV3_1.RequestBodyObject
@@ -357,7 +357,7 @@ class TypeContext {
       | ReferenceObject = err('Missing content')
   ): RustType {
     let { baseKind } = this;
-    let name = `${prefixName}${baseKind}`;
+    let name = `${this.device.name}${canonicalMethodName}${baseKind}`;
     return withContext(name, () => {
       ({ name = name, target: body } = nameAndTarget(body));
       let doc = getDoc(body);
@@ -427,16 +427,25 @@ class TypeContext {
     });
   }
 
-  handleResponse({
-    responses: {
-      200: success,
-      400: error400,
-      500: error500,
-      ...otherResponses
-    } = err('Missing responses')
-  }: OpenAPIV3_1.OperationObject) {
+  static handleResponse(
+    method: 'GET' | 'PUT',
+    device: Device,
+    canonicalMethodName: string,
+    {
+      responses: {
+        200: success,
+        400: error400,
+        500: error500,
+        ...otherResponses
+      } = err('Missing responses')
+    }: OpenAPIV3_1.OperationObject
+  ) {
     assertEmpty(otherResponses, 'Unexpected response status codes');
-    return this.handleContent('Response', 'application/json', success);
+    return new TypeContext(method, 'Response', device).handleContent(
+      canonicalMethodName,
+      'application/json',
+      success
+    );
   }
 }
 
@@ -529,7 +538,10 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(get),
         resolvedArgs,
-        returnType: new TypeContext('GET', 'Response', device).handleResponse(
+        returnType: TypeContext.handleResponse(
+          'GET',
+          device,
+          canonicalMethodName,
           get
         )
       });
@@ -563,7 +575,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
 
       let argsType = new TypeContext('PUT', 'Request', device).handleContent(
-        `${device.name}${canonicalMethodName}`,
+        canonicalMethodName,
         'application/x-www-form-urlencoded',
         put.requestBody
       );
@@ -589,7 +601,10 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(put),
         resolvedArgs,
-        returnType: new TypeContext('PUT', 'Response', device).handleResponse(
+        returnType: TypeContext.handleResponse(
+          'PUT',
+          device,
+          canonicalMethodName,
           put
         )
       });
