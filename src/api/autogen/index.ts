@@ -97,13 +97,7 @@ function getDoc({
   // return summary && summary + (description ? `\n\n${description}` : '');
 }
 
-let types = new Map<
-  string,
-  {
-    features: Set<string>;
-    type: RegisteredType;
-  }
->();
+let types = new Map<string, RegisteredType>();
 let typeBySchema = new WeakMap<SchemaObject, RustType>();
 
 function registerType<T extends RegisteredType>(
@@ -116,39 +110,15 @@ function registerType<T extends RegisteredType>(
     if (type instanceof RustType) {
       return type;
     } else {
-      set(types, type.name, { type, features: new Set<string>() });
+      set(types, type.name, type);
       return rusty(type.name);
     }
   });
   if (device.path !== '{device_type}') {
     // This needs to be done even on cached types.
-    addFeature(rustyType, device.path);
+    types.get(rustyType.toString())?.features.add(device.path);
   }
   return rustyType;
-}
-
-// Recursively add given feature flag to the type.
-function addFeature(
-  rustyType: RustType,
-  feature: string,
-  visited = new Set<string>()
-) {
-  let typeName = rustyType.toString();
-  if (visited.has(typeName)) {
-    return;
-  }
-  visited.add(typeName);
-  let registeredType = types.get(typeName);
-  if (!registeredType) {
-    return;
-  }
-  registeredType.features.add(feature);
-  if (registeredType.type.kind === 'Enum') {
-    return;
-  }
-  for (let { type } of registeredType.type.properties.values()) {
-    addFeature(type, feature, visited);
-  }
 }
 
 class RustType {
@@ -174,6 +144,7 @@ function rusty(rusty: string, convertVia?: string) {
 interface RegisteredTypeBase {
   name: string;
   doc: string | undefined;
+  features: Set<string>;
 }
 
 type RegisteredType = ObjectType | EnumType;
@@ -281,7 +252,8 @@ class TypeContext {
                 name,
                 doc: getDoc(schema),
                 baseType: handleIntFormat(schema.format),
-                variants: new Map()
+                variants: new Map(),
+                features: new Set()
               };
               assert.ok(Array.isArray(schema.oneOf));
               for (let entry of schema.oneOf) {
@@ -327,7 +299,8 @@ class TypeContext {
             kind: 'Object',
             name,
             doc: getDoc(schema),
-            properties: this.handleObjectProps(name, schema)
+            properties: this.handleObjectProps(name, schema),
+            features: new Set()
           }));
         }
       }
@@ -421,7 +394,8 @@ class TypeContext {
           kind: baseKind,
           name,
           doc,
-          properties: convertedProps
+          properties: convertedProps,
+          features: new Set()
         };
       });
     });
@@ -581,11 +555,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         let resolvedType = types.get(argsType.toString());
         assert.ok(resolvedType, 'Could not find registered type');
         assert.equal(
-          resolvedType.type.kind,
+          resolvedType.kind,
           'Request' as const,
           'Registered type is not a request'
         );
-        resolvedArgs = resolvedType.type.properties;
+        resolvedArgs = resolvedType.properties;
       } else {
         resolvedArgs = new Map();
       }
@@ -596,12 +570,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(put),
         resolvedArgs,
-        returnType: TypeContext.handleResponse(
-          'PUT',
-          device,
-          canonicalMethodName,
-          put
-        )
+        returnType: handleResponse('PUT', device, canonicalMethodName, put)
       });
     });
   });
@@ -667,12 +636,13 @@ mod image_array;
 #[cfg(feature = "camera")]
 pub use image_array::*;
 
-${stringifyIter(types, ({ features, type }) => {
-  let cfgs = Array.from(features, feature => `feature = "${feature}"`).join(
-    ', '
-  );
+${stringifyIter(types, type => {
+  let cfgs = Array.from(
+    type.features,
+    feature => `feature = "${feature}"`
+  ).join(', ');
   let cfg: string;
-  switch (features.size) {
+  switch (type.features.size) {
     case 0:
       cfg = '';
       break;
