@@ -107,7 +107,7 @@ let types = new Map<
 let typeBySchema = new WeakMap<SchemaObject, RustType>();
 
 function registerType<T extends RegisteredType>(
-  devicePath: string,
+  device: Device,
   schema: SchemaObject,
   createType: (schema: SchemaObject) => T | RustType
 ): RustType {
@@ -120,9 +120,9 @@ function registerType<T extends RegisteredType>(
       return rusty(type.name);
     }
   });
-  if (devicePath !== '{device_type}') {
+  if (device.path !== '{device_type}') {
     // This needs to be done even on cached types.
-    addFeature(rustyType, devicePath);
+    addFeature(rustyType, device.path);
   }
   return rustyType;
 }
@@ -240,7 +240,7 @@ class TypeContext {
   constructor(
     private readonly method: 'GET' | 'PUT',
     private readonly baseKind: 'Request' | 'Response',
-    private readonly devicePath: string
+    private readonly device: Device
   ) {}
 
   handleObjectProps(
@@ -275,7 +275,7 @@ class TypeContext {
       switch (schema.type) {
         case 'integer':
           if (schema.oneOf) {
-            return registerType(this.devicePath, schema, schema => {
+            return registerType(this.device, schema, schema => {
               let enumType: EnumType = {
                 kind: 'Enum',
                 name,
@@ -323,7 +323,7 @@ class TypeContext {
               : undefined
           );
         case 'object': {
-          return registerType(this.devicePath, schema, schema => ({
+          return registerType(this.device, schema, schema => ({
             kind: 'Object',
             name,
             doc: getDoc(schema),
@@ -376,7 +376,7 @@ class TypeContext {
       if (name.endsWith(baseKind)) {
         name = name.slice(0, -baseKind.length);
       }
-      return registerType(this.devicePath, schema, schema => {
+      return registerType(this.device, schema, schema => {
         if (name === 'ImageArray') {
           return rusty('ImageArray');
         }
@@ -506,7 +506,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let resolvedArgs = new Map<string, Property>();
 
-      let paramCtx = new TypeContext('GET', 'Request', devicePath);
+      let paramCtx = new TypeContext('GET', 'Request', device);
 
       for (let param of params.map(resolveMaybeRef)) {
         assert.equal(param?.in, 'query', 'Parameter is not a query parameter');
@@ -529,11 +529,9 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(get),
         resolvedArgs,
-        returnType: new TypeContext(
-          'GET',
-          'Response',
-          devicePath
-        ).handleResponse(get)
+        returnType: new TypeContext('GET', 'Response', device).handleResponse(
+          get
+        )
       });
     });
 
@@ -543,7 +541,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       let params = (put.parameters ?? err('Missing parameters')).slice();
 
       let expectedParams = ['device_number'];
-      if (devicePath === '{device_type}') {
+      if (device.path === '{device_type}') {
         expectedParams.push('device_type');
       }
       for (let expectedParam of expectedParams) {
@@ -564,11 +562,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       let canonicalMethodName =
         (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
 
-      let argsType = new TypeContext(
-        'PUT',
-        'Request',
-        devicePath
-      ).handleContent(
+      let argsType = new TypeContext('PUT', 'Request', device).handleContent(
         `${device.name}${canonicalMethodName}`,
         'application/x-www-form-urlencoded',
         put.requestBody
@@ -595,11 +589,9 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(put),
         resolvedArgs,
-        returnType: new TypeContext(
-          'PUT',
-          'Response',
-          devicePath
-        ).handleResponse(put)
+        returnType: new TypeContext('PUT', 'Response', device).handleResponse(
+          put
+        )
       });
     });
   });
