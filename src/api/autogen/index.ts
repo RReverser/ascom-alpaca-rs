@@ -426,27 +426,27 @@ class TypeContext {
       });
     });
   }
+}
 
-  static handleResponse(
-    method: 'GET' | 'PUT',
-    device: Device,
-    canonicalMethodName: string,
-    {
-      responses: {
-        200: success,
-        400: error400,
-        500: error500,
-        ...otherResponses
-      } = err('Missing responses')
-    }: OpenAPIV3_1.OperationObject
-  ) {
-    assertEmpty(otherResponses, 'Unexpected response status codes');
-    return new TypeContext(method, 'Response', device).handleContent(
-      canonicalMethodName,
-      'application/json',
-      success
-    );
-  }
+function handleResponse(
+  method: 'GET' | 'PUT',
+  device: Device,
+  canonicalMethodName: string,
+  {
+    responses: {
+      200: success,
+      400: error400,
+      500: error500,
+      ...otherResponses
+    } = err('Missing responses')
+  }: OpenAPIV3_1.OperationObject
+) {
+  assertEmpty(otherResponses, 'Unexpected response status codes');
+  return new TypeContext(method, 'Response', device).handleContent(
+    canonicalMethodName,
+    'application/json',
+    success
+  );
 }
 
 for (let [path, methods = err('Missing methods')] of Object.entries(
@@ -538,12 +538,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(get),
         resolvedArgs,
-        returnType: TypeContext.handleResponse(
-          'GET',
-          device,
-          canonicalMethodName,
-          get
-        )
+        returnType: handleResponse('GET', device, canonicalMethodName, get)
       });
     });
 
