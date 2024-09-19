@@ -236,10 +236,14 @@ function handleIntFormat(format: string | undefined): RustType {
   }
 }
 
+interface TypeContext {
+  method: 'GET' | 'PUT';
+  baseKind: 'Request' | 'Response';
+  devicePath: string;
+}
+
 function handleObjectProps(
-  method: 'GET' | 'PUT',
-  baseKind: 'Request' | 'Response',
-  devicePath: string,
+  ctx: TypeContext,
   objName: string,
   {
     properties = err('Missing properties'),
@@ -252,9 +256,7 @@ function handleObjectProps(
       name: toPropName(propName),
       originalName: propName,
       type: handleOptType(
-        method,
-        baseKind,
-        devicePath,
+        ctx,
         `${objName}${propName}`,
         propSchema,
         required.includes(propName)
@@ -266,9 +268,7 @@ function handleObjectProps(
 }
 
 function handleType(
-  method: 'GET' | 'PUT',
-  baseKind: 'Request' | 'Response',
-  devicePath: string,
+  ctx: TypeContext,
   name: string,
   schema: SchemaObject | ReferenceObject = err('Missing schema')
 ): RustType {
@@ -277,7 +277,7 @@ function handleType(
     switch (schema.type) {
       case 'integer':
         if (schema.oneOf) {
-          return registerType(devicePath, schema, schema => {
+          return registerType(ctx.devicePath, schema, schema => {
             let enumType: EnumType = {
               kind: 'Enum',
               name,
@@ -301,22 +301,15 @@ function handleType(
         }
         return handleIntFormat(schema.format);
       case 'array':
-        return rusty(
-          `Vec<${handleType(
-            method,
-            baseKind,
-            devicePath,
-            `${name}Item`,
-            schema.items
-          )}>`
-        );
+        return rusty(`Vec<${handleType(ctx, `${name}Item`, schema.items)}>`);
       case 'number':
         return rusty('f64');
       case 'string': {
         let { format } = schema;
         if (format === 'date-time' || format === 'date-time-fits') {
           format = format === 'date-time' ? 'Iso8601' : 'Fits';
-          let viaType = baseKind === 'Request' ? 'TimeParam' : 'TimeResponse';
+          let viaType =
+            ctx.baseKind === 'Request' ? 'TimeParam' : 'TimeResponse';
           return rusty(
             'std::time::SystemTime',
             `time_repr::${viaType}<time_repr::${format}>`
@@ -327,20 +320,16 @@ function handleType(
       case 'boolean':
         return rusty(
           'bool',
-          method === 'GET' && baseKind === 'Request' ? 'BoolParam' : undefined
+          ctx.method === 'GET' && ctx.baseKind === 'Request'
+            ? 'BoolParam'
+            : undefined
         );
       case 'object': {
-        return registerType(devicePath, schema, schema => ({
+        return registerType(ctx.devicePath, schema, schema => ({
           kind: 'Object',
           name,
           doc: getDoc(schema),
-          properties: handleObjectProps(
-            method,
-            baseKind,
-            devicePath,
-            name,
-            schema
-          )
+          properties: handleObjectProps(ctx, name, schema)
         }));
       }
     }
@@ -353,28 +342,25 @@ function handleType(
 }
 
 function handleOptType(
-  method: 'GET' | 'PUT',
-  baseKind: 'Request' | 'Response',
-  devicePath: string,
+  ctx: TypeContext,
   name: string,
   schema: SchemaObject | ReferenceObject | undefined,
   required: boolean
 ): RustType {
-  let type = handleType(method, baseKind, devicePath, name, schema);
+  let type = handleType(ctx, name, schema);
   return required ? type : rusty(`Option<${type}>`);
 }
 
 function handleContent(
-  method: 'GET' | 'PUT',
-  devicePath: string,
+  ctx: TypeContext,
   prefixName: string,
-  baseKind: 'Request' | 'Response',
   contentType: string,
   body:
     | OpenAPIV3_1.RequestBodyObject
     | OpenAPIV3_1.ResponseObject
     | ReferenceObject = err('Missing content')
 ): RustType {
+  let { baseKind } = ctx;
   let name = `${prefixName}${baseKind}`;
   return withContext(name, () => {
     ({ name = name, target: body } = nameAndTarget(body));
@@ -394,7 +380,7 @@ function handleContent(
     if (name.endsWith(baseKind)) {
       name = name.slice(0, -baseKind.length);
     }
-    return registerType(devicePath, schema, schema => {
+    return registerType(ctx.devicePath, schema, schema => {
       if (name === 'ImageArray') {
         return rusty('ImageArray');
       }
@@ -420,29 +406,17 @@ function handleContent(
         properties !== undefined &&
         isDeepStrictEqual(Object.keys(properties), ['Value'])
       ) {
-        let valueType = handleType(
-          method,
-          baseKind,
-          devicePath,
-          name,
-          properties.Value
-        );
+        let valueType = handleType(ctx, name, properties.Value);
         return rusty(
           valueType.toString(),
           valueType.convertVia ?? 'ValueResponse<_>'
         );
       }
 
-      let convertedProps = handleObjectProps(
-        method,
-        baseKind,
-        devicePath,
-        name,
-        {
-          properties,
-          required
-        }
-      );
+      let convertedProps = handleObjectProps(ctx, name, {
+        properties,
+        required
+      });
 
       return {
         kind: baseKind,
@@ -455,9 +429,7 @@ function handleContent(
 }
 
 function handleResponse(
-  method: 'GET' | 'PUT',
-  devicePath: string,
-  prefixName: string,
+  ctx: TypeContext,
   {
     responses: {
       200: success,
@@ -468,14 +440,7 @@ function handleResponse(
   }: OpenAPIV3_1.OperationObject
 ) {
   assertEmpty(otherResponses, 'Unexpected response status codes');
-  return handleContent(
-    method,
-    devicePath,
-    prefixName,
-    'Response',
-    'application/json',
-    success
-  );
+  return handleContent(ctx, 'Response', 'application/json', success);
 }
 
 for (let [path, methods = err('Missing methods')] of Object.entries(
@@ -552,9 +517,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
           originalName: param.name,
           doc: getDoc(param),
           type: handleOptType(
-            'GET',
-            'Request',
-            devicePath,
+            {
+              method: 'GET',
+              baseKind: 'Request',
+              devicePath
+            },
             `${device.name}${canonicalMethodName}Request${param.name}`,
             param.schema,
             param.required ?? false
@@ -569,9 +536,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         doc: getDoc(get),
         resolvedArgs,
         returnType: handleResponse(
-          'GET',
-          devicePath,
-          `${device.name}${canonicalMethodName}`,
+          {
+            method: 'GET',
+            baseKind: 'Response',
+            devicePath
+          },
           get
         )
       });
@@ -605,10 +574,12 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
 
       let argsType = handleContent(
-        'PUT',
-        devicePath,
+        {
+          method: 'PUT',
+          baseKind: 'Request',
+          devicePath
+        },
         `${device.name}${canonicalMethodName}`,
-        'Request',
         'application/x-www-form-urlencoded',
         put.requestBody
       );
@@ -635,9 +606,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         doc: getDoc(put),
         resolvedArgs,
         returnType: handleResponse(
-          'PUT',
-          devicePath,
-          `${device.name}${canonicalMethodName}`,
+          {
+            method: 'PUT',
+            baseKind: 'Response',
+            devicePath
+          },
           put
         )
       });
