@@ -236,211 +236,208 @@ function handleIntFormat(format: string | undefined): RustType {
   }
 }
 
-interface TypeContext {
-  method: 'GET' | 'PUT';
-  baseKind: 'Request' | 'Response';
-  devicePath: string;
-}
+class TypeContext {
+  constructor(
+    private readonly method: 'GET' | 'PUT',
+    private readonly baseKind: 'Request' | 'Response',
+    private readonly devicePath: string
+  ) {}
 
-function handleObjectProps(
-  ctx: TypeContext,
-  objName: string,
-  {
-    properties = err('Missing properties'),
-    required = []
-  }: Pick<SchemaObject, 'properties' | 'required'>
-) {
-  let objProperties: ObjectType['properties'] = new Map();
-  for (let [propName, propSchema] of Object.entries(properties)) {
-    set(objProperties, propName, {
-      name: toPropName(propName),
-      originalName: propName,
-      type: handleOptType(
-        ctx,
-        `${objName}${propName}`,
-        propSchema,
-        required.includes(propName)
-      ),
-      doc: getDoc(resolveMaybeRef(propSchema))
+  handleObjectProps(
+    objName: string,
+    {
+      properties = err('Missing properties'),
+      required = []
+    }: Pick<SchemaObject, 'properties' | 'required'>
+  ) {
+    let objProperties: ObjectType['properties'] = new Map();
+    for (let [propName, propSchema] of Object.entries(properties)) {
+      set(objProperties, propName, {
+        name: toPropName(propName),
+        originalName: propName,
+        type: this.handleOptType(
+          `${objName}${propName}`,
+          propSchema,
+          required.includes(propName)
+        ),
+        doc: getDoc(resolveMaybeRef(propSchema))
+      });
+    }
+    return objProperties;
+  }
+
+  handleType(
+    name: string,
+    schema: SchemaObject | ReferenceObject = err('Missing schema')
+  ): RustType {
+    return withContext(name, () => {
+      ({ name = name, target: schema } = nameAndTarget(schema));
+      switch (schema.type) {
+        case 'integer':
+          if (schema.oneOf) {
+            return registerType(this.devicePath, schema, schema => {
+              let enumType: EnumType = {
+                kind: 'Enum',
+                name,
+                doc: getDoc(schema),
+                baseType: handleIntFormat(schema.format),
+                variants: new Map()
+              };
+              assert.ok(Array.isArray(schema.oneOf));
+              for (let entry of schema.oneOf) {
+                assert.ok(!isRef(entry));
+                assert.ok(Number.isSafeInteger(entry.const));
+                let name = entry.title ?? err('Missing title');
+                set(enumType.variants, name, {
+                  name,
+                  doc: entry.description,
+                  value: entry.const
+                });
+              }
+              return enumType;
+            });
+          }
+          return handleIntFormat(schema.format);
+        case 'array':
+          return rusty(`Vec<${this.handleType(`${name}Item`, schema.items)}>`);
+        case 'number':
+          return rusty('f64');
+        case 'string': {
+          let { format } = schema;
+          if (format === 'date-time' || format === 'date-time-fits') {
+            format = format === 'date-time' ? 'Iso8601' : 'Fits';
+            let viaType =
+              this.baseKind === 'Request' ? 'TimeParam' : 'TimeResponse';
+            return rusty(
+              'std::time::SystemTime',
+              `time_repr::${viaType}<time_repr::${format}>`
+            );
+          }
+          return rusty('String');
+        }
+        case 'boolean':
+          return rusty(
+            'bool',
+            this.method === 'GET' && this.baseKind === 'Request'
+              ? 'BoolParam'
+              : undefined
+          );
+        case 'object': {
+          return registerType(this.devicePath, schema, schema => ({
+            kind: 'Object',
+            name,
+            doc: getDoc(schema),
+            properties: this.handleObjectProps(name, schema)
+          }));
+        }
+      }
+      if (name === 'DeviceStateItemValue') {
+        // This is a variadic type, handle it manually by forwarding to serde_json.
+        return rusty('serde_json::Value');
+      }
+      throw new Error(`Unknown type ${schema.type}`);
     });
   }
-  return objProperties;
-}
 
-function handleType(
-  ctx: TypeContext,
-  name: string,
-  schema: SchemaObject | ReferenceObject = err('Missing schema')
-): RustType {
-  return withContext(name, () => {
-    ({ name = name, target: schema } = nameAndTarget(schema));
-    switch (schema.type) {
-      case 'integer':
-        if (schema.oneOf) {
-          return registerType(ctx.devicePath, schema, schema => {
-            let enumType: EnumType = {
-              kind: 'Enum',
-              name,
-              doc: getDoc(schema),
-              baseType: handleIntFormat(schema.format),
-              variants: new Map()
-            };
-            assert.ok(Array.isArray(schema.oneOf));
-            for (let entry of schema.oneOf) {
-              assert.ok(!isRef(entry));
-              assert.ok(Number.isSafeInteger(entry.const));
-              let name = entry.title ?? err('Missing title');
-              set(enumType.variants, name, {
-                name,
-                doc: entry.description,
-                value: entry.const
-              });
-            }
-            return enumType;
-          });
+  handleOptType(
+    name: string,
+    schema: SchemaObject | ReferenceObject | undefined,
+    required: boolean
+  ): RustType {
+    let type = this.handleType(name, schema);
+    return required ? type : rusty(`Option<${type}>`);
+  }
+
+  handleContent(
+    prefixName: string,
+    contentType: string,
+    body:
+      | OpenAPIV3_1.RequestBodyObject
+      | OpenAPIV3_1.ResponseObject
+      | ReferenceObject = err('Missing content')
+  ): RustType {
+    let { baseKind } = this;
+    let name = `${prefixName}${baseKind}`;
+    return withContext(name, () => {
+      ({ name = name, target: body } = nameAndTarget(body));
+      let doc = getDoc(body);
+      let {
+        [contentType]: { schema = err('Missing schema') } = err(
+          `Missing ${contentType}`
+        ),
+        ...otherContentTypes
+      } = body.content ?? err('Missing content');
+      assertEmpty(otherContentTypes, 'Unexpected types');
+      let baseRef = `#/components/schemas/Alpaca${baseKind}`;
+      if (isRef(schema) && schema.$ref === baseRef) {
+        return rusty('()');
+      }
+      ({ name = name, target: schema } = nameAndTarget(schema));
+      if (name.endsWith(baseKind)) {
+        name = name.slice(0, -baseKind.length);
+      }
+      return registerType(this.devicePath, schema, schema => {
+        if (name === 'ImageArray') {
+          return rusty('ImageArray');
         }
-        return handleIntFormat(schema.format);
-      case 'array':
-        return rusty(`Vec<${handleType(ctx, `${name}Item`, schema.items)}>`);
-      case 'number':
-        return rusty('f64');
-      case 'string': {
-        let { format } = schema;
-        if (format === 'date-time' || format === 'date-time-fits') {
-          format = format === 'date-time' ? 'Iso8601' : 'Fits';
-          let viaType =
-            ctx.baseKind === 'Request' ? 'TimeParam' : 'TimeResponse';
+
+        doc = getDoc(schema) ?? doc;
+        let {
+          allOf: [base, extension, ...otherItemsInAllOf] = err('Missing allOf'),
+          ...otherPropsInSchema
+        } = schema;
+        assert.deepEqual(otherItemsInAllOf, [], 'Unexpected items in allOf');
+        assertEmpty(
+          otherPropsInSchema,
+          'Unexpected properties in content schema'
+        );
+        assert.ok(isRef(base));
+        assert.equal(base.$ref, baseRef);
+        assert.ok(extension && !isRef(extension));
+        let { properties, required, ...otherPropsInExtension } = extension;
+        assertEmpty(
+          otherPropsInExtension,
+          'Unexpected properties in extension'
+        );
+        // Special-case value responses.
+        if (
+          baseKind === 'Response' &&
+          properties !== undefined &&
+          isDeepStrictEqual(Object.keys(properties), ['Value'])
+        ) {
+          let valueType = this.handleType(name, properties.Value);
           return rusty(
-            'std::time::SystemTime',
-            `time_repr::${viaType}<time_repr::${format}>`
+            valueType.toString(),
+            valueType.convertVia ?? 'ValueResponse<_>'
           );
         }
-        return rusty('String');
-      }
-      case 'boolean':
-        return rusty(
-          'bool',
-          ctx.method === 'GET' && ctx.baseKind === 'Request'
-            ? 'BoolParam'
-            : undefined
-        );
-      case 'object': {
-        return registerType(ctx.devicePath, schema, schema => ({
-          kind: 'Object',
+
+        let convertedProps = this.handleObjectProps(name, {
+          properties,
+          required
+        });
+
+        return {
+          kind: baseKind,
           name,
-          doc: getDoc(schema),
-          properties: handleObjectProps(ctx, name, schema)
-        }));
-      }
-    }
-    if (name === 'DeviceStateItemValue') {
-      // This is a variadic type, handle it manually by forwarding to serde_json.
-      return rusty('serde_json::Value');
-    }
-    throw new Error(`Unknown type ${schema.type}`);
-  });
-}
-
-function handleOptType(
-  ctx: TypeContext,
-  name: string,
-  schema: SchemaObject | ReferenceObject | undefined,
-  required: boolean
-): RustType {
-  let type = handleType(ctx, name, schema);
-  return required ? type : rusty(`Option<${type}>`);
-}
-
-function handleContent(
-  ctx: TypeContext,
-  prefixName: string,
-  contentType: string,
-  body:
-    | OpenAPIV3_1.RequestBodyObject
-    | OpenAPIV3_1.ResponseObject
-    | ReferenceObject = err('Missing content')
-): RustType {
-  let { baseKind } = ctx;
-  let name = `${prefixName}${baseKind}`;
-  return withContext(name, () => {
-    ({ name = name, target: body } = nameAndTarget(body));
-    let doc = getDoc(body);
-    let {
-      [contentType]: { schema = err('Missing schema') } = err(
-        `Missing ${contentType}`
-      ),
-      ...otherContentTypes
-    } = body.content ?? err('Missing content');
-    assertEmpty(otherContentTypes, 'Unexpected types');
-    let baseRef = `#/components/schemas/Alpaca${baseKind}`;
-    if (isRef(schema) && schema.$ref === baseRef) {
-      return rusty('()');
-    }
-    ({ name = name, target: schema } = nameAndTarget(schema));
-    if (name.endsWith(baseKind)) {
-      name = name.slice(0, -baseKind.length);
-    }
-    return registerType(ctx.devicePath, schema, schema => {
-      if (name === 'ImageArray') {
-        return rusty('ImageArray');
-      }
-
-      doc = getDoc(schema) ?? doc;
-      let {
-        allOf: [base, extension, ...otherItemsInAllOf] = err('Missing allOf'),
-        ...otherPropsInSchema
-      } = schema;
-      assert.deepEqual(otherItemsInAllOf, [], 'Unexpected items in allOf');
-      assertEmpty(
-        otherPropsInSchema,
-        'Unexpected properties in content schema'
-      );
-      assert.ok(isRef(base));
-      assert.equal(base.$ref, baseRef);
-      assert.ok(extension && !isRef(extension));
-      let { properties, required, ...otherPropsInExtension } = extension;
-      assertEmpty(otherPropsInExtension, 'Unexpected properties in extension');
-      // Special-case value responses.
-      if (
-        baseKind === 'Response' &&
-        properties !== undefined &&
-        isDeepStrictEqual(Object.keys(properties), ['Value'])
-      ) {
-        let valueType = handleType(ctx, name, properties.Value);
-        return rusty(
-          valueType.toString(),
-          valueType.convertVia ?? 'ValueResponse<_>'
-        );
-      }
-
-      let convertedProps = handleObjectProps(ctx, name, {
-        properties,
-        required
+          doc,
+          properties: convertedProps
+        };
       });
-
-      return {
-        kind: baseKind,
-        name,
-        doc,
-        properties: convertedProps
-      };
     });
-  });
-}
+  }
 
-function handleResponse(
-  ctx: TypeContext,
-  {
+  handleResponse({
     responses: {
       200: success,
       400: error400,
       500: error500,
       ...otherResponses
     } = err('Missing responses')
-  }: OpenAPIV3_1.OperationObject
-) {
-  assertEmpty(otherResponses, 'Unexpected response status codes');
-  return handleContent(ctx, 'Response', 'application/json', success);
+  }: OpenAPIV3_1.OperationObject) {
+    assertEmpty(otherResponses, 'Unexpected response status codes');
+    return this.handleContent('Response', 'application/json', success);
+  }
 }
 
 for (let [path, methods = err('Missing methods')] of Object.entries(
@@ -509,6 +506,8 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let resolvedArgs = new Map<string, Property>();
 
+      let paramCtx = new TypeContext('GET', 'Request', devicePath);
+
       for (let param of params.map(resolveMaybeRef)) {
         assert.equal(param?.in, 'query', 'Parameter is not a query parameter');
         let name = toPropName(param.name);
@@ -516,12 +515,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
           name,
           originalName: param.name,
           doc: getDoc(param),
-          type: handleOptType(
-            {
-              method: 'GET',
-              baseKind: 'Request',
-              devicePath
-            },
+          type: paramCtx.handleOptType(
             `${device.name}${canonicalMethodName}Request${param.name}`,
             param.schema,
             param.required ?? false
@@ -535,14 +529,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(get),
         resolvedArgs,
-        returnType: handleResponse(
-          {
-            method: 'GET',
-            baseKind: 'Response',
-            devicePath
-          },
-          get
-        )
+        returnType: new TypeContext(
+          'GET',
+          'Response',
+          devicePath
+        ).handleResponse(get)
       });
     });
 
@@ -573,12 +564,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       let canonicalMethodName =
         (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
 
-      let argsType = handleContent(
-        {
-          method: 'PUT',
-          baseKind: 'Request',
-          devicePath
-        },
+      let argsType = new TypeContext(
+        'PUT',
+        'Request',
+        devicePath
+      ).handleContent(
         `${device.name}${canonicalMethodName}`,
         'application/x-www-form-urlencoded',
         put.requestBody
@@ -605,14 +595,11 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         path: methodPath,
         doc: getDoc(put),
         resolvedArgs,
-        returnType: handleResponse(
-          {
-            method: 'PUT',
-            baseKind: 'Response',
-            devicePath
-          },
-          put
-        )
+        returnType: new TypeContext(
+          'PUT',
+          'Response',
+          devicePath
+        ).handleResponse(put)
       });
     });
   });
