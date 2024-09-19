@@ -530,11 +530,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 
     /// Sets the connected state of the device.
     #[http("connected", method = Put)]
-    async fn set_connected(
-        &self,
-
-        #[http("Connected", via = BoolParam)] connected: bool,
-    ) -> ASCOMResult {
+    async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -719,11 +715,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// True = cooler on, False = cooler off.
     #[http("cooleron", method = Put)]
-    async fn set_cooler_on(
-        &self,
-
-        #[http("CoolerOn", via = BoolParam)] cooler_on: bool,
-    ) -> ASCOMResult {
+    async fn set_cooler_on(&self, #[http("CoolerOn")] cooler_on: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -765,11 +757,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets whether Fast Readout Mode is enabled.
     #[http("fastreadout", method = Put)]
-    async fn set_fast_readout(
-        &self,
-
-        #[http("FastReadout", via = BoolParam)] fast_readout: bool,
-    ) -> ASCOMResult {
+    async fn set_fast_readout(&self, #[http("FastReadout")] fast_readout: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1132,7 +1120,7 @@ pub trait Camera: Device + Send + Sync {
 
         #[http("Duration")] duration: f64,
 
-        #[http("Light", via = BoolParam)] light: bool,
+        #[http("Light")] light: bool,
     ) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -1319,7 +1307,7 @@ pub trait Dome: Device + Send + Sync {
 
     /// Sets the current subframe height.
     #[http("slaved", method = Put)]
-    async fn set_slaved(&self, #[http("Slaved", via = BoolParam)] slaved: bool) -> ASCOMResult {
+    async fn set_slaved(&self, #[http("Slaved")] slaved: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1463,11 +1451,7 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Sets the state of temperature compensation mode.
     #[http("tempcomp", method = Put)]
-    async fn set_temp_comp(
-        &self,
-
-        #[http("TempComp", via = BoolParam)] temp_comp: bool,
-    ) -> ASCOMResult {
+    async fn set_temp_comp(&self, #[http("TempComp")] temp_comp: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1661,7 +1645,7 @@ pub trait Rotator: Device + Send + Sync {
 
     /// Sets the rotator’s Reverse state.
     #[http("reverse", method = Put)]
-    async fn set_reverse(&self, #[http("Reverse", via = BoolParam)] reverse: bool) -> ASCOMResult {
+    async fn set_reverse(&self, #[http("Reverse")] reverse: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1799,13 +1783,7 @@ pub trait Switch: Device + Send + Sync {
     ///
     /// _ISwitchV3 and later._.
     #[http("setasync", method = Put)]
-    async fn set_async(
-        &self,
-
-        #[http("Id")] id: i32,
-
-        #[http("State", via = BoolParam)] state: bool,
-    ) -> ASCOMResult {
+    async fn set_async(&self, #[http("Id")] id: i32, #[http("State")] state: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -1825,13 +1803,7 @@ pub trait Switch: Device + Send + Sync {
 
     /// Sets a switch controller device to the specified state, true or false.
     #[http("setswitch", method = Put)]
-    async fn set_switch(
-        &self,
-
-        #[http("Id")] id: i32,
-
-        #[http("State", via = BoolParam)] state: bool,
-    ) -> ASCOMResult {
+    async fn set_switch(&self, #[http("Id")] id: i32, #[http("State")] state: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -2061,7 +2033,7 @@ pub trait Telescope: Device + Send + Sync {
     async fn set_does_refraction(
         &self,
 
-        #[http("DoesRefraction", via = BoolParam)] does_refraction: bool,
+        #[http("DoesRefraction")] does_refraction: bool,
     ) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -2266,11 +2238,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the state of the telescope's sidereal tracking drive.
     #[http("tracking", method = Put)]
-    async fn set_tracking(
-        &self,
-
-        #[http("Tracking", via = BoolParam)] tracking: bool,
-    ) -> ASCOMResult {
+    async fn set_tracking(&self, #[http("Tracking")] tracking: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

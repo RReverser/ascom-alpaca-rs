@@ -237,6 +237,7 @@ function handleIntFormat(format: string | undefined): RustType {
 }
 
 function handleObjectProps(
+  method: 'GET' | 'PUT',
   baseKind: 'Request' | 'Response',
   devicePath: string,
   objName: string,
@@ -251,6 +252,7 @@ function handleObjectProps(
       name: toPropName(propName),
       originalName: propName,
       type: handleOptType(
+        method,
         baseKind,
         devicePath,
         `${objName}${propName}`,
@@ -264,6 +266,7 @@ function handleObjectProps(
 }
 
 function handleType(
+  method: 'GET' | 'PUT',
   baseKind: 'Request' | 'Response',
   devicePath: string,
   name: string,
@@ -300,6 +303,7 @@ function handleType(
       case 'array':
         return rusty(
           `Vec<${handleType(
+            method,
             baseKind,
             devicePath,
             `${name}Item`,
@@ -321,13 +325,22 @@ function handleType(
         return rusty('String');
       }
       case 'boolean':
-        return rusty('bool', baseKind === 'Request' ? 'BoolParam' : undefined);
+        return rusty(
+          'bool',
+          method === 'GET' && baseKind === 'Request' ? 'BoolParam' : undefined
+        );
       case 'object': {
         return registerType(devicePath, schema, schema => ({
           kind: 'Object',
           name,
           doc: getDoc(schema),
-          properties: handleObjectProps(baseKind, devicePath, name, schema)
+          properties: handleObjectProps(
+            method,
+            baseKind,
+            devicePath,
+            name,
+            schema
+          )
         }));
       }
     }
@@ -340,17 +353,19 @@ function handleType(
 }
 
 function handleOptType(
+  method: 'GET' | 'PUT',
   baseKind: 'Request' | 'Response',
   devicePath: string,
   name: string,
   schema: SchemaObject | ReferenceObject | undefined,
   required: boolean
 ): RustType {
-  let type = handleType(baseKind, devicePath, name, schema);
+  let type = handleType(method, baseKind, devicePath, name, schema);
   return required ? type : rusty(`Option<${type}>`);
 }
 
 function handleContent(
+  method: 'GET' | 'PUT',
   devicePath: string,
   prefixName: string,
   baseKind: 'Request' | 'Response',
@@ -406,6 +421,7 @@ function handleContent(
         isDeepStrictEqual(Object.keys(properties), ['Value'])
       ) {
         let valueType = handleType(
+          method,
           baseKind,
           devicePath,
           name,
@@ -417,10 +433,16 @@ function handleContent(
         );
       }
 
-      let convertedProps = handleObjectProps(baseKind, devicePath, name, {
-        properties,
-        required
-      });
+      let convertedProps = handleObjectProps(
+        method,
+        baseKind,
+        devicePath,
+        name,
+        {
+          properties,
+          required
+        }
+      );
 
       return {
         kind: baseKind,
@@ -433,6 +455,7 @@ function handleContent(
 }
 
 function handleResponse(
+  method: 'GET' | 'PUT',
   devicePath: string,
   prefixName: string,
   {
@@ -446,6 +469,7 @@ function handleResponse(
 ) {
   assertEmpty(otherResponses, 'Unexpected response status codes');
   return handleContent(
+    method,
     devicePath,
     prefixName,
     'Response',
@@ -528,6 +552,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
           originalName: param.name,
           doc: getDoc(param),
           type: handleOptType(
+            'GET',
             'Request',
             devicePath,
             `${device.name}${canonicalMethodName}Request${param.name}`,
@@ -544,6 +569,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         doc: getDoc(get),
         resolvedArgs,
         returnType: handleResponse(
+          'GET',
           devicePath,
           `${device.name}${canonicalMethodName}`,
           get
@@ -579,6 +605,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
 
       let argsType = handleContent(
+        'PUT',
         devicePath,
         `${device.name}${canonicalMethodName}`,
         'Request',
@@ -608,6 +635,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         doc: getDoc(put),
         resolvedArgs,
         returnType: handleResponse(
+          'PUT',
           devicePath,
           `${device.name}${canonicalMethodName}`,
           put
