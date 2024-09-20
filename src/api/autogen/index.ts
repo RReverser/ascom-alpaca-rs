@@ -341,6 +341,7 @@ class DeviceMethod {
       'application/json',
       success
     );
+    device.updateDocFromMethodTags(schema);
   }
 
   private _brand!: never;
@@ -436,6 +437,16 @@ class Device {
         ${this.methods}
       }
     `;
+  }
+
+  updateDocFromMethodTags(method: OpenAPIV3_1.OperationObject) {
+    let [tag, ...otherTags] = method.tags ?? err('Missing tags');
+    assert.deepEqual(otherTags, [], 'Unexpected tags');
+    if (this.doc !== undefined) {
+      assert.equal(this.doc, tag);
+    } else {
+      this.doc = tag;
+    }
   }
 }
 
@@ -646,17 +657,6 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
     let { get, put, ...other } = methods;
     assertEmpty(other, 'Unexpected methods');
 
-    for (let method of [get, put]) {
-      if (!method) continue;
-      let [tag, ...otherTags] = method.tags ?? err('Missing tags');
-      assert.deepEqual(otherTags, [], 'Unexpected tags');
-      if (device.doc !== undefined) {
-        assert.equal(device.doc, tag);
-      } else {
-        device.doc = tag;
-      }
-    }
-
     withContext('GET', () => {
       if (!get) return;
 
@@ -709,7 +709,6 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       if (!argsType.isVoid()) {
         let resolvedType = types.get(argsType.toString());
-        assert.ok(resolvedType, 'Could not find registered type');
         assert.ok(
           resolvedType instanceof RequestType,
           'Registered type is not a request'
