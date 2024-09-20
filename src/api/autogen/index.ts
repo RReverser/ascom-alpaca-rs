@@ -325,8 +325,23 @@ class DeviceMethod {
     this.name = name;
     this.method = method;
     this.doc = getDoc(schema);
-    this.returnType = handleResponse(method, device, this.name, schema);
     this.inBaseDevice = device.isBaseDevice;
+    const {
+      responses: {
+        200: success,
+        400: error400,
+        500: error500,
+        ...otherResponses
+      } = err('Missing responses')
+    } = schema;
+    assertEmpty(otherResponses, 'Unexpected response status codes');
+    assert.deepEqual(error400, { $ref: '#/components/responses/400' });
+    assert.deepEqual(error500, { $ref: '#/components/responses/500' });
+    this.returnType = new TypeContext(method, 'Response', device).handleContent(
+      name,
+      'application/json',
+      success
+    );
   }
 
   private _brand!: never;
@@ -589,27 +604,6 @@ class TypeContext {
       });
     });
   }
-}
-
-function handleResponse(
-  method: 'GET' | 'PUT',
-  device: Device,
-  canonicalMethodName: string,
-  {
-    responses: {
-      200: success,
-      400: error400,
-      500: error500,
-      ...otherResponses
-    } = err('Missing responses')
-  }: OpenAPIV3_1.OperationObject
-) {
-  assertEmpty(otherResponses, 'Unexpected response status codes');
-  return new TypeContext(method, 'Response', device).handleContent(
-    canonicalMethodName,
-    'application/json',
-    success
-  );
 }
 
 function extractParams(
