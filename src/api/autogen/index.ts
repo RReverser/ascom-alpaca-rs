@@ -40,11 +40,18 @@ function getOrSet<K, V>(
   return value;
 }
 
-function set<K, V>(map: Map<K, V>, key: K, value: V) {
-  if (map.has(key)) {
-    throw new Error(`Duplicate key: ${key}`);
+class NamedSet<T extends { name: string }> extends Map<string, T> {
+  add(value: T) {
+    let { name } = value;
+    if (this.has(name)) {
+      throw new Error(`Item with name ${name} is already in the set`);
+    }
+    this.set(name, value);
   }
-  map.set(key, value);
+
+  toString(stringifyItem?: (t: T) => string) {
+    return Array.from(this.values(), stringifyItem!).join('');
+  }
 }
 
 function assertEmpty(obj: object, msg: string) {
@@ -97,7 +104,7 @@ function getDoc({
   // return summary && summary + (description ? `\n\n${description}` : '');
 }
 
-let types = new Map<string, RegisteredType>();
+let types = new NamedSet<RegisteredType>();
 let typeBySchema = new WeakMap<SchemaObject, RustType>();
 
 function registerType<S extends SchemaObject, T extends RegisteredType>(
@@ -110,7 +117,7 @@ function registerType<S extends SchemaObject, T extends RegisteredType>(
     if (type instanceof RustType) {
       return type;
     } else {
-      set(types, type.name, type);
+      types.add(type);
       return rusty(type.name);
     }
   });
@@ -200,7 +207,7 @@ class Property {
 }
 
 class ObjectType extends RegisteredTypeBase {
-  public readonly properties: Map<string, Property>;
+  public readonly properties = new NamedSet<Property>();
 
   constructor(
     typeCtx: TypeContext,
@@ -208,7 +215,21 @@ class ObjectType extends RegisteredTypeBase {
     schema: OpenAPIV3_1.NonArraySchemaObject
   ) {
     super(name, getDoc(schema));
-    this.properties = typeCtx.handleObjectProps(name, schema);
+
+    let { properties = err('Missing properties'), required = [] } = schema;
+    for (let [propName, propSchema] of Object.entries(properties)) {
+      this.properties.add(
+        new Property(
+          propName,
+          typeCtx.handleOptType(
+            `${name}${propName}`,
+            propSchema,
+            required.includes(propName)
+          ),
+          getDoc(resolveMaybeRef(propSchema))
+        )
+      );
+    }
   }
 
   toString() {
@@ -219,7 +240,7 @@ class ObjectType extends RegisteredTypeBase {
         ${this.stringifyCfg()}#[derive(Debug, Clone${maybeCopy}, Serialize, Deserialize)]
         #[serde(rename_all = "PascalCase")]
         pub struct ${this.name} {
-          ${stringifyIter(this.properties)}
+          ${this.properties}
         }
       `;
   }
@@ -256,7 +277,7 @@ class EnumVariant {
 }
 
 class EnumType extends RegisteredTypeBase {
-  public readonly variants = new Map<string, EnumVariant>();
+  public readonly variants = new NamedSet<EnumVariant>();
   public readonly baseType: RustType;
 
   constructor(name: string, schema: SchemaObject) {
@@ -264,8 +285,7 @@ class EnumType extends RegisteredTypeBase {
     this.baseType = handleIntFormat(schema.format);
     assert.ok(Array.isArray(schema.oneOf));
     for (let entry of schema.oneOf) {
-      let variant = new EnumVariant(entry);
-      set(this.variants, variant.name, variant);
+      this.variants.add(new EnumVariant(entry));
     }
   }
 
@@ -276,7 +296,7 @@ class EnumType extends RegisteredTypeBase {
       #[repr(${this.baseType})]
       #[allow(missing_docs)] // some enum variants might not have docs and that's okay
       pub enum ${this.name} {
-        ${stringifyIter(this.variants)}
+        ${this.variants}
       }
     `;
   }
@@ -286,7 +306,7 @@ class DeviceMethod {
   public readonly name: string;
   public readonly doc: string | undefined;
   public readonly returnType: RustType;
-  public resolvedArgs = new Map<string, Property>();
+  public resolvedArgs = new NamedSet<Property>();
   public readonly method: 'GET' | 'PUT';
   private readonly inBaseDevice: boolean;
 
@@ -328,8 +348,7 @@ class DeviceMethod {
       #[http("${this.path}", method = ${transformedMethod}${maybeVia})]
       async fn ${this.name}(
         &self,
-        ${stringifyIter(
-          this.resolvedArgs,
+        ${this.resolvedArgs.toString(
           arg =>
             `
               #[http("${arg.originalName}"${
@@ -358,7 +377,7 @@ class DeviceMethod {
 class Device {
   public readonly canonical: CanonicalDevice;
   public doc: string | undefined = undefined;
-  public readonly methods = new Map<string, DeviceMethod>();
+  public readonly methods = new NamedSet<DeviceMethod>();
   public readonly isBaseDevice: boolean;
 
   constructor(public readonly path: string) {
@@ -400,13 +419,13 @@ class Device {
           `
             : ''
         }
-        ${stringifyIter(this.methods)}
+        ${this.methods}
       }
     `;
   }
 }
 
-let devices: Map<string, Device> = new Map();
+let devices = new NamedSet<Device>();
 
 function withContext<T>(context: string, fn: () => T) {
   Object.defineProperty(fn, 'name', { value: context });
@@ -430,29 +449,6 @@ class TypeContext {
     private readonly baseKind: 'Request' | 'Response',
     private readonly device: Device
   ) {}
-
-  handleObjectProps(
-    objName: string,
-    {
-      properties = err('Missing properties'),
-      required = []
-    }: Pick<SchemaObject, 'properties' | 'required'>
-  ) {
-    let objProperties: ObjectType['properties'] = new Map();
-    for (let [propName, propSchema] of Object.entries(properties)) {
-      let prop = new Property(
-        propName,
-        this.handleOptType(
-          `${objName}${propName}`,
-          propSchema,
-          required.includes(propName)
-        ),
-        getDoc(resolveMaybeRef(propSchema))
-      );
-      set(objProperties, prop.name, prop);
-    }
-    return objProperties;
-  }
 
   handleType(
     name: string,
@@ -677,19 +673,20 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       for (let param of params.map(resolveMaybeRef)) {
         assert.equal(param?.in, 'query', 'Parameter is not a query parameter');
-        let prop = new Property(
-          param.name,
-          paramCtx.handleOptType(
-            `${device.name}${method.name}Request${param.name}`,
-            param.schema,
-            param.required ?? false
-          ),
-          getDoc(param)
+        method.resolvedArgs.add(
+          new Property(
+            param.name,
+            paramCtx.handleOptType(
+              `${device.name}${method.name}Request${param.name}`,
+              param.schema,
+              param.required ?? false
+            ),
+            getDoc(param)
+          )
         );
-        set(method.resolvedArgs, prop.name, prop);
       }
 
-      set(device.methods, method.name, method);
+      device.methods.add(method);
     });
 
     withContext('PUT', () => {
@@ -738,16 +735,9 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         method.resolvedArgs = resolvedType.properties;
       }
 
-      set(device.methods, method.name, method);
+      device.methods.add(method);
     });
   });
-}
-
-function stringifyIter<T extends Object>(
-  iter: { values(): Iterable<T> },
-  stringify: (t: T) => string = (t: T) => t.toString()
-) {
-  return Array.from(iter.values(), stringify).join('');
 }
 
 function stringifyDoc(doc: string | undefined = '') {
@@ -803,11 +793,11 @@ mod image_array;
 #[cfg(feature = "camera")]
 pub use image_array::*;
 
-${stringifyIter(types)}
+${types}
 
-${stringifyIter(devices)}
+${devices}
 
-rpc_mod! {${stringifyIter(devices, device =>
+rpc_mod! {${devices.toString(device =>
   device.isBaseDevice
     ? ''
     : `
