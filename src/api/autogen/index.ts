@@ -747,7 +747,7 @@ function stringifyIter<T extends Object>(
   iter: { values(): Iterable<T> },
   stringify: (t: T) => string = (t: T) => t.toString()
 ) {
-  return Array.from(iter.values()).map(stringify).join('');
+  return Array.from(iter.values(), stringify).join('');
 }
 
 function stringifyDoc(doc: string | undefined = '') {
