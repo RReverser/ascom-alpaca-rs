@@ -196,8 +196,7 @@ class Property {
     return `
       ${stringifyDoc(this.doc)}
       ${
-        toPascalCase(this.name) === this.originalName &&
-        toPropName(this.originalName) === this.name
+        toPascalCase(this.name) === this.originalName
           ? ''
           : `#[serde(rename = "${this.originalName}")]`
       }

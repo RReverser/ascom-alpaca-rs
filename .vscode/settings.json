@@ -6,5 +6,6 @@
 		"test",
 		"criterion",
 	],
-	"rust-analyzer.check.workspace": false
+	"rust-analyzer.check.workspace": false,
+	"editor.formatOnSave": true
 }
