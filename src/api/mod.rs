@@ -42,7 +42,6 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
 
 #![allow(clippy::doc_markdown)]
 
-mod bool_param;
 mod devices_impl;
 mod server_info;
 mod time_repr;
@@ -50,7 +49,6 @@ mod time_repr;
 use crate::macros::{rpc_mod, rpc_trait};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
-use bool_param::BoolParam;
 use macro_rules_attribute::apply;
 #[cfg_attr(not(feature = "all-devices"), allow(unused_imports))]
 use num_enum::{IntoPrimitive, TryFromPrimitive};

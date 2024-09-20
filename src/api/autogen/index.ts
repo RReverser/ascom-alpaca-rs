@@ -515,12 +515,7 @@ class TypeContext {
           return rusty('String');
         }
         case 'boolean':
-          return rusty(
-            'bool',
-            this.method === 'GET' && this.baseKind === 'Request'
-              ? 'BoolParam'
-              : undefined
-          );
+          return rusty('bool');
         case 'object': {
           return registerType(
             this.device,
@@ -754,12 +749,10 @@ ${api.info.description}
 
 #![allow(clippy::doc_markdown)]
 
-mod bool_param;
 mod devices_impl;
 mod server_info;
 mod time_repr;
 
-use bool_param::BoolParam;
 use crate::{ASCOMError, ASCOMResult};
 use crate::macros::{rpc_mod, rpc_trait};
 use crate::response::ValueResponse;
