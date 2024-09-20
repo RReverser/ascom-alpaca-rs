@@ -142,6 +142,10 @@ class RustType {
   toString() {
     return this.rusty;
   }
+
+  maybeVia() {
+    return this.convertVia ? `, via = ${this.convertVia}` : '';
+  }
 }
 
 function rusty(rusty: string, convertVia?: string) {
@@ -354,36 +358,38 @@ class DeviceMethod {
       } as const
     )[this.method];
 
-    let maybeVia = this.returnType.convertVia
-      ? `, via = ${this.returnType.convertVia}`
-      : '';
+    let defaultImpl = 'Err(ASCOMError::NOT_IMPLEMENTED)';
+    if (this.name.startsWith('can_')) {
+      defaultImpl = 'Ok(false)';
+    } else if (this.inBaseDevice) {
+      switch (this.name) {
+        case 'name':
+          defaultImpl = 'Ok(self.static_name().to_owned())';
+          break;
+        case 'interface_version':
+          defaultImpl = 'Ok(3_i32)';
+          break;
+        case 'supported_actions':
+          defaultImpl = 'Ok(vec![])';
+          break;
+      }
+    }
 
     return `
       ${stringifyDoc(this.doc)}
-      #[http("${this.path}", method = ${transformedMethod}${maybeVia})]
+      #[http("${
+        this.path
+      }", method = ${transformedMethod}${this.returnType.maybeVia()})]
       async fn ${this.name}(
         &self,
         ${this.resolvedArgs.toString(
-          arg =>
-            `
-              #[http("${arg.originalName}"${
-              arg.type.convertVia ? `, via = ${arg.type.convertVia}` : ''
-            })]
-              ${arg.name}: ${arg.type},
-            `
+          arg => `
+            #[http("${arg.originalName}"${arg.type.maybeVia()})]
+            ${arg.name}: ${arg.type},
+          `
         )}
       ) -> ASCOMResult${this.returnType.ifNotVoid(type => `<${type}>`)} {
-        ${
-          this.name.startsWith('can_')
-            ? 'Ok(false)'
-            : this.inBaseDevice && this.name === 'name'
-            ? 'Ok(self.static_name().to_owned())'
-            : this.inBaseDevice && this.name === 'interface_version'
-            ? 'Ok(3_i32)'
-            : this.inBaseDevice && this.name === 'supported_actions'
-            ? 'Ok(vec![])'
-            : 'Err(ASCOMError::NOT_IMPLEMENTED)'
-        }
+        ${defaultImpl}
       }
     `;
   }
