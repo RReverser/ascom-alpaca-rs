@@ -651,7 +651,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
     let device = getOrSet(devices, devicePath, () => new Device(devicePath));
 
     let { get, put, ...other } = methods;
-    assert.deepEqual(Object.keys(other), [], 'Unexpected methods');
+    assertEmpty(other, 'Unexpected methods');
 
     for (let method of [get, put]) {
       if (!method) continue;
