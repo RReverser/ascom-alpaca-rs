@@ -8,7 +8,7 @@ import {
 } from 'js-convert-case';
 import { OpenAPIV3_1, OpenAPIV3 } from 'openapi-types';
 import * as assert from 'assert/strict';
-import { getCanonicalNames } from './xml-names.js';
+import { CanonicalDevice, getCanonicalNames } from './xml-names.js';
 import { rustKeywords } from './rust-keywords.js';
 import { isDeepStrictEqual } from 'util';
 import { fileURLToPath } from 'url';
@@ -100,13 +100,13 @@ function getDoc({
 let types = new Map<string, RegisteredType>();
 let typeBySchema = new WeakMap<SchemaObject, RustType>();
 
-function registerType<T extends RegisteredType>(
+function registerType<S extends SchemaObject, T extends RegisteredType>(
   device: Device,
-  schema: SchemaObject,
-  createType: (schema: SchemaObject) => T | RustType
+  schema: S,
+  createType: (schema: S) => T | RustType
 ): RustType {
   let rustyType = getOrSet(typeBySchema, schema, schema => {
-    let type = createType(schema);
+    let type = createType(schema as S);
     if (type instanceof RustType) {
       return type;
     } else {
@@ -114,7 +114,7 @@ function registerType<T extends RegisteredType>(
       return rusty(type.name);
     }
   });
-  if (device.path !== '{device_type}') {
+  if (!device.isBaseDevice) {
     // This needs to be done even on cached types.
     types.get(rustyType.toString())?.features.add(device.path);
   }
@@ -141,52 +141,269 @@ function rusty(rusty: string, convertVia?: string) {
   return new RustType(rusty, convertVia);
 }
 
-interface RegisteredTypeBase {
-  name: string;
-  doc: string | undefined;
-  features: Set<string>;
+abstract class RegisteredTypeBase {
+  constructor(
+    public readonly name: string,
+    public readonly doc: string | undefined
+  ) {}
+
+  public readonly features = new Set<string>();
+
+  protected _brand!: never;
+
+  protected stringifyCfg() {
+    let cfgs = Array.from(
+      this.features,
+      feature => `feature = "${feature}"`
+    ).join(', ');
+
+    switch (this.features.size) {
+      case 0:
+        return '';
+
+      case 1:
+        return `#[cfg(${cfgs})] `;
+
+      default:
+        return `#[cfg(any(${cfgs}))] `;
+    }
+  }
 }
 
 type RegisteredType = ObjectType | EnumType;
 
-interface Property {
-  name: string;
-  originalName: string;
-  type: RustType;
-  doc: string | undefined;
+class Property {
+  public readonly name: string;
+
+  constructor(
+    public readonly originalName: string,
+    public readonly type: RustType,
+    public readonly doc: string | undefined
+  ) {
+    this.name = toPropName(originalName);
+  }
+
+  private _brand!: never;
+
+  toString() {
+    return `
+      ${stringifyDoc(this.doc)}
+      ${
+        toPascalCase(this.name) === this.originalName &&
+        toPropName(this.originalName) === this.name
+          ? ''
+          : `#[serde(rename = "${this.originalName}")]`
+      }
+      pub ${this.name}: ${this.type},
+    `;
+  }
 }
 
-interface ObjectType extends RegisteredTypeBase {
-  kind: 'Object' | 'Request' | 'Response';
-  properties: Map<string, Property>;
+class ObjectType extends RegisteredTypeBase {
+  public readonly properties: Map<string, Property>;
+
+  constructor(
+    typeCtx: TypeContext,
+    name: string,
+    schema: OpenAPIV3_1.NonArraySchemaObject
+  ) {
+    super(name, getDoc(schema));
+    this.properties = typeCtx.handleObjectProps(name, schema);
+  }
+
+  toString() {
+    let maybeCopy = this.name !== 'DeviceStateItem' ? ', Copy' : '';
+
+    return `
+        ${stringifyDoc(this.doc)}
+        ${this.stringifyCfg()}#[derive(Debug, Clone${maybeCopy}, Serialize, Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        pub struct ${this.name} {
+          ${stringifyIter(this.properties)}
+        }
+      `;
+  }
 }
 
-interface EnumVariant {
-  doc: string | undefined;
-  name: string;
-  value: number;
+class RequestType extends ObjectType {
+  // Requests are inlined into the method signature, so they don't need to be generated as types.
+  toString(): string {
+    return '';
+  }
 }
 
-interface EnumType extends RegisteredTypeBase {
-  kind: 'Enum';
-  baseType: RustType;
-  variants: Map<string, EnumVariant>;
+class EnumVariant {
+  public readonly name: string;
+  public readonly value: number;
+  public readonly doc: string | undefined;
+
+  constructor(entry: SchemaObject) {
+    assert.ok(!isRef(entry));
+    assert.ok(Number.isSafeInteger(entry.const));
+    this.name = entry.title ?? err('Missing title');
+    this.value = entry.const;
+    this.doc = entry.description;
+  }
+
+  private _brand!: never;
+
+  toString() {
+    return `
+      ${stringifyDoc(this.doc)}
+      ${this.name} = ${this.value},
+    `;
+  }
 }
 
-interface DeviceMethod {
-  name: string;
-  mutable: boolean;
-  path: string;
-  doc: string | undefined;
-  resolvedArgs: ObjectType['properties'];
-  returnType: RustType;
+class EnumType extends RegisteredTypeBase {
+  public readonly variants = new Map<string, EnumVariant>();
+  public readonly baseType: RustType;
+
+  constructor(name: string, schema: SchemaObject) {
+    super(name, getDoc(schema));
+    this.baseType = handleIntFormat(schema.format);
+    assert.ok(Array.isArray(schema.oneOf));
+    for (let entry of schema.oneOf) {
+      let variant = new EnumVariant(entry);
+      set(this.variants, variant.name, variant);
+    }
+  }
+
+  toString() {
+    return `
+      ${stringifyDoc(this.doc)}
+      ${this.stringifyCfg()}#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
+      #[repr(${this.baseType})]
+      #[allow(missing_docs)] // some enum variants might not have docs and that's okay
+      pub enum ${this.name} {
+        ${stringifyIter(this.variants)}
+      }
+    `;
+  }
 }
 
-interface Device {
-  name: string;
-  path: string;
-  doc: string | undefined;
-  methods: Map<string, DeviceMethod>;
+class DeviceMethod {
+  public readonly name: string;
+  public readonly doc: string | undefined;
+  public readonly returnType: RustType;
+  public resolvedArgs = new Map<string, Property>();
+  public readonly method: 'GET' | 'PUT';
+  private readonly inBaseDevice: boolean;
+
+  constructor(
+    device: Device,
+    method: 'GET' | 'PUT' | 'PUT(SETTER)',
+    public readonly path: string,
+    schema: OpenAPIV3_1.OperationObject
+  ) {
+    let name = toPropName(device.canonical.getMethod(path));
+    // If there's a getter, then this is a setter and needs to be prefixed with `set_`.
+    if (method === 'PUT(SETTER)') {
+      method = 'PUT';
+      name = `set_${name}`;
+    }
+    this.name = name;
+    this.method = method;
+    this.doc = getDoc(schema);
+    this.returnType = handleResponse(method, device, this.name, schema);
+    this.inBaseDevice = device.isBaseDevice;
+  }
+
+  private _brand!: never;
+
+  toString() {
+    let transformedMethod = (
+      {
+        GET: 'Get',
+        PUT: 'Put'
+      } as const
+    )[this.method];
+
+    let maybeVia = this.returnType.convertVia
+      ? `, via = ${this.returnType.convertVia}`
+      : '';
+
+    return `
+      ${stringifyDoc(this.doc)}
+      #[http("${this.path}", method = ${transformedMethod}${maybeVia})]
+      async fn ${this.name}(
+        &self,
+        ${stringifyIter(
+          this.resolvedArgs,
+          arg =>
+            `
+              #[http("${arg.originalName}"${
+              arg.type.convertVia ? `, via = ${arg.type.convertVia}` : ''
+            })]
+              ${arg.name}: ${arg.type},
+            `
+        )}
+      ) -> ASCOMResult${this.returnType.ifNotVoid(type => `<${type}>`)} {
+        ${
+          this.name.startsWith('can_')
+            ? 'Ok(false)'
+            : this.inBaseDevice && this.name === 'name'
+            ? 'Ok(self.static_name().to_owned())'
+            : this.inBaseDevice && this.name === 'interface_version'
+            ? 'Ok(3_i32)'
+            : this.inBaseDevice && this.name === 'supported_actions'
+            ? 'Ok(vec![])'
+            : 'Err(ASCOMError::NOT_IMPLEMENTED)'
+        }
+      }
+    `;
+  }
+}
+
+class Device {
+  public readonly canonical: CanonicalDevice;
+  public doc: string | undefined = undefined;
+  public readonly methods = new Map<string, DeviceMethod>();
+  public readonly isBaseDevice: boolean;
+
+  constructor(public readonly path: string) {
+    this.canonical = canonicalNames.getDevice(this.path);
+    this.isBaseDevice = this.path === '{device_type}';
+  }
+
+  public get name() {
+    return this.canonical.name;
+  }
+
+  private _brand!: never;
+
+  toString() {
+    return `
+      ${stringifyDoc(this.doc)}
+      ${
+        this.isBaseDevice ? '' : `#[cfg(feature = "${this.path}")]`
+      } #[apply(rpc_trait)]
+      pub trait ${this.name}: ${
+      this.isBaseDevice
+        ? 'std::fmt::Debug + Send + Sync'
+        : 'Device + Send + Sync'
+    } {
+        ${
+          this.isBaseDevice
+            ? `
+            const EXTRA_METHODS: () = {
+              /// Static device name for the configured list.
+              fn static_name(&self) -> &str {
+                &self.name
+              }
+
+              /// Unique ID of this device.
+              fn unique_id(&self) -> &str {
+                &self.unique_id
+              }
+            };
+          `
+            : ''
+        }
+        ${stringifyIter(this.methods)}
+      }
+    `;
+  }
 }
 
 let devices: Map<string, Device> = new Map();
@@ -223,16 +440,16 @@ class TypeContext {
   ) {
     let objProperties: ObjectType['properties'] = new Map();
     for (let [propName, propSchema] of Object.entries(properties)) {
-      set(objProperties, propName, {
-        name: toPropName(propName),
-        originalName: propName,
-        type: this.handleOptType(
+      let prop = new Property(
+        propName,
+        this.handleOptType(
           `${objName}${propName}`,
           propSchema,
           required.includes(propName)
         ),
-        doc: getDoc(resolveMaybeRef(propSchema))
-      });
+        getDoc(resolveMaybeRef(propSchema))
+      );
+      set(objProperties, prop.name, prop);
     }
     return objProperties;
   }
@@ -246,28 +463,11 @@ class TypeContext {
       switch (schema.type) {
         case 'integer':
           if (schema.oneOf) {
-            return registerType(this.device, schema, schema => {
-              let enumType: EnumType = {
-                kind: 'Enum',
-                name,
-                doc: getDoc(schema),
-                baseType: handleIntFormat(schema.format),
-                variants: new Map(),
-                features: new Set()
-              };
-              assert.ok(Array.isArray(schema.oneOf));
-              for (let entry of schema.oneOf) {
-                assert.ok(!isRef(entry));
-                assert.ok(Number.isSafeInteger(entry.const));
-                let name = entry.title ?? err('Missing title');
-                set(enumType.variants, name, {
-                  name,
-                  doc: entry.description,
-                  value: entry.const
-                });
-              }
-              return enumType;
-            });
+            return registerType(
+              this.device,
+              schema,
+              schema => new EnumType(name, schema)
+            );
           }
           return handleIntFormat(schema.format);
         case 'array':
@@ -295,13 +495,11 @@ class TypeContext {
               : undefined
           );
         case 'object': {
-          return registerType(this.device, schema, schema => ({
-            kind: 'Object',
-            name,
-            doc: getDoc(schema),
-            properties: this.handleObjectProps(name, schema),
-            features: new Set()
-          }));
+          return registerType(
+            this.device,
+            schema,
+            schema => new ObjectType(this, name, schema)
+          );
         }
       }
       if (name === 'DeviceStateItemValue') {
@@ -358,7 +556,7 @@ class TypeContext {
         let {
           allOf: [base, extension, ...otherItemsInAllOf] = err('Missing allOf'),
           ...otherPropsInSchema
-        } = schema;
+        } = schema as any;
         assert.deepEqual(otherItemsInAllOf, [], 'Unexpected items in allOf');
         assertEmpty(
           otherPropsInSchema,
@@ -385,18 +583,13 @@ class TypeContext {
           );
         }
 
-        let convertedProps = this.handleObjectProps(name, {
-          properties,
-          required
-        });
+        const ctor = baseKind === 'Request' ? RequestType : ObjectType;
 
-        return {
-          kind: baseKind,
-          name,
-          doc,
-          properties: convertedProps,
-          features: new Set()
-        };
+        return new ctor(this, name, {
+          properties,
+          required,
+          description: doc
+        });
       });
     });
   }
@@ -437,14 +630,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       path.match(/^\/([^/]*)\/\{device_number\}\/([^/]*)$/) ??
       err('Invalid path');
 
-    let canonicalDevice = canonicalNames.getDevice(devicePath);
-
-    let device = getOrSet<string, Device>(devices, devicePath, () => ({
-      name: canonicalDevice.name,
-      path: devicePath,
-      doc: undefined,
-      methods: new Map()
-    }));
+    let device = getOrSet(devices, devicePath, () => new Device(devicePath));
 
     let { get, put, ...other } = methods;
     assert.deepEqual(Object.keys(other), [], 'Unexpected methods');
@@ -470,7 +656,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         'ClientIDQuery',
         'ClientTransactionIDQuery'
       ];
-      if (devicePath === '{device_type}') {
+      if (device.isBaseDevice) {
         expectedParams.push('device_type');
       }
       for (let expectedParam of expectedParams) {
@@ -485,35 +671,25 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       assert.ok(!get.requestBody);
 
-      let canonicalMethodName = canonicalDevice.getMethod(methodPath);
-
-      let resolvedArgs = new Map<string, Property>();
+      let method = new DeviceMethod(device, 'GET', methodPath, get);
 
       let paramCtx = new TypeContext('GET', 'Request', device);
 
       for (let param of params.map(resolveMaybeRef)) {
         assert.equal(param?.in, 'query', 'Parameter is not a query parameter');
-        let name = toPropName(param.name);
-        set(resolvedArgs, name, {
-          name,
-          originalName: param.name,
-          doc: getDoc(param),
-          type: paramCtx.handleOptType(
-            `${device.name}${canonicalMethodName}Request${param.name}`,
+        let prop = new Property(
+          param.name,
+          paramCtx.handleOptType(
+            `${device.name}${method.name}Request${param.name}`,
             param.schema,
             param.required ?? false
-          )
-        });
+          ),
+          getDoc(param)
+        );
+        set(method.resolvedArgs, prop.name, prop);
       }
 
-      set(device.methods, canonicalMethodName, {
-        name: toPropName(canonicalMethodName),
-        mutable: false,
-        path: methodPath,
-        doc: getDoc(get),
-        resolvedArgs,
-        returnType: handleResponse('GET', device, canonicalMethodName, get)
-      });
+      set(device.methods, method.name, method);
     });
 
     withContext('PUT', () => {
@@ -539,46 +715,37 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       }
       assert.deepEqual(params, []);
 
-      // If there's a getter, then this is a setter and needs to be prefixed with `Set`.
-      let canonicalMethodName =
-        (get ? 'Set' : '') + canonicalDevice.getMethod(methodPath);
+      let method = new DeviceMethod(
+        device,
+        get ? 'PUT(SETTER)' : 'PUT',
+        methodPath,
+        put
+      );
 
       let argsType = new TypeContext('PUT', 'Request', device).handleContent(
-        canonicalMethodName,
+        method.name,
         'application/x-www-form-urlencoded',
         put.requestBody
       );
 
-      let resolvedArgs;
-
       if (!argsType.isVoid()) {
         let resolvedType = types.get(argsType.toString());
         assert.ok(resolvedType, 'Could not find registered type');
-        assert.equal(
-          resolvedType.kind,
-          'Request' as const,
+        assert.ok(
+          resolvedType instanceof RequestType,
           'Registered type is not a request'
         );
-        resolvedArgs = resolvedType.properties;
-      } else {
-        resolvedArgs = new Map();
+        method.resolvedArgs = resolvedType.properties;
       }
 
-      set(device.methods, canonicalMethodName, {
-        name: toPropName(canonicalMethodName),
-        mutable: true,
-        path: methodPath,
-        doc: getDoc(put),
-        resolvedArgs,
-        returnType: handleResponse('PUT', device, canonicalMethodName, put)
-      });
+      set(device.methods, method.name, method);
     });
   });
 }
 
-function stringifyIter<T>(
+function stringifyIter<T extends Object>(
   iter: { values(): Iterable<T> },
-  stringify: (t: T) => string
+  stringify: (t: T) => string = (t: T) => t.toString()
 ) {
   return Array.from(iter.values()).map(stringify).join('');
 }
@@ -636,149 +803,12 @@ mod image_array;
 #[cfg(feature = "camera")]
 pub use image_array::*;
 
-${stringifyIter(types, type => {
-  let cfgs = Array.from(
-    type.features,
-    feature => `feature = "${feature}"`
-  ).join(', ');
-  let cfg: string;
-  switch (type.features.size) {
-    case 0:
-      cfg = '';
-      break;
+${stringifyIter(types)}
 
-    default:
-      cfgs = `any(${cfgs})`;
-    // fallthrough
-
-    case 1:
-      cfg = `#[cfg(${cfgs})] `;
-  }
-
-  switch (type.kind) {
-    case 'Request':
-      return '';
-    case 'Object':
-    case 'Response': {
-      return `
-        ${stringifyDoc(type.doc)}
-        ${cfg}#[derive(Debug, Clone${
-        type.name !== 'DeviceStateItem' ? ', Copy' : ''
-      }, Serialize, Deserialize)]
-        #[serde(rename_all = "PascalCase")]
-        pub struct ${type.name} {
-          ${stringifyIter(
-            type.properties,
-            prop => `
-              ${stringifyDoc(prop.doc)}
-              ${
-                toPascalCase(prop.name) === prop.originalName &&
-                toPropName(prop.originalName) === prop.name
-                  ? ''
-                  : `#[serde(rename = "${prop.originalName}")]`
-              }
-              pub ${prop.name}: ${prop.type},
-            `
-          )}
-        }
-
-      `;
-    }
-    case 'Enum': {
-      return `
-        ${stringifyDoc(type.doc)}
-        ${cfg}#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize_repr, Deserialize_repr, TryFromPrimitive, IntoPrimitive)]
-        #[repr(${type.baseType})]
-        #[allow(missing_docs)] // some enum variants might not have docs and that's okay
-        pub enum ${type.name} {
-          ${stringifyIter(
-            type.variants,
-            variant => `
-              ${stringifyDoc(variant.doc)}
-              ${variant.name} = ${variant.value},
-            `
-          )}
-        }
-      `;
-    }
-  }
-})}
-
-${stringifyIter(
-  devices,
-  device => `
-    ${stringifyDoc(device.doc)}
-    ${
-      device.path === '{device_type}'
-        ? ''
-        : `#[cfg(feature = "${device.path}")]`
-    } #[apply(rpc_trait)]
-    pub trait ${device.name}: ${
-    device.path === '{device_type}'
-      ? 'std::fmt::Debug + Send + Sync'
-      : 'Device + Send + Sync'
-  } {
-      ${
-        device.path === '{device_type}'
-          ? `
-        const EXTRA_METHODS: () = {
-          /// Static device name for the configured list.
-          fn static_name(&self) -> &str {
-            &self.name
-          }
-
-          /// Unique ID of this device.
-          fn unique_id(&self) -> &str {
-            &self.unique_id
-          }
-        };
-      `
-          : ''
-      }
-      ${stringifyIter(
-        device.methods,
-        method => `
-          ${stringifyDoc(method.doc)}
-          #[http("${method.path}", method = ${method.mutable ? 'Put' : 'Get'}${
-          method.returnType.convertVia
-            ? `, via = ${method.returnType.convertVia}`
-            : ''
-        })]
-          async fn ${method.name}(
-            &self,
-            ${stringifyIter(
-              method.resolvedArgs,
-              arg =>
-                `
-                  #[http("${arg.originalName}"${
-                  arg.type.convertVia ? `, via = ${arg.type.convertVia}` : ''
-                })]
-                  ${arg.name}: ${arg.type},
-                `
-            )}
-          ) -> ASCOMResult${method.returnType.ifNotVoid(type => `<${type}>`)} {
-            ${
-              method.name.startsWith('can_')
-                ? 'Ok(false)'
-                : device.path === '{device_type}' && method.name === 'name'
-                ? 'Ok(self.static_name().to_owned())'
-                : device.path === '{device_type}' &&
-                  method.name === 'interface_version'
-                ? 'Ok(3_i32)'
-                : device.path === '{device_type}' &&
-                  method.name === 'supported_actions'
-                ? 'Ok(vec![])'
-                : 'Err(ASCOMError::NOT_IMPLEMENTED)'
-            }
-          }
-        `
-      )}
-    }
-  `
-)}
+${stringifyIter(devices)}
 
 rpc_mod! {${stringifyIter(devices, device =>
-  device.path === '{device_type}'
+  device.isBaseDevice
     ? ''
     : `
     ${device.name} = "${device.path}",`

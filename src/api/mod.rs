@@ -393,6 +393,22 @@ pub enum DriveRate {
     King = 3,
 }
 
+/// Axis rate object.
+#[cfg(feature = "telescope")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct AxisRate {
+    /// The maximum rate (degrees per second).
+    ///
+    /// This must always be a positive number. It indicates the maximum rate in either direction about the axis.
+    pub maximum: f64,
+
+    /// The minimum rate (degrees per second).
+    ///
+    /// This must always be a positive number. It indicates the maximum rate in either direction about the axis.
+    pub minimum: f64,
+}
+
 /// The axis about which rate information is desired.
 #[cfg(feature = "telescope")]
 #[derive(
@@ -414,22 +430,6 @@ pub enum TelescopeAxis {
     Secondary = 1,
 
     Tertiary = 2,
-}
-
-/// Axis rate object.
-#[cfg(feature = "telescope")]
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct AxisRate {
-    /// The maximum rate (degrees per second).
-    ///
-    /// This must always be a positive number. It indicates the maximum rate in either direction about the axis.
-    pub maximum: f64,
-
-    /// The minimum rate (degrees per second).
-    ///
-    /// This must always be a positive number. It indicates the maximum rate in either direction about the axis.
-    pub minimum: f64,
 }
 
 /// ASCOM Methods Common To All Devices.

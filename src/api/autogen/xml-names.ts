@@ -6,7 +6,7 @@ function unreachable(): never {
   throw new Error('unreachable');
 }
 
-class CanonicalDevice {
+export class CanonicalDevice {
   private _methods: Record<string, string> = {};
 
   constructor(public readonly name: string) {}
