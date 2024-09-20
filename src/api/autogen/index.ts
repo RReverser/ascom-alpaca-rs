@@ -612,6 +612,28 @@ function handleResponse(
   );
 }
 
+function extractParams(
+  methodSchema: OpenAPIV3_1.OperationObject,
+  device: Device,
+  extraExpectedParams: string[]
+) {
+  let params = (methodSchema.parameters ?? err('Missing parameters')).slice();
+  let expectedParams = [...extraExpectedParams, 'device_number'];
+  if (device.isBaseDevice) {
+    expectedParams.push('device_type');
+  }
+  for (let expectedParam of expectedParams) {
+    let param = params.findIndex(
+      param =>
+        isRef(param) &&
+        param.$ref === `#/components/parameters/${expectedParam}`
+    );
+    assert.ok(param !== -1, `Missing parameter ${expectedParam}`);
+    params.splice(param, 1);
+  }
+  return params;
+}
+
 for (let [path, methods = err('Missing methods')] of Object.entries(
   api.paths ?? err('Missing paths')
 )) {
@@ -645,33 +667,17 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
     withContext('GET', () => {
       if (!get) return;
 
-      let params = (get.parameters ?? err('Missing parameters')).slice();
-
-      let expectedParams = [
-        'device_number',
+      let params = extractParams(get, device, [
         'ClientIDQuery',
         'ClientTransactionIDQuery'
-      ];
-      if (device.isBaseDevice) {
-        expectedParams.push('device_type');
-      }
-      for (let expectedParam of expectedParams) {
-        let param = params.findIndex(
-          param =>
-            isRef(param) &&
-            param.$ref === `#/components/parameters/${expectedParam}`
-        );
-        assert.ok(param !== -1, `Missing parameter ${expectedParam}`);
-        params.splice(param, 1);
-      }
-
-      assert.ok(!get.requestBody);
+      ]);
 
       let method = new DeviceMethod(device, 'GET', methodPath, get);
 
       let paramCtx = new TypeContext('GET', 'Request', device);
 
       for (let param of params.map(resolveMaybeRef)) {
+        assert.ok(!isRef(param));
         assert.equal(param?.in, 'query', 'Parameter is not a query parameter');
         method.resolvedArgs.add(
           new Property(
@@ -692,25 +698,8 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
     withContext('PUT', () => {
       if (!put) return;
 
-      let params = (put.parameters ?? err('Missing parameters')).slice();
-
-      let expectedParams = ['device_number'];
-      if (device.path === '{device_type}') {
-        expectedParams.push('device_type');
-      }
-      for (let expectedParam of expectedParams) {
-        let param = params.findIndex(
-          param =>
-            isRef(param) &&
-            param.$ref === `#/components/parameters/${expectedParam}`
-        );
-        assert.ok(
-          param !== -1,
-          `Missing parameter ${expectedParam} in ${JSON.stringify(params)}`
-        );
-        params.splice(param, 1);
-      }
-      assert.deepEqual(params, []);
+      let params = extractParams(put, device, []);
+      assert.deepEqual(params, [], 'Unexpected parameters in PUT method');
 
       let method = new DeviceMethod(
         device,
