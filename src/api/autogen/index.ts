@@ -69,27 +69,12 @@ function toPropName(name: string) {
   return name;
 }
 
-function isRef(maybeRef: any): maybeRef is ReferenceObject {
-  return maybeRef != null && '$ref' in maybeRef;
-}
-
-function getRef(ref: ReferenceObject): unknown {
-  return _refs.get(ref.$ref);
-}
-
-function resolveMaybeRef<T>(maybeRef: T | ReferenceObject): T {
-  return isRef(maybeRef) ? (getRef(maybeRef) as T) : maybeRef;
-}
-
-function nameAndTarget<T>(ref: T | ReferenceObject) {
-  if (isRef(ref)) {
-    return {
-      name: toTypeName(ref.$ref.match(/([^/]+)$/)![1]),
-      target: getRef(ref) as T
-    };
-  } else {
-    return { target: ref };
-  }
+function nameAndTarget<T>(ref: T) {
+  let { $ref } = ref as ReferenceObject;
+  return {
+    target: ($ref ? _refs.get($ref) : ref) as Exclude<T, ReferenceObject>,
+    name: $ref && toTypeName($ref.match(/([^/]+)$/)![1])
+  };
 }
 
 function getDoc({
@@ -229,7 +214,7 @@ class ObjectType extends RegisteredTypeBase {
             propSchema,
             required.includes(propName)
           ),
-          getDoc(resolveMaybeRef(propSchema))
+          getDoc(nameAndTarget(propSchema).target)
         )
       );
     }
@@ -262,7 +247,6 @@ class EnumVariant {
   public readonly doc: string | undefined;
 
   constructor(entry: SchemaObject) {
-    assert.ok(!isRef(entry));
     assert.ok(Number.isSafeInteger(entry.const));
     this.name = entry.title ?? err('Missing title');
     this.value = entry.const;
@@ -554,7 +538,7 @@ class TypeContext {
       } = body.content ?? err('Missing content');
       assertEmpty(otherContentTypes, 'Unexpected types');
       let baseRef = `#/components/schemas/Alpaca${baseKind}`;
-      if (isRef(schema) && schema.$ref === baseRef) {
+      if ((schema as ReferenceObject).$ref === baseRef) {
         return rusty('()');
       }
       ({ name = name, target: schema } = nameAndTarget(schema));
@@ -570,15 +554,14 @@ class TypeContext {
         let {
           allOf: [base, extension, ...otherItemsInAllOf] = err('Missing allOf'),
           ...otherPropsInSchema
-        } = schema as any;
+        } = schema;
         assert.deepEqual(otherItemsInAllOf, [], 'Unexpected items in allOf');
         assertEmpty(
           otherPropsInSchema,
           'Unexpected properties in content schema'
         );
-        assert.ok(isRef(base));
-        assert.equal(base.$ref, baseRef);
-        assert.ok(extension && !isRef(extension));
+        assert.equal((base as ReferenceObject).$ref, baseRef);
+        assert.ok(extension && !('$ref' in extension));
         let { properties, required, ...otherPropsInExtension } = extension;
         assertEmpty(
           otherPropsInExtension,
@@ -622,8 +605,8 @@ function extractParams(
   for (let expectedParam of expectedParams) {
     let param = params.findIndex(
       param =>
-        isRef(param) &&
-        param.$ref === `#/components/parameters/${expectedParam}`
+        (param as ReferenceObject).$ref ===
+        `#/components/parameters/${expectedParam}`
     );
     assert.ok(param !== -1, `Missing parameter ${expectedParam}`);
     params.splice(param, 1);
@@ -662,8 +645,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let paramCtx = new TypeContext('Request', device);
 
-      for (let param of params.map(resolveMaybeRef)) {
-        assert.ok(!isRef(param));
+      for (let { target: param } of params.map(nameAndTarget)) {
         assert.equal(param?.in, 'query', 'Parameter is not a query parameter');
         method.resolvedArgs.add(
           new Property(
