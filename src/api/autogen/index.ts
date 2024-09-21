@@ -310,19 +310,19 @@ class DeviceMethod {
   public readonly doc: string | undefined;
   public readonly returnType: RustType;
   public resolvedArgs = new NamedSet<Property>();
-  public readonly method: 'GET' | 'PUT';
+  public readonly method: 'Get' | 'Put';
   private readonly inBaseDevice: boolean;
 
   constructor(
     device: Device,
-    method: 'GET' | 'PUT' | 'PUT(SETTER)',
+    method: 'Get' | 'Put' | 'Put(Setter)',
     public readonly path: string,
     schema: OpenAPIV3_1.OperationObject
   ) {
     let name = toPropName(device.canonical.getMethod(path));
     // If there's a getter, then this is a setter and needs to be prefixed with `set_`.
-    if (method === 'PUT(SETTER)') {
-      method = 'PUT';
+    if (method === 'Put(Setter)') {
+      method = 'Put';
       name = `set_${name}`;
     }
     this.name = name;
@@ -351,13 +351,6 @@ class DeviceMethod {
   private _brand!: never;
 
   toString() {
-    let transformedMethod = (
-      {
-        GET: 'Get',
-        PUT: 'Put'
-      } as const
-    )[this.method];
-
     let defaultImpl = 'Err(ASCOMError::NOT_IMPLEMENTED)';
     if (this.name.startsWith('can_')) {
       defaultImpl = 'Ok(false)';
@@ -377,9 +370,9 @@ class DeviceMethod {
 
     return `
       ${stringifyDoc(this.doc)}
-      #[http("${
-        this.path
-      }", method = ${transformedMethod}${this.returnType.maybeVia()})]
+      #[http("${this.path}", method = ${
+      this.method
+    }${this.returnType.maybeVia()})]
       async fn ${this.name}(
         &self,
         ${this.resolvedArgs.toString(
@@ -476,7 +469,7 @@ function handleIntFormat(format: string | undefined): RustType {
 
 class TypeContext {
   constructor(
-    private readonly method: 'GET' | 'PUT',
+    private readonly method: 'Get' | 'Put',
     private readonly baseKind: 'Request' | 'Response',
     private readonly device: Device
   ) {}
@@ -658,7 +651,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
     let { get, put, ...other } = methods;
     assertEmpty(other, 'Unexpected methods');
 
-    withContext('GET', () => {
+    withContext('Get', () => {
       if (!get) return;
 
       let params = extractParams(get, device, [
@@ -666,9 +659,9 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         'ClientTransactionIDQuery'
       ]);
 
-      let method = new DeviceMethod(device, 'GET', methodPath, get);
+      let method = new DeviceMethod(device, 'Get', methodPath, get);
 
-      let paramCtx = new TypeContext('GET', 'Request', device);
+      let paramCtx = new TypeContext('Get', 'Request', device);
 
       for (let param of params.map(resolveMaybeRef)) {
         assert.ok(!isRef(param));
@@ -689,7 +682,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       device.methods.add(method);
     });
 
-    withContext('PUT', () => {
+    withContext('Put', () => {
       if (!put) return;
 
       let params = extractParams(put, device, []);
@@ -697,12 +690,12 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let method = new DeviceMethod(
         device,
-        get ? 'PUT(SETTER)' : 'PUT',
+        get ? 'Put(Setter)' : 'Put',
         methodPath,
         put
       );
 
-      let argsType = new TypeContext('PUT', 'Request', device).handleContent(
+      let argsType = new TypeContext('Put', 'Request', device).handleContent(
         method.name,
         'application/x-www-form-urlencoded',
         put.requestBody
