@@ -340,7 +340,7 @@ class DeviceMethod {
     assertEmpty(otherResponses, 'Unexpected response status codes');
     assert.deepEqual(error400, { $ref: '#/components/responses/400' });
     assert.deepEqual(error500, { $ref: '#/components/responses/500' });
-    this.returnType = new TypeContext(method, 'Response', device).handleContent(
+    this.returnType = new TypeContext('Response', device).handleContent(
       name,
       'application/json',
       success
@@ -469,7 +469,6 @@ function handleIntFormat(format: string | undefined): RustType {
 
 class TypeContext {
   constructor(
-    private readonly method: 'Get' | 'Put',
     private readonly baseKind: 'Request' | 'Response',
     private readonly device: Device
   ) {}
@@ -661,7 +660,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let method = new DeviceMethod(device, 'Get', methodPath, get);
 
-      let paramCtx = new TypeContext('Get', 'Request', device);
+      let paramCtx = new TypeContext('Request', device);
 
       for (let param of params.map(resolveMaybeRef)) {
         assert.ok(!isRef(param));
@@ -695,7 +694,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         put
       );
 
-      let argsType = new TypeContext('Put', 'Request', device).handleContent(
+      let argsType = new TypeContext('Request', device).handleContent(
         method.name,
         'application/x-www-form-urlencoded',
         put.requestBody
