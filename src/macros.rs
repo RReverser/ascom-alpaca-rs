@@ -32,6 +32,7 @@ macro_rules! rpc_trait {
             $(
                 $(#[doc = $doc:literal])*
                 #[http($method_path:literal, method = $http_method:ident $(, via = $via:path)?)]
+                $(# $method_attr:tt)*
                 async fn $method_name:ident(
                     & $self:ident $(, #[http($param_query:literal $(, via = $param_via:path)?)] $param:ident: $param_ty:ty)* $(,)?
                 ) -> $return_type:ty $default_body:block
@@ -58,6 +59,7 @@ macro_rules! rpc_trait {
                 #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!($return_type))]
                 /// # { unimplemented!() }
                 /// ```
+                $(# $method_attr)*
                 async fn $method_name(
                     & $self $(, $param: $param_ty)*
                 ) -> $return_type $default_body
@@ -104,6 +106,7 @@ macro_rules! rpc_trait {
                             )*
                             params.finish_extraction();
 
+                            #[allow(deprecated)]
                             let value =
                                 device
                                 .$method_name($($param),*)

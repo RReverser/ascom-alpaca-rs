@@ -296,6 +296,7 @@ class DeviceMethod {
   public resolvedArgs = new NamedSet<Property>();
   public readonly method: 'Get' | 'Put';
   private readonly inBaseDevice: boolean;
+  public readonly isDeprecated: boolean;
 
   constructor(
     device: Device,
@@ -311,7 +312,11 @@ class DeviceMethod {
     }
     this.name = name;
     this.method = method;
-    this.doc = getDoc(schema);
+    this.doc = getDoc(schema)?.replace(/\[`(\w+)`\]\(#\/.*?\)/g, (_, name) => {
+      // replace intra-link references with Rust method references
+      name = toPropName(device.canonical.getMethod(name));
+      return `[\`${name}\`](Self::${name})`;
+    });
     this.inBaseDevice = device.isBaseDevice;
     const {
       responses: {
@@ -329,6 +334,7 @@ class DeviceMethod {
       'application/json',
       success
     );
+    this.isDeprecated = !!schema.deprecated;
     device.updateDocFromMethodTags(schema);
   }
 
@@ -356,7 +362,9 @@ class DeviceMethod {
       ${stringifyDoc(this.doc)}
       #[http("${this.path}", method = ${
       this.method
-    }${this.returnType.maybeVia()})]
+    }${this.returnType.maybeVia()})] ${
+      this.isDeprecated ? '#[deprecated]' : ''
+    } 
       async fn ${this.name}(
         &self,
         ${this.resolvedArgs.toString(

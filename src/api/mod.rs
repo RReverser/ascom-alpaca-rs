@@ -77,7 +77,9 @@ pub struct DeviceStateItem {
 
     /// The corresponding value of the named operational property.
     ///
-    /// This is dynamically-typed value that can hold one of several basic types  including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format). The  data type must be inferred from the property name.
+    /// This is a dynamically-typed value that can hold one of several basic types including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format string).
+    ///
+    /// **NOTE** The data type must be the same as that returned by the operational property.
     pub value: serde_json::Value,
 }
 
@@ -474,6 +476,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandblind", method = Put)]
+    #[deprecated]
     async fn command_blind(
         &self,
 
@@ -488,6 +491,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandbool", method = Put, via = ValueResponse<_>)]
+    #[deprecated]
     async fn command_bool(
         &self,
 
@@ -502,6 +506,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandstring", method = Put, via = ValueResponse<_>)]
+    #[deprecated]
     async fn command_string(
         &self,
 
@@ -526,8 +531,11 @@ pub trait Device: std::fmt::Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// **Deprecated in favour of the newer non-blocking [`connect`](Self::connect) and [`disconnect`](Self::disconnect) methods, with the new [`connecting`](Self::connecting) property serving as the completion property.**  
+    ///   
     /// Sets the connected state of the device.
     #[http("connected", method = Put)]
+    #[deprecated]
     async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -546,9 +554,9 @@ pub trait Device: std::fmt::Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the device's operational state in a single call.
+    /// Devices must return all operational values that are definitively known but can omit entries where values are unknown.
     ///
-    /// Devices must return all operational values that are definitively known but can omit entries where values are unknown. Devices must not throw exceptions / return errors when values are not known. An empty list must  be returned if no values are known. Client Applications must expect that, from time to time, some operational state values may not be present in the device response and must be prepared to handle “missing” values.
+    /// Devices must not throw exceptions / return errors when values are not known. An empty list must  be returned if no values are known. Client Applications must expect that, from time to time, some operational state values may not be present in the device response and must be prepared to handle “missing” values.
     ///
     /// _Platform 7 onward._.
     #[http("devicestate", method = Get, via = ValueResponse<_>)]
@@ -896,6 +904,8 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Reports the actual exposure start in the FITS-standard CCYY-MM-DDThh:mm:ss[.sss...] format.
+    ///
+    /// The time must be UTC.
     #[http("lastexposurestarttime", method = Get, via = time_repr::TimeResponse<time_repr::Fits>)]
     async fn last_exposure_start_time(&self) -> ASCOMResult<std::time::SystemTime> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1043,7 +1053,7 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets the subframe start position for the X axis (0 based) and returns the current value.
+    /// Returns the current subframe start position for the X axis (0 based).
     ///
     /// If binning is active, value is in binned pixels.
     #[http("startx", method = Get, via = ValueResponse<_>)]
@@ -1057,7 +1067,7 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets the subframe start position for the Y axis (0 based) and returns the current value.
+    /// Returns the current subframe start position for the Y axis (0 based).
     ///
     /// If binning is active, value is in binned pixels.
     #[http("starty", method = Get, via = ValueResponse<_>)]
@@ -2351,8 +2361,11 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// **This method is deprecated in favour of [`slew_to_alt_az_async`](Self::slew_to_alt_az_async).**
+    ///   
     /// Move the telescope to the given local horizontal coordinates, return when slew is complete.
     #[http("slewtoaltaz", method = Put)]
+    #[deprecated]
     async fn slew_to_alt_az(
         &self,
 
@@ -2377,8 +2390,11 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// **This method is deprecated in favour of [`slew_to_coordinates_async`](Self::slew_to_coordinates_async).**
+    ///   
     /// Move the telescope to the given equatorial coordinates, return when slew is complete.
     #[http("slewtocoordinates", method = Put)]
+    #[deprecated]
     async fn slew_to_coordinates(
         &self,
 
@@ -2403,8 +2419,11 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
+    /// **This method is deprecated in favour of [`slew_to_target_async`](Self::slew_to_target_async).**
+    ///   
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete.
     #[http("slewtotarget", method = Put)]
+    #[deprecated]
     async fn slew_to_target(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }

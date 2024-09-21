@@ -147,6 +147,7 @@ paths:
                     - Parameters
   '/{device_type}/{device_number}/commandblind':
     put:
+      deprecated: true
       summary: Transmits an arbitrary string to the device
       description: >-
         Transmits an arbitrary string to the device and does not wait for a
@@ -168,6 +169,7 @@ paths:
         $ref: '#/components/requestBodies/put_devicetype_Devicenumber_commandblind'
   '/{device_type}/{device_number}/commandbool':
     put:
+      deprecated: true
       summary: >-
         Transmits an arbitrary string to the device and returns a boolean value
         from the device.
@@ -191,6 +193,7 @@ paths:
         $ref: '#/components/requestBodies/put_devicetype_Devicenumber_commandblind'
   '/{device_type}/{device_number}/commandstring':
     put:
+      deprecated: true
       summary: >-
         Transmits an arbitrary string to the device and returns a string value
         from the device.
@@ -249,8 +252,12 @@ paths:
         '500':
           $ref: '#/components/responses/500'
     put:
+      deprecated: true
       summary: Sets the connected state of the device
-      description: Sets the connected state of the device
+      description: >-
+        **Deprecated in favour of the newer non-blocking [`connect`](#/ASCOM%20Methods%20Common%20To%20All%20Devices/put__device_type___device_number__connect) and [`disconnect`](#/ASCOM%20Methods%20Common%20To%20All%20Devices/put__device_type___device_number__disconnect) methods, with the new [`connecting`](#/ASCOM%20Methods%20Common%20To%20All%20Devices/get__device_type___device_number__connecting) property serving as the completion property.**  
+          
+        Sets the connected state of the device
       tags:
         - ASCOM Methods Common To All Devices
       parameters:
@@ -317,7 +324,7 @@ paths:
     get:
       summary: Returns the device's operational state in a single call.
       description: >-
-        `Platform 7 onward.` Returns the device's operational state in a single call. Devices must return all operational values that are definitively known but can omit entries where values
+        `Platform 7 onward.` Devices must return all operational values that are definitively known but can omit entries where values
         are unknown. Devices must not throw exceptions / return errors when values are not known. An empty list must 
         be returned if no values are known.
         Client Applications must expect that, from time to time, some operational state values may not be present
@@ -1203,8 +1210,19 @@ paths:
           $ref: '#/components/responses/500'
   '/camera/{device_number}/imagearrayvariant':
     get:
+      deprecated: true
       summary: Returns an array of numbers containing the exposure pixel values
       description: >
+        **This method is deprecated in favour of [`imagearray`](#/Camera%20Specific%20Methods/get_camera__device_number__imagearray).**
+          
+        The ImageArrayVariant property is a functional duplicate of the ImageArray 
+        property but returns data using the variant type, which requires more memory and processor 
+        resource than the Int32 type returned by ImageArray.
+
+        ImageArrayVariant was included in the ASCOM interface to support scripting languages that 
+        required data elements to be of variant type rather than as integer type. However, this restriction no 
+        longer applies and the ImageArrayVariant property is now redundant.
+
         Returns an array containing the pixel values from the last exposure.
         This call can return either a 2 dimension (monochrome images) or a 3
         dimension (colour or multi-plane images) array of size `NumX * NumY` or
@@ -1371,7 +1389,7 @@ paths:
       summary: Start time of the last exposure in FITS standard format.
       description: >-
         Reports the actual exposure start in the FITS-standard
-        CCYY-MM-DDThh:mm:ss[.sss...] format.
+        CCYY-MM-DDThh:mm:ss[.sss...] format. The time must be UTC.
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -1842,8 +1860,7 @@ paths:
     get:
       summary: Return the current subframe X axis start position
       description: >-
-        Sets the subframe start position for the X axis (0 based) and returns
-        the current value. If binning is active, value is in binned pixels.
+        Returns the current subframe start position for the X axis (0 based). If binning is active, value is in binned pixels.
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -1889,8 +1906,7 @@ paths:
     get:
       summary: Return the current subframe Y axis start position
       description: >-
-        Sets the subframe start position for the Y axis (0 based) and returns
-        the current value. If binning is active, value is in binned pixels.
+        Returns the current subframe start position for the Y axis (0 based). If binning is active, value is in binned pixels.
       parameters:
         - $ref: '#/components/parameters/device_number'
         - $ref: '#/components/parameters/ClientIDQuery'
@@ -5598,8 +5614,11 @@ paths:
         $ref: '#/components/requestBodies/putStandardClientParameters'
   '/telescope/{device_number}/slewtoaltaz':
     put:
+      deprecated: true
       summary: Synchronously slew to the given local horizontal coordinates.
       description: >-
+        **This method is deprecated in favour of [`slewtoaltazasync`](#/Telescope%20Specific%20Methods/put_telescope__device_number__slewtoaltazasync).**
+          
         Move the telescope to the given local horizontal coordinates, return
         when slew is complete
       parameters:
@@ -5637,8 +5656,11 @@ paths:
         $ref: '#/components/requestBodies/putTelescope_devicenumber_slewtoaltaz'
   '/telescope/{device_number}/slewtocoordinates':
     put:
+      deprecated: true
       summary: Synchronously slew to the given equatorial coordinates.
       description: >-
+        **This method is deprecated in favour of [`slewtocoordinatesasync`](#/Telescope%20Specific%20Methods/put_telescope__device_number__slewtocoordinatesasync).**
+          
         Move the telescope to the given equatorial coordinates, return when slew
         is complete
       parameters:
@@ -5676,10 +5698,13 @@ paths:
         $ref: '#/components/requestBodies/putTelescope_devicenumber_slewtocoordinates'
   '/telescope/{device_number}/slewtotarget':
     put:
+      deprecated: true
       summary: >-
         Synchronously slew to the TargetRightAscension and TargetDeclination
         coordinates.
       description: >-
+        **This method is deprecated in favour of [`slewtotargetasync`](#/Telescope%20Specific%20Methods/put_telescope__device_number__slewtotargetasync).**
+          
         Move the telescope to the TargetRightAscension and TargetDeclination
         equatorial coordinates, return when slew is complete
       parameters:
@@ -5970,10 +5995,12 @@ components:
                           description: The property name. The name casing must match the casing in the relevant interface definition.
                           type: string
                         Value:
-                          description: >-
-                            The corresponding value of the named operational property. This is dynamically-typed value that can hold one of several basic types 
-                            including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format). The 
-                            data type must be inferred from the property name.
+                          description: >
+                            The corresponding value of the named operational property. This is a dynamically-typed value that can hold one of several basic types
+                            including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format string).
+                            
+                            
+                            **NOTE** The data type must be the same as that returned by the operational property.
                           oneOf:
                             - type: string
                               description: A string property value.
