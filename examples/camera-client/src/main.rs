@@ -131,7 +131,10 @@ impl StateCtx {
                     let camera = Arc::clone(camera);
                     let ctx = self.ctx.clone();
                     self.spawn(State::Connecting, async move {
-                        camera.set_connected(true).await?;
+                        camera.connect().await?;
+                        while !camera.connected().await? {
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                        }
                         let (
                             camera_name,
                             exposure_min,
@@ -334,7 +337,7 @@ impl CaptureState {
             }
         }
         // Channel is closed, cleanup.
-        if let Err(err) = self.camera.set_connected(false).await {
+        if let Err(err) = self.camera.disconnect().await {
             tracing::warn!(%err, "Failed to disconnect from the camera");
         }
     }
