@@ -8,7 +8,7 @@ import {
 } from 'js-convert-case';
 import { OpenAPIV3_1, OpenAPIV3 } from 'openapi-types';
 import * as assert from 'assert/strict';
-import { CanonicalDevice, getCanonicalNames } from './xml-names.js';
+import { CanonicalDevice, canonicalDevices } from './xml-names.js';
 import { rustKeywords } from './rust-keywords.js';
 import { isDeepStrictEqual } from 'util';
 import { fileURLToPath } from 'url';
@@ -22,7 +22,6 @@ let api = (await openapi.parse(
   './AlpacaDeviceAPI_v1.yaml'
 )) as OpenAPIV3_1.Document;
 let _refs = await openapi.resolve(api);
-let canonicalNames = await getCanonicalNames('{device_type}');
 
 function err(msg: string): never {
   throw new Error(msg);
@@ -385,14 +384,12 @@ class Device {
   public doc: string | undefined = undefined;
   public readonly methods = new NamedSet<DeviceMethod>();
   public readonly isBaseDevice: boolean;
+  public readonly name: string;
 
   constructor(public readonly path: string) {
-    this.canonical = canonicalNames.getDevice(this.path);
     this.isBaseDevice = this.path === '{device_type}';
-  }
-
-  public get name() {
-    return this.canonical.name;
+    this.canonical = canonicalDevices.getDevice(this.path);
+    this.name = this.isBaseDevice ? 'Device' : this.canonical.name;
   }
 
   private _brand!: never;

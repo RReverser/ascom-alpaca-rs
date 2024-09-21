@@ -2,17 +2,13 @@ import { readFile } from 'fs/promises';
 import * as assert from 'assert/strict';
 import { parseStringPromise as parseXML } from 'xml2js';
 
-function unreachable(): never {
-  throw new Error('unreachable');
-}
-
 export class CanonicalDevice {
   private _methods: Record<string, string> = {};
 
   constructor(public readonly name: string) {}
 
-  registerMethod(method: string, subPath: string = method.toLowerCase()) {
-    this._methods[subPath] = method;
+  registerMethod(method: string) {
+    this._methods[method.toLowerCase()] = method;
   }
 
   getMethod(subPath: string) {
@@ -22,6 +18,10 @@ export class CanonicalDevice {
       `Couldn't find canonical name for ${this.name}::${subPath}`
     );
     return name;
+  }
+
+  getMethods() {
+    return Object.values(this._methods);
   }
 }
 
@@ -37,27 +37,34 @@ class CanonicalDevices {
     assert.ok(device, `Couldn't find canonical device for ${path}`);
     return device;
   }
+
+  getDevices() {
+    return Object.values(this._devices);
+  }
 }
 
-export async function getCanonicalNames(defaultPath: string) {
-  let xmlSrc = await readFile('./ASCOM.DriverAccess.xml', 'utf-8');
-  let xml = await parseXML(xmlSrc);
+export const canonicalDevices = new CanonicalDevices();
 
-  let canonical = new CanonicalDevices();
+{
+  let xmlSrc = await readFile('./ASCOM.DeviceInterfaces.xml', 'utf-8');
+  let xml = await parseXML(xmlSrc);
 
   for (let member of xml.doc.members.flatMap((m: any) => m.member)) {
     let nameParts = member.$.name.match(
-      /^[MP]:ASCOM\.DriverAccess\.(\w+?)(?:V\d+)?\.(\w+)(?:\(|$)/
+      /^[MP]:ASCOM\.DeviceInterface\.I(\w+)V\d+\.(\w+)/
     );
     if (!nameParts) continue;
     let [, deviceName, methodName] = nameParts;
-    let devicePath;
-    if (deviceName === 'AscomDriver') {
-      deviceName = 'Device';
-      devicePath = defaultPath;
-    }
-    canonical.registerDevice(deviceName, devicePath).registerMethod(methodName);
+    canonicalDevices.registerDevice(deviceName).registerMethod(methodName);
   }
 
-  return canonical;
+  // Find common methods and combine into a new Device object.
+  let commonMethods = Object.values(canonicalDevices.getDevices())
+    .map(device => new Set(device.getMethods()))
+    .reduce((a, b) => a.intersection(b));
+
+  let commonDevice = canonicalDevices.registerDevice('Device', '{device_type}');
+  for (let method of commonMethods) {
+    commonDevice.registerMethod(method);
+  }
 }
