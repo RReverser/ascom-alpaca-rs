@@ -295,7 +295,6 @@ class DeviceMethod {
   public resolvedArgs = new NamedSet<Property>();
   public readonly method: 'Get' | 'Put';
   private readonly inBaseDevice: boolean;
-  public readonly isDeprecated: boolean;
 
   constructor(
     device: Device,
@@ -333,7 +332,6 @@ class DeviceMethod {
       'application/json',
       success
     );
-    this.isDeprecated = !!schema.deprecated;
     device.updateDocFromMethodTags(schema);
   }
 
@@ -361,9 +359,7 @@ class DeviceMethod {
       ${stringifyDoc(this.doc)}
       #[http("${this.path}", method = ${
       this.method
-    }${this.returnType.maybeVia()})] ${
-      this.isDeprecated ? '#[deprecated]' : ''
-    } 
+    }${this.returnType.maybeVia()})] 
       async fn ${this.name}(
         &self,
         ${this.resolvedArgs.toString(

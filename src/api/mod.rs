@@ -476,7 +476,6 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandblind", method = Put)]
-    #[deprecated]
     async fn command_blind(
         &self,
 
@@ -491,7 +490,6 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandbool", method = Put, via = ValueResponse<_>)]
-    #[deprecated]
     async fn command_bool(
         &self,
 
@@ -506,7 +504,6 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandstring", method = Put, via = ValueResponse<_>)]
-    #[deprecated]
     async fn command_string(
         &self,
 
@@ -535,7 +532,6 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///   
     /// Sets the connected state of the device.
     #[http("connected", method = Put)]
-    #[deprecated]
     async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -2365,7 +2361,6 @@ pub trait Telescope: Device + Send + Sync {
     ///   
     /// Move the telescope to the given local horizontal coordinates, return when slew is complete.
     #[http("slewtoaltaz", method = Put)]
-    #[deprecated]
     async fn slew_to_alt_az(
         &self,
 
@@ -2394,7 +2389,6 @@ pub trait Telescope: Device + Send + Sync {
     ///   
     /// Move the telescope to the given equatorial coordinates, return when slew is complete.
     #[http("slewtocoordinates", method = Put)]
-    #[deprecated]
     async fn slew_to_coordinates(
         &self,
 
@@ -2423,7 +2417,6 @@ pub trait Telescope: Device + Send + Sync {
     ///   
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete.
     #[http("slewtotarget", method = Put)]
-    #[deprecated]
     async fn slew_to_target(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
