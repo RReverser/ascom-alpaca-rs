@@ -519,7 +519,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 
     /// The Connecting property will be true until device initialisation is complete.
     ///
-    /// _Platform 7 onward._.
+    /// _Platform 7 onward._
     #[http("connect", method = Put)]
     async fn connect(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -542,7 +542,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 
     /// Returns true while the device is connecting or disconnecting.
     ///
-    /// _Platform 7 onward._.
+    /// _Platform 7 onward._
     #[http("connecting", method = Get, via = ValueResponse<_>)]
     async fn connecting(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -558,7 +558,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
     ///
     /// Devices must not throw exceptions / return errors when values are not known. An empty list must  be returned if no values are known. Client Applications must expect that, from time to time, some operational state values may not be present in the device response and must be prepared to handle “missing” values.
     ///
-    /// _Platform 7 onward._.
+    /// _Platform 7 onward._
     #[http("devicestate", method = Get, via = ValueResponse<_>)]
     async fn device_state(&self) -> ASCOMResult<Vec<DeviceStateItem>> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -566,7 +566,7 @@ pub trait Device: std::fmt::Debug + Send + Sync {
 
     /// The Connecting property will be true until device disconneciton is complete.
     ///
-    /// _Platform 7 onward._.
+    /// _Platform 7 onward._
     #[http("disconnect", method = Put)]
     async fn disconnect(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1083,7 +1083,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// The Camera's sub exposure duration in seconds.
     ///
-    /// _ICameraV3 and later._.
+    /// _ICameraV3 and later._
     #[http("subexposureduration", method = Get, via = ValueResponse<_>)]
     async fn sub_exposure_duration(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1091,7 +1091,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets image sub exposure duration in seconds.
     ///
-    /// _ICameraV3 and later._.
+    /// _ICameraV3 and later._
     #[http("subexposureduration", method = Put)]
     async fn set_sub_exposure_duration(
         &self,
@@ -1154,7 +1154,7 @@ pub trait CoverCalibrator: Device + Send + Sync {
 
     /// True if the calibrator is not yet stable.
     ///
-    /// _ICoverCalibratorV2 and later._.
+    /// _ICoverCalibratorV2 and later._
     #[http("calibratorchanging", method = Get, via = ValueResponse<_>)]
     async fn calibrator_changing(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1170,7 +1170,7 @@ pub trait CoverCalibrator: Device + Send + Sync {
 
     /// True if the cover is moving.
     ///
-    /// _ICoverCalibratorV2 and later._.
+    /// _ICoverCalibratorV2 and later._
     #[http("covermoving", method = Get, via = ValueResponse<_>)]
     async fn cover_moving(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1727,7 +1727,7 @@ pub trait Switch: Device + Send + Sync {
 
     /// This endpoint must be implemented and indicates whether the given switch can operate asynchronously.
     ///
-    /// _ISwitchV3 and later._.
+    /// _ISwitchV3 and later._
     #[http("canasync", method = Get, via = ValueResponse<_>)]
     async fn can_async(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
         Ok(false)
@@ -1789,7 +1789,7 @@ pub trait Switch: Device + Send + Sync {
 
     /// This is an asynchronous method that must return as soon as the state change operation has been successfully started,  with StateChangeComplete(Int16) for the given switch Id = False.  After the state change has completed StateChangeComplete(Int16) becomes True.
     ///
-    /// _ISwitchV3 and later._.
+    /// _ISwitchV3 and later._
     #[http("setasync", method = Put)]
     async fn set_async(&self, #[http("Id")] id: i32, #[http("State")] state: bool) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -1797,7 +1797,7 @@ pub trait Switch: Device + Send + Sync {
 
     /// This is an asynchronous method that must return as soon as the state change operation has been successfully started,  with StateChangeComplete(Int16) for the given switch Id = False.  After the state change has completed StateChangeComplete(Int16) becomes True.
     ///
-    /// _ISwitchV3 and later._.
+    /// _ISwitchV3 and later._
     #[http("setasyncvalue", method = Put)]
     async fn set_async_value(
         &self,
@@ -1841,7 +1841,7 @@ pub trait Switch: Device + Send + Sync {
 
     /// True if the state of the specified switch is changing, otherwise false.
     ///
-    /// _ISwitchV3 and later._.
+    /// _ISwitchV3 and later._
     #[http("statechangecomplete", method = Get, via = ValueResponse<_>)]
     async fn state_change_complete(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)

@@ -706,14 +706,14 @@ function stringifyDoc(doc: string | undefined = '') {
   if (!doc) return '';
   return (
     doc
+      /// Finish with a period.
+      .replace(/(?<!\.)$/, '.')
       // Change "`InterfaceV1 Only` ...actual description" to be "actual description\n\n_InterfaceV1 Only_"
       .replace(/^`(.+?)\.?`\s*(.*)$/s, '$2\n\n_$1._')
       // If there is no summary, split out first sentence as summary.
       .replace(/^(.*?(?<!e\.g|i\.e)\.) (?=[A-Z])/, '$1\n\n')
       // Add doc-comment markers to each line.
       .replace(/^/gm, '/// ')
-      /// Finish with a period.
-      .replace(/(?<!\.)$/, '.')
   );
 }
 
