@@ -580,14 +580,6 @@ pub trait Device: std::fmt::Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// This method returns the version of the ASCOM device interface contract to which this device complies.
-    ///
-    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
-    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
-    async fn interface_version(&self) -> ASCOMResult<i32> {
-        Ok(3_i32)
-    }
-
     /// The name of the device.
     #[http("name", method = Get, via = ValueResponse<_>)]
     async fn name(&self) -> ASCOMResult<String> {
@@ -1136,6 +1128,14 @@ pub trait Camera: Device + Send + Sync {
     async fn stop_exposure(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(4_i32)
+    }
 }
 
 /// CoverCalibrator Specific Methods.
@@ -1214,6 +1214,14 @@ pub trait CoverCalibrator: Device + Send + Sync {
     #[http("opencover", method = Put)]
     async fn open_cover(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(2_i32)
     }
 }
 
@@ -1374,6 +1382,14 @@ pub trait Dome: Device + Send + Sync {
     async fn sync_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(3_i32)
+    }
 }
 
 /// FilterWheel Specific Methods.
@@ -1402,6 +1418,14 @@ pub trait FilterWheel: Device + Send + Sync {
     #[http("position", method = Put)]
     async fn set_position(&self, #[http("Position")] position: i32) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(3_i32)
     }
 }
 
@@ -1481,6 +1505,14 @@ pub trait Focuser: Device + Send + Sync {
     #[http("move", method = Put)]
     async fn move_(&self, #[http("Position")] position: i32) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(4_i32)
     }
 }
 
@@ -1609,6 +1641,14 @@ pub trait ObservingConditions: Device + Send + Sync {
     ) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(2_i32)
+    }
 }
 
 /// Rotator Specific Methods.
@@ -1694,6 +1734,14 @@ pub trait Rotator: Device + Send + Sync {
     async fn sync(&self, #[http("Position")] position: f64) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(4_i32)
+    }
 }
 
 /// SafetyMonitor Specific Methods.
@@ -1706,6 +1754,14 @@ pub trait SafetyMonitor: Device + Send + Sync {
     #[http("issafe", method = Get, via = ValueResponse<_>)]
     async fn is_safe(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(3_i32)
     }
 }
 
@@ -1849,6 +1905,14 @@ pub trait Switch: Device + Send + Sync {
     #[http("switchstep", method = Get, via = ValueResponse<_>)]
     async fn switch_step(&self, #[http("Id")] id: i32) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(3_i32)
     }
 }
 
@@ -2463,6 +2527,14 @@ pub trait Telescope: Device + Send + Sync {
     #[http("unpark", method = Put)]
     async fn unpark(&self) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
+    /// This method returns the version of the ASCOM device interface contract to which this device complies.
+    ///
+    /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
+    #[http("interfaceversion", method = Get, via = ValueResponse<_>)]
+    async fn interface_version(&self) -> ASCOMResult<i32> {
+        Ok(4_i32)
     }
 }
 

@@ -4,6 +4,15 @@ import { parseStringPromise as parseXML } from 'xml2js';
 
 export class CanonicalDevice {
   private _methods: Record<string, string> = {};
+  private _version: number = 1;
+
+  public get version() {
+    return this._version;
+  }
+
+  updateVersion(version: number) {
+    this._version = Math.max(this._version, version);
+  }
 
   constructor(public readonly name: string) {}
 
@@ -51,11 +60,13 @@ export const canonicalDevices = new CanonicalDevices();
 
   for (let member of xml.doc.members.flatMap((m: any) => m.member)) {
     let nameParts = member.$.name.match(
-      /^[MP]:ASCOM\.DeviceInterface\.I(\w+)V\d+\.(\w+)/
+      /^[MP]:ASCOM\.DeviceInterface\.I(\w+)V(\d+)\.(\w+)/
     );
     if (!nameParts) continue;
-    let [, deviceName, methodName] = nameParts;
-    canonicalDevices.registerDevice(deviceName).registerMethod(methodName);
+    let [, deviceName, versionStr, methodName] = nameParts;
+    let device = canonicalDevices.registerDevice(deviceName);
+    device.updateVersion(+versionStr);
+    device.registerMethod(methodName);
   }
 
   // Find common methods and combine into a new Device object.

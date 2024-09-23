@@ -294,10 +294,9 @@ class DeviceMethod {
   public readonly returnType: RustType;
   public resolvedArgs = new NamedSet<Property>();
   public readonly method: 'Get' | 'Put';
-  private readonly inBaseDevice: boolean;
 
   constructor(
-    device: Device,
+    private readonly device: Device,
     method: 'Get' | 'Put' | 'Put(Setter)',
     public readonly path: string,
     schema: OpenAPIV3_1.OperationObject
@@ -315,7 +314,6 @@ class DeviceMethod {
       name = toPropName(device.canonical.getMethod(name));
       return `[\`${name}\`](Self::${name})`;
     });
-    this.inBaseDevice = device.isBaseDevice;
     const {
       responses: {
         200: success,
@@ -337,24 +335,26 @@ class DeviceMethod {
 
   private _brand!: never;
 
-  toString() {
-    let defaultImpl = 'Err(ASCOMError::NOT_IMPLEMENTED)';
-    if (this.name.startsWith('can_')) {
-      defaultImpl = 'Ok(false)';
-    } else if (this.inBaseDevice) {
-      switch (this.name) {
-        case 'name':
-          defaultImpl = 'Ok(self.static_name().to_owned())';
-          break;
-        case 'interface_version':
-          defaultImpl = 'Ok(3_i32)';
-          break;
-        case 'supported_actions':
-          defaultImpl = 'Ok(vec![])';
-          break;
-      }
+  private getDefaultImpl() {
+    switch (this.name) {
+      case 'interface_version':
+        assert.ok(!this.device.isBaseDevice);
+        return `Ok(${this.device.canonical.version}_i32)`;
+      case 'name':
+        assert.ok(this.device.isBaseDevice);
+        return 'Ok(self.static_name().to_owned())';
+      case 'supported_actions':
+        assert.ok(this.device.isBaseDevice);
+        return 'Ok(vec![])';
+      default:
+        if (this.name.startsWith('can_')) {
+          return 'Ok(false)';
+        }
+        return 'Err(ASCOMError::NOT_IMPLEMENTED)';
     }
+  }
 
+  toString() {
     return `
       ${stringifyDoc(this.doc)}
       #[http("${this.path}", method = ${
@@ -369,7 +369,7 @@ class DeviceMethod {
           `
         )}
       ) -> ASCOMResult${this.returnType.ifNotVoid(type => `<${type}>`)} {
-        ${defaultImpl}
+        ${this.getDefaultImpl()}
       }
     `;
   }
@@ -695,6 +695,22 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
       device.methods.add(method);
     });
   });
+}
+
+// Fork `interface_version` to individual traits because we want to version it separately.
+{
+  let baseDevice = devices.get('{device_type}')!;
+  let interfaceVersionMethod = baseDevice.methods.get('interface_version')!;
+  for (let device of devices.values()) {
+    if (device.isBaseDevice) continue;
+    device.methods.add(
+      // override `device` property to point to the specific non-base device
+      Object.create(interfaceVersionMethod, {
+        device: { value: device }
+      })
+    );
+  }
+  baseDevice.methods.delete('interface_version');
 }
 
 function stringifyDoc(doc: string | undefined = '') {
