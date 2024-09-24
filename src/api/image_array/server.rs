@@ -2,6 +2,7 @@ use super::{ImageArray, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
 use crate::api::{ImageArrayRank, ImageElementType, TransmissionElementType};
 use crate::server::Response;
 use crate::ASCOMResult;
+use axum::response::IntoResponse;
 use bytemuck::{bytes_of, Zeroable};
 use http::header::{HeaderMap, ACCEPT, CONTENT_TYPE};
 use serde::{Serialize, Serializer};
@@ -10,12 +11,7 @@ use std::mem::size_of;
 pub(crate) struct ImageBytesResponse(pub(crate) ImageArray);
 
 impl Response for ASCOMResult<ImageBytesResponse> {
-    fn into_axum(
-        self,
-        transaction: crate::server::ResponseTransaction,
-    ) -> axum::response::Response {
-        use axum::response::IntoResponse;
-
+    fn into_axum(self, transaction: crate::server::ResponseTransaction) -> impl IntoResponse {
         let mut metadata = ImageBytesMetadata {
             metadata_version: 1,
             data_start: i32::try_from(size_of::<ImageBytesMetadata>())
@@ -81,7 +77,7 @@ impl Response for ASCOMResult<ImageBytesResponse> {
                 bytes
             }
         };
-        ([(CONTENT_TYPE, IMAGE_BYTES_TYPE)], bytes).into_response()
+        ([(CONTENT_TYPE, IMAGE_BYTES_TYPE)], bytes)
     }
 }
 

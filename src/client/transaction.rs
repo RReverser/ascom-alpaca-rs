@@ -1,6 +1,5 @@
 use crate::macros::auto_increment;
 use serde::{Deserialize, Serialize};
-use std::convert::Infallible;
 use std::num::NonZeroU32;
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -40,21 +39,4 @@ pub(crate) struct ResponseTransaction {
 pub(crate) struct ResponseWithTransaction<T> {
     pub(crate) transaction: ResponseTransaction,
     pub(crate) response: T,
-}
-
-impl<T> ResponseWithTransaction<T> {
-    pub(crate) fn try_map<T2, E>(
-        self,
-        f: impl FnOnce(T) -> Result<T2, E>,
-    ) -> Result<ResponseWithTransaction<T2>, E> {
-        Ok(ResponseWithTransaction {
-            transaction: self.transaction,
-            response: f(self.response)?,
-        })
-    }
-
-    pub(crate) fn map<T2>(self, f: impl FnOnce(T) -> T2) -> ResponseWithTransaction<T2> {
-        self.try_map::<T2, Infallible>(|x| Ok(f(x)))
-            .unwrap_or_else(|err| match err {})
-    }
 }

@@ -3,28 +3,7 @@ use crate::client::ResponseTransaction;
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use mime::Mime;
-use serde::de::value::UnitDeserializer;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Deserializer};
-
-trait FromJsonBytes: Sized {
-    fn from_json_bytes(bytes: &[u8]) -> eyre::Result<Self>;
-}
-
-impl<T: DeserializeOwned> FromJsonBytes for T {
-    fn from_json_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        Ok(serde_json::from_slice(bytes)?)
-    }
-}
-
-#[derive(Debug)]
-struct Flattened<A, B>(pub(crate) A, pub(crate) B);
-
-impl<A: FromJsonBytes, B: FromJsonBytes> FromJsonBytes for Flattened<A, B> {
-    fn from_json_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        Ok(Self(A::from_json_bytes(bytes)?, B::from_json_bytes(bytes)?))
-    }
-}
 
 pub(crate) trait Response: Sized {
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -34,12 +13,9 @@ pub(crate) trait Response: Sized {
     fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>>;
 }
 
-// This wrapper exists solely to work around Rust's lack of specialization (for now).
-// It allows to implement traits that can't be implemented on e.g. `ASCOMResult<T>` because `Result` is a built-in type.
-pub(crate) struct JsonResponse<T>(pub(crate) T);
-
-impl<T: FromJsonBytes> Response for JsonResponse<T> {
-    fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
+impl ResponseTransaction {
+    #[allow(clippy::needless_pass_by_value)]
+    pub(crate) fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<Self> {
         eyre::ensure!(
             mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),
             "Expected JSON response, got {}",
@@ -50,51 +26,30 @@ impl<T: FromJsonBytes> Response for JsonResponse<T> {
             Some(charset) => eyre::bail!("Unsupported charset {}", charset),
         };
 
-        let Flattened(transaction, response) =
-            <Flattened<ResponseTransaction, T>>::from_json_bytes(bytes)?;
-
-        Ok(ResponseWithTransaction {
-            transaction,
-            response: Self(response),
-        })
+        Ok(serde_json::from_slice(bytes)?)
     }
 }
 
 impl<T: DeserializeOwned> Response for ASCOMResult<T> {
     fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
-        struct ParseResult<T>(eyre::Result<T>);
+        let transaction = ResponseTransaction::from_reqwest(mime_type, bytes)?;
+        let ascom_error = serde_json::from_slice::<ASCOMError>(bytes)?;
 
-        impl<'de, T: Deserialize<'de>> Deserialize<'de> for ParseResult<T> {
-            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                Ok(Self(
-                    if size_of::<T>() == 0 {
-                        // serde doesn't consider empty maps to be a valid source for the `()` type.
-                        // We could tweak the type itself, but it's easier to just special-case empty types here.
-                        T::deserialize(UnitDeserializer::new())
-                    } else {
-                        T::deserialize(deserializer)
-                    }
-                    .map_err(|err| eyre::eyre!("{err}")),
-                ))
-            }
-        }
-
-        JsonResponse::<Flattened<ASCOMError, ParseResult<T>>>::from_reqwest(mime_type, bytes)?
-            .try_map(
-                |JsonResponse(Flattened(ascom_error, ParseResult(parse_result)))| {
-                    Ok(if ascom_error.code == ASCOMErrorCode::OK {
-                        Ok(parse_result?)
-                    } else {
-                        Err(ascom_error)
-                    })
-                },
-            )
+        Ok(ResponseWithTransaction {
+            transaction,
+            response: match ascom_error.code {
+                ASCOMErrorCode::OK => Ok(serde_json::from_slice::<ValueResponse<T>>(bytes)?.value),
+                _ => Err(ascom_error),
+            },
+        })
     }
 }
 
 impl<T: DeserializeOwned> Response for ValueResponse<T> {
     fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
-        Ok(JsonResponse::from_reqwest(mime_type, bytes)?
-            .map(|JsonResponse(value_response)| value_response))
+        Ok(ResponseWithTransaction {
+            transaction: ResponseTransaction::from_reqwest(mime_type, bytes)?,
+            response: serde_json::from_slice(bytes)?,
+        })
     }
 }

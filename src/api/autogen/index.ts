@@ -482,11 +482,9 @@ class TypeContext {
           let { format } = schema;
           if (format === 'date-time' || format === 'date-time-fits') {
             format = format === 'date-time' ? 'Iso8601' : 'Fits';
-            let viaType =
-              this.baseKind === 'Request' ? 'TimeParam' : 'TimeResponse';
             return rusty(
               'std::time::SystemTime',
-              `time_repr::${viaType}<time_repr::${format}>`
+              `time_repr::TimeRepr<time_repr::${format}>`
             );
           }
           return rusty('String');
@@ -575,10 +573,7 @@ class TypeContext {
           isDeepStrictEqual(Object.keys(properties), ['Value'])
         ) {
           let valueType = this.handleType(name, properties.Value);
-          return rusty(
-            valueType.toString(),
-            valueType.convertVia ?? 'ValueResponse<_>'
-          );
+          return rusty(valueType.toString(), valueType.convertVia);
         }
 
         const ctor = baseKind === 'Request' ? RequestType : ObjectType;
@@ -746,7 +741,6 @@ mod time_repr;
 
 use crate::{ASCOMError, ASCOMResult};
 use crate::macros::{rpc_mod, rpc_trait};
-use crate::response::ValueResponse;
 use macro_rules_attribute::apply;
 #[cfg_attr(not(feature = "all-devices"), allow(unused_imports))]
 use num_enum::{IntoPrimitive, TryFromPrimitive};

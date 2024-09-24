@@ -1,4 +1,3 @@
-use crate::response::ValueResponse;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::time::SystemTime;
@@ -32,22 +31,22 @@ impl FormatWrapper for Fits {
 }
 
 #[derive(Debug)]
-pub(crate) struct TimeParam<F>(OffsetDateTime, PhantomData<F>);
+pub(crate) struct TimeRepr<F>(OffsetDateTime, PhantomData<F>);
 
-impl<F> From<SystemTime> for TimeParam<F> {
+impl<F> From<SystemTime> for TimeRepr<F> {
     fn from(value: SystemTime) -> Self {
         Self(value.into(), PhantomData)
     }
 }
 
-impl<F> From<TimeParam<F>> for SystemTime {
-    fn from(wrapper: TimeParam<F>) -> Self {
+impl<F> From<TimeRepr<F>> for SystemTime {
+    fn from(wrapper: TimeRepr<F>) -> Self {
         wrapper.0.into()
     }
 }
 
 #[cfg(feature = "server")]
-impl<F: FormatWrapper> Serialize for TimeParam<F>
+impl<F: FormatWrapper> Serialize for TimeRepr<F>
 where
     F::Format: time::formatting::Formattable,
 {
@@ -60,7 +59,7 @@ where
 }
 
 #[cfg(feature = "client")]
-impl<'de, F: FormatWrapper> Deserialize<'de> for TimeParam<F>
+impl<'de, F: FormatWrapper> Deserialize<'de> for TimeRepr<F>
 where
     F::Format: time::parsing::Parsable,
 {
@@ -71,7 +70,7 @@ where
         where
             F::Format: time::parsing::Parsable,
         {
-            type Value = TimeParam<F>;
+            type Value = TimeRepr<F>;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a date string")
@@ -79,32 +78,12 @@ where
 
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
                 match time::PrimitiveDateTime::parse(value, F::FORMAT) {
-                    Ok(value) => Ok(TimeParam(value.assume_utc(), PhantomData)),
+                    Ok(value) => Ok(TimeRepr(value.assume_utc(), PhantomData)),
                     Err(err) => Err(serde::de::Error::custom(err)),
                 }
             }
         }
 
         deserializer.deserialize_str(Visitor(PhantomData))
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(bound(
-    serialize = "TimeParam<F>: Serialize",
-    deserialize = "TimeParam<F>: Deserialize<'de>"
-))]
-#[serde(transparent)]
-pub(crate) struct TimeResponse<F>(ValueResponse<TimeParam<F>>);
-
-impl<F> From<SystemTime> for TimeResponse<F> {
-    fn from(value: SystemTime) -> Self {
-        Self(TimeParam::from(value).into())
-    }
-}
-
-impl<F> From<TimeResponse<F>> for SystemTime {
-    fn from(wrapper: TimeResponse<F>) -> Self {
-        wrapper.0.into().into()
     }
 }

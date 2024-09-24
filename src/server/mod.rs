@@ -101,6 +101,7 @@ impl ServerHandler {
             make_response(self.params)
                 .await
                 .into_axum(response_transaction)
+                .into_response()
         }
         .instrument(span)
         .await
@@ -217,7 +218,7 @@ impl Server {
             .route(
                 "/management/apiversions",
                 axum::routing::get(|server_handler: ServerHandler| {
-                    server_handler.exec(|_params| async move { ValueResponse::from([1_u32]) })
+                    server_handler.exec(|_params| async move { ValueResponse { value: [1_u32] } })
                 }),
             )
             .route("/management/v1/configureddevices", {
@@ -225,11 +226,12 @@ impl Server {
 
                 axum::routing::get(|server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move {
-                        let devices = this
-                            .iter_all()
-                            .map(|(device, number)| device.to_configured_device(number))
-                            .collect::<Vec<_>>();
-                        ValueResponse::from(devices)
+                        ValueResponse {
+                            value: this
+                                .iter_all()
+                                .map(|(device, number)| device.to_configured_device(number))
+                                .collect::<Vec<_>>(),
+                        }
                     })
                 })
             })
@@ -238,7 +240,9 @@ impl Server {
 
                 axum::routing::get(move |server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move {
-                        ValueResponse::from(Arc::clone(&server_info))
+                        ValueResponse {
+                            value: Arc::clone(&server_info),
+                        }
                     })
                 })
             })

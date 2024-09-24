@@ -13,7 +13,7 @@ mod params;
 pub(crate) use params::{ActionParams, Method};
 
 mod response;
-pub(crate) use response::{JsonResponse, Response};
+pub(crate) use response::Response;
 
 use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::response::ValueResponse;
@@ -191,7 +191,7 @@ impl Client {
                 params: (),
             })
             .await?
-            .into()
+            .value
             .into_iter()
             .filter_map(move |device| match device.ty.0 {
                 Ok(device_type) => Some(
@@ -224,6 +224,6 @@ impl Client {
                 params: (),
             })
             .await
-            .map(ValueResponse::into)
+            .map(|value_response| value_response.value)
     }
 }
