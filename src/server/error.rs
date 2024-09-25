@@ -16,6 +16,7 @@ pub(crate) enum Error {
     #[error("Couldn't parse parameter {name:?}: {err:#}")]
     BadParameter {
         name: &'static str,
+        #[source]
         err: serde_plain::Error,
     },
     #[error(transparent)]
