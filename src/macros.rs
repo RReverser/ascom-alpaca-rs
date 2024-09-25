@@ -54,8 +54,8 @@ macro_rules! rpc_trait {
 
         impl $crate::params::Action for [<$trait_name Action>] {
             #[cfg(feature = "server")]
-            fn from_parts(action: &str, params: $crate::server::ActionParams) -> $crate::server::Result<Result<Self, $crate::server::ActionParams>> {
-                Ok(Ok(match (action, params) {
+            fn from_parts(action: &str, params: &mut $crate::server::ActionParams) -> $crate::server::Result<Option<Self>> {
+                Ok(Some(match (action, params) {
                     $(
                         ($method_path, $crate::server::ActionParams::$http_method(params)) => {
                             #[allow(unused)]
@@ -71,7 +71,7 @@ macro_rules! rpc_trait {
                             Self::$method_name { $($param),* }
                         }
                     )*
-                    (_, params) => return Ok(Err(params)),
+                    _ => return Ok(None),
                 }))
             }
 
@@ -135,7 +135,7 @@ macro_rules! rpc_trait {
             /// Private inherent method for handling actions.
             /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
             #[allow(non_camel_case_types)]
-            async fn handle_action(device: &(impl ?Sized + $trait_name), action: &str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
+            async fn handle_action(device: &(impl ?Sized + $trait_name), action: &str, mut params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
                 #[derive(Serialize)]
                 #[serde(untagged)]
                 #[allow(non_camel_case_types)]
@@ -143,8 +143,8 @@ macro_rules! rpc_trait {
                     $($method_name($method_name),)*
                 }
 
-                let value = match $crate::params::Action::from_parts(action, params)? {
-                    Ok(action) => match action {
+                let value = match $crate::params::Action::from_parts(action, &mut params)? {
+                    Some(action) => match action {
                         $(
                             [<$trait_name Action>]::$method_name { $($param),* } => {
                                 #[allow(deprecated)]
@@ -152,7 +152,7 @@ macro_rules! rpc_trait {
                             }
                         )*
                     }?,
-                    Err(params) => rpc_trait!(@if_specific $trait_name {
+                    None=> rpc_trait!(@if_specific $trait_name {
                         return match <dyn Device>::handle_action(device, action, params).await {
                             Ok(value) => Ok($crate::either::Either::Right(value)),
                             Err(mut err) => {

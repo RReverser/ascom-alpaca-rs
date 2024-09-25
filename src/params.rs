@@ -23,8 +23,8 @@ pub(crate) trait Action: Sized + Send {
     #[cfg(feature = "server")]
     fn from_parts(
         action: &str,
-        params: crate::server::ActionParams,
-    ) -> crate::server::Result<Result<Self, crate::server::ActionParams>>;
+        params: &mut crate::server::ActionParams,
+    ) -> crate::server::Result<Option<Self>>;
 
     #[cfg(feature = "client")]
     fn into_parts(self) -> ActionParams<impl serde::Serialize + Send>;

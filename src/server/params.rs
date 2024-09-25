@@ -61,7 +61,7 @@ where
             .ok_or(Error::MissingParameter { name })
     }
 
-    pub(crate) fn finish_extraction(self) {
+    pub(crate) fn finish_extraction(&self) {
         if !self.0.is_empty() {
             tracing::warn!("Unused parameters: {:?}", self.0.keys());
         }
