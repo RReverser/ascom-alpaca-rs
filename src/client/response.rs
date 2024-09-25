@@ -3,7 +3,9 @@ use crate::client::ResponseTransaction;
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use mime::Mime;
+use serde::de::value::UnitDeserializer;
 use serde::de::DeserializeOwned;
+use std::any::TypeId;
 
 pub(crate) trait Response: Sized {
     fn prepare_reqwest(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -30,7 +32,7 @@ impl ResponseTransaction {
     }
 }
 
-impl<T: DeserializeOwned> Response for ASCOMResult<T> {
+impl<T: 'static + DeserializeOwned> Response for ASCOMResult<T> {
     fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<ResponseWithTransaction<Self>> {
         let transaction = ResponseTransaction::from_reqwest(mime_type, bytes)?;
         let ascom_error = serde_json::from_slice::<ASCOMError>(bytes)?;
@@ -38,7 +40,13 @@ impl<T: DeserializeOwned> Response for ASCOMResult<T> {
         Ok(ResponseWithTransaction {
             transaction,
             response: match ascom_error.code {
-                ASCOMErrorCode::OK => Ok(serde_json::from_slice::<ValueResponse<T>>(bytes)?.value),
+                ASCOMErrorCode::OK => Ok(if TypeId::of::<T>() == TypeId::of::<()>() {
+                    // Specialization: avoid failure when trying to parse `()` from JSON object with no `Value`.
+                    T::deserialize(UnitDeserializer::new())
+                } else {
+                    serde_json::from_slice::<ValueResponse<T>>(bytes)
+                        .map(|value_response| value_response.value)
+                }?),
                 _ => Err(ascom_error),
             },
         })

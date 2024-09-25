@@ -7,6 +7,7 @@ use http::{Method, StatusCode};
 use indexmap::IndexMap;
 use serde::de::{DeserializeOwned, IntoDeserializer};
 use serde::Deserialize;
+use std::any::TypeId;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -39,11 +40,11 @@ where
             .swap_remove(name.as_ref())
             .map(|mut value| {
                 // Specialization: optimized path to avoid cloning the string.
-                if std::any::TypeId::of::<T>() == std::any::TypeId::of::<String>() {
+                if TypeId::of::<T>() == TypeId::of::<String>() {
                     return T::deserialize(value.into_deserializer());
                 }
                 // Specialization: booleans in ASCOM must be case-insensitive.
-                if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
+                if TypeId::of::<T>() == TypeId::of::<bool>() {
                     value.make_ascii_lowercase();
                 }
                 serde_plain::from_str(&value)
