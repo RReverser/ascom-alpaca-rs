@@ -9,13 +9,11 @@ pub use discovery::{BoundClient as BoundDiscoveryClient, Client as DiscoveryClie
 mod transaction;
 pub(crate) use transaction::*;
 
-mod params;
-pub(crate) use params::{ActionParams, Method};
-
 mod response;
 pub(crate) use response::Response;
 
 use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
+use crate::params::{Action, ActionParams, Method};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
 use eyre::ContextCompat;
@@ -38,15 +36,12 @@ pub(crate) struct RawDeviceClient {
 }
 
 impl RawDeviceClient {
-    pub(crate) async fn exec_action<Resp>(
-        &self,
-        action_params: ActionParams<impl Debug + Serialize + Send>,
-    ) -> ASCOMResult<Resp>
+    pub(crate) async fn exec_action<Resp>(&self, action: impl Action) -> ASCOMResult<Resp>
     where
         ASCOMResult<Resp>: Response,
     {
         self.inner
-            .request::<ASCOMResult<Resp>>(action_params)
+            .request::<ASCOMResult<Resp>>(action.into_parts())
             .await
             .unwrap_or_else(|err| Err(ASCOMError::unspecified(err)))
     }
@@ -85,7 +80,7 @@ impl RawClient {
             action,
             method,
             params,
-        }: ActionParams<impl Debug + Serialize + Send>,
+        }: ActionParams<impl Serialize + Send>,
     ) -> eyre::Result<Resp> {
         let request_transaction = RequestTransaction::new(self.client_id);
 
@@ -97,7 +92,7 @@ impl RawClient {
         );
 
         async move {
-            tracing::debug!(?method, ?params, base_url = %self.base_url, "Sending request");
+            tracing::debug!(?method, params = ?serdebug::debug(&params), base_url = %self.base_url, "Sending request");
 
             let mut request = REQWEST.request(method.into(), self.base_url.join(action)?);
 

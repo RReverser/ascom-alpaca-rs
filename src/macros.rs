@@ -38,7 +38,57 @@ macro_rules! rpc_trait {
                 ) -> $return_type:ty $default_body:block
             )*
         }
-    ) => {
+    ) => (paste::paste! {
+        #[cfg_attr(feature = "client", derive(serde::Serialize), serde(untagged))]
+        #[allow(non_camel_case_types)]
+        pub(crate) enum [<$trait_name Action>] {
+            $(
+                $method_name {
+                    $(
+                        #[cfg_attr(feature = "client", serde(rename = $param_query))]
+                        $param: $param_ty,
+                    )*
+                },
+            )*
+        }
+
+        impl $crate::params::Action for [<$trait_name Action>] {
+            #[cfg(feature = "server")]
+            fn from_parts(action: &str, params: $crate::server::ActionParams) -> $crate::server::Result<Result<Self, $crate::server::ActionParams>> {
+                Ok(Ok(match (action, params) {
+                    $(
+                        ($method_path, $crate::server::ActionParams::$http_method(params)) => {
+                            #[allow(unused)]
+                            let mut params = params;
+                            $(
+                                let $param =
+                                    params.extract($param_query)
+                                    $(.map(<$param_via>::into))?
+                                    ?;
+                            )*
+                            params.finish_extraction();
+
+                            Self::$method_name { $($param),* }
+                        }
+                    )*
+                    (_, params) => return Ok(Err(params)),
+                }))
+            }
+
+            #[cfg(feature = "client")]
+            fn into_parts(self) -> $crate::params::ActionParams<impl serde::Serialize> {
+                let (method, action) = match self {
+                    $(Self::$method_name { .. } => ($crate::params::Method::$http_method, $method_path),)*
+                };
+
+                $crate::params::ActionParams {
+                    action,
+                    method,
+                    params: self,
+                }
+            }
+        }
+
         $(# $attr)*
         #[async_trait::async_trait]
         #[allow(unused_variables)]
@@ -93,31 +143,16 @@ macro_rules! rpc_trait {
                     $($method_name($method_name),)*
                 }
 
-                let value = match (action, params) {
-                    $(
-                        ($method_path, $crate::server::ActionParams::$http_method(params)) => {
-                            #[allow(unused_mut)]
-                            let mut params = params;
-                            $(
-                                let $param =
-                                    params.extract($param_query)
-                                    $(.map(<$param_via>::into))?
-                                    ?;
-                            )*
-                            params.finish_extraction();
-
-                            #[allow(deprecated)]
-                            let value =
-                                device
-                                .$method_name($($param),*)
-                                .await
-                                $(.map(<$via>::from))?
-                                ?;
-
-                            ResponseRepr::$method_name(value)
-                        }
-                    )*
-                    (action, params) => rpc_trait!(@if_specific $trait_name {
+                let value = match $crate::params::Action::from_parts(action, params)? {
+                    Ok(action) => match action {
+                        $(
+                            [<$trait_name Action>]::$method_name { $($param),* } => {
+                                #[allow(deprecated)]
+                                device.$method_name($($param),*).await.map(ResponseRepr::$method_name)
+                            }
+                        )*
+                    }?,
+                    Err(params) => rpc_trait!(@if_specific $trait_name {
                         return match <dyn Device>::handle_action(device, action, params).await {
                             Ok(value) => Ok($crate::either::Either::Right(value)),
                             Err(mut err) => {
@@ -157,28 +192,18 @@ macro_rules! rpc_trait {
             $(
                 #[allow(non_camel_case_types)]
                 async fn $method_name(& $self $(, $param: $param_ty)*) -> $return_type {
-                    #[derive(Debug, Serialize)]
-                    struct OpaqueParams<$($param),*> {
-                        $(
-                            #[serde(rename = $param_query)]
-                            $param: $param,
-                        )*
-                    }
-
                     $self
-                    .exec_action($crate::client::ActionParams {
-                        action: $method_path,
-                        method: $crate::client::Method::$http_method,
-                        params: OpaqueParams {
-                            $($param $(: <$param_via>::from($param))?),*
-                        }
+                    .exec_action([<$trait_name Action>]::$method_name {
+                        $(
+                            $param,
+                        )*
                     })
                     .await
                     $(.map(<$via>::into))?
                 }
             )*
         }
-    };
+    });
 }
 
 pub(crate) use rpc_trait;

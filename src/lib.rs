@@ -371,6 +371,7 @@ mod either;
 
 pub mod discovery;
 mod errors;
+mod params;
 mod response;
 
 /// Utilities for testing Alpaca client and server implementations.

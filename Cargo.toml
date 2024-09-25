@@ -53,6 +53,9 @@ time = { version = "0.3.36", features = ["macros"], optional = true }
 tokio = { workspace = true, features = ["net", "rt", "io-util"] }
 tracing = { workspace = true }
 tracing-futures = { version = "0.2.5", features = ["futures-03"], optional = true }
+paste = "1.0.15"
+form_urlencoded = "1.2.1"
+serdebug = "1.0.5"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock"] }
