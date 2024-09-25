@@ -5,7 +5,7 @@ use axum::response::IntoResponse;
 use axum::Form;
 use http::{Method, StatusCode};
 use indexmap::IndexMap;
-use serde::de::DeserializeOwned;
+use serde::de::{DeserializeOwned, IntoDeserializer};
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -31,18 +31,31 @@ impl<ParamStr: ?Sized + Hash + Eq + Debug> OpaqueParams<ParamStr>
 where
     str: AsRef<ParamStr>,
 {
-    pub(crate) fn maybe_extract<T: DeserializeOwned>(
+    pub(crate) fn maybe_extract<T: 'static + DeserializeOwned>(
         &mut self,
         name: &'static str,
     ) -> super::Result<Option<T>> {
         self.0
             .swap_remove(name.as_ref())
-            .map(|value| serde_plain::from_str(&value))
+            .map(|mut value| {
+                // Specialization: optimized path to avoid cloning the string.
+                if std::any::TypeId::of::<T>() == std::any::TypeId::of::<String>() {
+                    return T::deserialize(value.into_deserializer());
+                }
+                // Specialization: booleans in ASCOM must be case-insensitive.
+                if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
+                    value.make_ascii_lowercase();
+                }
+                serde_plain::from_str(&value)
+            })
             .transpose()
             .map_err(|err| Error::BadParameter { name, err })
     }
 
-    pub(crate) fn extract<T: DeserializeOwned>(&mut self, name: &'static str) -> super::Result<T> {
+    pub(crate) fn extract<T: 'static + DeserializeOwned>(
+        &mut self,
+        name: &'static str,
+    ) -> super::Result<T> {
         self.maybe_extract(name)?
             .ok_or(Error::MissingParameter { name })
     }
