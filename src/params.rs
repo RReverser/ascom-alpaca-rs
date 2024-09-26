@@ -4,6 +4,7 @@ pub(crate) enum Method {
     Put,
 }
 
+#[cfg(feature = "client")]
 impl From<Method> for reqwest::Method {
     fn from(method: Method) -> Self {
         match method {

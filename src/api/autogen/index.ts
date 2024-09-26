@@ -415,6 +415,17 @@ class Device {
                 &self.unique_id
               }
             };
+
+            /// Web page user interface that enables device specific configuration to be set for each available device.
+            ///
+            /// The server should implement this to return HTML string. You can use [\`Self::action\`] to store the configuration.
+            ///
+            /// Note: on the client side you almost never want to just retrieve HTML to show it in the browser, as that breaks relative URLs.
+            /// Use the \`/{device_type}/{device_number}/setup\` URL instead.
+            #[http("setup", method = Get)]
+            async fn setup(&self) -> ASCOMResult<String> {
+              Ok(include_str!("../server/device_setup_template.html").to_owned())
+            }
           `
             : ''
         }
