@@ -13,10 +13,6 @@ pub(crate) use auto_increment;
     allow(unused_macro_rules)
 )]
 macro_rules! rpc_trait {
-    (@if_specific Device $then:block $else:block) => ($else);
-
-    (@if_specific $trait_name:ident $then:block $else:block) => ($then);
-
     (
         $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
@@ -35,7 +31,7 @@ macro_rules! rpc_trait {
                 $(# $method_attr:tt)*
                 async fn $method_name:ident(
                     & $self:ident $(, #[http($param_query:literal $(, via = $param_via:path)?)] $param:ident: $param_ty:ty)* $(,)?
-                ) -> $return_type:ty $default_body:block
+                ) -> ASCOMResult $(<$return_type:ty>)? $default_body:block
             )*
         }
     ) => (paste::paste! {
@@ -49,6 +45,14 @@ macro_rules! rpc_trait {
                         $param: $param_ty,
                     )*
                 },
+            )*
+        }
+
+        #[cfg_attr(feature = "server", derive(serde::Serialize), serde(untagged))]
+        #[allow(non_camel_case_types, unused_parens)]
+        pub(crate) enum [<$trait_name Response>] {
+            $(
+                $method_name(($($return_type)?)),
             )*
         }
 
@@ -66,7 +70,6 @@ macro_rules! rpc_trait {
                                     $(.map(<$param_via>::into))?
                                     ?;
                             )*
-                            params.finish_extraction();
 
                             Self::$method_name { $($param),* }
                         }
@@ -106,13 +109,13 @@ macro_rules! rpc_trait {
                 /// Definition before the `#[async_trait]` expansion:
                 ///
                 /// ```ignore
-                #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!($return_type))]
+                #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!(ASCOMResult $(<$return_type>)?))]
                 /// # { unimplemented!() }
                 /// ```
                 $(# $method_attr)*
                 async fn $method_name(
                     & $self $(, $param: $param_ty)*
-                ) -> $return_type $default_body
+                ) -> ASCOMResult $(<$return_type>)? $default_body
             )*
         }
 
@@ -131,52 +134,16 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(feature = "server")]
-        impl dyn $trait_name {
-            /// Private inherent method for handling actions.
-            /// This method could live on the trait itself, but then it wouldn't be possible to make it private.
-            #[allow(non_camel_case_types)]
-            async fn handle_action(device: &(impl ?Sized + $trait_name), action: &str, mut params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
-                #[derive(Serialize)]
-                #[serde(untagged)]
-                #[allow(non_camel_case_types)]
-                enum ResponseRepr<$($method_name),*> {
-                    $($method_name($method_name),)*
+        impl [<$trait_name Action>] {
+            async fn handle(self, device: &(impl ?Sized + $trait_name)) -> ASCOMResult<[<$trait_name Response>]> {
+                match self {
+                    $(
+                        Self::$method_name { $($param),* } => {
+                            #[allow(deprecated)]
+                            device.$method_name($($param),*).await.map([<$trait_name Response>]::$method_name)
+                        }
+                    )*
                 }
-
-                let value = match $crate::params::Action::from_parts(action, &mut params)? {
-                    Some(action) => match action {
-                        $(
-                            [<$trait_name Action>]::$method_name { $($param),* } => {
-                                #[allow(deprecated)]
-                                device.$method_name($($param),*).await.map(ResponseRepr::$method_name)
-                            }
-                        )*
-                    }?,
-                    None=> rpc_trait!(@if_specific $trait_name {
-                        return match <dyn Device>::handle_action(device, action, params).await {
-                            Ok(value) => Ok($crate::either::Either::Right(value)),
-                            Err(mut err) => {
-                                if let $crate::server::Error::UnknownAction { device_type, .. } = &mut err {
-                                    // Update to a more specific device type.
-                                    *device_type = stringify!($trait_name);
-                                }
-                                Err(err)
-                            }
-                        };
-                    } {
-                        let _ = params;
-                        return Err($crate::server::Error::UnknownAction {
-                            device_type: stringify!($trait_name),
-                            action: action.to_owned(),
-                        });
-                    })
-                };
-
-                Ok(rpc_trait!(@if_specific $trait_name {
-                    $crate::either::Either::Left(value)
-                } {
-                    value
-                }))
             }
         }
 
@@ -191,7 +158,7 @@ macro_rules! rpc_trait {
 
             $(
                 #[allow(non_camel_case_types)]
-                async fn $method_name(& $self $(, $param: $param_ty)*) -> $return_type {
+                async fn $method_name(& $self $(, $param: $param_ty)*) -> ASCOMResult $(<$return_type>)? {
                     $self
                     .exec_action([<$trait_name Action>]::$method_name {
                         $(
@@ -209,7 +176,7 @@ macro_rules! rpc_trait {
 pub(crate) use rpc_trait;
 
 macro_rules! rpc_mod {
-    ($($trait_name:ident = $path:literal,)*) => {
+    ($($trait_name:ident = $path:literal,)*) => (paste::paste! {
         #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
         pub(crate) enum DeviceType {
             $(
@@ -323,6 +290,54 @@ macro_rules! rpc_mod {
             }
         }
 
+        pub(crate) enum TypedDeviceAction {
+            Device(DeviceAction),
+            $(
+                #[cfg(feature = $path)]
+                $trait_name([<$trait_name Action>]),
+            )*
+        }
+
+        #[cfg_attr(feature = "server", derive(serde::Serialize), serde(untagged))]
+        pub(crate) enum TypedResponse {
+            Device(DeviceResponse),
+            $(
+                #[cfg(feature = $path)]
+                $trait_name([<$trait_name Response>]),
+            )*
+        }
+
+        impl TypedDeviceAction {
+            #[cfg(feature = "server")]
+            fn from_parts(device_type: DeviceType, action: &str, mut params: crate::server::ActionParams) -> crate::server::Result<Self> {
+                let result = match device_type {
+                    $(
+                        #[cfg(feature = $path)]
+                        DeviceType::$trait_name =>
+                            $crate::params::Action::from_parts(action, &mut params)?
+                            .map(Self::$trait_name),
+                    )*
+                };
+
+                let result = match result {
+                    Some(result) => result,
+                    // Fallback to generic device actions.
+                    None => {
+                        $crate::params::Action::from_parts(action, &mut params)?
+                        .map(Self::Device)
+                        .ok_or_else(|| crate::server::Error::UnknownAction {
+                            device_type,
+                            action: action.to_owned(),
+                        })?
+                    }
+                };
+
+                params.finish_extraction();
+
+                Ok(result)
+            }
+        }
+
         /// Devices collection.
         ///
         /// This data structure holds devices of arbitrary categories (cameras, telescopes, etc.)
@@ -396,28 +411,23 @@ macro_rules! rpc_mod {
 
         impl Devices {
             #[cfg(feature = "server")]
-            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl 'this + Serialize> {
-                #[derive(Serialize)]
-                #[serde(untagged)]
-                enum ResponseRepr<$(
-                    #[cfg(feature = $path)]
-                    $trait_name,
-                )*> {
-                    $(
-                        #[cfg(feature = $path)]
-                        $trait_name($trait_name),
-                    )*
-                }
+            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<TypedResponse> {
+                let action = TypedDeviceAction::from_parts(device_type, action, params)?;
 
-                Ok(match device_type {
+                Ok(match action {
                     $(
                         #[cfg(feature = $path)]
-                        DeviceType::$trait_name => {
+                        TypedDeviceAction::$trait_name(action) => {
                             let device = self.get_for_server::<dyn $trait_name>(device_number)?;
-                            let result = <dyn $trait_name>::handle_action(device, action, params).await?;
-                            ResponseRepr::$trait_name(result)
+                            TypedResponse::$trait_name(action.handle(device).await?)
                         }
                     )*
+                    TypedDeviceAction::Device(action) => TypedResponse::Device(match device_type {
+                        $(
+                            #[cfg(feature = $path)]
+                            DeviceType::$trait_name => action.handle(self.get_for_server::<dyn $trait_name>(device_number)?).await,
+                        )*
+                    }?)
                 })
             }
         }
@@ -446,7 +456,7 @@ macro_rules! rpc_mod {
                 }
             )*
         }
-    };
+    });
 }
 
 pub(crate) use rpc_mod;

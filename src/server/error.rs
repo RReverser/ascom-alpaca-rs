@@ -8,7 +8,7 @@ pub(crate) enum Error {
     UnknownDeviceIndex { ty: DeviceType, index: usize },
     #[error("Unknown action {device_type}::{action}")]
     UnknownAction {
-        device_type: &'static str,
+        device_type: DeviceType,
         action: String,
     },
     #[error("Missing parameter {name:?}")]

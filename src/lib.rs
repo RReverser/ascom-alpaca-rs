@@ -366,9 +366,6 @@ mod client;
 #[cfg(feature = "server")]
 mod server;
 
-#[cfg(feature = "server")]
-mod either;
-
 pub mod discovery;
 mod errors;
 mod params;

@@ -61,9 +61,18 @@ where
             .ok_or(Error::MissingParameter { name })
     }
 
-    pub(crate) fn finish_extraction(&self) {
+    pub(crate) fn finish_extraction(self) {
         if !self.0.is_empty() {
             tracing::warn!("Unused parameters: {:?}", self.0.keys());
+        }
+    }
+}
+
+impl ActionParams {
+    pub(crate) fn finish_extraction(self) {
+        match self {
+            Self::Get(params) => params.finish_extraction(),
+            Self::Put(params) => params.finish_extraction(),
         }
     }
 }
