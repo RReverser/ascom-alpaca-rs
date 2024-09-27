@@ -249,7 +249,6 @@ dependencies = [
  "ctor",
  "custom_debug",
  "eyre",
- "form_urlencoded",
  "futures",
  "http",
  "indexmap",

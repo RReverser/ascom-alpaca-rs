@@ -23,7 +23,10 @@ tracing-subscriber = "0.3.18"
 async-fn-stream = { version = "0.2.2", optional = true }
 async-trait = { workspace = true }
 axum = { version = "0.7.5", optional = true }
-bytemuck = { version = "1.17.1", features = ["derive", "extern_crate_std"], optional = true }
+bytemuck = { version = "1.17.1", features = [
+	"derive",
+	"extern_crate_std",
+], optional = true }
 bytes = { version = "1.7.1", optional = true }
 criterion = { version = "0.5.1", optional = true }
 custom_debug = { workspace = true }
@@ -40,7 +43,9 @@ net-literals = "0.2.0"
 num_enum = "0.7.3"
 once_cell = { version = "1.19.0", optional = true }
 rand = { version = "0.8.5", optional = true }
-reqwest = { version = "0.12.7", optional = true, default-features = false, features = ["json"] }
+reqwest = { version = "0.12.7", optional = true, default-features = false, features = [
+	"json",
+] }
 sailfish = { version = "0.8.3", optional = true }
 serde = { version = "1.0.209", features = ["derive", "rc"] }
 serde-ndim = { version = "2.0.2", optional = true, features = ["ndarray"] }
@@ -52,9 +57,10 @@ thiserror = "1.0.63"
 time = { version = "0.3.36", features = ["macros"], optional = true }
 tokio = { workspace = true, features = ["net", "rt", "io-util"] }
 tracing = { workspace = true }
-tracing-futures = { version = "0.2.5", features = ["futures-03"], optional = true }
+tracing-futures = { version = "0.2.5", features = [
+	"futures-03",
+], optional = true }
 paste = "1.0.15"
-form_urlencoded = "1.2.1"
 serdebug = "1.0.5"
 
 [target.'cfg(windows)'.dependencies]
