@@ -23,7 +23,6 @@ use crate::response::ValueResponse;
 use crate::Devices;
 use axum::extract::{FromRequest, Path, Request};
 use axum::response::IntoResponse;
-use axum::routing::MethodFilter;
 use axum::Router;
 use futures::future::{BoxFuture, Future, FutureExt};
 use net_literals::addr;
@@ -283,8 +282,7 @@ impl Server {
             })
             .route(
                 "/api/v1/:device_type/:device_number/:action",
-                axum::routing::on(
-                    MethodFilter::or(MethodFilter::GET, MethodFilter::PUT),
+                axum::routing::any(
                     move |Path((DevicePath(device_type), device_number, action)): Path<(
                         DevicePath,
                         usize,
