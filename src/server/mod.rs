@@ -292,29 +292,6 @@ impl Server {
                     )>,
                           #[cfg(feature = "camera")] headers: http::HeaderMap,
                           server_handler: ServerHandler| async move {
-                        if action == "setup" {
-                            #[derive(TemplateOnce)]
-                            #[template(path = "device_setup_template.html")]
-                            struct TemplateContext {
-                                // TODO: figure out a good API to implement device configuration only on the server-side.
-                            }
-
-                            let ctx = TemplateContext {};
-
-                            return match ctx.render_once() {
-                                Ok(html) => (
-                                    http::StatusCode::NOT_IMPLEMENTED,
-                                    axum::response::Html(html),
-                                )
-                                    .into_response(),
-                                Err(err) => {
-                                    tracing::error!(%err, "Failed to render device setup page");
-                                    (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
-                                        .into_response()
-                                }
-                            };
-                        }
-
                         #[cfg(feature = "camera")]
                         let mut action = action;
 
