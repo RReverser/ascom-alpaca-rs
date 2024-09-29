@@ -61,7 +61,7 @@ tracing-futures = { version = "0.2.5", features = [
 	"futures-03",
 ], optional = true }
 paste = "1.0.15"
-serdebug = "1.0.5"
+serdebug = "1.1.0"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59.0", features = ["Win32_Networking_WinSock"] }
