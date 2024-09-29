@@ -1,3 +1,4 @@
+#[cfg_attr(feature = "server", allow(dead_code))]
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Method {
     Get,
@@ -14,6 +15,7 @@ impl From<Method> for reqwest::Method {
     }
 }
 
+#[cfg_attr(feature = "server", allow(dead_code))]
 pub(crate) struct ActionParams<T> {
     pub(crate) action: &'static str,
     pub(crate) method: Method,

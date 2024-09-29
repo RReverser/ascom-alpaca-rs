@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::time::SystemTime;
 use time::macros::format_description;
@@ -46,7 +45,7 @@ impl<F> From<TimeRepr<F>> for SystemTime {
 }
 
 #[cfg(feature = "server")]
-impl<F: FormatWrapper> Serialize for TimeRepr<F>
+impl<F: FormatWrapper> serde::Serialize for TimeRepr<F>
 where
     F::Format: time::formatting::Formattable,
 {
@@ -59,7 +58,7 @@ where
 }
 
 #[cfg(feature = "client")]
-impl<'de, F: FormatWrapper> Deserialize<'de> for TimeRepr<F>
+impl<'de, F: FormatWrapper> serde::Deserialize<'de> for TimeRepr<F>
 where
     F::Format: time::parsing::Parsable,
 {
