@@ -434,29 +434,6 @@ pub enum TelescopeAxis {
 /// ASCOM Methods Common To All Devices.
 #[apply(rpc_trait)]
 pub trait Device: std::fmt::Debug + Send + Sync {
-    const EXTRA_METHODS: () = {
-        /// Static device name for the configured list.
-        fn static_name(&self) -> &str {
-            &self.name
-        }
-
-        /// Unique ID of this device.
-        fn unique_id(&self) -> &str {
-            &self.unique_id
-        }
-    };
-
-    /// Web page user interface that enables device specific configuration to be set for each available device.
-    ///
-    /// The server should implement this to return HTML string. You can use [`Self::action`] to store the configuration.
-    ///
-    /// Note: on the client side you almost never want to just retrieve HTML to show it in the browser, as that breaks relative URLs.
-    /// Use the `/{device_type}/{device_number}/setup` URL instead.
-    #[http("setup", method = Get)]
-    async fn setup(&self) -> ASCOMResult<String> {
-        Ok(include_str!("../server/device_setup_template.html").to_owned())
-    }
-
     /// Actions and SupportedActions are a standardised means for drivers to extend functionality beyond the built-in capabilities of the ASCOM device interfaces.
     ///
     /// The key advantage of using Actions is that drivers can expose any device specific functionality required. The downside is that, in order to use these unique features, every application author would need to create bespoke code to present or exploit them.

@@ -1,12 +1,8 @@
 import openapi from '@readme/openapi-parser';
-import { chmod, open, unlink, writeFile } from 'fs/promises';
+import { unlink, writeFile } from 'fs/promises';
 import { spawnSync } from 'child_process';
-import {
-  toSnakeCase,
-  toPascalCase as toTypeName,
-  toPascalCase
-} from 'js-convert-case';
-import { OpenAPIV3_1, OpenAPIV3 } from 'openapi-types';
+import { toSnakeCase, toPascalCase } from 'js-convert-case';
+import { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types';
 import * as assert from 'assert/strict';
 import { CanonicalDevice, canonicalDevices } from './xml-names.js';
 import { rustKeywords } from './rust-keywords.js';
@@ -72,7 +68,7 @@ function nameAndTarget<T>(ref: T) {
   let { $ref } = ref as ReferenceObject;
   return {
     target: ($ref ? _refs.get($ref) : ref) as Exclude<T, ReferenceObject>,
-    name: $ref && toTypeName($ref.match(/([^/]+)$/)![1])
+    name: $ref && toPascalCase($ref.match(/([^/]+)$/)![1])
   };
 }
 
@@ -359,7 +355,7 @@ class DeviceMethod {
       ${stringifyDoc(this.doc)}
       #[http("${this.path}", method = ${
       this.method
-    }${this.returnType.maybeVia()})] 
+    }${this.returnType.maybeVia()})]
       async fn ${this.name}(
         &self,
         ${this.resolvedArgs.toString(
@@ -401,34 +397,6 @@ class Device {
         ? 'std::fmt::Debug + Send + Sync'
         : 'Device + Send + Sync'
     } {
-        ${
-          this.isBaseDevice
-            ? `
-            const EXTRA_METHODS: () = {
-              /// Static device name for the configured list.
-              fn static_name(&self) -> &str {
-                &self.name
-              }
-
-              /// Unique ID of this device.
-              fn unique_id(&self) -> &str {
-                &self.unique_id
-              }
-            };
-
-            /// Web page user interface that enables device specific configuration to be set for each available device.
-            ///
-            /// The server should implement this to return HTML string. You can use [\`Self::action\`] to store the configuration.
-            ///
-            /// Note: on the client side you almost never want to just retrieve HTML to show it in the browser, as that breaks relative URLs.
-            /// Use the \`/{device_type}/{device_number}/setup\` URL instead.
-            #[http("setup", method = Get)]
-            async fn setup(&self) -> ASCOMResult<String> {
-              Ok(include_str!("../server/device_setup_template.html").to_owned())
-            }
-          `
-            : ''
-        }
         ${this.methods}
       }
     `;

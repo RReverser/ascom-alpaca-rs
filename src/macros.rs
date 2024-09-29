@@ -13,18 +13,74 @@ pub(crate) use auto_increment;
     allow(unused_macro_rules)
 )]
 macro_rules! rpc_trait {
+    (@extra_trait_methods Device) => {
+        /// Static device name for the configured list.
+        fn static_name(&self) -> &str;
+
+        /// Unique ID of this device.
+        fn unique_id(&self) -> &str;
+
+        /// Web page user interface that enables device specific configuration to be set for each available device.
+        ///
+        /// The server should implement this to return HTML string. You can use [`Self::action`] to store the configuration.
+        ///
+        /// Note: on the client side you almost never want to just retrieve HTML to show it in the browser, as that breaks relative URLs.
+        /// Use the `/{device_type}/{device_number}/setup` URL instead.
+        ///
+        /// Definition before the `#[async_trait]` expansion:
+        /// ```ignore
+        /// async fn setup(&self) -> eyre::Result<String>
+        /// # { unimplemented!() }
+        /// ```
+        // Note: this method is not part of the ASCOM API, which is why we need to inject it manually.
+        // Because we inject it manually, we also need to manually expand the async_trait macro.
+        fn setup<'this, 'async_trait>(
+            &'this self,
+        ) -> futures::future::BoxFuture<'async_trait, eyre::Result<String>>
+        where
+            'this: 'async_trait,
+            Self: 'async_trait
+        {
+            Box::pin(async {
+                Ok(include_str!("../server/device_setup_template.html").to_owned())
+            })
+        }
+    };
+    (@extra_trait_methods $trait_name:ident) => {};
+
+    (@extra_trait_client_impls Device) => {
+        fn static_name(&self) -> &str {
+            &self.name
+        }
+
+        fn unique_id(&self) -> &str {
+            &self.unique_id
+        }
+
+        fn setup<'this, 'async_trait>(
+            &'this self,
+        ) -> futures::future::BoxFuture<'async_trait, eyre::Result<String>>
+        where
+            'this: 'async_trait,
+            Self: 'async_trait
+        {
+            Box::pin(async move {
+                Ok(
+                    $crate::client::REQWEST
+                        .get(self.inner.base_url.join("setup")?)
+                        .send()
+                        .await?
+                        .text()
+                        .await?
+                )
+            })
+        }
+    };
+    (@extra_trait_client_impls $trait_name:ident) => {};
+
     (
         $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
-            $(
-                const EXTRA_METHODS: () = {
-                    $(
-                        $(#[doc = $extra_method_doc:literal])*
-                        $($extra_method_name:ident)+ ($($extra_method_params:tt)*) $(-> $extra_method_return:ty)? $extra_method_client_impl:block
-                    )*
-                };
-            )?
-
             $(
                 $(#[doc = $doc:literal])*
                 #[http($method_path:literal, method = $http_method:ident $(, via = $via:path)?)]
@@ -96,12 +152,7 @@ macro_rules! rpc_trait {
         #[async_trait::async_trait]
         #[allow(unused_variables)]
         $pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)* {
-            $(
-                $(
-                    $(#[doc = $extra_method_doc])*
-                    $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)?;
-                )*
-            )?
+            rpc_trait!(@extra_trait_methods $trait_name);
 
             $(
                 $(#[doc = $doc])*
@@ -150,11 +201,7 @@ macro_rules! rpc_trait {
         #[cfg(feature = "client")]
         #[async_trait::async_trait]
         impl $trait_name for $crate::client::RawDeviceClient {
-            $(
-                $(
-                    $($extra_method_name)+ ($($extra_method_params)*) $(-> $extra_method_return)? $extra_method_client_impl
-                )*
-            )?
+            rpc_trait!(@extra_trait_client_impls $trait_name);
 
             $(
                 #[allow(non_camel_case_types)]
@@ -409,8 +456,8 @@ macro_rules! rpc_mod {
             };
         )*
 
+        #[cfg(feature = "server")]
         impl Devices {
-            #[cfg(feature = "server")]
             pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<TypedResponse> {
                 let action = TypedDeviceAction::from_parts(device_type, action, params)?;
 
@@ -429,6 +476,15 @@ macro_rules! rpc_mod {
                         )*
                     }?)
                 })
+            }
+
+            pub(crate) async fn get_setup_html(&self, device_type: DeviceType, device_number: usize) -> eyre::Result<String> {
+                match device_type {
+                    $(
+                        #[cfg(feature = $path)]
+                        DeviceType::$trait_name => self.get_for_server::<dyn $trait_name>(device_number)?.setup().await,
+                    )*
+                }
             }
         }
 

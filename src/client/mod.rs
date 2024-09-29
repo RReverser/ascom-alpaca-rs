@@ -47,7 +47,7 @@ impl RawDeviceClient {
     }
 }
 
-static REQWEST: Lazy<reqwest::Client> = Lazy::new(|| {
+pub(crate) static REQWEST: Lazy<reqwest::Client> = Lazy::new(|| {
     reqwest::Client::builder()
         .user_agent("ascom-alpaca-rs")
         .build()

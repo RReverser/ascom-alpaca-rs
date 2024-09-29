@@ -318,6 +318,19 @@ impl Server {
                             }
                         }
 
+                        // Setup endpoint is not an ASCOM method, so doesn't need the transaction and ASCOMResult wrapping.
+                        if action == "setup" {
+                            let result = devices.get_setup_html(device_type, device_number).await;
+                            let result = match result {
+                                Ok(html) => Ok(axum::response::Html(html)),
+                                Err(err) => Err((
+                                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    format!("{err:#}"),
+                                )),
+                            };
+                            return result.into_response();
+                        }
+
                         server_handler
                             .exec(|params| {
                                 devices.handle_action(device_type, device_number, &action, params)
