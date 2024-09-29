@@ -34,12 +34,10 @@ macro_rules! rpc_trait {
         /// ```
         // Note: this method is not part of the ASCOM API, which is why we need to inject it manually.
         // Because we inject it manually, we also need to manually expand the async_trait macro.
-        fn setup<'this, 'async_trait>(
+        #[allow(single_use_lifetimes)]
+        fn setup<'this: 'async_trait, 'async_trait>(
             &'this self,
         ) -> futures::future::BoxFuture<'async_trait, eyre::Result<String>>
-        where
-            'this: 'async_trait,
-            Self: 'async_trait
         {
             Box::pin(async {
                 Ok(include_str!("../server/device_setup_template.html").to_owned())
@@ -57,12 +55,10 @@ macro_rules! rpc_trait {
             &self.unique_id
         }
 
-        fn setup<'this, 'async_trait>(
+        #[allow(single_use_lifetimes)]
+        fn setup<'this: 'async_trait, 'async_trait>(
             &'this self,
         ) -> futures::future::BoxFuture<'async_trait, eyre::Result<String>>
-        where
-            'this: 'async_trait,
-            Self: 'async_trait
         {
             Box::pin(async move {
                 Ok(
