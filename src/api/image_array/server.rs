@@ -1,8 +1,8 @@
 use super::{ImageArray, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
 use crate::api::{ImageArrayRank, ImageElementType, TransmissionElementType};
-use crate::server::Response;
+use crate::server::ResponseWithTransaction;
 use crate::ASCOMResult;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use bytemuck::{bytes_of, Zeroable};
 use http::header::{HeaderMap, ACCEPT, CONTENT_TYPE};
 use serde::{Serialize, Serializer};
@@ -10,17 +10,17 @@ use std::mem::size_of;
 
 pub(crate) struct ImageBytesResponse(pub(crate) ImageArray);
 
-impl Response for ASCOMResult<ImageBytesResponse> {
-    fn into_axum(self, transaction: crate::server::ResponseTransaction) -> impl IntoResponse {
+impl IntoResponse for ResponseWithTransaction<ASCOMResult<ImageBytesResponse>> {
+    fn into_response(self) -> Response {
         let mut metadata = ImageBytesMetadata {
             metadata_version: 1,
             data_start: i32::try_from(size_of::<ImageBytesMetadata>())
                 .expect("internal error: metadata size is too large"),
-            client_transaction_id: transaction.client_transaction_id,
-            server_transaction_id: Some(transaction.server_transaction_id),
+            client_transaction_id: self.transaction.client_transaction_id,
+            server_transaction_id: Some(self.transaction.server_transaction_id),
             ..Zeroable::zeroed()
         };
-        let bytes = match &self {
+        let bytes = match &self.response {
             Ok(ImageBytesResponse(img_array)) => {
                 metadata.image_element_type = ImageElementType::I32.into();
                 metadata.transmission_element_type = img_array.transmission_element_type.into();
@@ -77,7 +77,7 @@ impl Response for ASCOMResult<ImageBytesResponse> {
                 bytes
             }
         };
-        ([(CONTENT_TYPE, IMAGE_BYTES_TYPE)], bytes)
+        ([(CONTENT_TYPE, IMAGE_BYTES_TYPE)], bytes).into_response()
     }
 }
 

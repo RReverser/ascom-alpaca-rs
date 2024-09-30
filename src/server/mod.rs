@@ -10,7 +10,6 @@ mod params;
 pub(crate) use params::ActionParams;
 
 mod response;
-pub(crate) use response::Response;
 
 mod error;
 pub(crate) use error::{Error, Result};
@@ -73,10 +72,13 @@ impl<S: Send + Sync> FromRequest<S> for ServerHandler {
 }
 
 impl ServerHandler {
-    async fn exec<Resp: Response, RespFut: Future<Output = Resp> + Send>(
+    async fn exec<RespFut: Future + Send>(
         mut self,
         make_response: impl FnOnce(ActionParams) -> RespFut + Send,
-    ) -> axum::response::Response {
+    ) -> axum::response::Response
+    where
+        ResponseWithTransaction<RespFut::Output>: IntoResponse,
+    {
         let request_transaction = match RequestTransaction::extract(&mut self.params) {
             Ok(transaction) => transaction,
             Err(err) => {
@@ -97,13 +99,14 @@ impl ServerHandler {
         async move {
             tracing::debug!(params = ?self.params, "Received request");
 
-            make_response(self.params)
-                .await
-                .into_axum(response_transaction)
-                .into_response()
+            ResponseWithTransaction {
+                transaction: response_transaction,
+                response: make_response(self.params).await,
+            }
         }
         .instrument(span)
         .await
+        .into_response()
     }
 }
 

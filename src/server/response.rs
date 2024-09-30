@@ -1,26 +1,19 @@
-use super::{Error, ResponseTransaction, ResponseWithTransaction};
+use super::{Error, ResponseWithTransaction};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use http::StatusCode;
 use serde::Serialize;
 
-pub(crate) trait Response: Sized {
-    fn into_axum(self, transaction: ResponseTransaction) -> impl IntoResponse;
-}
-
-impl<T: Serialize> Response for ValueResponse<T> {
-    fn into_axum(self, transaction: ResponseTransaction) -> impl IntoResponse {
-        Json(ResponseWithTransaction {
-            transaction,
-            response: self,
-        })
+impl<T: Serialize> IntoResponse for ResponseWithTransaction<ValueResponse<T>> {
+    fn into_response(self) -> Response {
+        Json(self).into_response()
     }
 }
 
-impl<T: Serialize> Response for ASCOMResult<T> {
-    fn into_axum(self, transaction: ResponseTransaction) -> impl IntoResponse {
+impl<T: Serialize> IntoResponse for ResponseWithTransaction<ASCOMResult<T>> {
+    fn into_response(self) -> Response {
         #[derive(Serialize)]
         struct Repr<T> {
             #[serde(flatten)]
@@ -31,8 +24,8 @@ impl<T: Serialize> Response for ASCOMResult<T> {
         }
 
         Json(ResponseWithTransaction {
-            transaction,
-            response: match self {
+            transaction: self.transaction,
+            response: match self.response {
                 Ok(value) => Repr {
                     error: ASCOMError::OK,
                     value: Some(value),
@@ -47,15 +40,16 @@ impl<T: Serialize> Response for ASCOMResult<T> {
                 }
             },
         })
+        .into_response()
     }
 }
 
-impl<T> Response for super::Result<T>
+impl<T> IntoResponse for ResponseWithTransaction<super::Result<T>>
 where
-    ASCOMResult<T>: Response,
+    ResponseWithTransaction<ASCOMResult<T>>: IntoResponse,
 {
-    fn into_axum(self, transaction: ResponseTransaction) -> impl IntoResponse {
-        let ascom_result_or_err = match self {
+    fn into_response(self) -> Response {
+        match self.response {
             Ok(response) => Ok(Ok(response)),
             Err(Error::Ascom(err)) => Ok(Err(err)),
             Err(err @ (Error::MissingParameter { .. } | Error::BadParameter { .. })) => {
@@ -64,8 +58,11 @@ where
             Err(err @ (Error::UnknownDeviceIndex { .. } | Error::UnknownAction { .. })) => {
                 Err((StatusCode::NOT_FOUND, err.to_string()))
             }
-        };
-
-        ascom_result_or_err.map(|ascom_result| ascom_result.into_axum(transaction))
+        }
+        .map(|ascom_result| ResponseWithTransaction {
+            transaction: self.transaction,
+            response: ascom_result,
+        })
+        .into_response()
     }
 }
