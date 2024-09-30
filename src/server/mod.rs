@@ -26,6 +26,7 @@ use axum::Router;
 use futures::future::{BoxFuture, Future, FutureExt};
 use net_literals::addr;
 use sailfish::TemplateOnce;
+use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -142,6 +143,13 @@ impl BoundServer {
             discovery = self.discovery.start() => discovery,
         } {}
     }
+}
+
+#[derive(Deserialize)]
+struct ApiPath {
+    device_type: DevicePath,
+    device_number: usize,
+    action: String,
 }
 
 impl Server {
@@ -286,11 +294,11 @@ impl Server {
             .route(
                 "/api/v1/:device_type/:device_number/:action",
                 axum::routing::any(
-                    move |Path((DevicePath(device_type), device_number, action)): Path<(
-                        DevicePath,
-                        usize,
-                        String,
-                    )>,
+                    move |Path(ApiPath {
+                              device_type: DevicePath(device_type),
+                              device_number,
+                              action,
+                          }),
                           #[cfg(feature = "camera")] headers: http::HeaderMap,
                           server_handler: ServerHandler| async move {
                         #[cfg(feature = "camera")]
