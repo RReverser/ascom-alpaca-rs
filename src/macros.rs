@@ -81,7 +81,7 @@ macro_rules! rpc_trait {
                 $(# $method_attr:tt)*
                 async fn $method_name:ident(
                     & $self:ident $(, #[http($param_query:literal $(, via = $param_via:path)?)] $param:ident: $param_ty:ty)* $(,)?
-                ) -> ASCOMResult $(<$return_type:ty>)? $default_body:block
+                ) -> $return_type:ty $default_body:block
             )*
         }
     ) => (paste::paste! {
@@ -102,7 +102,7 @@ macro_rules! rpc_trait {
         #[allow(non_camel_case_types, unused_parens)]
         pub(crate) enum [<$trait_name Response>] {
             $(
-                $method_name(($($return_type)?)),
+                $method_name(<$return_type as $crate::errors::ASCOMResultOk>::Ok),
             )*
         }
 
@@ -158,13 +158,13 @@ macro_rules! rpc_trait {
                     /// Definition before the `#[async_trait]` expansion:
                     ///
                     /// ```ignore
-                    #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!(ASCOMResult $(<$return_type>)?))]
+                    #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!($return_type))]
                     /// # { unimplemented!() }
                     /// ```
                     $(# $method_attr)*
                     async fn $method_name(
                         & $self $(, $param: $param_ty)*
-                    ) -> ASCOMResult $(<$return_type>)? $default_body
+                    ) -> $return_type $default_body
                 )*
             }
         );
@@ -208,7 +208,7 @@ macro_rules! rpc_trait {
             {
                 $(
                     #[allow(non_camel_case_types)]
-                    async fn $method_name(& $self $(, $param: $param_ty)*) -> ASCOMResult $(<$return_type>)? {
+                    async fn $method_name(& $self $(, $param: $param_ty)*) -> $return_type {
                         $self
                         .exec_action([<$trait_name Action>]::$method_name {
                             $(

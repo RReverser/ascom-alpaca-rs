@@ -117,6 +117,14 @@ impl ASCOMError {
 /// Result type for ASCOM methods.
 pub type ASCOMResult<T = ()> = Result<T, ASCOMError>;
 
+pub(crate) trait ASCOMResultOk {
+    type Ok;
+}
+
+impl<T> ASCOMResultOk for ASCOMResult<T> {
+    type Ok = T;
+}
+
 macro_rules! ascom_error_codes {
     ($(#[doc = $doc:literal] $vis:vis $name:ident = $value:literal,)*) => {
         impl ASCOMErrorCode {
