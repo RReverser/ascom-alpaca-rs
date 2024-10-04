@@ -96,9 +96,13 @@ macro_rules! rpc_trait {
             )*
         }
     ) => (paste::paste! {
+    $(# $attr)*
+    pub(crate) mod [<$trait_name:snake>] {
+        use super::*;
+
         #[cfg_attr(feature = "client", derive(serde::Serialize), serde(untagged))]
         #[allow(non_camel_case_types)]
-        pub(crate) enum [<$trait_name Action>] {
+        pub(super) enum Action {
             $(
                 $method_name {
                     $(
@@ -111,13 +115,13 @@ macro_rules! rpc_trait {
 
         #[cfg_attr(feature = "server", derive(serde::Serialize), serde(untagged))]
         #[allow(non_camel_case_types, unused_parens)]
-        pub(crate) enum [<$trait_name Response>] {
+        pub(super) enum Response {
             $(
                 $method_name(<$return_type as $crate::errors::ASCOMResultOk>::Ok),
             )*
         }
 
-        impl $crate::params::Action for [<$trait_name Action>] {
+        impl $crate::params::Action for Action {
             #[cfg(feature = "server")]
             fn from_parts(action: &str, params: &mut $crate::server::ActionParams) -> $crate::server::Result<Option<Self>> {
                 Ok(Some(match (action, params) {
@@ -186,7 +190,7 @@ macro_rules! rpc_trait {
                 $default_body
                 {
                     $self
-                    .exec_action([<$trait_name Action>]::$method_name {
+                    .exec_action(Action::$method_name {
                         $(
                             $param,
                         )*
@@ -212,18 +216,21 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(feature = "server")]
-        impl [<$trait_name Action>] {
-            async fn handle(self, device: &(impl ?Sized + $trait_name)) -> ASCOMResult<[<$trait_name Response>]> {
+        impl Action {
+            pub(super) async fn handle(self, device: &(impl ?Sized + $trait_name)) -> ASCOMResult<Response> {
                 match self {
                     $(
                         Self::$method_name { $($param),* } => {
                             #[allow(deprecated)]
-                            device.$method_name($($param),*).await.map([<$trait_name Response>]::$method_name)
+                            device.$method_name($($param),*).await.map(Response::$method_name)
                         }
                     )*
                 }
             }
         }
+    }
+
+    pub use [<$trait_name:snake>]::$trait_name;
     });
 }
 
@@ -344,20 +351,20 @@ macro_rules! rpc_mod {
             }
         }
 
-        pub(crate) enum TypedDeviceAction {
-            Device(DeviceAction),
+        enum TypedDeviceAction {
+            Device(device::Action),
             $(
                 #[cfg(feature = $path)]
-                $trait_name([<$trait_name Action>]),
+                $trait_name([<$trait_name:snake>]::Action),
             )*
         }
 
         #[cfg_attr(feature = "server", derive(serde::Serialize), serde(untagged))]
-        pub(crate) enum TypedResponse {
-            Device(DeviceResponse),
+        enum TypedResponse {
+            Device(device::Response),
             $(
                 #[cfg(feature = $path)]
-                $trait_name([<$trait_name Response>]),
+                $trait_name([<$trait_name:snake>]::Response),
             )*
         }
 
@@ -465,7 +472,7 @@ macro_rules! rpc_mod {
 
         #[cfg(feature = "server")]
         impl Devices {
-            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<TypedResponse> {
+            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
                 let action = TypedDeviceAction::from_parts(device_type, action, params)?;
 
                 Ok(match action {
