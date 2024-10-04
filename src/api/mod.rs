@@ -806,7 +806,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly).  This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
     ///
-    /// ```
+    /// ```text
     /// [
     ///   [P00,P01,P02,P03,P04],
     ///
@@ -828,7 +828,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// When the `SensorType` is Color, the serialised JSON array will have 3 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5`  and `Rxy`, `Gxy` and `Bxy` represent the red, green and blue pixel values at the zero based position x across and y down the image with the origin in the top left corner of the image.  Please see note above regarding element ordering.
     ///
-    /// ```
+    /// ```text
     /// [
     ///   [[R00,G00,B00],[R01,G01,B01],[R02,G02,B02],[R03,G03,B03],[R04,G04,B04]],
     ///

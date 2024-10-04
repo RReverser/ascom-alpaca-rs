@@ -698,6 +698,8 @@ function stringifyDoc(doc: string | undefined = '') {
       .replace(/^`(.+?)\.?`\s*(.*)$/s, '$2\n\n_$1._')
       // If there is no summary, split out first sentence as summary.
       .replace(/^(.*?(?<!e\.g|i\.e)\.) (?=[A-Z])/, '$1\n\n')
+      // Mark code blocks as text so that they're not picked up as Rust.
+      .replace(/^(```)(\n.*?\n```)$/gms, '$1text$2')
       // Add doc-comment markers to each line.
       .replace(/^/gm, '/// ')
   );
