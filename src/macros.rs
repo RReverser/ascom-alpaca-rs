@@ -13,11 +13,9 @@ pub(crate) use auto_increment;
     allow(unused_macro_rules)
 )]
 macro_rules! rpc_trait {
-    (@finish Device $($rest:tt)*) => {
+    (@add_extras Device $($rest:tt)*) => {
         rpc_trait!(
             @finish
-
-            _Device
 
             $($rest)*
 
@@ -69,7 +67,37 @@ macro_rules! rpc_trait {
             }
         );
     };
-    (@finish $trait_name:ident { $($trait_header:tt)* } { $($client_header:tt)* } $({ $($method_header:tt)* } $trait_body:tt $client_body:tt)*) => {
+    (@add_extras $trait_name:ident $($rest:tt)*) => {
+        rpc_trait!(@finish $($rest)*);
+
+        impl $crate::api::devices_impl::RetrieavableDevice for dyn $trait_name {
+            const TYPE: DeviceType = DeviceType::$trait_name;
+
+            fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>] {
+                &storage.$trait_name
+            }
+        }
+
+        impl<T: 'static + $trait_name> $crate::api::devices_impl::RegistrableDevice<dyn $trait_name> for T {
+            fn add_to(self, storage: &mut Devices) {
+                storage.$trait_name.push(std::sync::Arc::new(self));
+            }
+        }
+
+        #[cfg(test)]
+        #[tokio::test]
+        async fn alpaca() -> eyre::Result<()> {
+            $crate::test_utils::ConformU::AlpacaProtocol.run_proxy_test(DeviceType::$trait_name).await
+        }
+
+        #[cfg(test)]
+        #[tokio::test]
+        async fn conformance() -> eyre::Result<()> {
+            $crate::test_utils::ConformU::Conformance.run_proxy_test(DeviceType::$trait_name).await
+        }
+    };
+
+    (@finish { $($trait_header:tt)* } { $($client_header:tt)* } $({ $($method_header:tt)* } $trait_body:tt $client_body:tt)*) => {
         $($trait_header)* {
             $(
                 $($method_header)* $trait_body
@@ -97,6 +125,7 @@ macro_rules! rpc_trait {
         }
     ) => (paste::paste! {
     $(# $attr)*
+    #[cfg_attr(test, serial_test::serial($trait_name))]
     pub(crate) mod [<$trait_name:snake>] {
         use super::*;
 
@@ -158,7 +187,7 @@ macro_rules! rpc_trait {
         }
 
         rpc_trait!(
-            @finish
+            @add_extras
             $trait_name
             {
                 $(# $attr)*
@@ -451,25 +480,6 @@ macro_rules! rpc_mod {
             }
         }
 
-        $(
-            #[cfg(feature = $path)]
-            const _: () = {
-                impl $crate::api::devices_impl::RetrieavableDevice for dyn $trait_name {
-                    const TYPE: DeviceType = DeviceType::$trait_name;
-
-                    fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>] {
-                        &storage.$trait_name
-                    }
-                }
-
-                impl<T: 'static + $trait_name> $crate::api::devices_impl::RegistrableDevice<dyn $trait_name> for T {
-                    fn add_to(self, storage: &mut Devices) {
-                        storage.$trait_name.push(std::sync::Arc::new(self));
-                    }
-                }
-            };
-        )*
-
         #[cfg(feature = "server")]
         impl Devices {
             pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
@@ -500,31 +510,6 @@ macro_rules! rpc_mod {
                     )*
                 }
             }
-        }
-
-        #[cfg(test)]
-        mod conformu {
-            use super::DeviceType;
-            use $crate::test_utils::ConformU;
-
-            $(
-                #[cfg(feature = $path)]
-                #[serial_test::serial($trait_name)]
-                #[allow(non_snake_case)]
-                mod $trait_name {
-                    use super::*;
-
-                    #[tokio::test]
-                    async fn alpaca() -> eyre::Result<()> {
-                        ConformU::AlpacaProtocol.run_proxy_test(DeviceType::$trait_name).await
-                    }
-
-                    #[tokio::test]
-                    async fn conformance() -> eyre::Result<()> {
-                        ConformU::Conformance.run_proxy_test(DeviceType::$trait_name).await
-                    }
-                }
-            )*
         }
     });
 }
