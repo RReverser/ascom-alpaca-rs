@@ -113,7 +113,7 @@ macro_rules! rpc_trait {
 
     (
         $(# $attr:tt)*
-        $pub:vis trait $trait_name:ident: $($first_parent:ident)::+ $(+ $($other_parents:ident)::+)* {
+        $pub:vis trait $trait_name:ident: $trait_parents:ty {
             $(
                 $(#[doc = $doc:literal])*
                 #[http($method_path:literal, method = $http_method:ident $(, via = $via:path)?)]
@@ -193,7 +193,7 @@ macro_rules! rpc_trait {
                 $(# $attr)*
                 #[async_trait::async_trait]
                 #[allow(unused_variables)]
-                $pub trait $trait_name: $($first_parent)::+ $(+ $($other_parents)::+)*
+                $pub trait $trait_name: $trait_parents
             }
             {
                 #[cfg(feature = "client")]
