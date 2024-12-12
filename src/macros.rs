@@ -86,12 +86,14 @@ macro_rules! rpc_trait {
 
         #[cfg(test)]
         #[tokio::test]
+        #[serial_test::serial($trait_name)]
         async fn alpaca() -> eyre::Result<()> {
             $crate::test_utils::ConformU::AlpacaProtocol.run_proxy_test(DeviceType::$trait_name).await
         }
 
         #[cfg(test)]
         #[tokio::test]
+        #[serial_test::serial($trait_name)]
         async fn conformance() -> eyre::Result<()> {
             $crate::test_utils::ConformU::Conformance.run_proxy_test(DeviceType::$trait_name).await
         }
@@ -125,7 +127,6 @@ macro_rules! rpc_trait {
         }
     ) => (paste::paste! {
     $(# $attr)*
-    #[cfg_attr(test, serial_test::serial($trait_name))]
     pub(crate) mod [<$trait_name:snake>] {
         use super::*;
 
