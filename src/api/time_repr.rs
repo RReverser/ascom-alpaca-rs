@@ -1,3 +1,5 @@
+#![cfg(any(feature = "camera", feature = "telescope"))]
+
 use std::marker::PhantomData;
 use std::time::SystemTime;
 use time::macros::format_description;
