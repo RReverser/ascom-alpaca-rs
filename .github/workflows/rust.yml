@@ -26,6 +26,5 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@cargo-no-dev-deps
       - name: Clippy check
-        run: cargo no-dev-deps clippy --all-targets --features ${{ matrix.network }},${{ matrix.device }}
+        run: cargo clippy --all --all-targets --features ${{ matrix.network }},${{ matrix.device }}
