@@ -80,7 +80,6 @@ use netdev::Interface;
 use std::os::windows::prelude::AsRawSocket;
 
 #[cfg(test)]
-#[serial_test::serial(discovery)]
 mod tests {
     use super::{DiscoveryClient, DiscoveryServer};
     use futures::StreamExt;
