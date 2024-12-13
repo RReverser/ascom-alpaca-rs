@@ -41,7 +41,6 @@ mime = { version = "0.3.17", optional = true }
 ndarray = { workspace = true, optional = true }
 net-literals = "0.2.0"
 num_enum = "0.7.3"
-once_cell = { version = "1.19.0", optional = true }
 rand = { version = "0.8.5", optional = true }
 reqwest = { version = "0.12.7", optional = true, default-features = false, features = [
 	"json",
@@ -125,7 +124,6 @@ client = [
 	"dep:bytes",
 	"dep:mime",
 	"dep:rand",
-	"dep:once_cell",
 	"time?/parsing",
 ]
 server = [

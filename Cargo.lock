@@ -259,7 +259,6 @@ dependencies = [
  "net-literals",
  "netdev",
  "num_enum",
- "once_cell",
  "paste",
  "rand",
  "reqwest",

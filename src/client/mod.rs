@@ -18,14 +18,13 @@ use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
 use eyre::ContextCompat;
 use mime::Mime;
-use once_cell::sync::Lazy;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
 use serde::Serialize;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tracing::Instrument;
 
 #[derive(Debug)]
@@ -47,7 +46,7 @@ impl RawDeviceClient {
     }
 }
 
-pub(crate) static REQWEST: Lazy<reqwest::Client> = Lazy::new(|| {
+pub(crate) static REQWEST: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
         .user_agent("ascom-alpaca-rs")
         .build()

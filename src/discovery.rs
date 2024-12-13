@@ -84,8 +84,8 @@ use std::os::windows::prelude::AsRawSocket;
 mod tests {
     use super::{DiscoveryClient, DiscoveryServer};
     use futures::StreamExt;
-    use once_cell::sync::Lazy;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+    use std::sync::LazyLock;
 
     const TEST_ALPACA_PORT: u16 = 8378;
 
@@ -97,8 +97,8 @@ mod tests {
         default_intf_v6: bool,
     }
 
-    static DEFAULT_INTF: Lazy<netdev::Interface> =
-        Lazy::new(|| netdev::get_default_interface().expect("coudn't get default interface"));
+    static DEFAULT_INTF: LazyLock<netdev::Interface> =
+        LazyLock::new(|| netdev::get_default_interface().expect("coudn't get default interface"));
 
     async fn run_test(server_addr: IpAddr, expected_addrs: ExpectedAddrs) -> eyre::Result<()> {
         let mut server =
