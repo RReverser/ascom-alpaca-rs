@@ -30,4 +30,4 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
       - name: Clippy check
-        run: cargo clippy --all --all-targets --features ${{ matrix.network }},${{ matrix.device }}
+        run: cargo clippy --frozen --all --all-targets --features ${{ matrix.network }},${{ matrix.device }}
