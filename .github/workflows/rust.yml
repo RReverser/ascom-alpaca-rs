@@ -18,8 +18,11 @@ jobs:
       matrix:
         network: [client, server]
         # Camera and telescope have some special logic; other devices don't so we pick focuser as a random representative.
-        # Also test all devices together.
-        device: [all-devices, camera, telescope, focuser]
+        device: [camera, telescope, focuser]
+        include:
+          # Also make sure that maximum configuration works as expected.
+          - network: client,server
+            device: all-devices
 
     steps:
       - uses: actions/checkout@v4
