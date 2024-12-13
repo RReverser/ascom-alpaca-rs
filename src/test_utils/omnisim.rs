@@ -3,7 +3,7 @@ use net_literals::addr;
 use std::net::SocketAddr;
 use std::process::Stdio;
 use std::sync::{Arc, Weak};
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 use tokio::sync::Mutex;
 
 /// A helper that manages [ASCOM Alpaca Simulators](https://github.com/ASCOMInitiative/ASCOM.Alpaca.Simulators).
@@ -23,15 +23,17 @@ impl OmniSim {
     async fn new() -> eyre::Result<Self> {
         const ADDR: SocketAddr = addr!("127.0.0.1:32323");
 
-        let mut server =
-            Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
-                .arg(format!("--urls=http://{ADDR}"))
-                .arg("--set-no-browser")
-                .stdin(Stdio::null())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .kill_on_drop(true)
-                .spawn()?;
+        let mut server = cmd!(
+            r"C:\Program Files\ASCOM\OmniSimulator",
+            "ascom.alpaca.simulators"
+        )
+        .arg(format!("--urls=http://{ADDR}"))
+        .arg("--set-no-browser")
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .kill_on_drop(true)
+        .spawn()?;
 
         tokio::select! {
             () = async {

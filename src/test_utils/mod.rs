@@ -1,6 +1,28 @@
 #[cfg(test)]
 mod logging_env;
 
+macro_rules! cmd {
+    ($windows_path_hint:literal, $name:literal) => {
+        tokio::process::Command::new(if cfg!(windows) {
+            static ADD_COMMON_PATH: std::sync::Once = std::sync::Once::new();
+
+            ADD_COMMON_PATH.call_once(|| {
+                let mut path = std::env::var_os("PATH").unwrap_or_default();
+                path.push(concat!(";", $windows_path_hint));
+                unsafe {
+                    std::env::set_var("PATH", path);
+                }
+            });
+
+            concat!($name, ".exe")
+        } else {
+            $name
+        })
+        .kill_on_drop(true)
+        .stdin(Stdio::null())
+    };
+}
+
 #[cfg(feature = "server")]
 mod conformu;
 #[cfg(feature = "server")]

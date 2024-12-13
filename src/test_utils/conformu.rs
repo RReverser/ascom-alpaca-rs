@@ -1,6 +1,5 @@
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 
 /// The kind of test to run with ConformU.
 #[derive(Debug, Clone, Copy)]
@@ -22,10 +21,9 @@ impl ConformU {
 
     /// Run the specified test with ConformU against the specified device URL.
     pub async fn run(self, device_url: &str) -> eyre::Result<()> {
-        let mut conformu = Command::new(r"C:\Program Files\ASCOM\ConformU\conformu.exe")
+        let mut conformu = cmd!(r"C:\Program Files\ASCOM\ConformU", "conformu")
             .arg(self.as_arg())
             .arg(device_url)
-            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .spawn()?;
 
