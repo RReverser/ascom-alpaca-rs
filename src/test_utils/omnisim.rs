@@ -26,6 +26,7 @@ impl OmniSim {
         let mut server =
             Command::new(r"C:\Program Files\ASCOM\OmniSimulator\ascom.alpaca.simulators.exe")
                 .arg(format!("--urls=http://{ADDR}"))
+                .arg("--set-no-browser")
                 .stdin(Stdio::null())
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
