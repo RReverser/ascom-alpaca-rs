@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   pull_request:
-    branches: [ "main" ]
+    branches: ['main']
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,30 +12,17 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        network: [client, server]
+        # Camera and telescope have some special logic; other devices don't so we pick focuser as a random representative.
+        # Also test all devices together.
+        device: [all-devices, camera, telescope, focuser]
+
     steps:
-    - uses: actions/checkout@v3
-    - name: Build maximum configuration with all targets
-      run: cargo clippy --all-targets --features all-devices,client,server
-    # Temporarily disable dev-dependencies to verify that library compiles without them.
-    # Otherwise it's easy to miss accidental strong dependency on dev-dependencies.
-    - name: Disable dev-dependencies
-      run: sed -i 's/\[dev-dependencies]/[hide-dev-dependencies]/' Cargo.toml
-    - name: Build library with maximum configuration
-      run: cargo clippy --features all-devices,client,server
-    # Try couple of different combinations of features to make sure we didn't mess up with #[cfg(...)]
-    # Try all of them in succession rather than in Github matrix so that build cache is reused more easily.
-    - name: Build client+camera
-      run: cargo clippy --features client,camera
-    - name: Build client+telescope
-      run: cargo clippy --features client,telescope
-    - name: Build client+focuser
-      run: cargo clippy --features client,focuser
-    - name: Build server+camera
-      run: cargo clippy --features server,camera
-    - name: Build server+telescope
-      run: cargo clippy --features server,telescope
-    - name: Build server+focuser
-      run: cargo clippy --features server,focuser
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-no-dev-deps
+      - name: Clippy check
+        run: cargo no-dev-deps clippy --all-targets --features ${{ matrix.network }},${{ matrix.device }}
