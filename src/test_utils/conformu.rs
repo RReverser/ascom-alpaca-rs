@@ -32,29 +32,7 @@ impl ConformU {
         let mut lines = BufReader::new(output).lines();
 
         while let Some(line) = lines.next_line().await? {
-            // This is fragile, but ConformU doesn't provide structured output.
-            // Use known widths of the fields to parse them.
-            // https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs
-
-            // Skip .NET stacktraces.
-            if line.starts_with("   at ") {
-                continue;
-            }
-
-            let line = match self {
-                // skip date and time before doing any other checks
-                Self::Conformance => line.get(13..).unwrap_or(&line),
-                // In protocol tests, the date and time are not present
-                Self::AlpacaProtocol => &line,
-            }
-            .trim_ascii_end();
-
-            // Skip empty lines.
-            if line.is_empty() {
-                continue;
-            }
-
-            if self.parse_log_line(line).is_none() {
+            if !self.parse_log_line(&line) {
                 tracing::debug!("{line}");
             }
         }
@@ -69,10 +47,37 @@ impl ConformU {
         Ok(())
     }
 
+    /// This function parses log lines from ConformU.
+    ///
+    /// This is fragile, but ConformU doesn't provide structured output. Instead, we use known widths of the fields to parse them.
+    ///
+    /// See <https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs>.
     #[allow(clippy::cognitive_complexity)]
-    fn parse_log_line(self, mut line: &str) -> Option<()> {
-        let outcome;
+    fn parse_log_line(self, mut line: &str) -> bool {
+        // Skip .NET stacktraces.
+        if line.starts_with("   at ") {
+            return true;
+        }
 
+        // skip date and time before doing any other checks
+        line = line.get(13..).unwrap_or(line).trim_ascii_end();
+
+        // Skip empty lines.
+        if line.is_empty() {
+            return true;
+        }
+
+        let Some(mut method) =
+            split_with_whitespace(&mut line, 35).filter(|&method| !method.is_empty())
+        else {
+            return false;
+        };
+
+        let Some(outcome) = split_with_whitespace(&mut line, 8) else {
+            return false;
+        };
+
+        // `tracing` crate doesn't support variable-based log levels, so we have to manually map them.
         macro_rules! trace_outcome {
             (@impl $args:tt) => {
                 match outcome {
@@ -81,7 +86,7 @@ impl ConformU {
                     "WARN" => tracing::warn! $args,
                     "DEBUG" | "" => tracing::debug! $args,
                     "ISSUE" | "ERROR" => tracing::error! $args,
-                    _ => return None,
+                    _ => return false,
                 }
             };
 
@@ -92,12 +97,14 @@ impl ConformU {
 
         match self {
             Self::AlpacaProtocol => {
-                let http_method = split_with_whitespace(&mut line, 3)
-                    .filter(|&http_method| matches!(http_method, "GET" | "PUT" | ""))?;
+                // Example log line (after date):
+                // GET Azimuth                         OK       Different ClientID casing - The expected ClientTransactionID was returned: 67890
 
-                let method = split_with_whitespace(&mut line, 25)?;
-
-                outcome = split_with_whitespace(&mut line, 6)?;
+                let Some(http_method) = split_with_whitespace(&mut method, 3)
+                    .filter(|&http_method| matches!(http_method, "GET" | "PUT" | ""))
+                else {
+                    return false;
+                };
 
                 let test;
 
@@ -116,10 +123,8 @@ impl ConformU {
             }
 
             Self::Conformance => {
-                let method =
-                    split_with_whitespace(&mut line, 35).filter(|&method| !method.is_empty())?;
-
-                outcome = split_with_whitespace(&mut line, 8)?;
+                // Example log line (after date):
+                // DeclinationRate Write               INFO     Configured offset test duration: 10 seconds.
 
                 trace_outcome!(
                     "conformance",
@@ -129,7 +134,7 @@ impl ConformU {
             }
         }
 
-        Some(())
+        true
     }
 }
 
