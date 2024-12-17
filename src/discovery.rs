@@ -145,7 +145,7 @@ mod tests {
                     .chain(DEFAULT_INTF.ipv6.iter().map(|net| (net.addr.into(), expected_addrs.default_intf_v6)));
 
                 for (addr, expected) in expected_addrs {
-                    eyre::ensure!(addrs.contains(&addr) == expected, "Address {addr} was{not} expected", not = if expected { "" } else { " not" });
+                    eyre::ensure!(addrs.contains(&addr) == expected, "Address {addr} was{not} expected in {addrs:#?}", not = if expected { "" } else { " not" });
                 }
 
                 Ok(())
