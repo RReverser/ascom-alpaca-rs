@@ -28,7 +28,6 @@ impl OmniSim {
             "ascom.alpaca.simulators"
         )
         .arg(format!("--urls=http://{ADDR}"))
-        .arg("--set-no-browser")
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
