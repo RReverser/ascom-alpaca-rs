@@ -1,22 +1,27 @@
 #[cfg(test)]
 mod logging_env;
 
+pub(crate) fn resolve_path(path_hint: &'static str, exe_name: &'static str) -> std::path::PathBuf {
+    use std::env;
+
+    env::split_paths(&env::var_os("PATH").unwrap_or_default())
+    .chain(std::iter::once(path_hint.into()))
+    .map(|path| path.join(exe_name))
+    .find(|path| path.exists())
+    .unwrap_or_else(|| panic!("{exe_name} not found in either PATH or the standard installation directory {path_hint}"))
+}
+
 macro_rules! cmd {
     ($windows_path_hint:literal, $name:literal) => {
         tokio::process::Command::new(if cfg!(windows) {
-            static ADD_COMMON_PATH: std::sync::Once = std::sync::Once::new();
-
-            ADD_COMMON_PATH.call_once(|| {
-                let mut path = std::env::var_os("PATH").unwrap_or_default();
-                path.push(concat!(";", $windows_path_hint));
-                unsafe {
-                    std::env::set_var("PATH", path);
-                }
+            // On Windows, ASCOM binaries have well-known path that we can look up if executable is not on the global PATH.
+            static RESOLVED_PATH: std::sync::LazyLock<std::path::PathBuf> = std::sync::LazyLock::new(|| {
+                $crate::test_utils::resolve_path($windows_path_hint, concat!($name, ".exe"))
             });
-
-            concat!($name, ".exe")
+            &RESOLVED_PATH
         } else {
-            $name
+            // On other systems, just rely on the user adding binaries to the global PATH.
+            std::path::Path::new($name)
         })
         .kill_on_drop(true)
         .stdin(Stdio::null())
