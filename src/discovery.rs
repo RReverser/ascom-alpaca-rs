@@ -92,12 +92,40 @@ mod tests {
     struct ExpectedAddrs {
         localhost_v4: bool,
         localhost_v6: bool,
-        default_intf_v4: bool,
-        default_intf_v6: bool,
+        default_v4: bool,
+        default_v6: bool,
     }
 
-    static DEFAULT_INTF: LazyLock<netdev::Interface> =
-        LazyLock::new(|| netdev::get_default_interface().expect("coudn't get default interface"));
+    struct DefaultAddr {
+        v4: Ipv4Addr,
+        v6: Ipv6Addr,
+    }
+
+    // TODO: remove when official method is stabilized.
+    const fn is_unicast_link_local(ipv6: &Ipv6Addr) -> bool {
+        (ipv6.segments()[0] & 0xffc0) == 0xfe80
+    }
+
+    static DEFAULT_ADDR: LazyLock<DefaultAddr> = LazyLock::new(|| {
+        let intf = netdev::get_default_interface().expect("coudn't get default interface");
+
+        // Only extract private / link-local addresses, since binding to others might fail in tests.
+        DefaultAddr {
+            v4: intf
+                .ipv4
+                .into_iter()
+                .map(|net| net.addr)
+                .find(Ipv4Addr::is_private)
+                .expect("no private IPv4 address"),
+
+            v6: intf
+                .ipv6
+                .into_iter()
+                .map(|net| net.addr)
+                .find(is_unicast_link_local)
+                .expect("no unique local IPv6 address"),
+        }
+    });
 
     async fn run_test(server_addr: IpAddr, expected_addrs: ExpectedAddrs) -> eyre::Result<()> {
         let mut server =
@@ -140,9 +168,9 @@ mod tests {
                     [
                         (IpAddr::from(Ipv4Addr::LOCALHOST), expected_addrs.localhost_v4),
                         (IpAddr::from(Ipv6Addr::LOCALHOST), expected_addrs.localhost_v6),
-                    ].into_iter()
-                    .chain(DEFAULT_INTF.ipv4.iter().map(|net| (net.addr.into(), expected_addrs.default_intf_v4)))
-                    .chain(DEFAULT_INTF.ipv6.iter().map(|net| (net.addr.into(), expected_addrs.default_intf_v6)));
+                        (IpAddr::from(DEFAULT_ADDR.v4), expected_addrs.default_v4),
+                        (IpAddr::from(DEFAULT_ADDR.v6), expected_addrs.default_v6),
+                    ];
 
                 for (addr, expected) in expected_addrs {
                     eyre::ensure!(addrs.contains(&addr) == expected, "Address {addr} was{not} expected in {addrs:#?}", not = if expected { "" } else { " not" });
@@ -171,9 +199,9 @@ mod tests {
     declare_tests! {
         test_loopback_v4 = Ipv4Addr::LOCALHOST => localhost_v4;
         test_loopback_v6 = Ipv6Addr::LOCALHOST => localhost_v6;
-        test_unspecified_v4 = Ipv4Addr::UNSPECIFIED => localhost_v4, default_intf_v4;
-        test_unspecified_v6 = Ipv6Addr::UNSPECIFIED => localhost_v4, localhost_v6, default_intf_v4, default_intf_v6;
-        test_external_v4 = DEFAULT_INTF.ipv4[0].addr => default_intf_v4;
-        test_external_v6 = DEFAULT_INTF.ipv6[0].addr => default_intf_v6;
+        test_unspecified_v4 = Ipv4Addr::UNSPECIFIED => localhost_v4, default_v4;
+        test_unspecified_v6 = Ipv6Addr::UNSPECIFIED => localhost_v4, localhost_v6, default_v4, default_v6;
+        test_external_v4 = DEFAULT_ADDR.v4 => default_v4;
+        test_external_v6 = DEFAULT_ADDR.v6 => default_v6;
     }
 }
