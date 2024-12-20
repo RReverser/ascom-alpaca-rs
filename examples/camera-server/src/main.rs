@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use eyre::ContextCompat;
 use ndarray::Array3;
 use nokhwa::pixel_format::RgbFormat;
-use nokhwa::utils::{CameraFormat, FrameFormat, RequestedFormat, RequestedFormatType, Resolution};
+use nokhwa::utils::{
+    CameraFormat, CameraInfo, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
+};
 use nokhwa::{nokhwa_initialize, NokhwaError};
 use parking_lot::{Mutex, RwLock};
 use std::borrow::Cow;
@@ -551,6 +553,85 @@ fn div_rem(a: u32, b: u32) -> (u32, u32) {
     (a / b, a % b)
 }
 
+#[tracing::instrument(ret(level = "debug"), err)]
+fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
+    // Workaround for https://github.com/l1npengtul/nokhwa/issues/110:
+    // get list of compatible formats manually, extract the info,
+    // and then re-create as Camera for the same source.
+    let mut camera = nokhwa::Camera::new(
+        camera_info.index().clone(),
+        RequestedFormat::new::<RgbFormat>(RequestedFormatType::None),
+    )?;
+
+    let compatible_formats = camera.compatible_camera_formats()?;
+
+    let format = *compatible_formats
+        .iter()
+        .max_by_key(|format| {
+            (
+                // nokhwa's auto-selection doesn't care about specific frame format,
+                // but we want uncompressed RAWRGB if supported.
+                format.format() == FrameFormat::RAWRGB,
+                // then choose maximum resolution
+                format.resolution(),
+                // then choose *minimum* frame rate as our usecase is mostly long exposures
+                -(format.frame_rate() as i32),
+            )
+        })
+        .with_context(|| {
+            format!(
+                "No compatible formats found for camera {}",
+                camera_info.human_name()
+            )
+        })?;
+
+    let mut valid_bins = compatible_formats
+        .iter()
+        .filter(|other| {
+            format.format() == other.format() && format.frame_rate() == other.frame_rate()
+        })
+        .filter_map(|other| {
+            let (bin_x, rem_x) = div_rem(format.resolution().x(), other.resolution().x());
+            let (bin_y, rem_y) = div_rem(format.resolution().y(), other.resolution().y());
+            if bin_x == bin_y && rem_x == 0 && rem_y == 0 {
+                Some(bin_x as i32)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    valid_bins.sort_unstable();
+    valid_bins.dedup();
+
+    let camera = nokhwa::Camera::new(
+        camera_info.index().clone(),
+        RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(format)),
+    )?;
+
+    Ok(Webcam {
+        unique_id: format!(
+            "150ddacb-7ad9-4754-b289-ae56210693e8::{}",
+            camera_info.index()
+        ),
+        name: camera_info.human_name(),
+        description: camera_info.description().to_owned(),
+        subframe: RwLock::new(Subframe {
+            offset: Point::default(),
+            size: format.resolution().into(),
+            bin: Size { x: 1, y: 1 },
+        }),
+        max_format: format,
+        valid_bins,
+        exposing: Arc::new(RwLock::new(ExposingState::Idle {
+            camera: Arc::new(parking_lot::Mutex::new(camera)),
+            image: None,
+        })),
+        last_exposure_start_time: Default::default(),
+        last_exposure_duration: Default::default(),
+    })
+}
+
 #[tokio::main]
 async fn main() -> eyre::Result<std::convert::Infallible> {
     tracing_subscriber::fmt::init();
@@ -573,85 +654,9 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
     server.listen_addr.set_port(8000);
 
     for camera_info in nokhwa::query(nokhwa::utils::ApiBackend::Auto)? {
-        // Workaround for https://github.com/l1npengtul/nokhwa/issues/110:
-        // get list of compatible formats manually, extract the info,
-        // and then re-create as Camera for the same source.
-        let mut camera = nokhwa::Camera::new(
-            camera_info.index().clone(),
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::None),
-        )?;
-
-        let compatible_formats = camera.compatible_camera_formats()?;
-
-        let format = *compatible_formats
-            .iter()
-            .max_by_key(|format| {
-                (
-                    // nokhwa's auto-selection doesn't care about specific frame format,
-                    // but we want uncompressed RAWRGB if supported.
-                    format.format() == FrameFormat::RAWRGB,
-                    // then choose maximum resolution
-                    format.resolution(),
-                    // then choose *minimum* frame rate as our usecase is mostly long exposures
-                    -(format.frame_rate() as i32),
-                )
-            })
-            .with_context(|| {
-                format!(
-                    "No compatible formats found for camera {}",
-                    camera_info.human_name()
-                )
-            })?;
-
-        let mut valid_bins = compatible_formats
-            .iter()
-            .filter(|other| {
-                format.format() == other.format() && format.frame_rate() == other.frame_rate()
-            })
-            .filter_map(|other| {
-                let (bin_x, rem_x) = div_rem(format.resolution().x(), other.resolution().x());
-                let (bin_y, rem_y) = div_rem(format.resolution().y(), other.resolution().y());
-                if bin_x == bin_y && rem_x == 0 && rem_y == 0 {
-                    Some(bin_x as i32)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        valid_bins.sort_unstable();
-        valid_bins.dedup();
-
-        let camera = nokhwa::Camera::new(
-            camera_info.index().clone(),
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(format)),
-        )?;
-
-        let webcam = Webcam {
-            unique_id: format!(
-                "150ddacb-7ad9-4754-b289-ae56210693e8::{}",
-                camera_info.index()
-            ),
-            name: camera_info.human_name(),
-            description: camera_info.description().to_owned(),
-            subframe: RwLock::new(Subframe {
-                offset: Point::default(),
-                size: format.resolution().into(),
-                bin: Size { x: 1, y: 1 },
-            }),
-            max_format: format,
-            valid_bins,
-            exposing: Arc::new(RwLock::new(ExposingState::Idle {
-                camera: Arc::new(parking_lot::Mutex::new(camera)),
-                image: None,
-            })),
-            last_exposure_start_time: Default::default(),
-            last_exposure_duration: Default::default(),
-        };
-
-        tracing::debug!(?webcam, "Registering webcam");
-
-        server.devices.register(webcam);
+        if let Ok(webcam) = get_webcam(&camera_info) {
+            server.devices.register(webcam);
+        }
     }
 
     server.start().await
