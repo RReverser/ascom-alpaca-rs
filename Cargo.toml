@@ -137,8 +137,6 @@ server = [
 	"time?/formatting",
 ]
 
-nightly = []
-
 [package.metadata.docs.rs]
 all-features = true
 
