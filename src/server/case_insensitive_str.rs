@@ -1,9 +1,9 @@
 use bytemuck::{TransparentWrapper, TransparentWrapperAlloc};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 
-#[derive(Serialize, TransparentWrapper)]
+#[derive(Serialize, TransparentWrapper, derive_more::Debug)]
+#[debug("{_0:?}")]
 #[serde(transparent)]
 #[repr(transparent)]
 pub(crate) struct CaseInsensitiveStr(str);
@@ -23,12 +23,6 @@ impl From<Box<str>> for Box<CaseInsensitiveStr> {
 impl<'de> Deserialize<'de> for Box<CaseInsensitiveStr> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         <Box<str>>::deserialize(deserializer).map(Into::into)
-    }
-}
-
-impl Debug for CaseInsensitiveStr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
     }
 }
 

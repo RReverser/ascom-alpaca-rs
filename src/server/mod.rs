@@ -1,3 +1,5 @@
+use crate::api::DevicePath;
+
 mod discovery;
 pub use discovery::{BoundServer as BoundDiscoveryServer, Server as DiscoveryServer};
 
@@ -16,7 +18,7 @@ pub(crate) use error::{Error, Result};
 
 #[cfg(feature = "camera")]
 use crate::api::Camera;
-use crate::api::{CargoServerInfo, DevicePath, DeviceType, ServerInfo};
+use crate::api::{CargoServerInfo, DeviceType, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::Devices;
@@ -24,6 +26,7 @@ use axum::extract::{FromRequest, Path, Request};
 use axum::response::{Html, IntoResponse};
 use axum::Router;
 use futures::future::{BoxFuture, Future, FutureExt};
+use http::StatusCode;
 use net_literals::addr;
 use sailfish::TemplateOnce;
 use serde::Deserialize;
@@ -31,7 +34,6 @@ use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
-use http::StatusCode;
 
 /// The Alpaca server.
 #[derive(Debug)]
@@ -46,14 +48,20 @@ pub struct Server {
     pub discovery_port: u16,
 }
 
-impl Default for Server {
-    fn default() -> Self {
+impl Server {
+    pub const fn new() -> Self {
         Self {
             devices: Devices::default(),
             info: CargoServerInfo!(),
             listen_addr: addr!("[::]:0"),
             discovery_port: DEFAULT_DISCOVERY_PORT,
         }
+    }
+}
+
+impl Default for Server {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -77,7 +85,8 @@ impl ServerHandler {
         mut self,
         make_response: impl FnOnce(ActionParams) -> RespFut,
     ) -> axum::response::Result<axum::response::Response>
-    where ResponseWithTransaction<Output>: IntoResponse
+    where
+        ResponseWithTransaction<Output>: IntoResponse,
     {
         let request_transaction = RequestTransaction::extract(&mut self.params)?;
         let response_transaction =
@@ -91,19 +100,17 @@ impl ServerHandler {
             server_transaction_id = response_transaction.server_transaction_id,
         );
 
-        Ok(
-            async move {
-                tracing::debug!(params = ?self.params, "Received request");
+        Ok(async move {
+            tracing::debug!(params = ?self.params, "Received request");
 
-                ResponseWithTransaction {
-                    transaction: response_transaction,
-                    response: make_response(self.params).await,
-                }
+            ResponseWithTransaction {
+                transaction: response_transaction,
+                response: make_response(self.params).await,
             }
-            .instrument(span)
-            .await
-            .into_response()
-        )
+        }
+        .instrument(span)
+        .await
+        .into_response())
     }
 }
 
@@ -143,7 +150,8 @@ impl BoundServer {
 
 #[derive(Deserialize)]
 struct ApiPath {
-    device_type: DevicePath,
+    #[serde(with = "DevicePath")]
+    device_type: DeviceType,
     device_number: usize,
     action: String,
 }
@@ -291,7 +299,7 @@ impl Server {
                 "/api/v1/:device_type/:device_number/:action",
                 axum::routing::any(
                     move |Path(ApiPath {
-                              device_type: DevicePath(device_type),
+                              device_type,
                               device_number,
                               action,
                           }),
@@ -327,9 +335,16 @@ impl Server {
 
                         // Setup endpoint is not an ASCOM method, so doesn't need the transaction and ASCOMResult wrapping.
                         if action == "setup" {
-                            return match devices.get_device_for_server(device_type, device_number)?.setup().await {
+                            return match devices
+                                .get_device_for_server(device_type, device_number)?
+                                .setup()
+                                .await
+                            {
                                 Ok(html) => Ok(Html(html).into_response()),
-                                Err(err) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{err:#}")).into())
+                                Err(err) => {
+                                    Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{err:#}"))
+                                        .into())
+                                }
                             };
                         }
 

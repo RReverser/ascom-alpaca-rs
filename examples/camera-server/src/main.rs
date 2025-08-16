@@ -549,8 +549,8 @@ impl Camera for Webcam {
     }
 }
 
-fn div_rem(a: u32, b: u32) -> (u32, u32) {
-    (a / b, a % b)
+fn exact_div(a: u32, b: u32) -> Option<u32> {
+    (a % b == 0).then_some(a / b)
 }
 
 #[tracing::instrument(ret(level = "debug"), err)]
@@ -591,13 +591,10 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
             format.format() == other.format() && format.frame_rate() == other.frame_rate()
         })
         .filter_map(|other| {
-            let (bin_x, rem_x) = div_rem(format.resolution().x(), other.resolution().x());
-            let (bin_y, rem_y) = div_rem(format.resolution().y(), other.resolution().y());
-            if bin_x == bin_y && rem_x == 0 && rem_y == 0 {
-                Some(bin_x as i32)
-            } else {
-                None
-            }
+            let bin_x = exact_div(format.resolution().x(), other.resolution().x())?;
+            let bin_y = exact_div(format.resolution().y(), other.resolution().y())?;
+
+            (bin_x == bin_y).then_some(bin_x as i32)
         })
         .collect::<Vec<_>>();
 

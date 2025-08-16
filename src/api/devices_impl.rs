@@ -1,6 +1,5 @@
 use super::{ConfiguredDevice, Device, DeviceType, Devices, TypedDevice};
-use serde::Serialize;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
 pub(crate) trait RetrieavableDevice: 'static + Device /* where Self: Unsize<DynTrait> */ {
     const TYPE: DeviceType;
@@ -80,39 +79,6 @@ impl Debug for FallibleDeviceType {
             Ok(ty) => Debug::fmt(ty, f),
             Err(ty) => write!(f, "Unsupported({ty})"),
         }
-    }
-}
-
-impl Display for DeviceType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl Debug for DeviceType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self, f)
-    }
-}
-
-impl Serialize for DeviceType {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.as_str().serialize(serializer)
-    }
-}
-
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub(crate) struct DevicePath(pub(crate) DeviceType);
-
-impl Display for DevicePath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl Debug for DevicePath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self, f)
     }
 }
 

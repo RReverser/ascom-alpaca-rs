@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 async-trait = "0.1.89"
-derive_more = { version = "2.0.1", features = ["debug"] }
+derive_more = "2.0.1"
 eyre = "0.6.12"
 futures = "0.3.31"
 ndarray = "0.16.1"
@@ -29,7 +29,7 @@ bytemuck = { version = "1.23.2", features = [
 ], optional = true }
 bytes = { version = "1.10.1", optional = true }
 criterion = { version = "0.7.0", optional = true }
-derive_more = { workspace = true }
+derive_more = { workspace = true, features = ["debug", "deref", "display"] }
 netdev = { version = "0.37.1" }
 eyre = { workspace = true }
 futures = { workspace = true }

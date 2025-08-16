@@ -7,7 +7,7 @@ publish = false
 ascom-alpaca = { path = "../..", features = ["server", "camera"] }
 
 async-trait = { workspace = true }
-derive_more = { workspace = true }
+derive_more = { workspace = true, features = ["debug", "add"] }
 eyre = { workspace = true }
 ndarray = { workspace = true, features = ["rayon"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

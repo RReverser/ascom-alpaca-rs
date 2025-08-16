@@ -12,7 +12,7 @@ pub(crate) use transaction::*;
 mod response;
 pub(crate) use response::Response;
 
-use crate::api::{ConfiguredDevice, DevicePath, FallibleDeviceType, ServerInfo, TypedDevice};
+use crate::api::{ConfiguredDevice, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::params::{Action, ActionParams, Method};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
@@ -193,7 +193,6 @@ impl Client {
                         inner: api_client
                             .join_url(&format!(
                                 "{device_type}/{device_number}/",
-                                device_type = DevicePath(device_type),
                                 device_number = device.number
                             ))
                             .expect("internal error: failed to join device URL"),

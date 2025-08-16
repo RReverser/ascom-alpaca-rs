@@ -11,7 +11,6 @@ use ndarray::{Array2, Array3, ArrayView2, ArrayView3, Axis};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::num::NonZeroU32;
-use std::ops::Deref;
 
 // Missing alias in ndarray.
 type ArcArray3<T> = ndarray::ArcArray<T, ndarray::Ix3>;
@@ -91,8 +90,9 @@ impl AsTransmissionElementType for u8 {
 /// You can retrieve rank as an enum via the [`ImageArray::rank`] method.
 ///
 /// This type is cheaply clonable.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, derive_more::Deref)]
 pub struct ImageArray {
+    #[deref]
     data: ArcArray3<i32>,
     transmission_element_type: TransmissionElementType,
 }
@@ -130,14 +130,6 @@ impl<T: AsTransmissionElementType> From<ArrayView2<'_, T>> for ImageArray {
 impl<T: AsTransmissionElementType> From<Array2<T>> for ImageArray {
     fn from(array: Array2<T>) -> Self {
         array.insert_axis(COLOUR_AXIS).into()
-    }
-}
-
-impl Deref for ImageArray {
-    type Target = ArcArray3<i32>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
     }
 }
 

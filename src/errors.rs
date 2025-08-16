@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::fmt::{self, Debug, Display, Formatter};
 use std::ops::RangeInclusive;
 use thiserror::Error;
 
@@ -11,7 +12,8 @@ const DRIVER_BASE: u16 = 0x500;
 const MAX: u16 = 0xFFF;
 
 /// Alpaca representation of an ASCOM error code.
-#[derive(Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
+#[display("{self:?}")]
 #[serde(transparent)]
 pub struct ASCOMErrorCode(u16);
 
@@ -106,7 +108,7 @@ pub struct ASCOMError {
 
 impl ASCOMError {
     /// Create a new `ASCOMError` from given error code and a message.
-    pub fn new(code: ASCOMErrorCode, message: impl std::fmt::Display) -> Self {
+    pub fn new(code: ASCOMErrorCode, message: impl Display) -> Self {
         Self {
             code,
             message: message.to_string().into(),
@@ -134,8 +136,8 @@ macro_rules! ascom_error_codes {
             )*
         }
 
-        impl std::fmt::Debug for ASCOMErrorCode {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl Debug for ASCOMErrorCode {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
                 match *self {
                     $(
                         Self::$name => f.write_str(stringify!($name)),
@@ -145,12 +147,6 @@ macro_rules! ascom_error_codes {
                         Err(raw_code) => write!(f, "{raw_code:#X}"),
                     },
                 }
-            }
-        }
-
-        impl std::fmt::Display for ASCOMErrorCode {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Debug::fmt(self, f)
             }
         }
 
@@ -203,18 +199,18 @@ ascom_error_codes! {
 
 impl ASCOMError {
     /// Create a new "invalid operation" error with the specified message.
-    pub fn invalid_operation(message: impl std::fmt::Display) -> Self {
+    pub fn invalid_operation(message: impl Display) -> Self {
         Self::new(ASCOMErrorCode::INVALID_OPERATION, message)
     }
 
     /// Create a new "invalid value" error with the specified message.
-    pub fn invalid_value(message: impl std::fmt::Display) -> Self {
+    pub fn invalid_value(message: impl Display) -> Self {
         Self::new(ASCOMErrorCode::INVALID_VALUE, message)
     }
 
     /// Create a new error with unspecified error code and the given message.
     #[cfg(feature = "client")]
-    pub(crate) fn unspecified(message: impl std::fmt::Display) -> Self {
+    pub(crate) fn unspecified(message: impl Display) -> Self {
         Self::new(ASCOMErrorCode::UNSPECIFIED, message)
     }
 }

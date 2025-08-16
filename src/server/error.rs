@@ -6,9 +6,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub(crate) enum Error {
-    #[error("Device {ty}[{index}] not found")]
+    #[error("Device {ty:?}[{index}] not found")]
     UnknownDeviceIndex { ty: DeviceType, index: usize },
-    #[error("Unknown action {device_type}::{action}")]
+    #[error("Unknown action {device_type:?}::{action}")]
     UnknownAction {
         device_type: DeviceType,
         action: String,

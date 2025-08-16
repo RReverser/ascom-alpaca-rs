@@ -437,12 +437,11 @@ fn to_stretched_color_img(
 
             impl<I: ExactSizeIterator<Item = u8>> std::io::Read for ReadIter<I> {
                 fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-                    let merged_iter = buf.iter_mut().zip(&mut self.0);
-                    let len = merged_iter.len();
-                    for (dst, src) in merged_iter {
-                        *dst = src;
-                    }
-                    Ok(len)
+                    Ok(buf
+                        .iter_mut()
+                        .zip(&mut self.0)
+                        .inspect(|(dst, src)| *dst = src)
+                        .len())
                 }
             }
 

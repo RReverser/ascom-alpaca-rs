@@ -268,10 +268,11 @@ pub(crate) use rpc_trait;
 
 macro_rules! rpc_mod {
     ($($trait_name:ident = $path:literal,)*) => (paste::paste! {
-        #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+        #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug, derive_more::Display, serde::Serialize)]
         pub(crate) enum DeviceType {
             $(
                 #[cfg(feature = $path)]
+                #[display($path)]
                 $trait_name,
             )*
         }
@@ -343,42 +344,14 @@ macro_rules! rpc_mod {
             }
         }
 
-        impl DeviceType {
-            const fn as_str(self) -> &'static str {
-                match self {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name => stringify!($trait_name),
-                    )*
-                }
-            }
-        }
-
-        impl $crate::api::devices_impl::DevicePath {
-            const fn as_str(self) -> &'static str {
-                match self.0 {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name => $path,
-                    )*
-                }
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $crate::api::devices_impl::DevicePath {
-            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                #[derive(Deserialize)]
-                #[serde(remote = "DeviceType")]
-                enum DevicePathRepr {
-                    $(
-                        #[cfg(feature = $path)]
-                        #[serde(rename = $path)]
-                        $trait_name,
-                    )*
-                }
-
-                DevicePathRepr::deserialize(deserializer).map(Self)
-            }
+        #[derive(Deserialize)]
+        #[serde(remote = "DeviceType")]
+        pub(crate) enum DevicePath {
+            $(
+                #[cfg(feature = $path)]
+                #[serde(rename = $path)]
+                $trait_name,
+            )*
         }
 
         enum TypedDeviceAction {
@@ -456,6 +429,15 @@ macro_rules! rpc_mod {
         }
 
         impl Devices {
+            pub const fn new() -> Self {
+                Self {
+                    $(
+                        #[cfg(feature = $path)]
+                        $trait_name: Vec::new(),
+                    )*
+                }
+            }
+
             /// Iterate over all registered devices.
             ///
             /// The second element of the tuple is the index of the device within its category
