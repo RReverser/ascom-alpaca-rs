@@ -26,8 +26,7 @@ impl ResponseTransaction {
         match mime_type.get_param(mime::CHARSET) {
             Some(mime::UTF_8) | None => {}
             Some(charset) => eyre::bail!("Unsupported charset {}", charset),
-        };
-
+        }
         Ok(serde_json::from_slice(bytes)?)
     }
 }

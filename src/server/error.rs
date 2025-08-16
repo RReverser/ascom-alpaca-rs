@@ -28,9 +28,9 @@ pub(crate) enum Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let code = match self {
-            Error::UnknownDeviceIndex { .. } | Error::UnknownAction { .. } => StatusCode::NOT_FOUND,
-            Error::MissingParameter { .. } | Error::BadParameter { .. } => StatusCode::BAD_REQUEST,
-            Error::Ascom(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::UnknownDeviceIndex { .. } | Self::UnknownAction { .. } => StatusCode::NOT_FOUND,
+            Self::MissingParameter { .. } | Self::BadParameter { .. } => StatusCode::BAD_REQUEST,
+            Self::Ascom(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         (code, format!("{self:#}")).into_response()
     }

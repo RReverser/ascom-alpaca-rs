@@ -344,6 +344,7 @@ Licensed under either of
     clippy::type_repetition_in_bounds,
     clippy::let_underscore_untyped,
     clippy::struct_excessive_bools,
+    clippy::cognitive_complexity,
     // For cargo-rdme
     rustdoc::redundant_explicit_links
 )]
