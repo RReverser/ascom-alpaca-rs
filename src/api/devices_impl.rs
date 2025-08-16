@@ -34,7 +34,7 @@ impl Default for Devices {
 }
 
 // we use internal interfaces to get type inference magic to work with polymorphic device types
-#[allow(private_bounds)]
+#[expect(private_bounds)]
 impl Devices {
     /// Register a device in the storage.
     ///

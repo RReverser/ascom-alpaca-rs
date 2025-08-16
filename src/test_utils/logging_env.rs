@@ -68,7 +68,7 @@ fn prepare_test_env() {
     color_eyre::config::HookBuilder::default()
         .add_frame_filter(Box::new(|frames| {
             frames.retain(|frame| {
-                frame.filename.as_ref().map_or(false, |filename| {
+                frame.filename.as_ref().is_some_and(|filename| {
                     // Only keep our own files in the backtrace to reduce noise.
                     filename.starts_with(env!("CARGO_MANIFEST_DIR"))
                 })

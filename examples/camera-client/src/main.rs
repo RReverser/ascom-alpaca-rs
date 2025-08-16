@@ -105,7 +105,7 @@ impl StateCtx {
                         .filter_map(|device| async move {
                             match device {
                                 TypedDevice::Camera(camera) => Some(camera),
-                                #[allow(unreachable_patterns)]
+                                #[expect(unreachable_patterns)]
                                 _ => None,
                             }
                         })
@@ -440,7 +440,7 @@ fn to_stretched_color_img(
                     Ok(buf
                         .iter_mut()
                         .zip(&mut self.0)
-                        .inspect(|(dst, src)| *dst = src)
+                        .map(|(dst, src)| *dst = src)
                         .len())
                 }
             }

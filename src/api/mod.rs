@@ -40,7 +40,7 @@ The SetupDialog method has been omitted from the Alpaca Device API because it pr
 
 */
 
-#![allow(clippy::doc_markdown)]
+#![expect(clippy::doc_markdown)]
 
 mod devices_impl;
 mod server_info;
@@ -515,8 +515,8 @@ pub trait Device: std::fmt::Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// **Deprecated in favour of the newer non-blocking [`connect`](Self::connect) and [`disconnect`](Self::disconnect) methods, with the new [`connecting`](Self::connecting) property serving as the completion property.**  
-    ///   
+    /// **Deprecated in favour of the newer non-blocking [`connect`](Self::connect) and [`disconnect`](Self::disconnect) methods, with the new [`connecting`](Self::connecting) property serving as the completion property.**
+    ///
     /// Sets the connected state of the device.
     #[http("connected", method = Put)]
     async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult {
@@ -802,7 +802,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// `^*"Type":(?<Type>\d*),"Rank":(?<Rank>\d*)`
     ///
-    /// When the `SensorType` is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5`  and `Pxy` represents the pixel value at the zero based position `x` across and `y` down the image with the origin in the top left corner of the image.  
+    /// When the `SensorType` is Monochrome, RGGB, CMYG, CMYG2 or LRGB, the serialised JSON array should have 2 dimensions. For example, the returned array should appear as below if `NumX = 7`, `NumY = 5`  and `Pxy` represents the pixel value at the zero based position `x` across and `y` down the image with the origin in the top left corner of the image.
     ///
     /// Please note that this is "column-major" order (column changes most rapidly) from the image's row and column perspective, while, from the array's perspective, serialisation is actually effected in "row-major" order (rightmost index changes most rapidly).  This unintuitive outcome arises because the ASCOM Camera Interface specification defines the image column dimension as the rightmost array dimension.
     ///
@@ -811,15 +811,15 @@ pub trait Camera: Device + Send + Sync {
     ///   [P00,P01,P02,P03,P04],
     ///
     ///   [P10,P11,P12,P13,P14],
-    ///   
+    ///
     ///   [P20,P21,P22,P23,P24],
-    ///   
+    ///
     ///   [P30,P31,P32,P33,P34],
-    ///   
+    ///
     ///   [P40,P41,P42,P43,P44],
-    ///   
+    ///
     ///   [P50,P51,P52,P53,P54],
-    ///   
+    ///
     ///   [P60,P61,P62,P63,P64],
     ///
     ///   …
@@ -2409,7 +2409,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// **This method is deprecated in favour of [`slew_to_alt_az_async`](Self::slew_to_alt_az_async).**
-    ///   
+    ///
     /// Move the telescope to the given local horizontal coordinates, return when slew is complete.
     #[http("slewtoaltaz", method = Put)]
     async fn slew_to_alt_az(
@@ -2437,7 +2437,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// **This method is deprecated in favour of [`slew_to_coordinates_async`](Self::slew_to_coordinates_async).**
-    ///   
+    ///
     /// Move the telescope to the given equatorial coordinates, return when slew is complete.
     #[http("slewtocoordinates", method = Put)]
     async fn slew_to_coordinates(
@@ -2465,7 +2465,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// **This method is deprecated in favour of [`slew_to_target_async`](Self::slew_to_target_async).**
-    ///   
+    ///
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete.
     #[http("slewtotarget", method = Put)]
     async fn slew_to_target(&self) -> ASCOMResult {

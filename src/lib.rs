@@ -333,17 +333,14 @@ Licensed under either of
     unused_results,
     dead_code
 )]
-#![allow(
+#![expect(
     clippy::module_name_repetitions,
-    clippy::return_self_not_must_use,
     clippy::must_use_candidate,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
     clippy::redundant_pub_crate,
     clippy::single_match_else,
-    clippy::type_repetition_in_bounds,
     clippy::let_underscore_untyped,
-    clippy::struct_excessive_bools,
     clippy::cognitive_complexity,
     // For cargo-rdme
     rustdoc::redundant_explicit_links

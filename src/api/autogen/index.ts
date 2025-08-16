@@ -714,7 +714,7 @@ ${api.info.title} ${api.info.version}
 ${api.info.description}
 */
 
-#![allow(clippy::doc_markdown)]
+#![expect(clippy::doc_markdown)]
 
 mod devices_impl;
 mod server_info;

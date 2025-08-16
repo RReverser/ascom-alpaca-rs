@@ -150,7 +150,7 @@ macro_rules! ascom_error_codes {
             }
         }
 
-        #[allow(unused)]
+        #[expect(unused)]
         impl ASCOMError {
             $(
                 #[doc = $doc]

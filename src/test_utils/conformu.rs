@@ -52,7 +52,7 @@ impl ConformU {
     /// This is fragile, but ConformU doesn't provide structured output. Instead, we use known widths of the fields to parse them.
     ///
     /// See <https://github.com/ASCOMInitiative/ConformU/blob/cb32ac3d230e99636c639ccf4ac68dd3ae955c26/ConformU/AlpacaProtocolTestManager.cs>.
-    #[allow(clippy::cognitive_complexity)]
+    #[expect(clippy::cognitive_complexity)]
     fn parse_log_line(self, mut line: &str) -> bool {
         // Skip .NET stacktraces.
         if line.starts_with("   at ") {

@@ -47,7 +47,7 @@ impl IntoResponse for ResponseWithTransaction<ASCOMResult<ImageBytesResponse>> {
                             },
                 );
                 bytes.extend_from_slice(bytes_of(&metadata));
-                #[allow(
+                #[expect(
                     clippy::as_conversions,
                     clippy::cast_possible_truncation,
                     clippy::cast_sign_loss

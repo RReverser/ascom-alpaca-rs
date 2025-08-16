@@ -130,7 +130,7 @@ pub struct BoundServer {
 
 impl BoundServer {
     /// Returns the address the main Alpaca server is listening on.
-    #[allow(clippy::missing_const_for_fn)] // we don't want to guarantee this will be always const
+    #[expect(clippy::missing_const_for_fn)] // we don't want to guarantee this will be always const
     pub fn listen_addr(&self) -> SocketAddr {
         self.axum_listen_addr
     }
@@ -227,7 +227,7 @@ impl Server {
         self.bind().await?.start().await
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines)]
     fn into_router(self) -> Router {
         let devices = Arc::new(self.devices);
         let server_info = Arc::new(self.info);

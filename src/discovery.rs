@@ -50,7 +50,7 @@ pub(crate) async fn bind_socket(
         };
 
         unsafe {
-            #[allow(
+            #[expect(
                 clippy::as_conversions,
                 clippy::cast_possible_truncation,
                 clippy::cast_possible_wrap
@@ -89,6 +89,7 @@ mod tests {
     const TEST_ALPACA_PORT: u16 = 8378;
 
     #[derive(Default)]
+    #[expect(clippy::struct_excessive_bools)]
     struct ExpectedAddrs {
         localhost_v4: bool,
         localhost_v6: bool,

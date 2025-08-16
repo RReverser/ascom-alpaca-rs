@@ -16,7 +16,7 @@ pub(crate) trait Response: Sized {
 }
 
 impl ResponseTransaction {
-    #[allow(clippy::needless_pass_by_value)]
+    #[expect(clippy::needless_pass_by_value)]
     pub(crate) fn from_reqwest(mime_type: Mime, bytes: &[u8]) -> eyre::Result<Self> {
         eyre::ensure!(
             mime_type.essence_str() == mime::APPLICATION_JSON.as_ref(),

@@ -131,7 +131,7 @@ macro_rules! rpc_trait {
         use super::*;
 
         #[cfg_attr(feature = "client", derive(serde::Serialize), serde(untagged))]
-        #[allow(non_camel_case_types)]
+        #[expect(non_camel_case_types)]
         pub(super) enum Action {
             $(
                 $method_name {
@@ -144,7 +144,7 @@ macro_rules! rpc_trait {
         }
 
         #[cfg_attr(feature = "server", derive(serde::Serialize), serde(untagged))]
-        #[allow(non_camel_case_types, unused_parens)]
+        #[expect(non_camel_case_types)]
         pub(super) enum Response {
             $(
                 $method_name(<$return_type as $crate::errors::ASCOMResultOk>::Ok),
@@ -157,7 +157,7 @@ macro_rules! rpc_trait {
                 Ok(Some(match (action, params) {
                     $(
                         ($method_path, $crate::server::ActionParams::$http_method(params)) => {
-                            #[allow(unused)]
+                            #[expect(unused)]
                             let mut params = params;
                             $(
                                 let $param =
@@ -251,7 +251,6 @@ macro_rules! rpc_trait {
                 match self {
                     $(
                         Self::$method_name { $($param),* } => {
-                            #[allow(deprecated)]
                             device.$method_name($($param),*).await.map(Response::$method_name)
                         }
                     )*
@@ -279,7 +278,7 @@ macro_rules! rpc_mod {
 
         /// A tagged enum wrapper for a type-erased instance of a device.
         #[derive(Clone, Debug)]
-        #[allow(missing_docs)]
+        #[expect(missing_docs)]
         pub enum TypedDevice {
             $(
                 #[cfg(feature = $path)]
@@ -406,7 +405,7 @@ macro_rules! rpc_mod {
         ///
         /// This data structure holds devices of arbitrary categories (cameras, telescopes, etc.)
         /// and allows to register and access them by their kind and index.
-        #[allow(non_snake_case)]
+        #[expect(non_snake_case)]
         #[derive(Clone)]
         pub struct Devices {
             $(
