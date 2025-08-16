@@ -766,6 +766,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "eyre",
+ "futures",
  "ndarray",
  "nokhwa",
  "parking_lot",

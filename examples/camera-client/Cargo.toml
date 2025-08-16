@@ -3,6 +3,9 @@ name = "camera-client"
 edition = "2021"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 ascom-alpaca = { path = "../..", features = ["client", "camera"] }
 

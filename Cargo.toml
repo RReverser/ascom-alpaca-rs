@@ -9,6 +9,9 @@ description = "Rust implementation of the ASCOM Alpaca API for astronomy devices
 repository = "https://github.com/RReverser/ascom-alpaca-rs"
 license = "MIT OR Apache-2.0"
 
+[lints]
+workspace = true
+
 [workspace.dependencies]
 async-trait = "0.1.89"
 derive_more = "2.0.1"
@@ -142,3 +145,47 @@ all-features = true
 
 [workspace]
 members = ["examples/*"]
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+as_conversions = "warn"
+clone_on_ref_ptr = "warn"
+default_numeric_fallback = "warn"
+format_push_string = "warn"
+if_then_some_else_none = "warn"
+map_err_ignore = "warn"
+panic_in_result_fn = "warn"
+single_char_lifetime_names = "warn"
+str_to_string = "warn"
+string_to_string = "warn"
+unwrap_used = "warn"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+redundant_pub_crate = "allow" # conflicts with unreachable_pub
+significant_drop_tightening = "allow" # too many false positives
+single_match_else = "allow"
+let_underscore_untyped = "allow"
+cognitive_complexity = "allow"
+
+[workspace.lints.rust]
+elided_lifetimes_in_paths = "warn"
+explicit_outlives_requirements = "warn"
+meta_variable_misuse = "warn"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+noop_method_call = "warn"
+single_use_lifetimes = "warn"
+unreachable_pub = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
+unused_results = "warn"
+dead_code = "warn"
+
+[workspace.lints.rustdoc]
+# For cargo-rdme
+redundant_explicit_links = "allow"

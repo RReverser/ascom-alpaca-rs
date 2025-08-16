@@ -1,3 +1,16 @@
+//! A cross-platform GUI example showing a live preview stream from discovered Alpaca cameras.
+//!
+//! Includes support for colour, monochrome and Bayer sensors with automatic colour conversion for the preview.
+
+#![expect(
+    clippy::as_conversions,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::default_numeric_fallback,
+    clippy::too_many_lines,
+)]
+
 use ascom_alpaca::api::{Camera, ImageArray, SensorType as AlpacaSensorType, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult};
@@ -29,8 +42,8 @@ enum State {
     Error(String),
 }
 
-impl State {
-    fn error(err: eyre::Error) -> Self {
+impl From<eyre::Error> for State {
+    fn from(err: eyre::Error) -> Self {
         Self::Error(format!("{err:#}"))
     }
 }
@@ -77,13 +90,11 @@ impl StateCtx {
         self.set_state(as_new_state(ChildTask(tokio::spawn(async move {
             let result = update.await;
             ctx.request_repaint();
-            match result {
-                Ok(state) => state,
-                Err(err) => State::error(err),
-            }
+            result.unwrap_or_else(State::from)
         }))));
     }
 
+    #[expect(unused_results)] // lots of these for eframe::egui::Response which we don't care about
     fn try_update(&mut self, ui: &mut Ui) -> eyre::Result<()> {
         match &mut self.state {
             State::Init => {
@@ -95,18 +106,18 @@ impl StateCtx {
                     let discovery_client = match &mut *discovery_client {
                         Some(discovery_client) => discovery_client,
                         None => {
-                            *discovery_client = Some(DiscoveryClient::default().bind().await?);
-                            discovery_client.as_mut().unwrap()
+                            discovery_client.insert(DiscoveryClient::default().bind().await?)
                         }
                     };
 
                     let cameras = discovery_client
                         .discover_devices()
                         .filter_map(|device| async move {
-                            match device {
-                                TypedDevice::Camera(camera) => Some(camera),
-                                #[expect(unreachable_patterns)]
-                                _ => None,
+                            #[allow(irrefutable_let_patterns)]
+                            if let TypedDevice::Camera(camera) = device {
+                                Some(camera)
+                            } else {
+                                None
                             }
                         })
                         .collect::<HashSet<_>>()
@@ -178,10 +189,7 @@ impl StateCtx {
                             async {
                                 let gain_mode = match if_implemented(camera.gain_min().await)? {
                                     Some(min) => GainMode::Range(min..=camera.gain_max().await?),
-                                    None => match if_implemented(camera.gains().await)? {
-                                        Some(list) => GainMode::List(list),
-                                        None => GainMode::None,
-                                    },
+                                    None => if_implemented(camera.gains().await)?.map_or(GainMode::None, GainMode::List),
                                 };
                                 let gain = match gain_mode {
                                     GainMode::None => 0,
@@ -352,10 +360,10 @@ impl CaptureState {
         let mut params_rx = self.params_rx.clone();
 
         tokio::select! {
-            _ = async {
+            () = async {
                 tokio::select! {
                     // the receiver was dropped due to app state change
-                    _ = self.tx.closed() => {},
+                    () = self.tx.closed() => {},
                     // or the exposure params were changed
                     _ = params_rx.changed() => {},
                 }
@@ -421,7 +429,7 @@ fn to_stretched_color_img(
             );
             stretched_iter
                 // Repeat each gray pixel 3 times to make it RGB.
-                .flat_map(|color| std::iter::repeat(color).take(3))
+                .flat_map(|color| std::iter::repeat_n(color, 3))
                 .collect()
         }
         SensorType::Color => {
@@ -468,9 +476,9 @@ fn to_stretched_color_img(
 
 impl eframe::App for StateCtx {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        _ = egui::CentralPanel::default().show(ctx, |ui| {
             if let Err(err) = self.try_update(ui) {
-                self.set_state(State::error(err));
+                self.set_state(State::from(err));
             }
         });
     }
@@ -488,7 +496,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(Box::new(StateCtx {
                 state: State::Init,
                 ctx: cc.egui_ctx.clone(),
-                discovery_client: Default::default(),
+                discovery_client: Arc::default(),
             }))
         }),
     )?;

@@ -1,7 +1,19 @@
+//! A cross-platform example exposing your connected webcam(s) as Alpaca `Camera`s.
+
+#![expect(
+    clippy::as_conversions,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::unwrap_used,
+    clippy::default_numeric_fallback,
+    clippy::too_many_lines,
+)]
+
 use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray, SensorType};
 use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Server};
 use async_trait::async_trait;
 use eyre::ContextCompat;
+use futures::future::{BoxFuture, FutureExt, Shared};
 use ndarray::Array3;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{
@@ -12,7 +24,7 @@ use parking_lot::{Mutex, RwLock};
 use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
 const ERR_EXPOSURE_FAILED_TO_STOP: ASCOMError = ASCOMError {
@@ -100,7 +112,7 @@ enum ExposingState {
         start: std::time::Instant,
         expected_duration: f64,
         stop_tx: Option<oneshot::Sender<StopExposure>>,
-        done_rx: watch::Receiver<bool>,
+        done: Shared<BoxFuture<'static, bool>>,
     },
 }
 
@@ -143,22 +155,20 @@ fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
 impl Webcam {
     async fn stop(&self, want_image: bool) -> ASCOMResult {
         // Make sure `self.exposing.write()` lock is not held when waiting for `done`.
-        let mut done_rx = match &mut *self.exposing.write() {
-            ExposingState::Exposing {
-                stop_tx, done_rx, ..
-            } => {
+        let done = match &mut *self.exposing.write() {
+            ExposingState::Exposing { stop_tx, done, .. } => {
                 // Only send the stop signal if nobody else has.
                 if let Some(stop_tx) = stop_tx.take() {
                     let _ = stop_tx.send(StopExposure { want_image });
                 }
-                done_rx.clone()
+                done.clone()
             }
             ExposingState::Idle { .. } => return Ok(()),
         };
-        let done_res = done_rx.wait_for(|&done| done).await;
-        match done_res {
-            Ok(_) => Ok(()),
-            Err(_) => Err(ERR_EXPOSURE_FAILED_TO_STOP),
+        if done.await {
+            Ok(())
+        } else {
+            Err(ERR_EXPOSURE_FAILED_TO_STOP)
         }
     }
 }
@@ -370,6 +380,7 @@ impl Camera for Webcam {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     async fn percent_completed(&self) -> ASCOMResult<i32> {
         match &*self.exposing.read() {
             ExposingState::Idle { .. } => Ok(100),
@@ -394,10 +405,10 @@ impl Camera for Webcam {
     }
 
     async fn readout_modes(&self) -> ASCOMResult<Vec<String>> {
-        Ok(vec!["Default".to_string()])
+        Ok(vec!["Default".to_owned()])
     }
 
-    async fn sensor_type(&self) -> ascom_alpaca::ASCOMResult<SensorType> {
+    async fn sensor_type(&self) -> ASCOMResult<SensorType> {
         Ok(SensorType::Color)
     }
 
@@ -405,11 +416,13 @@ impl Camera for Webcam {
         if duration < 0. {
             return Err(ASCOMError::invalid_value("Duration must be non-negative"));
         }
-        let exposing_state = self.exposing.clone();
+        let exposing_state = Arc::clone(&self.exposing);
         let mut exposing_state_lock = exposing_state.write_arc();
         let camera = match &*exposing_state_lock {
-            ExposingState::Idle { camera, .. } => camera.clone(),
-            _ => return Err(ASCOMError::invalid_operation("Camera is already exposing")),
+            ExposingState::Idle { camera, .. } => Arc::clone(camera),
+            ExposingState::Exposing { .. } => {
+                return Err(ASCOMError::invalid_operation("Camera is already exposing"))
+            }
         };
         let subframe = self.subframe.read().clone();
         let subframe_end_offset = subframe.offset + subframe.size;
@@ -421,7 +434,8 @@ impl Camera for Webcam {
         resolution.width_x /= subframe.bin.x as u32;
         resolution.height_y /= subframe.bin.y as u32;
         let size = Size::from(resolution);
-        if subframe.offset < Point::default() || subframe.offset + subframe.size > Point::from(size)
+        if subframe.offset < Point::default()
+            || subframe.offset + subframe.size > Point::default() + size
         {
             return Err(ASCOMError::invalid_value("Subframe is out of bounds"));
         }
@@ -441,9 +455,8 @@ impl Camera for Webcam {
             })?;
             camera_lock.open_stream().map_err(convert_err)?;
         }
-        let last_exposure_duration = self.last_exposure_duration.clone();
+        let last_exposure_duration = Arc::clone(&self.last_exposure_duration);
         let (stop_tx, stop_rx) = oneshot::channel::<StopExposure>();
-        let (done_tx, done_rx) = watch::channel(false);
         // Run long blocking exposing operation on a dedicated I/O thread.
         let (frames_tx, mut frames_rx) =
             mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
@@ -465,15 +478,12 @@ impl Camera for Webcam {
             }
         });
 
-        task::spawn(async move {
+        let task = task::spawn(async move {
             let mut stacked_buffer =
                 Array3::<u16>::zeros((subframe.size.y as usize, subframe.size.x as usize, 3));
             // Watches `stop` channel and the actual exposure for whichever ends the exposure first.
             let stop_res = tokio::select! {
-                stop_res = stop_rx => match stop_res {
-                    Ok(stop) => Ok(stop),
-                    Err(_) => Err(ERR_EXPOSING_STATE_CHANGED_UNEXPECTEDLY),
-                },
+                stop_res = stop_rx => stop_res.map_err(|_err| ERR_EXPOSING_STATE_CHANGED_UNEXPECTEDLY),
                 stop_res = async {
                     let mut single_frame_buffer = Array3::<u8>::zeros((size.y as usize, size.x as usize, 3));
                     while let Some(frame_res) = frames_rx.recv().await {
@@ -510,14 +520,13 @@ impl Camera for Webcam {
                 }),
             };
             *last_exposure_duration.write() = Some(frame_reader_task.await.unwrap());
-            let _ = done_tx.send(true);
         });
 
         *exposing_state_lock = ExposingState::Exposing {
             start,
             expected_duration: duration,
             stop_tx: Some(stop_tx),
-            done_rx,
+            done: task.map(|res| res.is_ok()).boxed().shared(),
         };
 
         Ok(())
@@ -612,11 +621,11 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
         max_format: format,
         valid_bins,
         exposing: Arc::new(RwLock::new(ExposingState::Idle {
-            camera: Arc::new(parking_lot::Mutex::new(camera)),
+            camera: Arc::new(Mutex::new(camera)),
             image: None,
         })),
-        last_exposure_start_time: Default::default(),
-        last_exposure_duration: Default::default(),
+        last_exposure_start_time: RwLock::default(),
+        last_exposure_duration: Arc::default(),
     })
 }
 
@@ -629,7 +638,11 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
         // Ideally this would be *just* oneshot but can't be due to https://github.com/l1npengtul/nokhwa/issues/109.
         let init_tx = Mutex::new(Some(init_tx));
         nokhwa_initialize(move |status| {
-            init_tx.lock().take().unwrap().send(status).unwrap();
+            _ = init_tx
+                .lock()
+                .take()
+                .expect("this is semantically oneshot and must never fail")
+                .send(status);
         });
         eyre::ensure!(init_rx.await?, "User did not grant camera access");
     }

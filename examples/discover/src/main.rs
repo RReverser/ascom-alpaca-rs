@@ -1,3 +1,5 @@
+//! A simple discovery example listing all the found servers and devices.
+
 use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
 use futures::{StreamExt, TryStreamExt};
@@ -8,7 +10,7 @@ async fn main() -> eyre::Result<()> {
 
     println!("Searching...");
 
-    DiscoveryClient::new()
+    DiscoveryClient::default()
         .bind()
         .await?
         .discover_addrs()

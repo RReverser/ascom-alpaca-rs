@@ -3,12 +3,16 @@ name = "camera-server"
 edition = "2021"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 ascom-alpaca = { path = "../..", features = ["server", "camera"] }
 
 async-trait = { workspace = true }
 derive_more = { workspace = true, features = ["debug", "add"] }
 eyre = { workspace = true }
+futures = { workspace = true }
 ndarray = { workspace = true, features = ["rayon"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing = { workspace = true }
