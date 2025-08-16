@@ -270,7 +270,7 @@ impl Server {
 
                 axum::routing::get(|| async move {
                     #[derive(TemplateOnce)]
-                    #[template(path = "setup_template.html")]
+                    #[template(path = "setup_template.stpl")]
                     struct TemplateContext {
                         server_info: Arc<ServerInfo>,
                         grouped_devices: BTreeMap<DeviceType, Vec<(usize, String)>>,
