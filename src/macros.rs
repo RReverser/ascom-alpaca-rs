@@ -247,7 +247,7 @@ macro_rules! rpc_trait {
 
         #[cfg(feature = "server")]
         impl Action {
-            pub(super) async fn handle(self, device: &(impl ?Sized + $trait_name)) -> ASCOMResult<Response> {
+            pub(super) async fn handle(self, device: &dyn $trait_name) -> ASCOMResult<Response> {
                 match self {
                     $(
                         Self::$method_name { $($param),* } => {
@@ -483,6 +483,22 @@ macro_rules! rpc_mod {
 
         #[cfg(feature = "server")]
         impl Devices {
+            pub(crate) fn get_device_for_server(
+                &self,
+                device_type: DeviceType,
+                device_number: usize,
+            ) -> $crate::server::Result<&dyn Device> {
+                // With trait upcasting, we can get any device as dyn Device directly
+                Ok(match device_type {
+                    $(
+                        #[cfg(feature = $path)]
+                        DeviceType::$trait_name => {
+                            self.get_for_server::<dyn $trait_name>(device_number)?
+                        }
+                    )*
+                })
+            }
+
             pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
                 let action = TypedDeviceAction::from_parts(device_type, action, params)?;
 
@@ -494,22 +510,11 @@ macro_rules! rpc_mod {
                             TypedResponse::$trait_name(action.handle(device).await?)
                         }
                     )*
-                    TypedDeviceAction::Device(action) => TypedResponse::Device(match device_type {
-                        $(
-                            #[cfg(feature = $path)]
-                            DeviceType::$trait_name => action.handle(self.get_for_server::<dyn $trait_name>(device_number)?).await,
-                        )*
-                    }?)
+                    TypedDeviceAction::Device(action) => {
+                        let device = self.get_device_for_server(device_type, device_number)?;
+                        TypedResponse::Device(action.handle(device).await?)
+                    }
                 })
-            }
-
-            pub(crate) async fn get_setup_html(&self, device_type: DeviceType, device_number: usize) -> eyre::Result<String> {
-                match device_type {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name => self.get_for_server::<dyn $trait_name>(device_number)?.setup().await,
-                    )*
-                }
             }
         }
     });

@@ -21,7 +21,7 @@ use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::Devices;
 use axum::extract::{FromRequest, Path, Request};
-use axum::response::IntoResponse;
+use axum::response::{Html, IntoResponse};
 use axum::Router;
 use futures::future::{BoxFuture, Future, FutureExt};
 use net_literals::addr;
@@ -31,6 +31,7 @@ use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::Instrument;
+use http::StatusCode;
 
 /// The Alpaca server.
 #[derive(Debug)]
@@ -73,19 +74,13 @@ impl<S: Send + Sync> FromRequest<S> for ServerHandler {
 }
 
 impl ServerHandler {
-    async fn exec<RespFut: Future + Send>(
+    async fn exec<Output, RespFut: Future<Output = Output>>(
         mut self,
-        make_response: impl FnOnce(ActionParams) -> RespFut + Send,
-    ) -> axum::response::Response
-    where
-        ResponseWithTransaction<RespFut::Output>: IntoResponse,
+        make_response: impl FnOnce(ActionParams) -> RespFut,
+    ) -> axum::response::Result<axum::response::Response>
+    where ResponseWithTransaction<Output>: IntoResponse
     {
-        let request_transaction = match RequestTransaction::extract(&mut self.params) {
-            Ok(transaction) => transaction,
-            Err(err) => {
-                return (http::StatusCode::BAD_REQUEST, format!("{err:#}")).into_response();
-            }
-        };
+        let request_transaction = RequestTransaction::extract(&mut self.params)?;
         let response_transaction =
             ResponseTransaction::new(request_transaction.client_transaction_id);
 
@@ -97,17 +92,19 @@ impl ServerHandler {
             server_transaction_id = response_transaction.server_transaction_id,
         );
 
-        async move {
-            tracing::debug!(params = ?self.params, "Received request");
+        Ok(
+            async move {
+                tracing::debug!(params = ?self.params, "Received request");
 
-            ResponseWithTransaction {
-                transaction: response_transaction,
-                response: make_response(self.params).await,
+                ResponseWithTransaction {
+                    transaction: response_transaction,
+                    response: make_response(self.params).await,
+                }
             }
-        }
-        .instrument(span)
-        .await
-        .into_response()
+            .instrument(span)
+            .await
+            .into_response()
+        )
     }
 }
 
@@ -283,10 +280,10 @@ impl Server {
                     }
 
                     match ctx.render_once() {
-                        Ok(html) => Ok(axum::response::Html(html)),
+                        Ok(html) => Ok(Html(html)),
                         Err(err) => {
                             tracing::error!(%err, "Failed to render setup page");
-                            Err((http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
+                            Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{err:#}")))
                         }
                     }
                 })
@@ -331,15 +328,10 @@ impl Server {
 
                         // Setup endpoint is not an ASCOM method, so doesn't need the transaction and ASCOMResult wrapping.
                         if action == "setup" {
-                            let result = devices.get_setup_html(device_type, device_number).await;
-                            let result = match result {
-                                Ok(html) => Ok(axum::response::Html(html)),
-                                Err(err) => Err((
-                                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                                    format!("{err:#}"),
-                                )),
+                            return match devices.get_device_for_server(device_type, device_number)?.setup().await {
+                                Ok(html) => Ok(Html(html).into_response()),
+                                Err(err) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{err:#}")).into())
                             };
-                            return result.into_response();
                         }
 
                         server_handler

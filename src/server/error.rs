@@ -1,5 +1,7 @@
 use crate::api::DeviceType;
 use crate::ASCOMError;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -21,6 +23,17 @@ pub(crate) enum Error {
     },
     #[error(transparent)]
     Ascom(#[from] ASCOMError),
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        let code = match self {
+            Error::UnknownDeviceIndex { .. } | Error::UnknownAction { .. } => StatusCode::NOT_FOUND,
+            Error::MissingParameter { .. } | Error::BadParameter { .. } => StatusCode::BAD_REQUEST,
+            Error::Ascom(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        (code, format!("{self:#}")).into_response()
+    }
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
