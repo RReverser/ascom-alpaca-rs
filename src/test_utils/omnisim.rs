@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 /// This is helpful for client integration tests that require the simulators to be running.
 ///
 /// You can retrieve the device clients exposed by the simulators via the [`devices`](`Self::devices`) method.
-#[derive(custom_debug::Debug)]
+#[derive(derive_more::Debug)]
 pub struct OmniSim {
     #[debug(skip)]
     _server: Child,

@@ -108,7 +108,7 @@ impl ServerHandler {
 }
 
 /// Alpaca servers bound to their respective ports and ready to listen.
-#[derive(custom_debug::Debug)]
+#[derive(derive_more::Debug)]
 pub struct BoundServer {
     // Axum types are a bit complicated, so just Box it for now.
     #[debug(skip)]

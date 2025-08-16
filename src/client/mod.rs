@@ -53,9 +53,9 @@ pub(crate) static REQWEST: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .expect("failed to create reqwest client")
 });
 
-#[derive(Clone, custom_debug::Debug)]
+#[derive(Clone, derive_more::Debug)]
 pub(crate) struct RawClient {
-    #[debug(format = r#""{}""#)]
+    #[debug(r#""{base_url}""#)]
     pub(crate) base_url: reqwest::Url,
     pub(crate) client_id: NonZeroU32,
 }

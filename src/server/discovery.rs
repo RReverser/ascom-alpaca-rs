@@ -81,7 +81,7 @@ impl Server {
 /// Alpaca discovery server bound to a local socket.
 ///
 /// This struct is returned by [`Server::bind`].
-#[derive(custom_debug::Debug)]
+#[derive(derive_more::Debug)]
 pub struct BoundServer {
     socket: UdpSocket,
     #[debug(skip)]

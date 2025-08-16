@@ -113,7 +113,7 @@ enum ExposingState {
     },
 }
 
-#[derive(custom_debug::Debug)]
+#[derive(derive_more::Debug)]
 struct Webcam {
     unique_id: String,
     name: String,
