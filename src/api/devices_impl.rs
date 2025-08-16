@@ -26,6 +26,13 @@ pub(crate) trait RegistrableDevice<DynTrait: ?Sized>: Debug {
     fn add_to(self, storage: &mut Devices);
 }
 
+impl Default for Devices {
+    fn default() -> Self {
+        // Invoke the inherent const implementation.
+        Self::default()
+    }
+}
+
 // we use internal interfaces to get type inference magic to work with polymorphic device types
 #[allow(private_bounds)]
 impl Devices {

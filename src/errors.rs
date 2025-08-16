@@ -12,7 +12,7 @@ const DRIVER_BASE: u16 = 0x500;
 const MAX: u16 = 0xFFF;
 
 /// Alpaca representation of an ASCOM error code.
-#[derive(Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
 #[display("{self:?}")]
 #[serde(transparent)]
 pub struct ASCOMErrorCode(u16);

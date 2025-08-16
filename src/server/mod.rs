@@ -49,7 +49,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub const fn new() -> Self {
+    pub const fn default() -> Self {
         Self {
             devices: Devices::default(),
             info: CargoServerInfo!(),
@@ -61,7 +61,8 @@ impl Server {
 
 impl Default for Server {
     fn default() -> Self {
-        Self::new()
+        // Invoke the inherent const implementation.
+        Self::default()
     }
 }
 

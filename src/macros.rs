@@ -407,7 +407,7 @@ macro_rules! rpc_mod {
         /// This data structure holds devices of arbitrary categories (cameras, telescopes, etc.)
         /// and allows to register and access them by their kind and index.
         #[allow(non_snake_case)]
-        #[derive(Clone, Default)]
+        #[derive(Clone)]
         pub struct Devices {
             $(
                 #[cfg(feature = $path)]
@@ -429,7 +429,7 @@ macro_rules! rpc_mod {
         }
 
         impl Devices {
-            pub const fn new() -> Self {
+            pub const fn default() -> Self {
                 Self {
                     $(
                         #[cfg(feature = $path)]

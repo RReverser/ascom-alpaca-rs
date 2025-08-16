@@ -156,7 +156,7 @@ impl BoundClient {
 
 impl Client {
     /// Create a discovery client with default settings.
-    pub const fn new() -> Self {
+    pub const fn default() -> Self {
         Self {
             num_requests: 2,
             timeout: Duration::from_secs(1),
@@ -181,6 +181,7 @@ impl Client {
 
 impl Default for Client {
     fn default() -> Self {
-        Self::new()
+        // Invoke the inherent const implementation.
+        Self::default()
     }
 }
