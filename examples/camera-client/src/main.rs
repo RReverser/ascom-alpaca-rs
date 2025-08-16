@@ -95,7 +95,7 @@ impl StateCtx {
                     let discovery_client = match &mut *discovery_client {
                         Some(discovery_client) => discovery_client,
                         None => {
-                            *discovery_client = Some(DiscoveryClient::new().bind().await?);
+                            *discovery_client = Some(DiscoveryClient::default().bind().await?);
                             discovery_client.as_mut().unwrap()
                         }
                     };

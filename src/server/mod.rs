@@ -49,6 +49,9 @@ pub struct Server {
 }
 
 impl Server {
+    /// Create a server with default configuration.
+    ///
+    /// Same as [`Default::default`] but works in const contexts.
     pub const fn default() -> Self {
         Self {
             devices: Devices::default(),

@@ -41,7 +41,6 @@ pub use omnisim::OmniSim;
 #[cfg(test)]
 impl ConformU {
     pub(crate) async fn run_proxy_test(self, ty: crate::api::DeviceType) -> eyre::Result<()> {
-        use crate::api::DevicePath;
         use crate::Server;
         use net_literals::addr;
 
@@ -60,10 +59,7 @@ impl ConformU {
 
         let proxy_task = proxy.start();
 
-        let device_url = format!(
-            "http://{listen_addr}/api/v1/{device_path}/0",
-            device_path = DevicePath(ty)
-        );
+        let device_url = format!("http://{listen_addr}/api/v1/{ty}/0");
 
         let tests_task = self.run(&device_url);
 

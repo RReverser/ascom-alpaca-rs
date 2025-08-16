@@ -48,15 +48,6 @@ impl From<Resolution> for Size {
     }
 }
 
-impl From<Size> for Point {
-    fn from(size: Size) -> Self {
-        Self {
-            x: size.x,
-            y: size.y,
-        }
-    }
-}
-
 impl std::ops::Add<Size> for Point {
     type Output = Self;
 

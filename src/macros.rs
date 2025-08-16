@@ -429,6 +429,9 @@ macro_rules! rpc_mod {
         }
 
         impl Devices {
+            /// Create an empty collection of devices.
+            ///
+            /// Same as [`Default::default`] but works in const contexts.
             pub const fn default() -> Self {
                 Self {
                     $(
