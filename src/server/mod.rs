@@ -62,7 +62,6 @@ struct ServerHandler {
     params: ActionParams,
 }
 
-#[async_trait::async_trait]
 impl<S: Send + Sync> FromRequest<S> for ServerHandler {
     type Rejection = axum::response::Response;
 

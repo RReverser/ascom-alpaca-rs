@@ -1,11 +1,10 @@
 {
-	"rust-analyzer.cargo.features": [
-		"all-devices",
-		"client",
-		"server",
-		"test",
-		"criterion",
-	],
-	"rust-analyzer.check.workspace": false,
-	"editor.formatOnSave": true
+  "rust-analyzer.cargo.features": [
+    "all-devices",
+    "client",
+    "server",
+    "test",
+    "criterion"
+  ],
+  "rust-analyzer.check.workspace": true
 }

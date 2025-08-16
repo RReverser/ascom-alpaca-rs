@@ -77,7 +77,6 @@ impl ActionParams {
     }
 }
 
-#[async_trait::async_trait]
 impl<S: Send + Sync> FromRequest<S> for ActionParams {
     type Rejection = axum::response::Response;
 

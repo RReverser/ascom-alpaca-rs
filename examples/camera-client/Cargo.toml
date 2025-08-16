@@ -13,4 +13,4 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 bayer = "0.1.5"
-eframe = "0.28.1"
+eframe = "0.32.1"

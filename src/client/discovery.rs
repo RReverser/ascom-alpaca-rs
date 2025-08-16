@@ -6,7 +6,7 @@ use crate::discovery::{
 use futures::StreamExt;
 use netdev::interface::InterfaceType;
 use netdev::Interface;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tracing_futures::Instrument;
@@ -64,7 +64,7 @@ impl BoundClient {
     async fn send_discovery_msgs(&self) {
         for intf in &self.interfaces {
             for net in &intf.ipv4 {
-                let broadcast = Ipv4Addr::from(u32::from(net.addr) | !u32::from(net.netmask));
+                let broadcast = net.addr() | !net.netmask();
 
                 self.send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
                     .await;

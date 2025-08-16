@@ -35,7 +35,7 @@ fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
     } else {
         // If it's a specific address, find corresponding interface and join multicast on it.
         let intf = get_active_interfaces()
-            .find(|intf| intf.ipv6.iter().any(|net| net.addr == listen_addr))
+            .find(|intf| intf.ipv6.iter().any(|net| net.addr() == listen_addr))
             .expect("internal error: couldn't find the interface of an already bound socket");
 
         join_multicast_group(socket, &intf);

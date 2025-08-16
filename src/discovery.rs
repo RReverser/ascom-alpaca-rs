@@ -114,14 +114,14 @@ mod tests {
             v4: intf
                 .ipv4
                 .into_iter()
-                .map(|net| net.addr)
+                .map(|net| net.addr())
                 .find(Ipv4Addr::is_private)
                 .expect("no private IPv4 address"),
 
             v6: intf
                 .ipv6
                 .into_iter()
-                .map(|net| net.addr)
+                .map(|net| net.addr())
                 .find(is_unicast_link_local)
                 .expect("no unique local IPv6 address"),
         }

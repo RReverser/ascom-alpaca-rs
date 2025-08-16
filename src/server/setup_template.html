@@ -3,7 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title><%= server_info.server_name %></title>
+    <title><%= self.server_info.server_name %></title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -61,11 +61,11 @@
   <body>
     <h2>Registered devices</h2>
 
-    <% if grouped_devices.is_empty() { %>
+    <% if self.grouped_devices.is_empty() { %>
       <p>No devices are registered on this server.</p>
     <% } %>
 
-    <% #[cfg(feature = "__anydevice")] for (group_ty, group) in grouped_devices { %>
+    <% #[cfg(feature = "__anydevice")] for (group_ty, group) in self.grouped_devices { %>
     <figure>
       <figcaption>
         <%= match group_ty {
@@ -102,8 +102,8 @@
     <footer>
       <p>
         This is an <a href="https://ascom-standards.org/AlpacaDeveloper/Index.htm">ASCOM Alpaca</a> server
-        <%= server_info.server_name %> v<%= server_info.manufacturer_version %>
-        by <%= server_info.manufacturer %>.
+        <%= self.server_info.server_name %> v<%= self.server_info.manufacturer_version %>
+        by <%= self.server_info.manufacturer %>.
       </p>
       <p>Built with <a href="https://github.com/RReverser/ascom-alpaca-rs">ascom-alpaca-rs</a>.</p>
     </footer>
