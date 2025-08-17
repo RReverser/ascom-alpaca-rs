@@ -14,7 +14,8 @@ pub(crate) struct ConfiguredDevice<DeviceType> {
 }
 
 /// General information about the server.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, derive_more::Display)]
+#[display("{server_name} v{manufacturer_version} by {manufacturer}")]
 #[serde(rename_all = "PascalCase")]
 pub struct ServerInfo {
     /// Server name.

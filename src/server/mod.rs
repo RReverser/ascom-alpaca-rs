@@ -1,20 +1,23 @@
 use crate::api::DevicePath;
 
+mod case_insensitive_str;
+
 mod discovery;
 pub use discovery::{BoundServer as BoundDiscoveryServer, Server as DiscoveryServer};
 
-mod transaction;
-pub(crate) use transaction::*;
-
-mod case_insensitive_str;
+mod error;
+pub(crate) use error::{Error, Result};
 
 mod params;
 pub(crate) use params::ActionParams;
 
 mod response;
 
-mod error;
-pub(crate) use error::{Error, Result};
+#[macro_use]
+mod setup_page;
+
+mod transaction;
+pub(crate) use transaction::*;
 
 #[cfg(feature = "camera")]
 use crate::api::Camera;
@@ -28,7 +31,6 @@ use axum::{routing, Router};
 use futures::future::{BoxFuture, Future, FutureExt};
 use http::StatusCode;
 use net_literals::addr;
-use sailfish::TemplateOnce;
 use serde::Deserialize;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::BTreeMap;
@@ -267,34 +269,22 @@ impl Server {
                 let server_info = Arc::clone(&server_info);
 
                 routing::get(|| async move {
-                    #[derive(TemplateOnce)]
-                    #[template(path = "setup_template.stpl")]
-                    struct TemplateContext {
-                        server_info: Arc<ServerInfo>,
-                        grouped_devices: BTreeMap<DeviceType, Vec<(usize, String)>>,
-                    }
-
-                    let mut ctx = TemplateContext {
-                        server_info: Arc::clone(&server_info),
+                    let mut setup_page = setup_page::SetupPage {
+                        server_info: &server_info,
                         grouped_devices: BTreeMap::new(),
                     };
 
                     for (device, number) in this.iter_all() {
                         let device = device.to_configured_device(number);
 
-                        ctx.grouped_devices
+                        setup_page
+                            .grouped_devices
                             .entry(device.ty)
                             .or_default()
                             .push((number, device.name));
                     }
 
-                    match ctx.render_once() {
-                        Ok(html) => Ok(Html(html)),
-                        Err(err) => {
-                            tracing::error!(%err, "Failed to render setup page");
-                            Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{err:#}")))
-                        }
-                    }
+                    Html(setup_page.to_string())
                 })
             })
             .route(
