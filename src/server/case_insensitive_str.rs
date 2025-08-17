@@ -14,15 +14,9 @@ impl AsRef<CaseInsensitiveStr> for str {
     }
 }
 
-impl From<Box<str>> for Box<CaseInsensitiveStr> {
-    fn from(s: Box<str>) -> Self {
-        TransparentWrapperAlloc::wrap_box(s)
-    }
-}
-
 impl<'de> Deserialize<'de> for Box<CaseInsensitiveStr> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        <Box<str>>::deserialize(deserializer).map(Into::into)
+        Box::deserialize(deserializer).map(TransparentWrapperAlloc::wrap_box)
     }
 }
 
