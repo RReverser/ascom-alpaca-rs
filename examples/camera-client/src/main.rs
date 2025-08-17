@@ -24,6 +24,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
+type ChildTask = tokio_util::task::AbortOnDropHandle<State>;
+
 enum State {
     Init,
     Discovering(ChildTask),
@@ -54,14 +56,6 @@ enum GainMode {
     None,
 }
 
-struct ChildTask(JoinHandle<State>);
-
-impl Drop for ChildTask {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
-
 fn if_implemented<T>(res: ASCOMResult<T>) -> ASCOMResult<Option<T>> {
     match res {
         Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => Ok(None),
@@ -87,7 +81,7 @@ impl StateCtx {
         update: impl Future<Output = eyre::Result<State>> + Send + 'static,
     ) {
         let ctx = self.ctx.clone();
-        self.set_state(as_new_state(ChildTask(tokio::spawn(async move {
+        self.set_state(as_new_state(ChildTask::new(tokio::spawn(async move {
             let result = update.await;
             ctx.request_repaint();
             result.unwrap_or_else(State::from)
@@ -126,7 +120,7 @@ impl StateCtx {
                     Ok::<_, eyre::Error>(State::Discovered(cameras))
                 });
             }
-            State::Discovering(ChildTask(task)) => {
+            State::Discovering(task) => {
                 ui.label("Discovering cameras...");
                 if let Some(new_state) = task.now_or_never() {
                     self.set_state(new_state?);
@@ -233,7 +227,7 @@ impl StateCtx {
                     self.set_state(State::Init);
                 }
             }
-            State::Connecting(ChildTask(task)) => {
+            State::Connecting(task) => {
                 ui.label("Connecting to camera...");
                 if let Some(new_state) = task.now_or_never() {
                     self.set_state(new_state?);
