@@ -260,6 +260,7 @@ dependencies = [
  "criterion",
  "ctor",
  "derive_more",
+ "dtor",
  "eyre",
  "futures",
  "http",

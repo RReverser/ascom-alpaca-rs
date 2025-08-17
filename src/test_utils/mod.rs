@@ -39,7 +39,7 @@ pub use conformu::ConformU;
 #[cfg(feature = "client")]
 mod omnisim;
 #[cfg(feature = "client")]
-pub use omnisim::OmniSim;
+pub use omnisim::get_devices as get_omnisim_devices;
 
 #[cfg(test)]
 impl ConformU {
@@ -47,10 +47,8 @@ impl ConformU {
         use crate::Server;
         use net_literals::addr;
 
-        let env = OmniSim::acquire().await?;
-
         let proxy = Server {
-            devices: env.devices().clone(),
+            devices: get_omnisim_devices().await?.clone(),
             listen_addr: addr!("127.0.0.1:0"),
             ..Default::default()
         };
