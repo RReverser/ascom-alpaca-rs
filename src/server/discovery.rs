@@ -59,7 +59,7 @@ impl Server {
     /// Binds the discovery server to the specified address and port.
     #[tracing::instrument(level = "error")]
     pub async fn bind(self) -> eyre::Result<BoundServer> {
-        let mut socket = bind_socket(self.listen_addr).await?;
+        let mut socket = bind_socket(self.listen_addr)?;
         if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
             // Both netdev::get_interfaces and join_multicast_group can take a long time.
             // Spawn them all off to the async runtime.

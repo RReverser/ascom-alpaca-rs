@@ -9,8 +9,10 @@ use bytemuck::PodCastError;
 use mime::Mime;
 use ndarray::{Array2, Array3};
 use num_enum::TryFromPrimitive;
-use serde::de::{DeserializeOwned, IgnoredAny, Visitor};
+use serde::de::{DeserializeOwned, IgnoredAny, MapAccess, Visitor};
 use serde::Deserialize;
+use serde_ndim::de::MakeNDim;
+use std::fmt::{self, Formatter};
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy)]
 #[serde(field_identifier)]
@@ -22,10 +24,7 @@ enum KnownKey {
     Other,
 }
 
-fn expect_key<'de, A: serde::de::MapAccess<'de>>(
-    map: &mut A,
-    expected_key: KnownKey,
-) -> Result<(), A::Error> {
+fn expect_key<'de, A: MapAccess<'de>>(map: &mut A, expected_key: KnownKey) -> Result<(), A::Error> {
     loop {
         return match map.next_key::<KnownKey>()? {
             Some(KnownKey::Other) => {
@@ -42,21 +41,18 @@ fn expect_key<'de, A: serde::de::MapAccess<'de>>(
 
 #[derive(Deserialize)]
 #[serde(transparent)]
-struct ResponseData<A>(#[serde(with = "serde_ndim")] A)
-where
-    A: serde_ndim::de::MakeNDim,
-    A::Item: DeserializeOwned;
+struct ResponseData<A: MakeNDim<Item: DeserializeOwned>>(#[serde(with = "serde_ndim")] A);
 
 struct ResponseVisitor;
 
 impl<'de> Visitor<'de> for ResponseVisitor {
     type Value = ImageArray;
 
-    fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn expecting(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
         fmt.write_str("a map")
     }
 
-    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         expect_key(&mut map, KnownKey::Type)?;
         let ImageElementType::I32 = map.next_value::<ImageElementType>()?;
 

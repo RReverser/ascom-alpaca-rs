@@ -8,21 +8,24 @@
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss,
     clippy::default_numeric_fallback,
-    clippy::too_many_lines,
+    clippy::too_many_lines
 )]
 
 use ascom_alpaca::api::{Camera, ImageArray, SensorType as AlpacaSensorType, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult};
-use eframe::egui::{self, TextureOptions, Ui};
+use bayer::{demosaic, BayerDepth, RasterDepth, RasterMut, CFA};
+use eframe::egui::{self, CentralPanel, ComboBox, Slider, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle};
-use eyre::Context;
+use eyre::{Context, Result};
 use futures::{Future, FutureExt, StreamExt, TryFutureExt};
 use std::collections::HashSet;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 
 type ChildTask = tokio_util::task::AbortOnDropHandle<State>;
 
@@ -33,12 +36,12 @@ enum State {
     Connecting(ChildTask),
     Connected {
         camera_name: String,
-        rx: tokio::sync::mpsc::Receiver<eyre::Result<ColorImage>>,
+        rx: mpsc::Receiver<Result<ColorImage>>,
         frame_num: u32,
         img: Option<TextureHandle>,
         exposure_range: RangeInclusive<f64>,
         gain_mode: GainMode,
-        params_tx: tokio::sync::watch::Sender<CaptureParams>,
+        params_tx: watch::Sender<CaptureParams>,
         image_loop: JoinHandle<()>, /* not `ChildTask` because it has its own cancellation mechanism */
     },
     Error(String),
@@ -78,7 +81,7 @@ impl StateCtx {
     fn spawn(
         &mut self,
         as_new_state: impl FnOnce(ChildTask) -> State,
-        update: impl Future<Output = eyre::Result<State>> + Send + 'static,
+        update: impl Future<Output = Result<State>> + Send + 'static,
     ) {
         let ctx = self.ctx.clone();
         self.set_state(as_new_state(ChildTask::new(tokio::spawn(async move {
@@ -89,7 +92,7 @@ impl StateCtx {
     }
 
     #[expect(unused_results)] // lots of these for eframe::egui::Response which we don't care about
-    fn try_update(&mut self, ui: &mut Ui) -> eyre::Result<()> {
+    fn try_update(&mut self, ui: &mut Ui) -> Result<()> {
         match &mut self.state {
             State::Init => {
                 let discovery_client = Arc::clone(&self.discovery_client);
@@ -99,9 +102,7 @@ impl StateCtx {
 
                     let discovery_client = match &mut *discovery_client {
                         Some(discovery_client) => discovery_client,
-                        None => {
-                            discovery_client.insert(DiscoveryClient::default().bind().await?)
-                        }
+                        None => discovery_client.insert(DiscoveryClient::default().bind().await?),
                     };
 
                     let cameras = discovery_client
@@ -138,7 +139,7 @@ impl StateCtx {
                     self.spawn(State::Connecting, async move {
                         camera.connect().await?;
                         while !camera.connected().await? {
-                            tokio::time::sleep(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(100)).await;
                         }
                         let (
                             camera_name,
@@ -167,10 +168,10 @@ impl StateCtx {
                                             camera.bayer_offset_y()
                                         )?;
                                         SensorType::Bayer(match (offset_x, offset_y) {
-                                            (0, 0) => bayer::CFA::RGGB,
-                                            (1, 0) => bayer::CFA::GRBG,
-                                            (0, 1) => bayer::CFA::GBRG,
-                                            (1, 1) => bayer::CFA::BGGR,
+                                            (0, 0) => CFA::RGGB,
+                                            (1, 0) => CFA::GRBG,
+                                            (0, 1) => CFA::GBRG,
+                                            (1, 1) => CFA::BGGR,
                                             _ => eyre::bail!("Invalid bayer offset: ({}, {})", offset_x, offset_y),
                                         })
                                     }
@@ -192,8 +193,8 @@ impl StateCtx {
                                 Ok((gain_mode, gain))
                             }
                         )?;
-                        let (tx, rx) = tokio::sync::mpsc::channel(1);
-                        let (params_tx, params_rx) = tokio::sync::watch::channel(CaptureParams {
+                        let (tx, rx) = mpsc::channel(1);
+                        let (params_tx, params_rx) = watch::channel(CaptureParams {
                             duration_sec: 0.05,
                             gain,
                             dynamic_stretch: true
@@ -248,13 +249,13 @@ impl StateCtx {
                 params_tx.send_if_modified(|params| {
                     let exposure_changed = ui
                         .add(
-                            egui::Slider::new(&mut params.duration_sec, exposure_range.clone())
+                            Slider::new(&mut params.duration_sec, exposure_range.clone())
                                 .logarithmic(true)
                                 .text("Exposure (sec)"),
                         )
                         .changed();
                     let gain_changed = match gain_mode {
-                        GainMode::List(values) => egui::ComboBox::from_label("Gain")
+                        GainMode::List(values) => ComboBox::from_label("Gain")
                             .selected_text(&values[params.gain as usize])
                             .show_ui(ui, |ui| {
                                 values.iter().enumerate().any(|(i, value)| {
@@ -265,7 +266,7 @@ impl StateCtx {
                             .inner
                             .unwrap_or(false),
                         GainMode::Range(range) => ui
-                            .add(egui::Slider::new(&mut params.gain, range.clone()).text("Gain"))
+                            .add(Slider::new(&mut params.gain, range.clone()).text("Gain"))
                             .changed(),
                         GainMode::None => false,
                     };
@@ -315,12 +316,12 @@ struct CaptureParams {
 enum SensorType {
     Monochrome,
     Color,
-    Bayer(bayer::CFA),
+    Bayer(CFA),
 }
 
 struct CaptureState {
-    params_rx: tokio::sync::watch::Receiver<CaptureParams>,
-    tx: tokio::sync::mpsc::Sender<eyre::Result<ColorImage>>,
+    params_rx: watch::Receiver<CaptureParams>,
+    tx: mpsc::Sender<Result<ColorImage>>,
     camera: Arc<dyn Camera>,
     sensor_type: SensorType,
     ctx: egui::Context,
@@ -344,7 +345,7 @@ impl CaptureState {
         }
     }
 
-    async fn capture_image(&mut self) -> eyre::Result<Option<ColorImage>> {
+    async fn capture_image(&mut self) -> Result<Option<ColorImage>> {
         let gain = self.params_rx.borrow_and_update().gain;
         if gain != self.stored_gain {
             self.camera.set_gain(gain).await?;
@@ -376,9 +377,9 @@ impl CaptureState {
         self.camera
             .start_exposure(params.duration_sec, true)
             .await?;
-        tokio::time::sleep(Duration::from_secs_f64(params.duration_sec)).await;
+        sleep(Duration::from_secs_f64(params.duration_sec)).await;
         while !self.camera.image_ready().await? {
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            sleep(Duration::from_millis(100)).await;
         }
         let raw_img = self.camera.image_array().await?;
         to_stretched_color_img(
@@ -455,11 +456,11 @@ fn to_stretched_color_img(
 
             let mut rgb_buf = vec![0; width * height * 3];
 
-            bayer::demosaic::linear::run(
+            demosaic::linear::run(
                 &mut ReadIter(stretched_iter),
-                bayer::BayerDepth::Depth8,
+                BayerDepth::Depth8,
                 *cfa,
-                &mut bayer::RasterMut::new(width, height, bayer::RasterDepth::Depth8, &mut rgb_buf),
+                &mut RasterMut::new(width, height, RasterDepth::Depth8, &mut rgb_buf),
             )?;
 
             rgb_buf
@@ -470,7 +471,7 @@ fn to_stretched_color_img(
 
 impl eframe::App for StateCtx {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        _ = egui::CentralPanel::default().show(ctx, |ui| {
+        _ = CentralPanel::default().show(ctx, |ui| {
             if let Err(err) = self.try_update(ui) {
                 self.set_state(State::from(err));
             }

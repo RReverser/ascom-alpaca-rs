@@ -3,8 +3,10 @@ use net_literals::addr;
 use std::net::SocketAddr;
 use std::process::Stdio;
 use std::sync::{Arc, Weak};
+use tokio::net::TcpStream;
 use tokio::process::Child;
 use tokio::sync::Mutex;
+use tokio::time::sleep;
 
 /// A helper that manages [ASCOM Alpaca Simulators](https://github.com/ASCOMInitiative/ASCOM.Alpaca.Simulators).
 ///
@@ -36,12 +38,12 @@ impl OmniSim {
 
         tokio::select! {
             () = async {
-                while tokio::net::TcpStream::connect(ADDR).await.is_err() {
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                while TcpStream::connect(ADDR).await.is_err() {
+                    sleep(std::time::Duration::from_millis(100)).await;
                 }
             } => {}
             server_exited = server.wait() => eyre::bail!("Simulator process exited early: {}", server_exited?),
-            () = tokio::time::sleep(std::time::Duration::from_secs(10)) => eyre::bail!("Simulator process didn't start in time")
+            () = sleep(std::time::Duration::from_secs(10)) => eyre::bail!("Simulator process didn't start in time")
         }
 
         Ok(Self {

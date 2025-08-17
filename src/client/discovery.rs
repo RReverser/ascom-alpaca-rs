@@ -6,9 +6,12 @@ use crate::discovery::{
 use futures::StreamExt;
 use netdev::interface::InterfaceType;
 use netdev::Interface;
+use socket2::SockRef;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::task::spawn_blocking;
+use tokio::time::timeout;
 use tracing_futures::Instrument;
 
 /// Discovery client.
@@ -45,14 +48,13 @@ impl BoundClient {
     async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &Interface) {
         let send_op = async {
             if addr.is_multicast() {
-                socket2::SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
+                SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
             }
             // UDP packets are sent as whole messages, no need to check length.
-            let _ = self
-                .socket
+            self.socket
                 .send_to(DISCOVERY_MSG, (addr, self.client.discovery_port))
-                .await?;
-            Ok::<_, std::io::Error>(())
+                .await
+                .map(|_| ())
         };
         match send_op.await {
             Ok(()) => tracing::trace!("success"),
@@ -114,7 +116,7 @@ impl BoundClient {
                 self.send_discovery_msgs().await;
 
                 while let Ok(result) =
-                    tokio::time::timeout(self.client.timeout, self.recv_discovery_response()).await
+                    timeout(self.client.timeout, self.recv_discovery_response()).await
                 {
                     match result {
                         Ok(addr) if !self.seen.contains(&addr) => {
@@ -167,8 +169,8 @@ impl Client {
     /// Bind the client to a local address.
     #[tracing::instrument(level = "error")]
     pub async fn bind(self) -> eyre::Result<BoundClient> {
-        let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0)).await?;
-        let interfaces = tokio::task::spawn_blocking(|| get_active_interfaces().collect()).await?;
+        let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0).into())?;
+        let interfaces = spawn_blocking(|| get_active_interfaces().collect()).await?;
         Ok(BoundClient {
             client: self,
             socket,

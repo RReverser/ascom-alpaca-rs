@@ -6,10 +6,12 @@
     clippy::cast_possible_wrap,
     clippy::unwrap_used,
     clippy::default_numeric_fallback,
-    clippy::too_many_lines,
+    clippy::too_many_lines
 )]
 
-use ascom_alpaca::api::{Camera, CameraState, CargoServerInfo, Device, ImageArray, SensorType};
+use ascom_alpaca::api::{
+    Camera as AlpacaCamera, CameraState, CargoServerInfo, Device, ImageArray, SensorType,
+};
 use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Server};
 use async_trait::async_trait;
 use eyre::ContextCompat;
@@ -19,11 +21,12 @@ use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{
     CameraFormat, CameraInfo, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
 };
-use nokhwa::{nokhwa_initialize, NokhwaError};
+use nokhwa::{nokhwa_initialize, Camera, NokhwaError};
 use parking_lot::{Mutex, RwLock};
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
@@ -73,21 +76,17 @@ impl std::ops::Add<Size> for Point {
 
 // Define comparison as "is this point more bottom-right than the other?".
 impl Ord for Point {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         match (self.x.cmp(&other.x), self.y.cmp(&other.y)) {
-            (std::cmp::Ordering::Less, _) | (_, std::cmp::Ordering::Less) => {
-                std::cmp::Ordering::Less
-            }
-            (std::cmp::Ordering::Equal, std::cmp::Ordering::Equal) => std::cmp::Ordering::Equal,
-            (std::cmp::Ordering::Greater, _) | (_, std::cmp::Ordering::Greater) => {
-                std::cmp::Ordering::Greater
-            }
+            (Ordering::Less, _) | (_, Ordering::Less) => Ordering::Less,
+            (Ordering::Equal, Ordering::Equal) => Ordering::Equal,
+            (Ordering::Greater, _) | (_, Ordering::Greater) => Ordering::Greater,
         }
     }
 }
 
 impl PartialOrd for Point {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -105,11 +104,11 @@ struct StopExposure {
 
 enum ExposingState {
     Idle {
-        camera: Arc<Mutex<nokhwa::Camera>>,
+        camera: Arc<Mutex<Camera>>,
         image: Option<ImageArray>,
     },
     Exposing {
-        start: std::time::Instant,
+        start: Instant,
         expected_duration: f64,
         stop_tx: Option<oneshot::Sender<StopExposure>>,
         done: Shared<BoxFuture<'static, bool>>,
@@ -226,7 +225,7 @@ impl Device for Webcam {
 }
 
 #[async_trait]
-impl Camera for Webcam {
+impl AlpacaCamera for Webcam {
     async fn bayer_offset_x(&self) -> ASCOMResult<i32> {
         Ok(0)
     }
@@ -445,7 +444,7 @@ impl Camera for Webcam {
             // See https://github.com/l1npengtul/nokhwa/issues/111.
             let index = camera_lock.index().clone();
             format.set_resolution(resolution);
-            *camera_lock = nokhwa::Camera::new(
+            *camera_lock = Camera::new(
                 index,
                 RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(format)),
             )
@@ -461,7 +460,7 @@ impl Camera for Webcam {
         let (frames_tx, mut frames_rx) =
             mpsc::unbounded_channel::<Result<nokhwa::Buffer, NokhwaError>>();
         *self.last_exposure_start_time.write() = Some(SystemTime::now());
-        let start = std::time::Instant::now();
+        let start = Instant::now();
 
         let frame_reader_task = task::spawn_blocking(move || {
             // Webcams produce variable-length exposures, so we can't just precalculate count of
@@ -558,7 +557,7 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
     // Workaround for https://github.com/l1npengtul/nokhwa/issues/110:
     // get list of compatible formats manually, extract the info,
     // and then re-create as Camera for the same source.
-    let mut camera = nokhwa::Camera::new(
+    let mut camera = Camera::new(
         camera_info.index().clone(),
         RequestedFormat::new::<RgbFormat>(RequestedFormatType::None),
     )?;
@@ -601,7 +600,7 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
     valid_bins.sort_unstable();
     valid_bins.dedup();
 
-    let camera = nokhwa::Camera::new(
+    let camera = Camera::new(
         camera_info.index().clone(),
         RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(format)),
     )?;

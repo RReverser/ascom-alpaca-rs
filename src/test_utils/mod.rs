@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 #[cfg(test)]
 mod logging_env;
 
-pub(crate) fn resolve_path(path_hint: &'static str, exe_name: &'static str) -> std::path::PathBuf {
+pub(crate) fn resolve_path(path_hint: &'static str, exe_name: &'static str) -> PathBuf {
     use std::env;
 
     env::split_paths(&env::var_os("PATH").unwrap_or_default())
@@ -14,8 +16,9 @@ pub(crate) fn resolve_path(path_hint: &'static str, exe_name: &'static str) -> s
 macro_rules! cmd {
     ($windows_path_hint:literal, $name:literal) => {
         tokio::process::Command::new(if cfg!(windows) {
+            use std::sync::LazyLock;
             // On Windows, ASCOM binaries have well-known path that we can look up if executable is not on the global PATH.
-            static RESOLVED_PATH: std::sync::LazyLock<std::path::PathBuf> = std::sync::LazyLock::new(|| {
+            static RESOLVED_PATH: LazyLock<std::path::PathBuf> = LazyLock::new(|| {
                 $crate::test_utils::resolve_path($windows_path_hint, concat!($name, ".exe"))
             });
             &RESOLVED_PATH

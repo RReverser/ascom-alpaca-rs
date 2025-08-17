@@ -1,10 +1,11 @@
 use super::{ConfiguredDevice, Device, DeviceType, Devices, TypedDevice};
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Formatter};
+use std::sync::Arc;
 
 pub(crate) trait RetrieavableDevice: 'static + Device /* where Self: Unsize<DynTrait> */ {
     const TYPE: DeviceType;
 
-    fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>];
+    fn get_storage(storage: &Devices) -> &[Arc<Self>];
 
     #[cfg(feature = "server")]
     fn to_configured_device(&self, as_number: usize) -> ConfiguredDevice<DeviceType> {
@@ -47,10 +48,8 @@ impl Devices {
     /// Iterate over all devices of a given type.
     pub fn iter<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
-    ) -> impl '_ + Iterator<Item = std::sync::Arc<DynTrait>> {
-        DynTrait::get_storage(self)
-            .iter()
-            .map(std::sync::Arc::clone)
+    ) -> impl '_ + Iterator<Item = Arc<DynTrait>> {
+        DynTrait::get_storage(self).iter().map(Arc::clone)
     }
 
     /// Retrieve a device by its category trait and an index within that category.
@@ -62,7 +61,7 @@ impl Devices {
     ) -> Option<&DynTrait> {
         DynTrait::get_storage(self)
             .get(device_number)
-            .map(std::sync::Arc::as_ref)
+            .map(Arc::as_ref)
     }
 
     #[cfg(feature = "server")]
@@ -81,7 +80,7 @@ impl Devices {
 pub(crate) struct FallibleDeviceType(pub(crate) Result<DeviceType, String>);
 
 impl Debug for FallibleDeviceType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Ok(ty) => Debug::fmt(ty, f),
             Err(ty) => write!(f, "Unsupported({ty})"),

@@ -115,12 +115,10 @@ impl Serialize for ImageArray {
 
 impl ImageArray {
     pub(crate) fn is_accepted(headers: &HeaderMap) -> bool {
-        use mediatype::{MediaType, MediaTypeList};
+        use mediatype::{names, MediaType, MediaTypeList, Name};
 
-        const MEDIA_TYPE: MediaType<'static> = MediaType::new(
-            mediatype::names::APPLICATION,
-            mediatype::Name::new_unchecked("imagebytes"),
-        );
+        const MEDIA_TYPE: MediaType<'static> =
+            MediaType::new(names::APPLICATION, Name::new_unchecked("imagebytes"));
 
         headers
             .get_all(ACCEPT)

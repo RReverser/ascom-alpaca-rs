@@ -1,8 +1,17 @@
 //! Discovery of Alpaca devices on the local network.
 
+#[cfg(feature = "client")]
+pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
+#[cfg(feature = "server")]
+pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
 use net_literals::ipv6;
+use netdev::Interface;
 use serde::{Deserialize, Serialize};
+use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{Ipv6Addr, SocketAddr};
+#[cfg(windows)]
+use std::os::windows::prelude::AsRawSocket;
+use tokio::net::UdpSocket;
 
 pub(crate) const DISCOVERY_ADDR_V6: Ipv6Addr = ipv6!("ff12::a1:9aca");
 pub(crate) const DISCOVERY_MSG: &[u8] = b"alpacadiscovery1";
@@ -21,15 +30,8 @@ pub(crate) fn get_active_interfaces() -> impl Iterator<Item = Interface> {
 }
 
 #[tracing::instrument(level = "trace")]
-pub(crate) async fn bind_socket(
-    addr: impl Into<SocketAddr> + std::fmt::Debug + Send,
-) -> eyre::Result<tokio::net::UdpSocket> {
-    let addr = addr.into();
-    let socket = socket2::Socket::new(
-        socket2::Domain::for_address(addr),
-        socket2::Type::DGRAM,
-        Some(socket2::Protocol::UDP),
-    )?;
+pub(crate) fn bind_socket(addr: SocketAddr) -> eyre::Result<UdpSocket> {
+    let socket = Socket::new(Domain::for_address(addr), Type::DGRAM, Some(Protocol::UDP))?;
     // For async code, we need to set the socket to non-blocking mode.
     socket.set_nonblocking(true)?;
     // Reuse address for parallel server instances in e.g. tests.
@@ -63,21 +65,9 @@ pub(crate) async fn bind_socket(
         .map_err(std::io::Error::from_raw_os_error)
         .context("Couldn't configure the UDP socket to ignore ICMP errors")?;
     }
-    let socket = tokio::task::spawn_blocking(move || {
-        socket.bind(&addr.into())?;
-        Ok::<_, eyre::Error>(socket)
-    })
-    .await??;
-    Ok(tokio::net::UdpSocket::from_std(socket.into())?)
+    socket.bind(&addr.into())?;
+    Ok(UdpSocket::from_std(socket.into())?)
 }
-
-#[cfg(feature = "client")]
-pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
-#[cfg(feature = "server")]
-pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
-use netdev::Interface;
-#[cfg(windows)]
-use std::os::windows::prelude::AsRawSocket;
 
 #[cfg(test)]
 mod tests {

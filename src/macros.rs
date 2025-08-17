@@ -1,8 +1,9 @@
 macro_rules! auto_increment {
     () => {{
-        static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-        std::num::NonZeroU32::new(COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
-            .unwrap()
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        static COUNTER: AtomicU32 = AtomicU32::new(1);
+        std::num::NonZeroU32::new(COUNTER.fetch_add(1, Ordering::Relaxed)).unwrap()
     }};
 }
 

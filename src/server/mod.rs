@@ -24,15 +24,17 @@ use crate::response::ValueResponse;
 use crate::Devices;
 use axum::extract::{FromRequest, Path, Request};
 use axum::response::{Html, IntoResponse};
-use axum::Router;
+use axum::{routing, Router};
 use futures::future::{BoxFuture, Future, FutureExt};
 use http::StatusCode;
 use net_literals::addr;
 use sailfish::TemplateOnce;
 use serde::Deserialize;
+use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 use tracing::Instrument;
 
 /// The Alpaca server.
@@ -173,11 +175,7 @@ impl Server {
         // and this is what happens by default on popular Linux distros but not on Windows.
         //
         // For that, we can't use the standard `TcpListener::bind` and need to build our own socket.
-        let socket = socket2::Socket::new(
-            socket2::Domain::for_address(addr),
-            socket2::Type::STREAM,
-            Some(socket2::Protocol::TCP),
-        )?;
+        let socket = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))?;
 
         if addr.is_ipv6() {
             socket.set_only_v6(false)?;
@@ -187,7 +185,7 @@ impl Server {
         socket.bind(&addr.into())?;
         socket.listen(128)?;
 
-        let listener = tokio::net::TcpListener::from_std(socket.into())?;
+        let listener = TcpListener::from_std(socket.into())?;
 
         // The address can differ e.g. when using port 0 (auto-assigned).
         let bound_addr = listener.local_addr()?;
@@ -235,14 +233,14 @@ impl Server {
         Router::new()
             .route(
                 "/management/apiversions",
-                axum::routing::get(|server_handler: ServerHandler| {
+                routing::get(|server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move { ValueResponse { value: [1_u32] } })
                 }),
             )
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&devices);
 
-                axum::routing::get(|server_handler: ServerHandler| {
+                routing::get(|server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move {
                         ValueResponse {
                             value: this
@@ -256,7 +254,7 @@ impl Server {
             .route("/management/v1/description", {
                 let server_info = Arc::clone(&server_info);
 
-                axum::routing::get(move |server_handler: ServerHandler| {
+                routing::get(move |server_handler: ServerHandler| {
                     server_handler.exec(|_params| async move {
                         ValueResponse {
                             value: Arc::clone(&server_info),
@@ -268,7 +266,7 @@ impl Server {
                 let this = Arc::clone(&devices);
                 let server_info = Arc::clone(&server_info);
 
-                axum::routing::get(|| async move {
+                routing::get(|| async move {
                     #[derive(TemplateOnce)]
                     #[template(path = "setup_template.stpl")]
                     struct TemplateContext {
@@ -301,7 +299,7 @@ impl Server {
             })
             .route(
                 "/api/v1/:device_type/:device_number/:action",
-                axum::routing::any(
+                routing::any(
                     move |Path(ApiPath {
                               device_type,
                               device_number,

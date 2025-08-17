@@ -1,14 +1,16 @@
+use tracing_forest::tree::Tree;
+use tracing_forest::Tag;
 use tracing_subscriber::prelude::*;
 
 // A helper that allows to skip spans without events.
 struct FilteredProcessor<P>(P);
 
 impl<P: tracing_forest::Processor> tracing_forest::Processor for FilteredProcessor<P> {
-    fn process(&self, tree: tracing_forest::tree::Tree) -> tracing_forest::processor::Result {
-        fn is_used(tree: &tracing_forest::tree::Tree) -> bool {
+    fn process(&self, tree: Tree) -> tracing_forest::processor::Result {
+        fn is_used(tree: &Tree) -> bool {
             match tree {
-                tracing_forest::tree::Tree::Span(span) => span.nodes().iter().any(is_used),
-                tracing_forest::tree::Tree::Event(_) => true,
+                Tree::Span(span) => span.nodes().iter().any(is_used),
+                Tree::Event(_) => true,
             }
         }
 
@@ -32,10 +34,10 @@ fn target_icon(target: &str) -> Option<char> {
     })
 }
 
-fn target_tag(event: &tracing::Event<'_>) -> Option<tracing_forest::Tag> {
+fn target_tag(event: &tracing::Event<'_>) -> Option<Tag> {
     let target = event.metadata().target().strip_prefix("ascom_alpaca::")?;
 
-    let mut builder = tracing_forest::Tag::builder()
+    let mut builder = Tag::builder()
         .prefix(target)
         .level(*event.metadata().level());
 
@@ -48,6 +50,8 @@ fn target_tag(event: &tracing::Event<'_>) -> Option<tracing_forest::Tag> {
 
 #[ctor::ctor]
 fn prepare_test_env() {
+    use tracing::Level;
+
     unsafe {
         std::env::set_var("RUST_BACKTRACE", "full");
     }
@@ -55,8 +59,8 @@ fn prepare_test_env() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::filter::Targets::new()
-                .with_target("ascom_alpaca", tracing::Level::INFO)
-                .with_target("ascom_alpaca::conformu", tracing::Level::TRACE),
+                .with_target("ascom_alpaca", Level::INFO)
+                .with_target("ascom_alpaca::conformu", Level::TRACE),
         )
         .with(tracing_forest::ForestLayer::new(
             FilteredProcessor(tracing_forest::printer::TestCapturePrinter::new()),

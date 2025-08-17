@@ -1,11 +1,12 @@
 #![cfg(any(feature = "camera", feature = "telescope"))]
 
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::SystemTime;
 use time::macros::format_description;
 use time::{format_description, OffsetDateTime};
 
-pub(crate) trait FormatWrapper: std::fmt::Debug {
+pub(crate) trait FormatWrapper: Debug {
     type Format: 'static + ?Sized;
 
     const FORMAT: &'static Self::Format;
@@ -65,22 +66,25 @@ where
     F::Format: time::parsing::Parsable,
 {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de;
+        use std::fmt::{self, Formatter};
+
         struct Visitor<F>(PhantomData<F>);
 
-        impl<F: FormatWrapper> serde::de::Visitor<'_> for Visitor<F>
+        impl<F: FormatWrapper> de::Visitor<'_> for Visitor<F>
         where
             F::Format: time::parsing::Parsable,
         {
             type Value = TimeRepr<F>;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a date string")
             }
 
-            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
                 match time::PrimitiveDateTime::parse(value, F::FORMAT) {
                     Ok(value) => Ok(TimeRepr(value.assume_utc(), PhantomData)),
-                    Err(err) => Err(serde::de::Error::custom(err)),
+                    Err(err) => Err(de::Error::custom(err)),
                 }
             }
         }
