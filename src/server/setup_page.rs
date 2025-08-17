@@ -185,9 +185,10 @@ impl Display for SetupPage<'_> {
                         "ASCOM Alpaca"
                     ),
                     " server ",
-                    &self.server_info
+                    &self.server_info,
+                    "."
                 ),
-                html!(p, "Built with ", CargoServerInfo!())
+                html!(p, "Built with ", CargoServerInfo!(), ".")
             )
         )
         .fmt(f)

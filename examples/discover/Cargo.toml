@@ -1,7 +1,9 @@
 [package]
 name = "discover"
-edition = "2021"
 publish = false
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [lints]
 workspace = true
