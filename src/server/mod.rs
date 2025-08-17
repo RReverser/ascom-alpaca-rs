@@ -288,7 +288,7 @@ impl Server {
                 })
             })
             .route(
-                "/api/v1/:device_type/:device_number/:action",
+                "/api/v1/{device_type}/{device_number}/{action}",
                 routing::any(
                     move |Path(ApiPath {
                               device_type,
