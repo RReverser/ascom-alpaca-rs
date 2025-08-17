@@ -1,5 +1,5 @@
 use super::{ConfiguredDevice, Device, DeviceType, Devices, TypedDevice};
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::Debug;
 use std::sync::Arc;
 
 pub(crate) trait RetrieavableDevice: 'static + Device /* where Self: Unsize<DynTrait> */ {
@@ -74,17 +74,6 @@ impl Devices {
                 ty: DynTrait::TYPE,
                 index: device_number,
             })
-    }
-}
-
-pub(crate) struct FallibleDeviceType(pub(crate) Result<DeviceType, String>);
-
-impl Debug for FallibleDeviceType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            Ok(ty) => Debug::fmt(ty, f),
-            Err(ty) => write!(f, "Unsupported({ty})"),
-        }
     }
 }
 

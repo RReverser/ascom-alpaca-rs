@@ -268,7 +268,7 @@ pub(crate) use rpc_trait;
 
 macro_rules! rpc_mod {
     ($($trait_name:ident = $path:literal,)*) => (paste::paste! {
-        #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug, derive_more::Display, serde::Serialize)]
+        #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug, derive_more::Display, serde::Serialize, serde::Deserialize)]
         pub(crate) enum DeviceType {
             $(
                 #[cfg(feature = $path)]
@@ -322,26 +322,12 @@ macro_rules! rpc_mod {
             }
         }
 
-        impl<'de> Deserialize<'de> for $crate::api::devices_impl::FallibleDeviceType {
-            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                #[derive(Deserialize)]
-                #[serde(field_identifier)]
-                enum MaybeDeviceType {
-                    $(
-                        #[cfg(feature = $path)]
-                        $trait_name,
-                    )*
-                    Unknown(String),
-                }
-
-                Ok($crate::api::devices_impl::FallibleDeviceType(match MaybeDeviceType::deserialize(deserializer)? {
-                    $(
-                        #[cfg(feature = $path)]
-                        MaybeDeviceType::$trait_name => Ok(DeviceType::$trait_name),
-                    )*
-                    MaybeDeviceType::Unknown(s) => Err(s),
-                }))
-            }
+        #[cfg(feature = "client")]
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        pub(crate) enum FallibleDeviceType {
+            Known(DeviceType),
+            Unknown(String),
         }
 
         #[derive(Deserialize)]

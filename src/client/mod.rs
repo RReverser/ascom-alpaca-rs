@@ -187,8 +187,8 @@ impl Client {
             .await?
             .value
             .into_iter()
-            .filter_map(move |device| match device.ty.0 {
-                Ok(device_type) => Some(
+            .filter_map(move |device| match device.ty {
+                FallibleDeviceType::Known(device_type) => Some(
                     Arc::new(RawDeviceClient {
                         inner: api_client
                             .join_url(&format!(
@@ -201,8 +201,8 @@ impl Client {
                     })
                     .into_typed_client(device_type),
                 ),
-                Err(_) => {
-                    tracing::warn!(?device, "Skipping device with unsupported type");
+                FallibleDeviceType::Unknown(ty) => {
+                    tracing::warn!(%ty, "Skipping device with unsupported type");
                     None
                 }
             }))
