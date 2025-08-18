@@ -13,7 +13,7 @@ repository = "https://github.com/RReverser/ascom-alpaca-rs"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-exclude = ["/.github", "/.vscode", "/src/api/autogen"]
+exclude = ["/.github", "/.vscode"]
 
 [lints]
 workspace = true
