@@ -7,6 +7,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use super::camera_telescope_shared::{TimeRepr, Iso8601};
 use serde::{Deserialize, Serialize};
+use std::ops::RangeInclusive;
 
 /// Telescope Specific Methods.
 #[apply(rpc_trait)]
@@ -447,8 +448,8 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// The rates at which the telescope may be moved about the specified axis by the MoveAxis(TelescopeAxes, Double) method.
-    #[http("axisrates", method = Get)]
-    async fn axis_rates(&self, #[http("Axis")] axis: TelescopeAxis) -> ASCOMResult<Vec<AxisRate>> {
+    #[http("axisrates", method = Get, via = AxisRates)]
+    async fn axis_rates(&self, #[http("Axis")] axis: TelescopeAxis) -> ASCOMResult<Vec<RangeInclusive<f64>>> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -737,16 +738,38 @@ pub enum DriveRate {
 /// Axis rate object.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct AxisRate {
-    /// The maximum rate (degrees per second).
-    ///
-    /// This must always be a positive number. It indicates the maximum rate in either direction about the axis.
-    pub maximum: f64,
-
+struct AxisRate {
     /// The minimum rate (degrees per second).
     ///
     /// This must always be a positive number. It indicates the maximum rate in either direction about the axis.
     pub minimum: f64,
+
+    /// The maximum rate (degrees per second).
+    ///
+    /// This must always be a positive number. It indicates the maximum rate in either direction about the axis.
+    pub maximum: f64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+struct AxisRates(Vec<AxisRate>);
+
+impl From<AxisRates> for Vec<RangeInclusive<f64>> {
+    fn from(axis_rates: AxisRates) -> Self {
+        axis_rates.0.into_iter().map(|axis_rate| axis_rate.minimum..=axis_rate.maximum).collect()
+    }
+}
+
+impl From<Vec<RangeInclusive<f64>>> for AxisRates {
+    fn from(ranges: Vec<RangeInclusive<f64>>) -> Self {
+        Self(ranges.into_iter().map(|range| {
+            let (minimum, maximum) = range.into_inner();
+            AxisRate {
+                minimum,
+                maximum,
+            }
+        }).collect())
+    }
 }
 
 /// The axis about which rate information is desired.
