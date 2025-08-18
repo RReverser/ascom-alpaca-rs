@@ -112,11 +112,8 @@ use std::convert::Infallible;
 
 #[tokio::main]
 async fn main() -> eyre::Result<Infallible> {
-    let mut server = Server {
-        // helper macro to populate server information from your own Cargo.toml
-        info: CargoServerInfo!(),
-        ..Default::default()
-    };
+    // create with the helper macro that populate server information from your own Cargo.toml
+    let mut server = Server::new(CargoServerInfo!());
 
     // By default, the server will listen on dual-stack (IPv4 + IPv6) unspecified address with a randomly assigned port.
     // You can change that by modifying the `listen_addr` field:
@@ -191,7 +188,7 @@ use futures::prelude::*;
 
 // This holds configuration for the discovery client.
 // You can customize prior to binding if you want.
-let discovery_client = DiscoveryClient::new();
+let discovery_client = DiscoveryClient::default();
 // This results in a discovery client bound to a local socket.
 // It's intentionally split out into a separate API step to encourage reuse,
 // for example so that user could click "Refresh devices" button in the UI
@@ -218,7 +215,7 @@ Or, if you just want to list all available devices and don't care about per-serv
 # use ascom_alpaca::discovery::DiscoveryClient;
 # use ascom_alpaca::Client;
 # use futures::prelude::*;
-# let mut bound_client = DiscoveryClient::new().bind().await?;
+# let mut bound_client = DiscoveryClient::default().bind().await?;
 bound_client.discover_devices()
     .for_each(|device| async move {
         /* ...do something with each device... */
@@ -243,7 +240,7 @@ use ascom_alpaca::Client;
 use futures::prelude::*;
 
 let devices =
-    DiscoveryClient::new()
+    DiscoveryClient::default()
     .bind()
     .await?
     .discover_devices()

@@ -40,6 +40,7 @@ macro_rules! cmd {
 #[cfg(test)]
 pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>() -> eyre::Result<()>
 {
+    use crate::api::CargoServerInfo;
     use crate::client::test::get_simulator_devices;
     use crate::server::test::run_conformu_tests;
     use crate::Server;
@@ -48,7 +49,7 @@ pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>(
     let proxy = Server {
         devices: get_simulator_devices().await?.clone(),
         listen_addr: addr!("127.0.0.1:0"),
-        ..Default::default()
+        ..Server::new(CargoServerInfo!())
     };
 
     let proxy = proxy.bind().await?;

@@ -50,29 +50,33 @@ pub struct Server {
     /// General server information.
     pub info: ServerInfo,
     /// Address for the server to listen on.
+    ///
+    /// Defaults to listening on an arbitrary port on all interfaces.
     pub listen_addr: SocketAddr,
     /// Port for the discovery server to listen on.
+    ///
+    /// Defaults to 32227.
     pub discovery_port: u16,
 }
 
 impl Server {
-    /// Create a server with default configuration.
+    /// Create a server with default configuration and the provided server information.
     ///
-    /// Same as [`Default::default`] but works in const contexts.
-    pub const fn default() -> Self {
+    /// Server information can be automatically populated from `Cargo.toml` using the [`CargoServerInfo!`] macro:
+    ///
+    /// ```
+    /// # use ascom_alpaca::Server;
+    /// use ascom_alpaca::api::CargoServerInfo;
+    ///
+    /// let server = Server::new(CargoServerInfo!());
+    /// ```
+    pub const fn new(info: ServerInfo) -> Self {
         Self {
             devices: Devices::default(),
-            info: CargoServerInfo!(),
+            info,
             listen_addr: addr!("[::]:0"),
             discovery_port: DEFAULT_DISCOVERY_PORT,
         }
-    }
-}
-
-impl Default for Server {
-    fn default() -> Self {
-        // Invoke the inherent const implementation.
-        Self::default()
     }
 }
 

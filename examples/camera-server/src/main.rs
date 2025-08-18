@@ -650,11 +650,8 @@ async fn setup_server() -> eyre::Result<Server> {
         eyre::ensure!(init_rx.await?, "User did not grant camera access");
     }
 
-    let mut server = Server {
-        listen_addr: addr!("127.0.0.1:8000"),
-        info: CargoServerInfo!(),
-        ..Default::default()
-    };
+    let mut server = Server::new(CargoServerInfo!());
+    server.listen_addr = addr!("127.0.0.1:8000");
 
     for camera_info in nokhwa::query(nokhwa::utils::ApiBackend::Auto)? {
         if let Ok(webcam) = get_webcam(&camera_info) {
