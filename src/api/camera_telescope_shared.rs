@@ -1,5 +1,7 @@
 #![cfg(any(feature = "camera", feature = "telescope"))]
 
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::SystemTime;
@@ -91,4 +93,28 @@ where
 
         deserializer.deserialize_str(Visitor(PhantomData))
     }
+}
+
+/// The direction in which the guide-rate motion is to be made.
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Serialize_repr,
+    Deserialize_repr,
+    TryFromPrimitive,
+    IntoPrimitive,
+)]
+#[repr(i32)]
+#[expect(missing_docs)] // some enum variants might not have docs and that's okay
+pub enum GuideDirection {
+    North = 0,
+
+    South = 1,
+
+    East = 2,
+
+    West = 3,
 }

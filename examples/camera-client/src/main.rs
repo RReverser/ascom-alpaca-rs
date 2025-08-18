@@ -11,7 +11,8 @@
     clippy::too_many_lines
 )]
 
-use ascom_alpaca::api::{Camera, ImageArray, SensorType as AlpacaSensorType, TypedDevice};
+use ascom_alpaca::api::camera::{ImageArray, SensorType as AlpacaSensorType};
+use ascom_alpaca::api::{Camera, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult};
 use bayer::{demosaic, BayerDepth, RasterDepth, RasterMut, CFA};

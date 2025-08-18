@@ -1,5 +1,6 @@
 use super::Response;
-use crate::api::{ConfiguredDevice, ImageArray};
+use crate::api::camera::ImageArray;
+use crate::api::ConfiguredDevice;
 use crate::client::FallibleDeviceType;
 use crate::response::ValueResponse;
 use crate::ASCOMResult;

@@ -1,4 +1,3 @@
-use crate::macros::auto_increment;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 

@@ -1,8 +1,7 @@
 use super::{
     AsTransmissionElementType, ImageArray, ImageArrayRank, ImageBytesMetadata, ImageElementType,
-    COLOUR_AXIS, IMAGE_BYTES_TYPE,
+    TransmissionElementType, COLOUR_AXIS, IMAGE_BYTES_TYPE,
 };
-use crate::api::TransmissionElementType;
 use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
 use bytemuck::PodCastError;

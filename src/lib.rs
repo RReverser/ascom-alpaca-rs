@@ -307,8 +307,6 @@ compile_error!(
 #[cfg(not(feature = "__anynetwork"))]
 compile_error!("At least one of the network features must be enabled (`client` and/or `server`).");
 
-pub(crate) mod macros;
-
 pub mod api;
 pub use api::Devices;
 
@@ -316,6 +314,15 @@ pub use api::Devices;
 #[cfg(feature = "test")]
 #[macro_use]
 pub mod test;
+
+macro_rules! auto_increment {
+    () => {{
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        static COUNTER: AtomicU32 = AtomicU32::new(1);
+        std::num::NonZeroU32::new(COUNTER.fetch_add(1, Ordering::Relaxed)).unwrap()
+    }};
+}
 
 #[cfg(feature = "client")]
 mod client;

@@ -9,9 +9,8 @@
     clippy::too_many_lines
 )]
 
-use ascom_alpaca::api::{
-    Camera as AlpacaCamera, CameraState, CargoServerInfo, Device, ImageArray, SensorType,
-};
+use ascom_alpaca::api::camera::{CameraState, ImageArray, SensorType};
+use ascom_alpaca::api::{Camera as AlpacaCamera, CargoServerInfo, Device};
 use ascom_alpaca::{ASCOMError, ASCOMErrorCode, ASCOMResult, Server};
 use async_trait::async_trait;
 use eyre::ContextCompat;

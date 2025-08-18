@@ -1,5 +1,4 @@
 use super::ActionParams;
-use crate::macros::auto_increment;
 use serde::Serialize;
 use std::num::NonZeroU32;
 

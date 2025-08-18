@@ -1,14 +1,3 @@
-macro_rules! auto_increment {
-    () => {{
-        use std::sync::atomic::{AtomicU32, Ordering};
-
-        static COUNTER: AtomicU32 = AtomicU32::new(1);
-        std::num::NonZeroU32::new(COUNTER.fetch_add(1, Ordering::Relaxed)).unwrap()
-    }};
-}
-
-pub(crate) use auto_increment;
-
 #[cfg_attr(
     not(all(feature = "client", feature = "server", feature = "camera")),
     allow(unused_macro_rules)
@@ -63,22 +52,22 @@ macro_rules! rpc_trait {
 
     (@extras Device mod) => {};
     (@extras $trait_name:ident mod) => {
-        impl RetrieavableDevice for dyn $trait_name {
-            const TYPE: DeviceType = DeviceType::$trait_name;
+        impl super::RetrieavableDevice for dyn $trait_name {
+            const TYPE: super::DeviceType = super::DeviceType::$trait_name;
 
-            fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>] {
+            fn get_storage(storage: &super::Devices) -> &[std::sync::Arc<Self>] {
                 &storage.$trait_name
             }
         }
 
-        impl RegistrableDevice<dyn $trait_name> for std::sync::Arc<dyn $trait_name> {
-            fn add_to(self, storage: &mut Devices) {
+        impl super::RegistrableDevice<dyn $trait_name> for std::sync::Arc<dyn $trait_name> {
+            fn add_to(self, storage: &mut super::Devices) {
                 storage.$trait_name.push(self);
             }
         }
 
-        impl<T: 'static + $trait_name> RegistrableDevice<dyn $trait_name> for T {
-            fn add_to(self, storage: &mut Devices) {
+        impl<T: 'static + $trait_name> super::RegistrableDevice<dyn $trait_name> for T {
+            fn add_to(self, storage: &mut super::Devices) {
                 storage.$trait_name.push(std::sync::Arc::new(self));
             }
         }
@@ -106,12 +95,7 @@ macro_rules! rpc_trait {
             )*
         }
     ) => (paste::paste! {
-    $(# $attr)*
-    pub(crate) mod [<$trait_name:snake>] {
-        use super::*;
-        use serde::Serialize;
-
-        #[cfg_attr(feature = "client", derive(Serialize), serde(untagged))]
+        #[cfg_attr(feature = "client", derive(serde::Serialize), serde(untagged))]
         #[expect(non_camel_case_types)]
         pub(super) enum Action {
             $(
@@ -125,7 +109,7 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(feature = "server")]
-        #[derive(Serialize)]
+        #[derive(serde::Serialize)]
         #[serde(untagged)]
         #[expect(non_camel_case_types)]
         pub(super) enum Response {
@@ -242,16 +226,20 @@ macro_rules! rpc_trait {
         }
 
         rpc_trait!(@extras $trait_name mod);
-    }
-
-    pub use [<$trait_name:snake>]::$trait_name;
     });
 }
 
-pub(crate) use rpc_trait;
-
 macro_rules! rpc_mod {
     ($($trait_name:ident = $path:literal,)*) => (paste::paste! {
+        $(
+            #[cfg(feature = $path)]
+            #[doc = "Types related to [`" $trait_name "`] devices."]
+            pub mod [<$trait_name:snake>];
+
+            #[cfg(feature = $path)]
+            pub use [<$trait_name:snake>]::$trait_name;
+        )*
+
         #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug, derive_more::Display, serde::Serialize, serde::Deserialize)]
         pub(crate) enum DeviceType {
             $(
@@ -361,7 +349,7 @@ macro_rules! rpc_mod {
         };
 
         #[cfg(feature = "server")]
-        #[derive(Deserialize)]
+        #[derive(serde::Deserialize)]
         #[serde(remote = "DeviceType")]
         pub(crate) enum DevicePath {
             $(
@@ -449,7 +437,7 @@ macro_rules! rpc_mod {
                     })
                 }
 
-                pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
+                pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl serde::Serialize> {
                     let action = TypedDeviceAction::from_parts(device_type, action, params)?;
 
                     Ok(match action {
@@ -470,5 +458,3 @@ macro_rules! rpc_mod {
         };
     });
 }
-
-pub(crate) use rpc_mod;

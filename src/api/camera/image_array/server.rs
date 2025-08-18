@@ -1,5 +1,7 @@
-use super::{ImageArray, ImageBytesMetadata, COLOUR_AXIS, IMAGE_BYTES_TYPE};
-use crate::api::{ImageArrayRank, ImageElementType, TransmissionElementType};
+use super::{
+    ImageArray, ImageArrayRank, ImageBytesMetadata, ImageElementType, TransmissionElementType,
+    COLOUR_AXIS, IMAGE_BYTES_TYPE,
+};
 use crate::server::ResponseWithTransaction;
 use crate::ASCOMResult;
 use axum::response::{IntoResponse, Response};

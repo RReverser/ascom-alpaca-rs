@@ -309,6 +309,8 @@ impl Server {
 
                         #[cfg(feature = "camera")]
                         if device_type == DeviceType::Camera {
+                            use crate::api::camera::{ImageArray, ImageBytesResponse};
+
                             // imagearrayvariant is soft-deprecated; we should accept it but
                             // forward to the imagearray handler instead.
                             if action == "imagearrayvariant" {
@@ -317,11 +319,11 @@ impl Server {
 
                             if matches!(server_handler.params, ActionParams::Get { .. })
                                 && action == "imagearray"
-                                && crate::api::ImageArray::is_accepted(&headers)
+                                && ImageArray::is_accepted(&headers)
                             {
                                 return server_handler
                                     .exec(|_params| async move {
-                                        Ok::<_, Error>(crate::api::ImageBytesResponse(
+                                        Ok::<_, Error>(ImageBytesResponse(
                                             devices
                                                 .get_for_server::<dyn Camera>(device_number)?
                                                 .image_array()
