@@ -55,5 +55,5 @@ export const rustKeywords = new Set([
   'typeof',
   'unsized',
   'virtual',
-  'yield'
+  'yield',
 ]);

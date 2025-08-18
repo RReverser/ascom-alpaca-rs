@@ -3,8 +3,13 @@ import * as assert from 'assert/strict';
 import { parseStringPromise as parseXML } from 'xml2js';
 
 export class CanonicalDevice {
+  public readonly name: string;
   private _methods: Record<string, string> = {};
   private _version: number = 1;
+
+  constructor(name: string) {
+    this.name = name;
+  }
 
   public get version() {
     return this._version;
@@ -14,8 +19,6 @@ export class CanonicalDevice {
     this._version = Math.max(this._version, version);
   }
 
-  constructor(public readonly name: string) {}
-
   registerMethod(method: string) {
     this._methods[method.toLowerCase()] = method;
   }
@@ -24,7 +27,7 @@ export class CanonicalDevice {
     let name = this._methods[subPath];
     assert.ok(
       name,
-      `Couldn't find canonical name for ${this.name}::${subPath}`
+      `Couldn't find canonical name for ${this.name}::${subPath}`,
     );
     return name;
   }
@@ -60,7 +63,7 @@ export const canonicalDevices = new CanonicalDevices();
 
   for (let member of xml.doc.members.flatMap((m: any) => m.member)) {
     let nameParts = member.$.name.match(
-      /^[MP]:ASCOM\.DeviceInterface\.I(\w+)V(\d+)\.(\w+)/
+      /^[MP]:ASCOM\.DeviceInterface\.I(\w+)V(\d+)\.(\w+)/,
     );
     if (!nameParts) continue;
     let [, deviceName, versionStr, methodName] = nameParts;
@@ -71,7 +74,7 @@ export const canonicalDevices = new CanonicalDevices();
 
   // Find common methods and combine into a new Device object.
   let commonMethods = Object.values(canonicalDevices.getDevices())
-    .map(device => new Set(device.getMethods()))
+    .map((device) => new Set(device.getMethods()))
     .reduce((a, b) => a.intersection(b));
 
   let commonDevice = canonicalDevices.registerDevice('Device', '{device_type}');

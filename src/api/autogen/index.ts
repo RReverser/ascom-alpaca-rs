@@ -2,10 +2,10 @@ import openapi from '@readme/openapi-parser';
 import { unlink, writeFile } from 'fs/promises';
 import { spawnSync } from 'child_process';
 import { toSnakeCase, toPascalCase } from 'js-convert-case';
-import { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types';
+import { OpenAPIV3, type OpenAPIV3_1 } from 'openapi-types';
 import * as assert from 'assert/strict';
-import { CanonicalDevice, canonicalDevices } from './xml-names.js';
-import { rustKeywords } from './rust-keywords.js';
+import { CanonicalDevice, canonicalDevices } from './xml-names.ts';
+import { rustKeywords } from './rust-keywords.ts';
 import { isDeepStrictEqual } from 'util';
 import { fileURLToPath } from 'url';
 
@@ -15,7 +15,7 @@ type SchemaObject = OpenAPIV3_1.SchemaObject;
 process.chdir(fileURLToPath(new URL('./', import.meta.url)));
 
 let api = (await openapi.parse(
-  './AlpacaDeviceAPI_v1.yaml'
+  './AlpacaDeviceAPI_v1.yaml',
 )) as OpenAPIV3_1.Document;
 let _refs = await openapi.resolve(api);
 
@@ -26,7 +26,7 @@ function err(msg: string): never {
 function getOrSet<K, V>(
   map: Map<K, V> | (K extends object ? WeakMap<K, V> : never),
   key: K,
-  createValue: (key: K) => V
+  createValue: (key: K) => V,
 ): V {
   let value = map.get(key);
   if (value === undefined) {
@@ -57,7 +57,7 @@ function toPropName(name: string) {
   // fixup acronyms so that they're not all-caps
   name = name.replaceAll(
     /([A-Z])([A-Z]*)([A-Z][a-z]+)/g,
-    (_, a, b, c) => `${a}${b.toLowerCase()}${c}`
+    (_, a, b, c) => `${a}${b.toLowerCase()}${c}`,
   );
   name = toSnakeCase(name);
   if (rustKeywords.has(name)) name += '_';
@@ -68,13 +68,13 @@ function nameAndTarget<T>(ref: T) {
   let { $ref } = ref as ReferenceObject;
   return {
     target: ($ref ? _refs.get($ref) : ref) as Exclude<T, ReferenceObject>,
-    name: $ref && toPascalCase($ref.match(/([^/]+)$/)![1])
+    name: $ref && toPascalCase($ref.match(/([^/]+)$/)![1]),
   };
 }
 
 function getDoc({
   summary,
-  description
+  description,
 }: {
   summary?: string;
   description?: string;
@@ -90,9 +90,9 @@ let typeBySchema = new WeakMap<SchemaObject, RustType>();
 function registerType<S extends SchemaObject, T extends RegisteredType>(
   device: Device,
   schema: S,
-  createType: (schema: S) => T | RustType
+  createType: (schema: S) => T | RustType,
 ): RustType {
-  let rustyType = getOrSet(typeBySchema, schema, schema => {
+  let rustyType = getOrSet(typeBySchema, schema, (schema) => {
     let type = createType(schema as S);
     if (type instanceof RustType) {
       return type;
@@ -109,7 +109,13 @@ function registerType<S extends SchemaObject, T extends RegisteredType>(
 }
 
 class RustType {
-  constructor(private rusty: string, public readonly convertVia?: string) {}
+  private rusty: string;
+  public readonly convertVia?: string;
+
+  constructor(rusty: string, convertVia?: string) {
+    this.rusty = rusty;
+    this.convertVia = convertVia;
+  }
 
   isVoid() {
     return this.rusty === '()';
@@ -133,10 +139,13 @@ function rusty(rusty: string, convertVia?: string) {
 }
 
 abstract class RegisteredTypeBase {
-  constructor(
-    public readonly name: string,
-    public readonly doc: string | undefined
-  ) {}
+  public readonly name: string;
+  public readonly doc?: string;
+
+  constructor(name: string, doc?: string) {
+    this.name = name;
+    this.doc = doc;
+  }
 
   public readonly features = new Set<string>();
 
@@ -145,7 +154,7 @@ abstract class RegisteredTypeBase {
   protected stringifyCfg() {
     let cfgs = Array.from(
       this.features,
-      feature => `feature = "${feature}"`
+      (feature) => `feature = "${feature}"`,
     ).join(', ');
 
     switch (this.features.size) {
@@ -164,13 +173,15 @@ abstract class RegisteredTypeBase {
 type RegisteredType = ObjectType | EnumType;
 
 class Property {
+  public readonly originalName: string;
+  public readonly type: RustType;
+  public readonly doc?: string;
   public readonly name: string;
 
-  constructor(
-    public readonly originalName: string,
-    public readonly type: RustType,
-    public readonly doc: string | undefined
-  ) {
+  constructor(originalName: string, type: RustType, doc?: string) {
+    this.originalName = originalName;
+    this.type = type;
+    this.doc = doc;
     this.name = toPropName(originalName);
   }
 
@@ -195,7 +206,7 @@ class ObjectType extends RegisteredTypeBase {
   constructor(
     typeCtx: TypeContext,
     name: string,
-    schema: OpenAPIV3_1.NonArraySchemaObject
+    schema: OpenAPIV3_1.NonArraySchemaObject,
   ) {
     super(name, getDoc(schema));
 
@@ -207,10 +218,10 @@ class ObjectType extends RegisteredTypeBase {
           typeCtx.handleOptType(
             `${name}${propName}`,
             propSchema,
-            required.includes(propName)
+            required.includes(propName),
           ),
-          getDoc(nameAndTarget(propSchema).target)
-        )
+          getDoc(nameAndTarget(propSchema).target),
+        ),
       );
     }
   }
@@ -239,7 +250,7 @@ class RequestType extends ObjectType {
 class EnumVariant {
   public readonly name: string;
   public readonly value: number;
-  public readonly doc: string | undefined;
+  public readonly doc?: string;
 
   constructor(entry: SchemaObject) {
     assert.ok(Number.isSafeInteger(entry.const));
@@ -285,18 +296,22 @@ class EnumType extends RegisteredTypeBase {
 }
 
 class DeviceMethod {
+  public readonly device: Device;
+  public readonly path: string;
   public readonly name: string;
-  public readonly doc: string | undefined;
+  public readonly doc?: string;
   public readonly returnType: RustType;
   public resolvedArgs = new NamedSet<Property>();
   public readonly method: 'Get' | 'Put';
 
   constructor(
-    private readonly device: Device,
+    device: Device,
     method: 'Get' | 'Put' | 'Put(Setter)',
-    public readonly path: string,
-    schema: OpenAPIV3_1.OperationObject
+    path: string,
+    schema: OpenAPIV3_1.OperationObject,
   ) {
+    this.device = device;
+    this.path = path;
     let name = toPropName(device.canonical.getMethod(path));
     // If there's a getter, then this is a setter and needs to be prefixed with `set_`.
     if (method === 'Put(Setter)') {
@@ -316,7 +331,7 @@ class DeviceMethod {
         400: error400,
         500: error500,
         ...otherResponses
-      } = err('Missing responses')
+      } = err('Missing responses'),
     } = schema;
     assertEmpty(otherResponses, 'Unexpected response status codes');
     assert.deepEqual(error400, { $ref: '#/components/responses/400' });
@@ -324,7 +339,7 @@ class DeviceMethod {
     this.returnType = new TypeContext('Response', device).handleContent(
       name,
       'application/json',
-      success
+      success,
     );
     device.updateDocFromMethodTags(schema);
   }
@@ -354,17 +369,17 @@ class DeviceMethod {
     return `
       ${stringifyDoc(this.doc)}
       #[http("${this.path}", method = ${
-      this.method
-    }${this.returnType.maybeVia()})]
+        this.method
+      }${this.returnType.maybeVia()})]
       async fn ${this.name}(
         &self,
         ${this.resolvedArgs.toString(
-          arg => `
+          (arg) => `
             #[http("${arg.originalName}"${arg.type.maybeVia()})]
             ${arg.name}: ${arg.type},
-          `
+          `,
         )}
-      ) -> ASCOMResult${this.returnType.ifNotVoid(type => `<${type}>`)} {
+      ) -> ASCOMResult${this.returnType.ifNotVoid((type) => `<${type}>`)} {
         ${this.getDefaultImpl()}
       }
     `;
@@ -372,15 +387,17 @@ class DeviceMethod {
 }
 
 class Device {
+  public readonly path: string;
   public readonly canonical: CanonicalDevice;
-  public doc: string | undefined = undefined;
+  public doc?: string;
   public readonly methods = new NamedSet<DeviceMethod>();
   public readonly isBaseDevice: boolean;
   public readonly name: string;
 
-  constructor(public readonly path: string) {
-    this.isBaseDevice = this.path === '{device_type}';
-    this.canonical = canonicalDevices.getDevice(this.path);
+  constructor(path: string) {
+    this.path = path;
+    this.isBaseDevice = path === '{device_type}';
+    this.canonical = canonicalDevices.getDevice(path);
     this.name = this.isBaseDevice ? 'Device' : this.canonical.name;
   }
 
@@ -393,10 +410,10 @@ class Device {
         this.isBaseDevice ? '' : `#[cfg(feature = "${this.path}")]`
       } #[apply(rpc_trait)]
       pub trait ${this.name}: ${
-      this.isBaseDevice
-        ? 'std::fmt::Debug + Send + Sync'
-        : 'Device + Send + Sync'
-    } {
+        this.isBaseDevice
+          ? 'std::fmt::Debug + Send + Sync'
+          : 'Device + Send + Sync'
+      } {
         ${this.methods}
       }
     `;
@@ -420,7 +437,7 @@ function withContext<T>(context: string, fn: () => T) {
   return fn();
 }
 
-function handleIntFormat(format: string | undefined): RustType {
+function handleIntFormat(format?: string): RustType {
   switch (format) {
     case 'uint32':
       return rusty('u32');
@@ -432,14 +449,17 @@ function handleIntFormat(format: string | undefined): RustType {
 }
 
 class TypeContext {
-  constructor(
-    private readonly baseKind: 'Request' | 'Response',
-    private readonly device: Device
-  ) {}
+  private readonly baseKind: 'Request' | 'Response';
+  private readonly device: Device;
+
+  constructor(baseKind: 'Request' | 'Response', device: Device) {
+    this.baseKind = baseKind;
+    this.device = device;
+  }
 
   handleType(
     name: string,
-    schema: SchemaObject | ReferenceObject = err('Missing schema')
+    schema: SchemaObject | ReferenceObject = err('Missing schema'),
   ): RustType {
     return withContext(name, () => {
       ({ name = name, target: schema } = nameAndTarget(schema));
@@ -449,7 +469,7 @@ class TypeContext {
             return registerType(
               this.device,
               schema,
-              schema => new EnumType(name, schema)
+              (schema) => new EnumType(name, schema),
             );
           }
           return handleIntFormat(schema.format);
@@ -463,7 +483,7 @@ class TypeContext {
             format = format === 'date-time' ? 'Iso8601' : 'Fits';
             return rusty(
               'std::time::SystemTime',
-              `time_repr::TimeRepr<time_repr::${format}>`
+              `time_repr::TimeRepr<time_repr::${format}>`,
             );
           }
           return rusty('String');
@@ -474,7 +494,7 @@ class TypeContext {
           return registerType(
             this.device,
             schema,
-            schema => new ObjectType(this, name, schema)
+            (schema) => new ObjectType(this, name, schema),
           );
         }
       }
@@ -488,8 +508,8 @@ class TypeContext {
 
   handleOptType(
     name: string,
-    schema: SchemaObject | ReferenceObject | undefined,
-    required: boolean
+    schema?: SchemaObject | ReferenceObject,
+    required = false,
   ): RustType {
     let type = this.handleType(name, schema);
     return required ? type : rusty(`Option<${type}>`);
@@ -501,7 +521,7 @@ class TypeContext {
     body:
       | OpenAPIV3_1.RequestBodyObject
       | OpenAPIV3_1.ResponseObject
-      | ReferenceObject = err('Missing content')
+      | ReferenceObject = err('Missing content'),
   ): RustType {
     let { baseKind } = this;
     let name = `${this.device.name}${canonicalMethodName}${baseKind}`;
@@ -510,7 +530,7 @@ class TypeContext {
       let doc = getDoc(body);
       let {
         [contentType]: { schema = err('Missing schema') } = err(
-          `Missing ${contentType}`
+          `Missing ${contentType}`,
         ),
         ...otherContentTypes
       } = body.content ?? err('Missing content');
@@ -523,7 +543,7 @@ class TypeContext {
       if (name.endsWith(baseKind)) {
         name = name.slice(0, -baseKind.length);
       }
-      return registerType(this.device, schema, schema => {
+      return registerType(this.device, schema, (schema) => {
         if (name === 'ImageArray') {
           return rusty('ImageArray');
         }
@@ -536,14 +556,14 @@ class TypeContext {
         assert.deepEqual(otherItemsInAllOf, [], 'Unexpected items in allOf');
         assertEmpty(
           otherPropsInSchema,
-          'Unexpected properties in content schema'
+          'Unexpected properties in content schema',
         );
         assert.equal((base as ReferenceObject).$ref, baseRef);
         assert.ok(extension && !('$ref' in extension));
         let { properties, required, ...otherPropsInExtension } = extension;
         assertEmpty(
           otherPropsInExtension,
-          'Unexpected properties in extension'
+          'Unexpected properties in extension',
         );
         // Special-case value responses.
         if (
@@ -560,7 +580,7 @@ class TypeContext {
         return new ctor(this, name, {
           properties,
           required,
-          description: doc
+          description: doc,
         });
       });
     });
@@ -570,7 +590,7 @@ class TypeContext {
 function extractParams(
   methodSchema: OpenAPIV3_1.OperationObject,
   device: Device,
-  extraExpectedParams: string[]
+  extraExpectedParams: string[],
 ) {
   let params = (methodSchema.parameters ?? err('Missing parameters')).slice();
   let expectedParams = [...extraExpectedParams, 'device_number'];
@@ -579,9 +599,9 @@ function extractParams(
   }
   for (let expectedParam of expectedParams) {
     let param = params.findIndex(
-      param =>
+      (param) =>
         (param as ReferenceObject).$ref ===
-        `#/components/parameters/${expectedParam}`
+        `#/components/parameters/${expectedParam}`,
     );
     assert.ok(param !== -1, `Missing parameter ${expectedParam}`);
     params.splice(param, 1);
@@ -590,7 +610,7 @@ function extractParams(
 }
 
 for (let [path, methods = err('Missing methods')] of Object.entries(
-  api.paths ?? err('Missing paths')
+  api.paths ?? err('Missing paths'),
 )) {
   // ImageArrayVariant is a semi-deprecated endpoint. Its handling is somewhat
   // complicated, so just skip it until someone requests to implement it.
@@ -613,7 +633,7 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
 
       let params = extractParams(get, device, [
         'ClientIDQuery',
-        'ClientTransactionIDQuery'
+        'ClientTransactionIDQuery',
       ]);
 
       let method = new DeviceMethod(device, 'Get', methodPath, get);
@@ -628,10 +648,10 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
             paramCtx.handleOptType(
               `${device.name}${method.name}Request${param.name}`,
               param.schema,
-              param.required ?? false
+              param.required,
             ),
-            getDoc(param)
-          )
+            getDoc(param),
+          ),
         );
       }
 
@@ -648,20 +668,20 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
         device,
         get ? 'Put(Setter)' : 'Put',
         methodPath,
-        put
+        put,
       );
 
       let argsType = new TypeContext('Request', device).handleContent(
         method.name,
         'application/x-www-form-urlencoded',
-        put.requestBody
+        put.requestBody,
       );
 
       if (!argsType.isVoid()) {
         let resolvedType = types.get(argsType.toString());
         assert.ok(
           resolvedType instanceof RequestType,
-          'Registered type is not a request'
+          'Registered type is not a request',
         );
         method.resolvedArgs = resolvedType.properties;
       }
@@ -680,14 +700,14 @@ for (let [path, methods = err('Missing methods')] of Object.entries(
     device.methods.add(
       // override `device` property to point to the specific non-base device
       Object.create(interfaceVersionMethod, {
-        device: { value: device }
-      })
+        device: { value: device },
+      }),
     );
   }
   baseDevice.methods.delete('interface_version');
 }
 
-function stringifyDoc(doc: string | undefined = '') {
+function stringifyDoc(doc = '') {
   doc = doc.trim();
   if (!doc) return '';
   return (
@@ -700,8 +720,8 @@ function stringifyDoc(doc: string | undefined = '') {
       .replace(/^(.*?(?<!e\.g|i\.e)\.) (?=[A-Z])/, '$1\n\n')
       // Mark code blocks as text so that they're not picked up as Rust.
       .replace(/^(```)(\n.*?\n```)$/gms, '$1text$2')
-      // Add doc-comment markers to each line.
-      .replace(/^/gm, '/// ')
+      // For each line, add doc-comment markers and trim the trailing whitespace.
+      .replace(/^(.*?) *(?=\n|$)/gm, '/// $1')
   );
 }
 
@@ -743,11 +763,11 @@ ${types}
 
 ${devices}
 
-rpc_mod! {${devices.toString(device =>
+rpc_mod! {${devices.toString((device) =>
   device.isBaseDevice
     ? ''
     : `
-    ${device.name} = "${device.path}",`
+    ${device.name} = "${device.path}",`,
 )}
 }
 `;
@@ -755,7 +775,7 @@ rpc_mod! {${devices.toString(device =>
 try {
   let rustfmt = spawnSync('rustfmt', ['--edition=2021'], {
     encoding: 'utf-8',
-    input: rendered
+    input: rendered,
   });
   if (rustfmt.error) {
     throw rustfmt.error;
@@ -771,5 +791,5 @@ try {
 await unlink('../mod.rs');
 await writeFile('../mod.rs', rendered, {
   flag: 'wx',
-  mode: /* readonly */ 0o444
+  mode: /* readonly */ 0o444,
 });

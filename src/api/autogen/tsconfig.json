@@ -3,14 +3,11 @@
     "target": "ESNext",
     "lib": ["ESNext"],
     "module": "NodeNext",
-    "moduleResolution": "nodenext",
     "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": true,
     "strict": true,
-    "noUncheckedIndexedAccess": true
-  },
-  "include": ["*.ts"],
-  "ts-node": {
-    "esm": true
+    "noUncheckedIndexedAccess": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "rewriteRelativeImportExtensions": true
   }
 }

@@ -4,19 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "node --enable-source-maps --no-warnings=ExperimentalWarning --loader=ts-node/esm index.ts"
+    "generate": "node index.ts"
   },
   "keywords": [],
   "author": "Ingvar Stepanyan <me@rreverser.com> (https://rreverser.com/)",
   "license": "MIT",
   "dependencies": {
-    "@readme/openapi-parser": "^2.2.0",
-    "@types/node": "22.5.5",
-    "@types/xml2js": "^0.4.11",
+    "@readme/openapi-parser": "^5.0.1",
+    "@types/node": "24.3.0",
+    "@types/xml2js": "^0.4.14",
     "js-convert-case": "^4.2.0",
     "openapi-types": "12.1.3",
-    "ts-node": "^10.9.1",
-    "typescript": "5.5.4",
+    "typescript": "5.9.2",
     "xml2js": "0.6.2"
+  },
+  "prettier": {
+    "singleQuote": true
   }
 }
