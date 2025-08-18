@@ -14,49 +14,41 @@ pub(crate) use auto_increment;
     allow(unused_macro_rules)
 )]
 macro_rules! rpc_trait {
-    (@add_extras Device $($rest:tt)*) => {
-        rpc_trait!(
-            @finish
+    (@extras Device trait) => {
+        /// Static device name for the configured list.
+        fn static_name(&self) -> &str;
 
-            $($rest)*
+        /// Unique ID of this device.
+        fn unique_id(&self) -> &str;
 
-            {
-                /// Static device name for the configured list.
-                fn static_name(&self) -> &str
-            }
-            ;
-            {
-                &self.name
-            }
+        /// Web page user interface that enables device specific configuration to be set for each available device.
+        ///
+        /// The server should implement this to return HTML string. You can use [`Self::action`] to store the configuration.
+        ///
+        /// Note: on the client side you almost never want to just retrieve HTML to show it in the browser, as that breaks relative URLs.
+        /// Use the `/{device_type}/{device_number}/setup` URL instead.
+        ///
+        /// Definition before the `#[async_trait]` expansion:
+        /// ```ignore
+        /// async fn setup(&self) -> eyre::Result<String>
+        /// # { unimplemented!() }
+        /// ```
+        fn setup(&self) -> futures::future::BoxFuture<'_, eyre::Result<String>> {
+            Box::pin(futures::future::ok(include_str!("../server/device_setup_template.html").to_owned()))
+        }
+    };
 
-            {
-                /// Unique ID of this device.
-                fn unique_id(&self) -> &str
-            }
-            ;
-            {
-                &self.unique_id
-            }
+    (@extras Device client) => {
+        fn static_name(&self) -> &str {
+            &self.name
+        }
 
-            {
-                /// Web page user interface that enables device specific configuration to be set for each available device.
-                ///
-                /// The server should implement this to return HTML string. You can use [`Self::action`] to store the configuration.
-                ///
-                /// Note: on the client side you almost never want to just retrieve HTML to show it in the browser, as that breaks relative URLs.
-                /// Use the `/{device_type}/{device_number}/setup` URL instead.
-                ///
-                /// Definition before the `#[async_trait]` expansion:
-                /// ```ignore
-                /// async fn setup(&self) -> eyre::Result<String>
-                /// # { unimplemented!() }
-                /// ```
-                async fn setup(&self) -> eyre::Result<String>
-            }
-            {
-                Ok(include_str!("../server/device_setup_template.html").to_owned())
-            }
-            {
+        fn unique_id(&self) -> &str {
+            &self.unique_id
+        }
+
+        fn setup(&self) -> futures::future::BoxFuture<'_, eyre::Result<String>> {
+            Box::pin(async move {
                 Ok(
                     $crate::client::REQWEST
                         .get(self.inner.base_url.join("setup")?)
@@ -65,12 +57,12 @@ macro_rules! rpc_trait {
                         .text()
                         .await?
                 )
-            }
-        );
+            })
+        }
     };
-    (@add_extras $trait_name:ident $($rest:tt)*) => {
-        rpc_trait!(@finish $($rest)*);
 
+    (@extras Device mod) => {};
+    (@extras $trait_name:ident mod) => {
         impl $crate::api::devices_impl::RetrieavableDevice for dyn $trait_name {
             const TYPE: DeviceType = DeviceType::$trait_name;
 
@@ -110,19 +102,8 @@ macro_rules! rpc_trait {
         }
     };
 
-    (@finish { $($trait_header:tt)* } { $($client_header:tt)* } $({ $($method_header:tt)* } $trait_body:tt $client_body:tt)*) => {
-        $($trait_header)* {
-            $(
-                $($method_header)* $trait_body
-            )*
-        }
-
-        $($client_header)* {
-            $(
-                $($method_header)* $client_body
-            )*
-        }
-    };
+    // Don't add any extra code for other traits in other locations.
+    (@extras $trait_name:ident $loc:ident) => {};
 
     (
         $(# $attr:tt)*
@@ -140,8 +121,9 @@ macro_rules! rpc_trait {
     $(# $attr)*
     pub(crate) mod [<$trait_name:snake>] {
         use super::*;
+        use serde::Serialize;
 
-        #[cfg_attr(feature = "client", derive(serde::Serialize), serde(untagged))]
+        #[cfg_attr(feature = "client", derive(Serialize), serde(untagged))]
         #[expect(non_camel_case_types)]
         pub(super) enum Action {
             $(
@@ -154,7 +136,7 @@ macro_rules! rpc_trait {
             )*
         }
 
-        #[cfg_attr(feature = "server", derive(serde::Serialize), serde(untagged))]
+        #[cfg_attr(feature = "server", derive(Serialize), serde(untagged))]
         #[expect(non_camel_case_types)]
         pub(super) enum Response {
             $(
@@ -198,38 +180,36 @@ macro_rules! rpc_trait {
             }
         }
 
-        rpc_trait!(
-            @add_extras
-            $trait_name
-            {
-                $(# $attr)*
-                #[async_trait::async_trait]
-                #[allow(unused_variables)]
-                $pub trait $trait_name: $trait_parents
-            }
-            {
-                #[cfg(feature = "client")]
-                #[async_trait::async_trait]
-                impl $trait_name for $crate::client::RawDeviceClient
-            }
-
+        $(# $attr)*
+        #[async_trait::async_trait]
+        #[allow(unused_variables)]
+        $pub trait $trait_name: $trait_parents {
             $(
-                {
-                    $(#[doc = $doc])*
-                    ///
-                    /// Definition before the `#[async_trait]` expansion:
-                    ///
-                    /// ```ignore
-                    #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!($return_type))]
-                    /// # { unimplemented!() }
-                    /// ```
-                    $(# $method_attr)*
-                    async fn $method_name(
-                        & $self $(, $param: $param_ty)*
-                    ) -> $return_type
-                }
-                $default_body
-                {
+                $(#[doc = $doc])*
+                ///
+                /// Definition before the `#[async_trait]` expansion:
+                ///
+                /// ```ignore
+                #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!($return_type))]
+                /// # { unimplemented!() }
+                /// ```
+                $(# $method_attr)*
+                async fn $method_name(
+                    & $self $(, $param: $param_ty)*
+                ) -> $return_type $default_body
+            )*
+
+            rpc_trait!(@extras $trait_name trait);
+        }
+
+        #[cfg(feature = "client")]
+        #[async_trait::async_trait]
+        impl $trait_name for $crate::client::RawDeviceClient {
+            $(
+                $(# $method_attr)*
+                async fn $method_name(
+                    & $self $(, $param: $param_ty)*
+                ) -> $return_type {
                     $self
                     .exec_action(Action::$method_name {
                         $(
@@ -240,7 +220,9 @@ macro_rules! rpc_trait {
                     $(.map(<$via>::into))?
                 }
             )*
-        );
+
+            rpc_trait!(@extras $trait_name client);
+        }
 
         impl PartialEq for dyn $trait_name {
             fn eq(&self, other: &Self) -> bool {
@@ -268,6 +250,8 @@ macro_rules! rpc_trait {
                 }
             }
         }
+
+        rpc_trait!(@extras $trait_name mod);
     }
 
     pub use [<$trait_name:snake>]::$trait_name;
