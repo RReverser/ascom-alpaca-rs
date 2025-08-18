@@ -22,11 +22,11 @@ The second set of features is based on the device type and enables the correspon
 
 - `all-devices`: Enables all of the below. Not recommended unless you're building a universal astronomy application.
 - `camera`: Enables support for cameras via the [`Camera`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Camera.html) trait.
-- `covercalibrator`: Enables [...] the [`CoverCalibrator`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.CoverCalibrator.html) trait.
+- `cover_calibrator`: Enables [...] the [`CoverCalibrator`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.CoverCalibrator.html) trait.
 - `dome`: Enables [`Dome`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Dome.html).
-- `filterwheel`: Enables [`FilterWheel`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.FilterWheel.html).
+- `filter_wheel`: Enables [`FilterWheel`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.FilterWheel.html).
 - `focuser`: Enables [`Focuser`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Focuser.html).
-- `observingconditions`: Enables [`ObservingConditions`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.ObservingConditions.html).
+- `observing_conditions`: Enables [`ObservingConditions`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.ObservingConditions.html).
 - `rotator`: Enables [`Rotator`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Rotator.html).
 - `switch`: Enables [`Switch`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Switch.html).
 - `telescope`: Enables [`Telescope`](https://docs.rs/ascom-alpaca/latest/ascom_alpaca/api/trait.Telescope.html).

@@ -18,11 +18,11 @@ The second set of features is based on the device type and enables the correspon
 
 - `all-devices`: Enables all of the below. Not recommended unless you're building a universal astronomy application.
 - `camera`: Enables support for cameras via the [`Camera`](crate::api::Camera) trait.
-- `covercalibrator`: Enables [...] the [`CoverCalibrator`](crate::api::CoverCalibrator) trait.
+- `cover_calibrator`: Enables [...] the [`CoverCalibrator`](crate::api::CoverCalibrator) trait.
 - `dome`: Enables [`Dome`](crate::api::Dome).
-- `filterwheel`: Enables [`FilterWheel`](crate::api::FilterWheel).
+- `filter_wheel`: Enables [`FilterWheel`](crate::api::FilterWheel).
 - `focuser`: Enables [`Focuser`](crate::api::Focuser).
-- `observingconditions`: Enables [`ObservingConditions`](crate::api::ObservingConditions).
+- `observing_conditions`: Enables [`ObservingConditions`](crate::api::ObservingConditions).
 - `rotator`: Enables [`Rotator`](crate::api::Rotator).
 - `switch`: Enables [`Switch`](crate::api::Switch).
 - `telescope`: Enables [`Telescope`](crate::api::Telescope).

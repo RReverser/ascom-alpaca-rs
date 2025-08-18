@@ -230,20 +230,20 @@ macro_rules! rpc_trait {
 }
 
 macro_rules! rpc_mod {
-    ($($trait_name:ident = $path:literal,)*) => (paste::paste! {
+    ($(# $cfg:tt $trait_name:ident = $path:literal,)*) => (paste::paste! {
         $(
-            #[cfg(feature = $path)]
+            # $cfg
             #[doc = "Types related to [`" $trait_name "`] devices."]
             pub mod [<$trait_name:snake>];
 
-            #[cfg(feature = $path)]
+            # $cfg
             pub use [<$trait_name:snake>]::$trait_name;
         )*
 
         #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug, derive_more::Display, serde::Serialize, serde::Deserialize)]
         pub(crate) enum DeviceType {
             $(
-                #[cfg(feature = $path)]
+                # $cfg
                 #[display($path)]
                 $trait_name,
             )*
@@ -254,7 +254,7 @@ macro_rules! rpc_mod {
         #[expect(missing_docs)]
         pub enum TypedDevice {
             $(
-                #[cfg(feature = $path)]
+                # $cfg
                 $trait_name(std::sync::Arc<dyn $trait_name>),
             )*
         }
@@ -263,7 +263,7 @@ macro_rules! rpc_mod {
             fn add_to(self, storage: &mut Devices) {
                 match self {
                     $(
-                        #[cfg(feature = $path)]
+                        # $cfg
                         Self::$trait_name(device) => storage.$trait_name.push(device),
                     )*
                 }
@@ -278,7 +278,7 @@ macro_rules! rpc_mod {
         #[derive(Clone)]
         pub struct Devices {
             $(
-                #[cfg(feature = $path)]
+                # $cfg
                 $trait_name: Vec<std::sync::Arc<dyn $trait_name>>,
             )*
         }
@@ -287,7 +287,7 @@ macro_rules! rpc_mod {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut f = f.debug_struct("Devices");
                 $(
-                    #[cfg(feature = $path)]
+                    # $cfg
                     if !self.$trait_name.is_empty() {
                         _ = f.field(stringify!($trait_name), &self.$trait_name);
                     }
@@ -303,7 +303,7 @@ macro_rules! rpc_mod {
             pub const fn default() -> Self {
                 Self {
                     $(
-                        #[cfg(feature = $path)]
+                        # $cfg
                         $trait_name: Vec::new(),
                     )*
                 }
@@ -321,7 +321,7 @@ macro_rules! rpc_mod {
                 let iter = std::iter::empty();
 
                 $(
-                    #[cfg(feature = $path)]
+                    # $cfg
                     let iter = iter.chain(
                         self.iter::<dyn $trait_name>()
                         .map(TypedDevice::$trait_name)
@@ -340,7 +340,7 @@ macro_rules! rpc_mod {
                 pub(crate) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
                     match device_type {
                         $(
-                            #[cfg(feature = $path)]
+                            # $cfg
                             DeviceType::$trait_name => TypedDevice::$trait_name(self),
                         )*
                     }
@@ -353,7 +353,7 @@ macro_rules! rpc_mod {
         #[serde(remote = "DeviceType")]
         pub(crate) enum DevicePath {
             $(
-                #[cfg(feature = $path)]
+                # $cfg
                 #[serde(rename = $path)]
                 $trait_name,
             )*
@@ -365,7 +365,7 @@ macro_rules! rpc_mod {
                 pub(crate) fn to_configured_device(&self, as_number: usize) -> ConfiguredDevice<DeviceType> {
                     match *self {
                         $(
-                            #[cfg(feature = $path)]
+                            # $cfg
                             Self::$trait_name(ref device) => device.to_configured_device(as_number),
                         )*
                     }
@@ -377,7 +377,7 @@ macro_rules! rpc_mod {
             enum TypedResponse {
                 Device(device::Response),
                 $(
-                    #[cfg(feature = $path)]
+                    # $cfg
                     $trait_name([<$trait_name:snake>]::Response),
                 )*
             }
@@ -385,7 +385,7 @@ macro_rules! rpc_mod {
             enum TypedDeviceAction {
                 Device(device::Action),
                 $(
-                    #[cfg(feature = $path)]
+                    # $cfg
                     $trait_name([<$trait_name:snake>]::Action),
                 )*
             }
@@ -394,7 +394,7 @@ macro_rules! rpc_mod {
                 fn from_parts(device_type: DeviceType, action: &str, mut params: crate::server::ActionParams) -> crate::server::Result<Self> {
                     let result = match device_type {
                         $(
-                            #[cfg(feature = $path)]
+                            # $cfg
                             DeviceType::$trait_name =>
                                 $crate::params::Action::from_parts(action, &mut params)?
                                 .map(Self::$trait_name),
@@ -429,7 +429,7 @@ macro_rules! rpc_mod {
                     // With trait upcasting, we can get any device as dyn Device directly
                     Ok(match device_type {
                         $(
-                            #[cfg(feature = $path)]
+                            # $cfg
                             DeviceType::$trait_name => {
                                 self.get_for_server::<dyn $trait_name>(device_number)?
                             }
@@ -442,7 +442,7 @@ macro_rules! rpc_mod {
 
                     Ok(match action {
                         $(
-                            #[cfg(feature = $path)]
+                            # $cfg
                             TypedDeviceAction::$trait_name(action) => {
                                 let device = self.get_for_server::<dyn $trait_name>(device_number)?;
                                 TypedResponse::$trait_name(action.handle(device).await?)

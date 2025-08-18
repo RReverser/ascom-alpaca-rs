@@ -54,15 +54,34 @@ pub mod device;
 pub use device::Device;
 
 rpc_mod! {
+    #[cfg(feature = "camera")]
     Camera = "camera",
+
+    #[cfg(feature = "cover_calibrator")]
     CoverCalibrator = "covercalibrator",
+
+    #[cfg(feature = "dome")]
     Dome = "dome",
+
+    #[cfg(feature = "filter_wheel")]
     FilterWheel = "filterwheel",
+
+    #[cfg(feature = "focuser")]
     Focuser = "focuser",
+
+    #[cfg(feature = "observing_conditions")]
     ObservingConditions = "observingconditions",
+
+    #[cfg(feature = "rotator")]
     Rotator = "rotator",
+
+    #[cfg(feature = "safety_monitor")]
     SafetyMonitor = "safetymonitor",
+
+    #[cfg(feature = "switch")]
     Switch = "switch",
+
+    #[cfg(feature = "telescope")]
     Telescope = "telescope",
 }
 

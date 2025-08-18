@@ -114,21 +114,21 @@ fn group_to_html(group_ty: DeviceType, group: &[(usize, String)]) -> impl '_ + D
                 DeviceType::Camera => "Cameras",
                 #[cfg(feature = "dome")]
                 DeviceType::Dome => "Domes",
-                #[cfg(feature = "filterwheel")]
+                #[cfg(feature = "filter_wheel")]
                 DeviceType::FilterWheel => "Filter wheels",
                 #[cfg(feature = "focuser")]
                 DeviceType::Focuser => "Focusers",
-                #[cfg(feature = "observingconditions")]
+                #[cfg(feature = "observing_conditions")]
                 DeviceType::ObservingConditions => "Weather stations",
                 #[cfg(feature = "rotator")]
                 DeviceType::Rotator => "Rotators",
-                #[cfg(feature = "safetymonitor")]
+                #[cfg(feature = "safety_monitor")]
                 DeviceType::SafetyMonitor => "Safety monitors",
                 #[cfg(feature = "switch")]
                 DeviceType::Switch => "Switches",
                 #[cfg(feature = "telescope")]
                 DeviceType::Telescope => "Telescopes",
-                #[cfg(feature = "covercalibrator")]
+                #[cfg(feature = "cover_calibrator")]
                 DeviceType::CoverCalibrator => "Cover calibrators",
             }
         ),

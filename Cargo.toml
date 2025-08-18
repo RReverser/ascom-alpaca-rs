@@ -93,13 +93,13 @@ required-features = ["client", "all-devices", "criterion"]
 [features]
 all-devices = [
 	"camera",
-	"covercalibrator",
+	"cover_calibrator",
 	"dome",
-	"filterwheel",
+	"filter_wheel",
 	"focuser",
-	"observingconditions",
+	"observing_conditions",
 	"rotator",
-	"safetymonitor",
+	"safety_monitor",
 	"switch",
 	"telescope",
 ]
@@ -115,13 +115,13 @@ camera = [
 	"dep:serde-ndim",
 	"dep:time",
 ]
-covercalibrator = ["__anydevice"]
+cover_calibrator = ["__anydevice"]
 dome = ["__anydevice"]
-filterwheel = ["__anydevice"]
+filter_wheel = ["__anydevice"]
 focuser = ["__anydevice"]
-observingconditions = ["__anydevice"]
+observing_conditions = ["__anydevice"]
 rotator = ["__anydevice"]
-safetymonitor = ["__anydevice"]
+safety_monitor = ["__anydevice"]
 switch = ["__anydevice"]
 telescope = ["__anydevice", "dep:time"]
 
