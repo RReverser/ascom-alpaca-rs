@@ -9,13 +9,14 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-ascom-alpaca = { path = "../..", features = ["server", "camera"] }
+ascom-alpaca = { workspace = true, features = ["server", "camera"] }
 
 async-trait = { workspace = true }
 derive_more = { workspace = true, features = ["debug", "add"] }
 eyre = { workspace = true }
 futures = { workspace = true }
 ndarray = { workspace = true, features = ["rayon"] }
+net-literals = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -23,3 +24,6 @@ tracing-subscriber = { workspace = true }
 # https://github.com/l1npengtul/nokhwa/issues/177
 nokhwa = { git = "https://github.com/l1npengtul/nokhwa", rev = "74a98ace10368320cfcc2186118ae10d5308ca59", features = ["input-native", "output-threaded"] }
 parking_lot = { version = "0.12.4", features = ["arc_lock", "send_guard"] }
+
+[dev-dependencies]
+ascom-alpaca = { workspace = true, features = ["test"] }

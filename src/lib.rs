@@ -313,28 +313,30 @@ compile_error!("At least one of the network features must be enabled (`client` a
 pub(crate) mod macros;
 
 pub mod api;
-
-#[cfg(feature = "client")]
-mod client;
-
-#[cfg(feature = "server")]
-mod server;
-
-pub mod discovery;
-mod errors;
-mod params;
-mod response;
+pub use api::Devices;
 
 /// Utilities for testing Alpaca client and server implementations.
 #[cfg(feature = "test")]
+#[macro_use]
 pub mod test;
 
-pub use api::Devices;
+#[cfg(feature = "client")]
+mod client;
 #[cfg(feature = "client")]
 pub use client::Client;
-pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+
+#[cfg(feature = "server")]
+mod server;
 #[cfg(feature = "server")]
 pub use server::{BoundServer, Server};
+
+pub mod discovery;
+
+mod errors;
+pub use errors::{ASCOMError, ASCOMErrorCode, ASCOMResult};
+
+mod params;
+mod response;
 
 /// Benchmark groups for Criterion.
 ///

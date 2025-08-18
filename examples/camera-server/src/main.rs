@@ -17,6 +17,7 @@ use async_trait::async_trait;
 use eyre::ContextCompat;
 use futures::future::{BoxFuture, FutureExt, Shared};
 use ndarray::Array3;
+use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{
     CameraFormat, CameraInfo, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
@@ -631,7 +632,10 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
 #[tokio::main]
 async fn main() -> eyre::Result<std::convert::Infallible> {
     tracing_subscriber::fmt::init();
+    setup_server().await?.start().await
+}
 
+async fn setup_server() -> eyre::Result<Server> {
     {
         let (init_tx, init_rx) = oneshot::channel();
         // Ideally this would be *just* oneshot but can't be due to https://github.com/l1npengtul/nokhwa/issues/109.
@@ -647,11 +651,10 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
     }
 
     let mut server = Server {
+        listen_addr: addr!("127.0.0.1:8000"),
         info: CargoServerInfo!(),
         ..Default::default()
     };
-
-    server.listen_addr.set_port(8000);
 
     for camera_info in nokhwa::query(nokhwa::utils::ApiBackend::Auto)? {
         if let Ok(webcam) = get_webcam(&camera_info) {
@@ -659,5 +662,27 @@ async fn main() -> eyre::Result<std::convert::Infallible> {
         }
     }
 
-    server.start().await
+    Ok(server)
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn run_conformu_tests() -> eyre::Result<()> {
+    use ascom_alpaca::test::run_conformu_tests;
+    use futures::future::try_join_all;
+
+    tracing_subscriber::fmt::init();
+
+    let server = setup_server().await?;
+
+    let server_url = format!("http://{}/", server.listen_addr);
+    let webcam_count = server.devices.iter::<dyn AlpacaCamera>().len();
+
+    tokio::select! {
+        proxy_result = server.start() => match proxy_result? {},
+
+        tests_result = try_join_all((0..webcam_count).map(|i| {
+            run_conformu_tests::<dyn AlpacaCamera>(&server_url, i)
+        })) => tests_result.map(|_: Vec<()>| ()),
+    }
 }

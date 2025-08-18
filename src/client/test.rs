@@ -34,7 +34,7 @@ fn kill_server() {
 /// It also registers a destructor so that the simulator process is reliably
 /// killed whenever the test process exits.
 #[tracing::instrument]
-pub async fn get_devices() -> eyre::Result<&'static Devices> {
+pub async fn get_simulator_devices() -> eyre::Result<&'static Devices> {
     OMNISIM.get_or_try_init(|| async {
         let mut server =
             cmd!(

@@ -12,6 +12,9 @@ pub(crate) use transaction::*;
 mod response;
 pub(crate) use response::Response;
 
+#[cfg(feature = "test")]
+pub(crate) mod test;
+
 use crate::api::{ConfiguredDevice, FallibleDeviceType, ServerInfo, TypedDevice};
 use crate::params::{Action, ActionParams, Method};
 use crate::response::ValueResponse;

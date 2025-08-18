@@ -1,4 +1,6 @@
 use crate::api::RetrieavableDevice;
+use reqwest::{IntoUrl, Url};
+use std::fmt::Debug;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -22,10 +24,10 @@ impl ConformU {
 
     /// Run the specified test with ConformU against the specified device URL.
     #[tracing::instrument(level = "error", skip(device_url))]
-    async fn test(self, device_url: &str) -> eyre::Result<()> {
+    async fn test(self, device_url: &Url) -> eyre::Result<()> {
         let mut conformu = cmd!(r"C:\Program Files\ASCOM\ConformU", "conformu")
             .arg(self.as_arg())
-            .arg(device_url)
+            .arg(device_url.as_str())
             .stdout(Stdio::piped())
             .spawn()?;
 
@@ -153,10 +155,17 @@ fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'l
 ///
 /// This assumes that ConformU is installed and available on PATH or in the
 /// default installation location.
-#[tracing::instrument(level = "error")]
+#[tracing::instrument(level = "error", fields(ty = ?T::TYPE))]
 #[allow(private_bounds)]
-pub async fn run_tests<T: ?Sized + RetrieavableDevice>(url: &str) -> eyre::Result<()> {
+pub async fn run_conformu_tests<T: ?Sized + RetrieavableDevice>(
+    server_url: impl IntoUrl + Debug,
+    device_number: usize,
+) -> eyre::Result<()> {
+    let url = server_url
+        .into_url()?
+        .join(&format!("api/v1/{ty}/{device_number}", ty = T::TYPE))?;
+
     // Must be executed serially as they operate on the same device.
-    ConformU::AlpacaProtocol.test(url).await?;
-    ConformU::Conformance.test(url).await
+    ConformU::AlpacaProtocol.test(&url).await?;
+    ConformU::Conformance.test(&url).await
 }

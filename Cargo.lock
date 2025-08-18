@@ -768,6 +768,7 @@ dependencies = [
  "eyre",
  "futures",
  "ndarray",
+ "net-literals",
  "nokhwa",
  "parking_lot",
  "tokio",

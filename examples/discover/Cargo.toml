@@ -9,7 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-ascom-alpaca = { path = "../..", features = ["client", "all-devices"] }
+ascom-alpaca = { workspace = true, features = ["client", "all-devices"] }
 
 eyre = { workspace = true }
 futures = { workspace = true }

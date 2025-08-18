@@ -3,6 +3,12 @@ use std::path::PathBuf;
 #[cfg(test)]
 mod logging_env;
 
+#[cfg(feature = "client")]
+pub use crate::client::test::get_simulator_devices;
+
+#[cfg(feature = "server")]
+pub use crate::server::test::run_conformu_tests;
+
 pub(crate) fn resolve_path(path_hint: &'static str, exe_name: &'static str) -> PathBuf {
     use std::env;
 
@@ -31,18 +37,11 @@ macro_rules! cmd {
     };
 }
 
-#[cfg(feature = "server")]
-mod conformu;
-#[cfg(feature = "server")]
-pub use conformu::run_tests as run_conformu_tests;
-
-#[cfg(feature = "client")]
-mod omnisim;
-#[cfg(feature = "client")]
-pub use omnisim::get_devices as get_simulator_devices;
-
 #[cfg(test)]
-pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>() -> eyre::Result<()> {
+pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>() -> eyre::Result<()>
+{
+    use crate::client::test::get_simulator_devices;
+    use crate::server::test::run_conformu_tests;
     use crate::Server;
     use net_literals::addr;
 
@@ -54,15 +53,11 @@ pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>(
 
     let proxy = proxy.bind().await?;
 
-    let device_url = format!(
-        "http://{listen_addr}/api/v1/{ty}/0",
-        // Get the IP and the random port assigned by the OS.
-        listen_addr = proxy.listen_addr(),
-        ty = T::TYPE
-    );
+    // Get the IP and the random port assigned by the OS.
+    let server_url = format!("http://{}/", proxy.listen_addr());
 
     tokio::select! {
         proxy_result = proxy.start() => match proxy_result? {},
-        tests_result = run_conformu_tests::<T>(&device_url) => tests_result,
+        tests_result = run_conformu_tests::<T>(server_url, 0) => tests_result,
     }
 }

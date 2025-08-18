@@ -19,6 +19,9 @@ mod setup_page;
 mod transaction;
 pub(crate) use transaction::*;
 
+#[cfg(feature = "test")]
+pub(crate) mod test;
+
 #[cfg(feature = "camera")]
 use crate::api::Camera;
 use crate::api::{CargoServerInfo, DeviceType, ServerInfo};

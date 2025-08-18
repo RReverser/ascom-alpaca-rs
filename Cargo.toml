@@ -19,11 +19,13 @@ exclude = ["/.github", "/.vscode", "/src/api/autogen"]
 workspace = true
 
 [workspace.dependencies]
+ascom-alpaca = { path = "." }
 async-trait = "0.1.89"
 derive_more = "2.0.1"
 eyre = "0.6.12"
 futures = "0.3.31"
 ndarray = "0.16.1"
+net-literals = "0.2.0"
 tokio = "1.47.1"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
@@ -49,7 +51,7 @@ macro_rules_attribute = "0.2.2"
 mediatype = { version = "0.20.0", optional = true }
 mime = { version = "0.3.17", optional = true }
 ndarray = { workspace = true, optional = true }
-net-literals = "0.2.0"
+net-literals = { workspace = true }
 num_enum = "0.7.4"
 rand = { version = "0.9.2", optional = true }
 reqwest = { version = "0.12.23", optional = true, default-features = false, features = [
@@ -102,7 +104,7 @@ all-devices = [
 	"telescope",
 ]
 
-test = ["tokio/process", "dep:dtor"]
+test = ["tokio/process", "dep:dtor", "dep:reqwest"]
 
 __anydevice = []
 camera = [
