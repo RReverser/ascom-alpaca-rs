@@ -26,13 +26,14 @@ fn kill_server() {
     }
 }
 
-/// A helper for starting the OmniSim simulator.
+/// Get devices for testing from the ASCOM Alpaca simulator.
 ///
-/// It ensures that, upon the return, the simulator server has started
-/// successfully, and returns a cached list of available devices.
+/// This helper starts the simulator in background and returns a cached list
+/// of available devices.
 ///
 /// It also registers a destructor so that the simulator process is reliably
 /// killed whenever the test process exits.
+#[tracing::instrument]
 pub async fn get_devices() -> eyre::Result<&'static Devices> {
     OMNISIM.get_or_try_init(|| async {
         let mut server =

@@ -29,7 +29,7 @@ fn target_icon(target: &str) -> Option<char> {
         ["discovery", ..] | [_, "discovery", ..] => '🔍',
         ["client", ..] => '📡',
         ["server", ..] => '🏭',
-        ["conformu" | "test_utils", ..] => '🧪',
+        ["conformu" | "test", ..] => '🧪',
         _ => return None,
     })
 }

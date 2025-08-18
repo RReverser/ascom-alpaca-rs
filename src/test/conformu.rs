@@ -1,9 +1,10 @@
+use crate::api::RetrieavableDevice;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 /// The kind of test to run with ConformU.
 #[derive(Debug, Clone, Copy)]
-pub enum ConformU {
+enum ConformU {
     /// Check the specified Alpaca device for Alpaca protocol conformance.
     AlpacaProtocol,
 
@@ -20,7 +21,8 @@ impl ConformU {
     }
 
     /// Run the specified test with ConformU against the specified device URL.
-    pub async fn run(self, device_url: &str) -> eyre::Result<()> {
+    #[tracing::instrument(level = "error", skip(device_url))]
+    async fn test(self, device_url: &str) -> eyre::Result<()> {
         let mut conformu = cmd!(r"C:\Program Files\ASCOM\ConformU", "conformu")
             .arg(self.as_arg())
             .arg(device_url)
@@ -145,4 +147,16 @@ fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'l
     let part = line[..len].trim_end_matches(' ');
     *line = &line[len + 1..];
     Some(part)
+}
+
+/// Run all the ConformU tests against the device at the specified URL.
+///
+/// This assumes that ConformU is installed and available on PATH or in the
+/// default installation location.
+#[tracing::instrument(level = "error")]
+#[allow(private_bounds)]
+pub async fn run_tests<T: ?Sized + RetrieavableDevice>(url: &str) -> eyre::Result<()> {
+    // Must be executed serially as they operate on the same device.
+    ConformU::AlpacaProtocol.test(url).await?;
+    ConformU::Conformance.test(url).await
 }

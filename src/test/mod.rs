@@ -19,7 +19,7 @@ macro_rules! cmd {
             use std::sync::LazyLock;
             // On Windows, ASCOM binaries have well-known path that we can look up if executable is not on the global PATH.
             static RESOLVED_PATH: LazyLock<std::path::PathBuf> = LazyLock::new(|| {
-                $crate::test_utils::resolve_path($windows_path_hint, concat!($name, ".exe"))
+                $crate::test::resolve_path($windows_path_hint, concat!($name, ".exe"))
             });
             &RESOLVED_PATH
         } else {
@@ -34,39 +34,35 @@ macro_rules! cmd {
 #[cfg(feature = "server")]
 mod conformu;
 #[cfg(feature = "server")]
-pub use conformu::ConformU;
+pub use conformu::run_tests as run_conformu_tests;
 
 #[cfg(feature = "client")]
 mod omnisim;
 #[cfg(feature = "client")]
-pub use omnisim::get_devices as get_omnisim_devices;
+pub use omnisim::get_devices as get_simulator_devices;
 
 #[cfg(test)]
-impl ConformU {
-    pub(crate) async fn run_proxy_test(self, ty: crate::api::DeviceType) -> eyre::Result<()> {
-        use crate::Server;
-        use net_literals::addr;
+pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>() -> eyre::Result<()> {
+    use crate::Server;
+    use net_literals::addr;
 
-        let proxy = Server {
-            devices: get_omnisim_devices().await?.clone(),
-            listen_addr: addr!("127.0.0.1:0"),
-            ..Default::default()
-        };
+    let proxy = Server {
+        devices: get_simulator_devices().await?.clone(),
+        listen_addr: addr!("127.0.0.1:0"),
+        ..Default::default()
+    };
 
-        let proxy = proxy.bind().await?;
+    let proxy = proxy.bind().await?;
 
+    let device_url = format!(
+        "http://{listen_addr}/api/v1/{ty}/0",
         // Get the IP and the random port assigned by the OS.
-        let listen_addr = proxy.listen_addr();
+        listen_addr = proxy.listen_addr(),
+        ty = T::TYPE
+    );
 
-        let proxy_task = proxy.start();
-
-        let device_url = format!("http://{listen_addr}/api/v1/{ty}/0");
-
-        let tests_task = self.run(&device_url);
-
-        tokio::select! {
-            proxy_result = proxy_task => match proxy_result? {},
-            tests_result = tests_task => tests_result,
-        }
+    tokio::select! {
+        proxy_result = proxy.start() => match proxy_result? {},
+        tests_result = run_conformu_tests::<T>(&device_url) => tests_result,
     }
 }

@@ -84,21 +84,9 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(test)]
-        /// Tests must be sharded by the device, otherwise we'll issue conflicting actions to the same device from different tests.
-        static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-        #[cfg(test)]
         #[tokio::test]
-        async fn alpaca() -> eyre::Result<()> {
-            let _guard = TEST_MUTEX.lock().await;
-            $crate::test_utils::ConformU::AlpacaProtocol.run_proxy_test(DeviceType::$trait_name).await
-        }
-
-        #[cfg(test)]
-        #[tokio::test]
-        async fn conformance() -> eyre::Result<()> {
-            let _guard = TEST_MUTEX.lock().await;
-            $crate::test_utils::ConformU::Conformance.run_proxy_test(DeviceType::$trait_name).await
+        async fn run_proxy_tests() -> eyre::Result<()> {
+            $crate::test::run_proxy_tests::<dyn $trait_name>().await
         }
     };
 
