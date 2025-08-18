@@ -136,10 +136,7 @@ impl StateCtx {
                     let camera = Arc::clone(camera);
                     let ctx = self.ctx.clone();
                     self.spawn(State::Connecting, async move {
-                        camera.connect().await?;
-                        while !camera.connected().await? {
-                            sleep(Duration::from_millis(100)).await;
-                        }
+                        camera.set_connected(true).await?;
                         let (
                             camera_name,
                             exposure_min,
