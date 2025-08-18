@@ -2,7 +2,7 @@ use super::{ConfiguredDevice, Device, DeviceType, Devices, TypedDevice};
 use std::fmt::Debug;
 use std::sync::Arc;
 
-pub(crate) trait RetrieavableDevice: 'static + Device /* where Self: Unsize<DynTrait> */ {
+pub(crate) trait RetrieavableDevice: 'static + Device {
     const TYPE: DeviceType;
 
     fn get_storage(storage: &Devices) -> &[Arc<Self>];
@@ -58,10 +58,8 @@ impl Devices {
     pub fn get<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
         device_number: usize,
-    ) -> Option<&DynTrait> {
-        DynTrait::get_storage(self)
-            .get(device_number)
-            .map(Arc::as_ref)
+    ) -> Option<Arc<DynTrait>> {
+        DynTrait::get_storage(self).get(device_number).cloned()
     }
 
     #[cfg(feature = "server")]
@@ -69,7 +67,9 @@ impl Devices {
         &self,
         device_number: usize,
     ) -> crate::server::Result<&DynTrait> {
-        self.get::<DynTrait>(device_number)
+        DynTrait::get_storage(self)
+            .get(device_number)
+            .map(Arc::as_ref)
             .ok_or(crate::server::Error::UnknownDeviceIndex {
                 ty: DynTrait::TYPE,
                 index: device_number,

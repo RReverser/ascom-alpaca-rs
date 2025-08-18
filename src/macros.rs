@@ -79,6 +79,12 @@ macro_rules! rpc_trait {
             }
         }
 
+        impl $crate::api::devices_impl::RegistrableDevice<dyn $trait_name> for std::sync::Arc<dyn $trait_name> {
+            fn add_to(self, storage: &mut Devices) {
+                storage.$trait_name.push(self);
+            }
+        }
+
         impl<T: 'static + $trait_name> $crate::api::devices_impl::RegistrableDevice<dyn $trait_name> for T {
             fn add_to(self, storage: &mut Devices) {
                 storage.$trait_name.push(std::sync::Arc::new(self));
