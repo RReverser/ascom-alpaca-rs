@@ -6,8 +6,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub(crate) enum Error {
-    #[error("Device {ty:?}[{index}] not found")]
-    UnknownDeviceIndex { ty: DeviceType, index: usize },
+    #[error("Device {ty:?}[{device_number}] not found")]
+    UnknownDeviceNumber {
+        ty: DeviceType,
+        device_number: usize,
+    },
     #[error("Unknown action {device_type:?}::{action}")]
     UnknownAction {
         device_type: DeviceType,
@@ -28,7 +31,7 @@ pub(crate) enum Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let code = match self {
-            Self::UnknownDeviceIndex { .. } | Self::UnknownAction { .. } => StatusCode::NOT_FOUND,
+            Self::UnknownDeviceNumber { .. } | Self::UnknownAction { .. } => StatusCode::NOT_FOUND,
             Self::MissingParameter { .. } | Self::BadParameter { .. } => StatusCode::BAD_REQUEST,
             Self::Ascom(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };

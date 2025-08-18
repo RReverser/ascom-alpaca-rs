@@ -70,9 +70,9 @@ impl Devices {
         DynTrait::get_storage(self)
             .get(device_number)
             .map(Arc::as_ref)
-            .ok_or(crate::server::Error::UnknownDeviceIndex {
+            .ok_or(crate::server::Error::UnknownDeviceNumber {
                 ty: DynTrait::TYPE,
-                index: device_number,
+                device_number,
             })
     }
 }

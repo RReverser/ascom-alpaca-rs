@@ -55,7 +55,7 @@ where
             Err(err @ (Error::MissingParameter { .. } | Error::BadParameter { .. })) => {
                 Err((StatusCode::BAD_REQUEST, err.to_string()))
             }
-            Err(err @ (Error::UnknownDeviceIndex { .. } | Error::UnknownAction { .. })) => {
+            Err(err @ (Error::UnknownDeviceNumber { .. } | Error::UnknownAction { .. })) => {
                 Err((StatusCode::NOT_FOUND, err.to_string()))
             }
         }
