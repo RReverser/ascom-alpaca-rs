@@ -1,5 +1,3 @@
-#![cfg(any(feature = "camera", feature = "telescope"))]
-
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::fmt::Debug;
