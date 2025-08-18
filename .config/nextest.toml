@@ -1,0 +1,51 @@
+[test-groups]
+camera.max-threads = 1
+dome.max-threads = 1
+filter_wheel.max-threads = 1
+focuser.max-threads = 1
+observing_conditions.max-threads = 1
+rotator.max-threads = 1
+safety_monitor.max-threads = 1
+switch.max-threads = 1
+telescope.max-threads = 1
+cover_calibrator.max-threads = 1
+
+[[profile.default.overrides]]
+filter = 'test(#api::camera::*)'
+test-group = 'camera'
+
+[[profile.default.overrides]]
+filter = 'test(#api::dome::*)'
+test-group = 'dome'
+
+[[profile.default.overrides]]
+filter = 'test(#api::filter_wheel::*)'
+test-group = 'filter_wheel'
+
+[[profile.default.overrides]]
+filter = 'test(#api::focuser::*)'
+test-group = 'focuser'
+
+[[profile.default.overrides]]
+filter = 'test(#api::observing_conditions::*)'
+test-group = 'observing_conditions'
+
+[[profile.default.overrides]]
+filter = 'test(#api::rotator::*)'
+test-group = 'rotator'
+
+[[profile.default.overrides]]
+filter = 'test(#api::safety_monitor::*)'
+test-group = 'safety_monitor'
+
+[[profile.default.overrides]]
+filter = 'test(#api::switch::*)'
+test-group = 'switch'
+
+[[profile.default.overrides]]
+filter = 'test(#api::telescope::*)'
+test-group = 'telescope'
+
+[[profile.default.overrides]]
+filter = 'test(#api::cover_calibrator::*)'
+test-group = 'cover_calibrator'
