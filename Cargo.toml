@@ -13,6 +13,7 @@ repository = "https://github.com/RReverser/ascom-alpaca-rs"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+exclude = ["/.config", "/.github", "/.vscode", "/src/api/autogen"]
 
 [lints]
 workspace = true
@@ -167,8 +168,8 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-redundant_pub_crate = "allow" # conflicts with unreachable_pub
-significant_drop_tightening = "allow" # too many false positives
+redundant_pub_crate = "allow"                # conflicts with unreachable_pub
+significant_drop_tightening = "allow"        # too many false positives
 single_match_else = "allow"
 let_underscore_untyped = "allow"
 cognitive_complexity = "allow"
