@@ -5,7 +5,7 @@ use std::process::Stdio;
 use tokio::net::TcpStream;
 use tokio::process::Child;
 use tokio::sync::{Mutex, OnceCell};
-use tokio::time::sleep;
+use tokio::time::{sleep, Duration};
 
 const ADDR: SocketAddr = addr!("127.0.0.1:32323");
 
@@ -50,7 +50,7 @@ pub async fn get_devices() -> eyre::Result<&'static Devices> {
         tokio::select! {
             () = async {
                 while TcpStream::connect(ADDR).await.is_err() {
-                    sleep(std::time::Duration::from_millis(100)).await;
+                    sleep(Duration::from_millis(100)).await;
                 }
             } => {}
             server_exited = server.wait() => {
@@ -61,7 +61,7 @@ pub async fn get_devices() -> eyre::Result<&'static Devices> {
                     eyre::bail!("Simulator process exited early: {status}");
                 }
             },
-            () = sleep(std::time::Duration::from_secs(10)) => eyre::bail!("Simulator process didn't start in time")
+            () = sleep(Duration::from_secs(10)) => eyre::bail!("Simulator process didn't start in time")
         }
 
         Ok(OmniSim {

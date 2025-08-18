@@ -8,10 +8,9 @@ use netdev::interface::InterfaceType;
 use netdev::Interface;
 use socket2::SockRef;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
-use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::task::spawn_blocking;
-use tokio::time::timeout;
+use tokio::time::{timeout, Duration};
 use tracing_futures::Instrument;
 
 /// Discovery client.

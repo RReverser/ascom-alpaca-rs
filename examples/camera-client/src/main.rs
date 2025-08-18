@@ -22,10 +22,9 @@ use futures::{Future, FutureExt, StreamExt, TryFutureExt};
 use std::collections::HashSet;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use tokio::time::{sleep, Duration};
 
 type ChildTask = tokio_util::task::AbortOnDropHandle<State>;
 
