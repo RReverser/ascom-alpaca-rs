@@ -9,7 +9,7 @@ macro_rules! declare_parsing_benches {
     ($($name:ident: $ty:ty => ($mime:expr, $fixture_path:literal),)*) => {
         /// Run response parsing benchmarks against stored fixtures.
         pub fn benches() {
-            let _ =
+            _ =
                 Criterion::default()
                 .configure_from_args()
                 $(

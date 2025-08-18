@@ -114,7 +114,7 @@ impl BoundServer {
                 if data == DISCOVERY_MSG {
                     tracing::trace!(%src, "Received Alpaca discovery request");
                     // UDP packets are sent as whole messages, no need to check length.
-                    let _ = self
+                    _ = self
                         .socket
                         .send_to(self.response_msg.as_bytes(), src)
                         .await?;

@@ -390,7 +390,7 @@ macro_rules! rpc_mod {
                 $(
                     #[cfg(feature = $path)]
                     if !self.$trait_name.is_empty() {
-                        let _ = f.field(stringify!($trait_name), &self.$trait_name);
+                        _ = f.field(stringify!($trait_name), &self.$trait_name);
                     }
                 )*
                 f.finish()

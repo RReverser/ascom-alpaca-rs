@@ -159,7 +159,7 @@ impl Webcam {
             ExposingState::Exposing { stop_tx, done, .. } => {
                 // Only send the stop signal if nobody else has.
                 if let Some(stop_tx) = stop_tx.take() {
-                    let _ = stop_tx.send(StopExposure { want_image });
+                    _ = stop_tx.send(StopExposure { want_image });
                 }
                 done.clone()
             }

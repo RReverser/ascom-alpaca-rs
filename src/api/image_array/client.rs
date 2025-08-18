@@ -28,7 +28,7 @@ fn expect_key<'de, A: MapAccess<'de>>(map: &mut A, expected_key: KnownKey) -> Re
     loop {
         return match map.next_key::<KnownKey>()? {
             Some(KnownKey::Other) => {
-                let _ = map.next_value::<IgnoredAny>()?;
+                _ = map.next_value::<IgnoredAny>()?;
                 continue;
             }
             Some(key) if key == expected_key => Ok(()),
@@ -69,7 +69,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
         };
 
         // Consume leftover fields.
-        let _ = IgnoredAny.visit_map(map)?;
+        _ = IgnoredAny.visit_map(map)?;
 
         Ok(data.into())
     }
