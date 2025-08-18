@@ -215,7 +215,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55f533f8e0af236ffe5eb979b99381df3258853f00ba2e44b6e1955292c75227"
 dependencies = [
  "clipboard-win",
- "image 0.25.6",
+ "image",
  "log",
  "objc2 0.6.2",
  "objc2-app-kit 0.3.1",
@@ -924,15 +924,14 @@ dependencies = [
 
 [[package]]
 name = "cocoa-foundation"
-version = "0.1.2"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c6234cbb2e4c785b456c0644748b1ac416dd045799740356f8363dfe00c93f7"
+checksum = "81411967c50ee9a1fc11365f8c585f863a22a9697c89239c452292c40ba79b0d"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.9.2",
  "block",
- "core-foundation 0.9.4",
- "core-graphics-types",
- "libc",
+ "core-foundation 0.10.1",
+ "core-graphics-types 0.2.0",
  "objc",
 ]
 
@@ -973,12 +972,6 @@ dependencies = [
  "tracing-core",
  "tracing-error",
 ]
-
-[[package]]
-name = "color_quant"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
 name = "combine"
@@ -1061,7 +1054,7 @@ checksum = "c07782be35f9e1140080c6b96f0d44b739e2278479f64e02fdab4e32dfd8b081"
 dependencies = [
  "bitflags 1.3.2",
  "core-foundation 0.9.4",
- "core-graphics-types",
+ "core-graphics-types 0.1.3",
  "foreign-types 0.5.0",
  "libc",
 ]
@@ -1074,6 +1067,17 @@ checksum = "45390e6114f68f718cc7a830514a96f903cccd70d02a8f6d9f643ac4ba45afaf"
 dependencies = [
  "bitflags 1.3.2",
  "core-foundation 0.9.4",
+ "libc",
+]
+
+[[package]]
+name = "core-graphics-types"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d44a101f213f6c4cdc1853d4b78aef6db6bdfa3468798cc1d9912f4735013eb"
+dependencies = [
+ "bitflags 2.9.2",
+ "core-foundation 0.10.1",
  "libc",
 ]
 
@@ -1353,7 +1357,7 @@ dependencies = [
  "glow",
  "glutin",
  "glutin-winit",
- "image 0.25.6",
+ "image",
  "js-sys",
  "log",
  "objc2 0.5.2",
@@ -1595,14 +1599,13 @@ dependencies = [
 
 [[package]]
 name = "flume"
-version = "0.10.14"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1657b4441c3403d9f7b3409e47575237dac27b1b5726df654a6ecbf92f0f7577"
+checksum = "da0e4dd2a88388a1f4ccc7c9ce104604dab68d9f408dc34cd45823d5a9069095"
 dependencies = [
  "futures-core",
  "futures-sink",
  "nanorand",
- "pin-project",
  "spin",
 ]
 
@@ -2210,18 +2213,6 @@ dependencies = [
 
 [[package]]
 name = "image"
-version = "0.24.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5690139d2f55868e080017335e4b94cb7414274c74f1669c84fb5feba2c9f69d"
-dependencies = [
- "bytemuck",
- "byteorder",
- "color_quant",
- "num-traits",
-]
-
-[[package]]
-name = "image"
 version = "0.25.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db35664ce6b9810857a38a906215e75a9c879f0696556a39f59c62829710251a"
@@ -2536,7 +2527,7 @@ checksum = "f569fb946490b5743ad69813cb19629130ce9374034abe31614a36402d18f99e"
 dependencies = [
  "bitflags 2.9.2",
  "block",
- "core-graphics-types",
+ "core-graphics-types 0.1.3",
  "foreign-types 0.5.0",
  "log",
  "objc",
@@ -2798,38 +2789,40 @@ checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
 name = "nokhwa"
-version = "0.10.4"
-source = "git+https://github.com/l1npengtul/nokhwa?rev=74a98ace10368320cfcc2186118ae10d5308ca59#74a98ace10368320cfcc2186118ae10d5308ca59"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78c35ed9613f002f8095aafc97ad839e0bb6cebf79111c68265d8df212a5a294"
 dependencies = [
  "flume",
- "image 0.24.9",
+ "image",
  "nokhwa-bindings-linux",
  "nokhwa-bindings-macos",
  "nokhwa-bindings-windows",
  "nokhwa-core",
  "parking_lot",
  "paste",
- "thiserror 1.0.69",
+ "thiserror 2.0.14",
 ]
 
 [[package]]
 name = "nokhwa-bindings-linux"
-version = "0.1.0"
-source = "git+https://github.com/l1npengtul/nokhwa?rev=74a98ace10368320cfcc2186118ae10d5308ca59#74a98ace10368320cfcc2186118ae10d5308ca59"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9201817bb00fa911c0aaf5ae7653b2f7a81a0492d119753ac85b74c2c5f177f"
 dependencies = [
  "nokhwa-core",
  "v4l",
- "v4l2-sys-mit",
 ]
 
 [[package]]
 name = "nokhwa-bindings-macos"
-version = "0.2.1"
-source = "git+https://github.com/l1npengtul/nokhwa?rev=74a98ace10368320cfcc2186118ae10d5308ca59#74a98ace10368320cfcc2186118ae10d5308ca59"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de78eb4a2d47a68f490899aa0516070d7a972f853ec2bb374ab53be0bd39b60f"
 dependencies = [
  "block",
  "cocoa-foundation",
- "core-foundation 0.9.4",
+ "core-foundation 0.10.1",
  "core-media-sys",
  "core-video-sys",
  "flume",
@@ -2840,23 +2833,25 @@ dependencies = [
 
 [[package]]
 name = "nokhwa-bindings-windows"
-version = "0.4.0"
-source = "git+https://github.com/l1npengtul/nokhwa?rev=74a98ace10368320cfcc2186118ae10d5308ca59#74a98ace10368320cfcc2186118ae10d5308ca59"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2597245a984c92a9f2bcb239d85bbc62b34f8b277c2648f51f5c78b84b38da46"
 dependencies = [
  "nokhwa-core",
  "once_cell",
- "windows 0.43.0",
+ "windows 0.61.3",
 ]
 
 [[package]]
 name = "nokhwa-core"
-version = "0.1.2"
-source = "git+https://github.com/l1npengtul/nokhwa?rev=74a98ace10368320cfcc2186118ae10d5308ca59#74a98ace10368320cfcc2186118ae10d5308ca59"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "903f3e0f406f7e9aad4fa0566c1d97cc7f88aab57847e1f919d1a34812dedee3"
 dependencies = [
  "bytes",
- "image 0.24.9",
+ "image",
  "mozjpeg",
- "thiserror 1.0.69",
+ "thiserror 2.0.14",
 ]
 
 [[package]]
@@ -5021,7 +5016,7 @@ dependencies = [
  "bytemuck",
  "cfg-if 1.0.1",
  "cfg_aliases",
- "core-graphics-types",
+ "core-graphics-types 0.1.3",
  "glow",
  "glutin_wgl_sys",
  "gpu-alloc",
@@ -5109,21 +5104,6 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "windows"
-version = "0.43.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04662ed0e3e5630dfa9b26e4cb823b817f1a9addda855d973a9458c236556244"
-dependencies = [
- "windows_aarch64_gnullvm 0.42.2",
- "windows_aarch64_msvc 0.42.2",
- "windows_i686_gnu 0.42.2",
- "windows_i686_msvc 0.42.2",
- "windows_x86_64_gnu 0.42.2",
- "windows_x86_64_gnullvm 0.42.2",
- "windows_x86_64_msvc 0.42.2",
-]
 
 [[package]]
 name = "windows"
