@@ -324,6 +324,7 @@ macro_rules! rpc_mod {
             Unknown(String),
         }
 
+        #[cfg(feature = "server")]
         #[derive(Deserialize)]
         #[serde(remote = "DeviceType")]
         pub(crate) enum DevicePath {
