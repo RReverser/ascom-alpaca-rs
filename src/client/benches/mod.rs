@@ -1,5 +1,6 @@
 use super::Response;
-use crate::api::{ConfiguredDevice, FallibleDeviceType, ImageArray};
+use crate::api::{ConfiguredDevice, ImageArray};
+use crate::client::FallibleDeviceType;
 use crate::response::ValueResponse;
 use crate::ASCOMResult;
 use criterion::Criterion;

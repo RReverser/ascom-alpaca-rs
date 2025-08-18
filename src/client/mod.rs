@@ -15,7 +15,7 @@ pub(crate) use response::Response;
 #[cfg(feature = "test")]
 pub(crate) mod test;
 
-use crate::api::{ConfiguredDevice, FallibleDeviceType, ServerInfo, TypedDevice};
+use crate::api::{ConfiguredDevice, DeviceType, ServerInfo, TypedDevice};
 use crate::params::{Action, ActionParams, Method};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMResult};
@@ -23,12 +23,19 @@ use eyre::ContextCompat;
 use mime::Mime;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{IntoUrl, RequestBuilder};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
 use std::sync::{Arc, LazyLock};
 use tracing::Instrument;
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum FallibleDeviceType {
+    Known(DeviceType),
+    Unknown(String),
+}
 
 #[derive(Debug)]
 pub(crate) struct RawDeviceClient {

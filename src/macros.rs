@@ -63,7 +63,7 @@ macro_rules! rpc_trait {
 
     (@extras Device mod) => {};
     (@extras $trait_name:ident mod) => {
-        impl $crate::api::devices_impl::RetrieavableDevice for dyn $trait_name {
+        impl RetrieavableDevice for dyn $trait_name {
             const TYPE: DeviceType = DeviceType::$trait_name;
 
             fn get_storage(storage: &Devices) -> &[std::sync::Arc<Self>] {
@@ -71,13 +71,13 @@ macro_rules! rpc_trait {
             }
         }
 
-        impl $crate::api::devices_impl::RegistrableDevice<dyn $trait_name> for std::sync::Arc<dyn $trait_name> {
+        impl RegistrableDevice<dyn $trait_name> for std::sync::Arc<dyn $trait_name> {
             fn add_to(self, storage: &mut Devices) {
                 storage.$trait_name.push(self);
             }
         }
 
-        impl<T: 'static + $trait_name> $crate::api::devices_impl::RegistrableDevice<dyn $trait_name> for T {
+        impl<T: 'static + $trait_name> RegistrableDevice<dyn $trait_name> for T {
             fn add_to(self, storage: &mut Devices) {
                 storage.$trait_name.push(std::sync::Arc::new(self));
             }
@@ -124,7 +124,9 @@ macro_rules! rpc_trait {
             )*
         }
 
-        #[cfg_attr(feature = "server", derive(Serialize), serde(untagged))]
+        #[cfg(feature = "server")]
+        #[derive(Serialize)]
+        #[serde(untagged)]
         #[expect(non_camel_case_types)]
         pub(super) enum Response {
             $(
@@ -269,7 +271,7 @@ macro_rules! rpc_mod {
             )*
         }
 
-        impl $crate::api::devices_impl::RegistrableDevice<dyn Device> for TypedDevice {
+        impl RegistrableDevice<dyn Device> for TypedDevice {
             fn add_to(self, storage: &mut Devices) {
                 match self {
                     $(
@@ -277,97 +279,6 @@ macro_rules! rpc_mod {
                         Self::$trait_name(device) => storage.$trait_name.push(device),
                     )*
                 }
-            }
-        }
-
-        #[cfg(feature = "server")]
-        impl TypedDevice {
-            pub(crate) fn to_configured_device(&self, as_number: usize) -> $crate::api::ConfiguredDevice<DeviceType> {
-                match *self {
-                    $(
-                        #[cfg(feature = $path)]
-                        Self::$trait_name(ref device) => device.to_configured_device(as_number),
-                    )*
-                }
-            }
-        }
-
-        #[cfg(feature = "client")]
-        impl $crate::client::RawDeviceClient {
-            pub(crate) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
-                match device_type {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name => TypedDevice::$trait_name(self),
-                    )*
-                }
-            }
-        }
-
-        #[cfg(feature = "client")]
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        pub(crate) enum FallibleDeviceType {
-            Known(DeviceType),
-            Unknown(String),
-        }
-
-        #[cfg(feature = "server")]
-        #[derive(Deserialize)]
-        #[serde(remote = "DeviceType")]
-        pub(crate) enum DevicePath {
-            $(
-                #[cfg(feature = $path)]
-                #[serde(rename = $path)]
-                $trait_name,
-            )*
-        }
-
-        enum TypedDeviceAction {
-            Device(device::Action),
-            $(
-                #[cfg(feature = $path)]
-                $trait_name([<$trait_name:snake>]::Action),
-            )*
-        }
-
-        #[cfg_attr(feature = "server", derive(serde::Serialize), serde(untagged))]
-        enum TypedResponse {
-            Device(device::Response),
-            $(
-                #[cfg(feature = $path)]
-                $trait_name([<$trait_name:snake>]::Response),
-            )*
-        }
-
-        impl TypedDeviceAction {
-            #[cfg(feature = "server")]
-            fn from_parts(device_type: DeviceType, action: &str, mut params: crate::server::ActionParams) -> crate::server::Result<Self> {
-                let result = match device_type {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name =>
-                            $crate::params::Action::from_parts(action, &mut params)?
-                            .map(Self::$trait_name),
-                    )*
-                };
-
-                let result = match result {
-                    Some(result) => result,
-                    // Fallback to generic device actions.
-                    None => {
-                        $crate::params::Action::from_parts(action, &mut params)?
-                        .map(Self::Device)
-                        .ok_or_else(|| crate::server::Error::UnknownAction {
-                            device_type,
-                            action: action.to_owned(),
-                        })?
-                    }
-                };
-
-                params.finish_extraction();
-
-                Ok(result)
             }
         }
 
@@ -435,42 +346,128 @@ macro_rules! rpc_mod {
             }
         }
 
-        #[cfg(feature = "server")]
-        impl Devices {
-            pub(crate) fn get_device_for_server(
-                &self,
-                device_type: DeviceType,
-                device_number: usize,
-            ) -> $crate::server::Result<&dyn Device> {
-                // With trait upcasting, we can get any device as dyn Device directly
-                Ok(match device_type {
-                    $(
-                        #[cfg(feature = $path)]
-                        DeviceType::$trait_name => {
-                            self.get_for_server::<dyn $trait_name>(device_number)?
-                        }
-                    )*
-                })
-            }
-
-            pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
-                let action = TypedDeviceAction::from_parts(device_type, action, params)?;
-
-                Ok(match action {
-                    $(
-                        #[cfg(feature = $path)]
-                        TypedDeviceAction::$trait_name(action) => {
-                            let device = self.get_for_server::<dyn $trait_name>(device_number)?;
-                            TypedResponse::$trait_name(action.handle(device).await?)
-                        }
-                    )*
-                    TypedDeviceAction::Device(action) => {
-                        let device = self.get_device_for_server(device_type, device_number)?;
-                        TypedResponse::Device(action.handle(device).await?)
+        #[cfg(feature = "client")]
+        const _: () = {
+            impl $crate::client::RawDeviceClient {
+                pub(crate) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
+                    match device_type {
+                        $(
+                            #[cfg(feature = $path)]
+                            DeviceType::$trait_name => TypedDevice::$trait_name(self),
+                        )*
                     }
-                })
+                }
             }
+        };
+
+        #[cfg(feature = "server")]
+        #[derive(Deserialize)]
+        #[serde(remote = "DeviceType")]
+        pub(crate) enum DevicePath {
+            $(
+                #[cfg(feature = $path)]
+                #[serde(rename = $path)]
+                $trait_name,
+            )*
         }
+
+        #[cfg(feature = "server")]
+        const _: () = {
+            impl TypedDevice {
+                pub(crate) fn to_configured_device(&self, as_number: usize) -> ConfiguredDevice<DeviceType> {
+                    match *self {
+                        $(
+                            #[cfg(feature = $path)]
+                            Self::$trait_name(ref device) => device.to_configured_device(as_number),
+                        )*
+                    }
+                }
+            }
+
+            #[derive(serde::Serialize)]
+            #[serde(untagged)]
+            enum TypedResponse {
+                Device(device::Response),
+                $(
+                    #[cfg(feature = $path)]
+                    $trait_name([<$trait_name:snake>]::Response),
+                )*
+            }
+
+            enum TypedDeviceAction {
+                Device(device::Action),
+                $(
+                    #[cfg(feature = $path)]
+                    $trait_name([<$trait_name:snake>]::Action),
+                )*
+            }
+
+            impl TypedDeviceAction {
+                fn from_parts(device_type: DeviceType, action: &str, mut params: crate::server::ActionParams) -> crate::server::Result<Self> {
+                    let result = match device_type {
+                        $(
+                            #[cfg(feature = $path)]
+                            DeviceType::$trait_name =>
+                                $crate::params::Action::from_parts(action, &mut params)?
+                                .map(Self::$trait_name),
+                        )*
+                    };
+
+                    let result = match result {
+                        Some(result) => result,
+                        // Fallback to generic device actions.
+                        None => {
+                            $crate::params::Action::from_parts(action, &mut params)?
+                            .map(Self::Device)
+                            .ok_or_else(|| crate::server::Error::UnknownAction {
+                                device_type,
+                                action: action.to_owned(),
+                            })?
+                        }
+                    };
+
+                    params.finish_extraction();
+
+                    Ok(result)
+                }
+            }
+
+            impl Devices {
+                pub(crate) fn get_device_for_server(
+                    &self,
+                    device_type: DeviceType,
+                    device_number: usize,
+                ) -> $crate::server::Result<&dyn Device> {
+                    // With trait upcasting, we can get any device as dyn Device directly
+                    Ok(match device_type {
+                        $(
+                            #[cfg(feature = $path)]
+                            DeviceType::$trait_name => {
+                                self.get_for_server::<dyn $trait_name>(device_number)?
+                            }
+                        )*
+                    })
+                }
+
+                pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl Serialize> {
+                    let action = TypedDeviceAction::from_parts(device_type, action, params)?;
+
+                    Ok(match action {
+                        $(
+                            #[cfg(feature = $path)]
+                            TypedDeviceAction::$trait_name(action) => {
+                                let device = self.get_for_server::<dyn $trait_name>(device_number)?;
+                                TypedResponse::$trait_name(action.handle(device).await?)
+                            }
+                        )*
+                        TypedDeviceAction::Device(action) => {
+                            let device = self.get_device_for_server(device_type, device_number)?;
+                            TypedResponse::Device(action.handle(device).await?)
+                        }
+                    })
+                }
+            }
+        };
     });
 }
 

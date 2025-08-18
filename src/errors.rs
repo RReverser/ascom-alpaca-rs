@@ -119,10 +119,12 @@ impl ASCOMError {
 /// Result type for ASCOM methods.
 pub type ASCOMResult<T = ()> = Result<T, ASCOMError>;
 
+#[cfg(feature = "server")]
 pub(crate) trait ASCOMResultOk {
     type Ok;
 }
 
+#[cfg(feature = "server")]
 impl<T> ASCOMResultOk for ASCOMResult<T> {
     type Ok = T;
 }

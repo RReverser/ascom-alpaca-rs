@@ -1,15 +1,16 @@
-use super::{ConfiguredDevice, Device, DeviceType, Devices, TypedDevice};
+use super::{Device, DeviceType, Devices, TypedDevice};
 use std::fmt::Debug;
 use std::sync::Arc;
 
 pub(crate) trait RetrieavableDevice: 'static + Device {
+    #[allow(unused)]
     const TYPE: DeviceType;
 
     fn get_storage(storage: &Devices) -> &[Arc<Self>];
 
     #[cfg(feature = "server")]
-    fn to_configured_device(&self, as_number: usize) -> ConfiguredDevice<DeviceType> {
-        ConfiguredDevice {
+    fn to_configured_device(&self, as_number: usize) -> super::ConfiguredDevice<DeviceType> {
+        super::ConfiguredDevice {
             name: self.static_name().to_owned(),
             ty: Self::TYPE,
             number: as_number,
