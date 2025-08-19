@@ -1,11 +1,11 @@
 use tracing_forest::tree::Tree;
-use tracing_forest::Tag;
+use tracing_forest::{Processor, Tag};
 use tracing_subscriber::prelude::*;
 
 // A helper that allows to skip spans without events.
 struct FilteredProcessor<P>(P);
 
-impl<P: tracing_forest::Processor> tracing_forest::Processor for FilteredProcessor<P> {
+impl<P: Processor> Processor for FilteredProcessor<P> {
     fn process(&self, tree: Tree) -> tracing_forest::processor::Result {
         fn is_used(tree: &Tree) -> bool {
             match tree {

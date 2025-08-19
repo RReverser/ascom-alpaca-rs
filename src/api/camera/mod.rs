@@ -9,6 +9,7 @@ use crate::{ASCOMError, ASCOMResult};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use super::camera_telescope_shared::{TimeRepr, Fits};
+use std::time::SystemTime;
 
 /// Camera Specific Methods.
 #[apply(rpc_trait)]
@@ -311,7 +312,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// The time must be UTC.
     #[http("lastexposurestarttime", method = Get, via = TimeRepr<Fits>)]
-    async fn last_exposure_start_time(&self) -> ASCOMResult<std::time::SystemTime> {
+    async fn last_exposure_start_time(&self) -> ASCOMResult<SystemTime> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

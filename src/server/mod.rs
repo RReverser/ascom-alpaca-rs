@@ -29,7 +29,7 @@ use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
 use crate::Devices;
 use axum::extract::{FromRequest, Path, Request};
-use axum::response::{Html, IntoResponse};
+use axum::response::{Html, IntoResponse, Response};
 use axum::{routing, Router};
 use futures::future::{BoxFuture, Future, FutureExt};
 use http::StatusCode;
@@ -86,7 +86,7 @@ struct ServerHandler {
 }
 
 impl<S: Send + Sync> FromRequest<S> for ServerHandler {
-    type Rejection = axum::response::Response;
+    type Rejection = Response;
 
     async fn from_request(req: Request, state: &S) -> std::result::Result<Self, Self::Rejection> {
         let path = req.uri().path().to_owned();
@@ -99,7 +99,7 @@ impl ServerHandler {
     async fn exec<Output, RespFut: Future<Output = Output>>(
         mut self,
         make_response: impl FnOnce(ActionParams) -> RespFut,
-    ) -> axum::response::Result<axum::response::Response>
+    ) -> axum::response::Result<Response>
     where
         ResponseWithTransaction<Output>: IntoResponse,
     {

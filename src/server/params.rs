@@ -1,7 +1,7 @@
 use super::case_insensitive_str::CaseInsensitiveStr;
 use super::Error;
 use axum::extract::{FromRequest, Request};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Form;
 use http::{Method, StatusCode};
 use indexmap::IndexMap;
@@ -14,7 +14,7 @@ use std::hash::Hash;
 #[derive(Deserialize, derive_more::Debug)]
 #[debug("{_0:?}")]
 #[serde(transparent)]
-#[serde(bound(deserialize = "Box<ParamStr>: serde::de::DeserializeOwned + Hash + Eq"))]
+#[serde(bound(deserialize = "Box<ParamStr>: DeserializeOwned + Hash + Eq"))]
 pub(crate) struct OpaqueParams<ParamStr: ?Sized>(IndexMap<Box<ParamStr>, String>);
 
 #[derive(Debug)]
@@ -73,7 +73,7 @@ impl ActionParams {
 }
 
 impl<S: Send + Sync> FromRequest<S> for ActionParams {
-    type Rejection = axum::response::Response;
+    type Rejection = Response;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         match *req.method() {

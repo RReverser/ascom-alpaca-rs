@@ -8,6 +8,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use super::camera_telescope_shared::{TimeRepr, Iso8601};
 use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
+use std::time::SystemTime;
 
 /// Telescope Specific Methods.
 #[apply(rpc_trait)]
@@ -426,7 +427,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Returns the UTC date/time of the telescope's internal clock.
     #[http("utcdate", method = Get, via = TimeRepr<Iso8601>)]
-    async fn utc_date(&self) -> ASCOMResult<std::time::SystemTime> {
+    async fn utc_date(&self) -> ASCOMResult<SystemTime> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -436,7 +437,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("UTCDate", via = TimeRepr<Iso8601>)]
-        utc_date: std::time::SystemTime,
+        utc_date: SystemTime,
     ) -> ASCOMResult {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }

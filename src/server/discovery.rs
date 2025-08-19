@@ -5,6 +5,7 @@ use crate::discovery::{
 use netdev::Interface;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
+use tokio::task::spawn_blocking;
 
 /// Alpaca discovery server configuration.
 #[derive(Debug, Clone, Copy)]
@@ -63,7 +64,7 @@ impl Server {
         if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
             // Both netdev::get_interfaces and join_multicast_group can take a long time.
             // Spawn them all off to the async runtime.
-            socket = tokio::task::spawn_blocking(move || {
+            socket = spawn_blocking(move || {
                 join_multicast_groups(&socket, listen_addr);
                 socket
             })
