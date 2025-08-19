@@ -1,3 +1,5 @@
+pub(crate) use time::format_description::well_known::Iso8601;
+
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::fmt::Debug;
@@ -12,13 +14,10 @@ pub(crate) trait FormatWrapper: Debug {
     const FORMAT: &'static Self::Format;
 }
 
-#[derive(Debug)]
-pub(crate) struct Iso8601;
-
 impl FormatWrapper for Iso8601 {
-    type Format = format_description::well_known::Iso8601;
+    type Format = Self;
 
-    const FORMAT: &'static Self::Format = &Self::Format::DEFAULT;
+    const FORMAT: &'static Self = &Self::DEFAULT;
 }
 
 #[derive(Debug)]
