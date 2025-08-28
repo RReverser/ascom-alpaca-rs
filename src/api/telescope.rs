@@ -786,11 +786,13 @@ impl From<Vec<RangeInclusive<f64>>> for AxisRates {
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[expect(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum TelescopeAxis {
+    /// Primary axis (e.g., Right Ascension or Azimuth).
     Primary = 0,
 
+    /// Secondary axis (e.g., Declination or Altitude).
     Secondary = 1,
 
+    /// Tertiary axis (e.g. imager rotator/de-rotator).
     Tertiary = 2,
 }

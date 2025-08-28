@@ -251,7 +251,7 @@ macro_rules! rpc_mod {
 
         /// A tagged enum wrapper for a type-erased instance of a device.
         #[derive(Clone, Debug)]
-        #[expect(missing_docs)]
+        #[expect(missing_docs)] // self-explanatory variants
         pub enum TypedDevice {
             $(
                 # $cfg

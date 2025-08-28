@@ -105,13 +105,16 @@ where
     IntoPrimitive,
 )]
 #[repr(i32)]
-#[expect(missing_docs)] // some enum variants might not have docs and that's okay
 pub enum GuideDirection {
+    /// North (+ declination/altitude).
     North = 0,
 
+    /// South (- declination/altitude).
     South = 1,
 
+    /// East (+ right ascension/azimuth).
     East = 2,
 
+    /// West (- right ascension/azimuth).
     West = 3,
 }
