@@ -35,6 +35,7 @@ pub trait Device: Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandblind", method = Put)]
+    #[deprecated(note = "Use the more flexible Action and SupportedActions mechanic.")]
     async fn command_blind(
         &self,
 
@@ -49,6 +50,7 @@ pub trait Device: Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandbool", method = Put)]
+    #[deprecated(note = "Use the more flexible Action and SupportedActions mechanic.")]
     async fn command_bool(
         &self,
 
@@ -63,6 +65,7 @@ pub trait Device: Debug + Send + Sync {
     ///
     /// Optionally, protocol framing characters may be added to the string before transmission.
     #[http("commandstring", method = Put)]
+    #[deprecated(note = "Use the more flexible Action and SupportedActions mechanic.")]
     async fn command_string(
         &self,
 
