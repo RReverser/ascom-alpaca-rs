@@ -337,7 +337,7 @@ impl CaptureState {
             }
         }
         // Channel is closed, cleanup.
-        if let Err(err) = self.camera.disconnect().await {
+        if let Err(err) = self.camera.set_connected(false).await {
             tracing::warn!(%err, "Failed to disconnect from the camera");
         }
     }

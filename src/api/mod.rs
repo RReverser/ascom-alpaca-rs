@@ -125,10 +125,10 @@ impl Devices {
     pub(crate) fn get_for_server<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
         device_number: usize,
-    ) -> crate::server::Result<&DynTrait> {
+    ) -> crate::server::Result<Arc<DynTrait>> {
         DynTrait::get_storage(self)
             .get(device_number)
-            .map(Arc::as_ref)
+            .map(Arc::clone)
             .ok_or(crate::server::Error::UnknownDeviceNumber {
                 ty: DynTrait::TYPE,
                 device_number,

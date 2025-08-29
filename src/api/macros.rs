@@ -216,7 +216,7 @@ macro_rules! rpc_trait {
         #[cfg(feature = "server")]
         #[allow(deprecated)]
         impl Action {
-            pub(super) async fn handle(self, device: &dyn $trait_name) -> ASCOMResult<Response> {
+            pub(super) async fn handle(self, device: std::sync::Arc<dyn $trait_name>) -> ASCOMResult<Response> {
                 match self {
                     $(
                         Self::$method_name { $($param),* } => {
@@ -425,7 +425,7 @@ macro_rules! rpc_mod {
                     &self,
                     device_type: DeviceType,
                     device_number: usize,
-                ) -> $crate::server::Result<&dyn Device> {
+                ) -> $crate::server::Result<Arc<dyn Device>> {
                     // With trait upcasting, we can get any device as dyn Device directly
                     Ok(match device_type {
                         $(

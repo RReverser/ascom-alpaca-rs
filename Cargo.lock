@@ -262,6 +262,7 @@ dependencies = [
  "derive_more",
  "dtor",
  "eyre",
+ "fnv",
  "futures",
  "http",
  "indexmap",

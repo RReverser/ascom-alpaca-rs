@@ -31,6 +31,7 @@ use crate::Devices;
 use axum::extract::{FromRequest, Path, Request};
 use axum::response::{Html, IntoResponse, Response};
 use axum::{routing, Router};
+use fnv::FnvHashSet;
 use futures::future::{BoxFuture, FutureExt};
 use http::StatusCode;
 use net_literals::addr;
@@ -38,7 +39,7 @@ use serde::Deserialize;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::net::TcpListener;
 use tracing::Instrument;
 
@@ -238,6 +239,7 @@ impl Server {
     fn into_router(self) -> Router {
         let devices = Arc::new(self.devices);
         let server_info = Arc::new(self.info);
+        let connecting_devices = Arc::new(RwLock::new(FnvHashSet::default()));
 
         Router::new()
             .route(
@@ -294,12 +296,12 @@ impl Server {
                 "/api/v1/{device_type}/{device_number}/{action}",
                 routing::any(
                     async move |Path(ApiPath {
-                                    device_type,
-                                    device_number,
-                                    action,
-                                }),
-                                #[cfg(feature = "camera")] headers: http::HeaderMap,
-                                server_handler: ServerHandler| {
+                              device_type,
+                              device_number,
+                              action,
+                          }),
+                          #[cfg(feature = "camera")] headers: http::HeaderMap,
+                          server_handler: ServerHandler| {
                         #[cfg(feature = "camera")]
                         let mut action = action;
 
@@ -345,11 +347,34 @@ impl Server {
                             };
                         }
 
-                        server_handler
-                            .exec(|params| {
-                                devices.handle_action(device_type, device_number, &action, params)
-                            })
-                            .await
+                        // Handle Platform 7 connection methods.
+                        // It doesn't make sense to expose them in public API because our methods, including setters, are already asynchronous,
+                        // so we only need to handle these extra methods for 3rd-party client compatibility.
+                        if action == "connect" || action == "disconnect" {
+                            return server_handler.exec(async move |_params| {
+                                let device = devices.get_device_for_server(device_type, device_number)?;
+                                if let Ok(mut connecting_devices) = connecting_devices.write() {
+                                    _ = connecting_devices.insert(Arc::clone(&device));
+                                }
+                                _ = tokio::spawn(async move {
+                                    if let Err(err) = device.set_connected(action == "connect").await {
+                                        tracing::error!(%err, "Error changing device connection state");
+                                    }
+                                    if let Ok(mut connecting_devices) = connecting_devices.write() {
+                                        _ = connecting_devices.remove(&device);
+                                    }
+                                }.in_current_span());
+                                Result::Ok(())
+                            }).await;
+                        }
+                        if action == "connecting" {
+                            return server_handler.exec(async move |_params| {
+                                let device = devices.get_device_for_server(device_type, device_number)?;
+                                Result::Ok(connecting_devices.read().is_ok_and(|connecting_devices| connecting_devices.contains(&device)))
+                            }).await;
+                        }
+
+                        server_handler.exec(|params| devices.handle_action(device_type, device_number, &action, params)).await
                     },
                 ),
             )

@@ -76,27 +76,15 @@ pub trait Device: Debug + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// The Connecting property will be true until device initialisation is complete.
-    ///
-    /// _Platform 7 onward._
-    #[http("connect", method = Put)]
-    async fn connect(&self) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
-
     /// Retrieves the connected state of the device.
     #[http("connected", method = Get)]
-    async fn connected(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn connected(&self) -> ASCOMResult<bool>;
 
     /// **Deprecated in favour of the newer non-blocking [`connect`](Self::connect) and [`disconnect`](Self::disconnect) methods, with the new [`connecting`](Self::connecting) property serving as the completion property.**
     ///
     /// Sets the connected state of the device.
     #[http("connected", method = Put)]
-    async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult<()>;
 
     /// Returns true while the device is connecting or disconnecting.
     ///
@@ -119,14 +107,6 @@ pub trait Device: Debug + Send + Sync {
     /// _Platform 7 onward._
     #[http("devicestate", method = Get)]
     async fn device_state(&self) -> ASCOMResult<Vec<DeviceStateItem>> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
-
-    /// The Connecting property will be true until device disconneciton is complete.
-    ///
-    /// _Platform 7 onward._
-    #[http("disconnect", method = Put)]
-    async fn disconnect(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
