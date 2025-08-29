@@ -17,7 +17,7 @@ pub trait ObservingConditions: Device + Send + Sync {
         &self,
 
         #[http("AveragePeriod")] average_period: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -103,7 +103,7 @@ pub trait ObservingConditions: Device + Send + Sync {
 
     /// Forces the driver to immediately query its attached hardware to refresh sensor values.
     #[http("refresh", method = Put)]
-    async fn refresh(&self) -> ASCOMResult {
+    async fn refresh(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

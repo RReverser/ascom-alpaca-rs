@@ -179,7 +179,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("DeclinationRate")] declination_rate: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -195,7 +195,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("DoesRefraction")] does_refraction: bool,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -223,7 +223,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("GuideRateDeclination")] guide_rate_declination: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -239,7 +239,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("GuideRateRightAscension")] guide_rate_right_ascension: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -271,7 +271,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("RightAscensionRate")] right_ascension_rate: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -283,7 +283,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the pointing state of the mount.
     #[http("sideofpier", method = Put)]
-    async fn set_side_of_pier(&self, #[http("SideOfPier")] side_of_pier: PierSide) -> ASCOMResult {
+    async fn set_side_of_pier(&self, #[http("SideOfPier")] side_of_pier: PierSide) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -305,7 +305,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("SiteElevation")] site_elevation: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -317,7 +317,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the observing site's latitude (degrees).
     #[http("sitelatitude", method = Put)]
-    async fn set_site_latitude(&self, #[http("SiteLatitude")] site_latitude: f64) -> ASCOMResult {
+    async fn set_site_latitude(&self, #[http("SiteLatitude")] site_latitude: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -333,7 +333,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("SiteLongitude")] site_longitude: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -355,7 +355,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("SlewSettleTime")] slew_settle_time: i32,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -371,7 +371,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("TargetDeclination")] target_declination: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -387,7 +387,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("TargetRightAscension")] target_right_ascension: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -399,7 +399,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the state of the telescope's sidereal tracking drive.
     #[http("tracking", method = Put)]
-    async fn set_tracking(&self, #[http("Tracking")] tracking: bool) -> ASCOMResult {
+    async fn set_tracking(&self, #[http("Tracking")] tracking: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -415,7 +415,7 @@ pub trait Telescope: Device + Send + Sync {
         &self,
 
         #[http("TrackingRate")] tracking_rate: DriveRate,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -438,13 +438,13 @@ pub trait Telescope: Device + Send + Sync {
 
         #[http("UTCDate", via = TimeRepr<Iso8601>)]
         utc_date: SystemTime,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Immediately Stops a slew in progress.
     #[http("abortslew", method = Put)]
-    async fn abort_slew(&self) -> ASCOMResult {
+    async fn abort_slew(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -474,7 +474,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Locates the telescope's "home" position (synchronous).
     #[http("findhome", method = Put)]
-    async fn find_home(&self) -> ASCOMResult {
+    async fn find_home(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -486,13 +486,13 @@ pub trait Telescope: Device + Send + Sync {
         #[http("Axis")] axis: TelescopeAxis,
 
         #[http("Rate")] rate: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Move the telescope to its park position, stop all motion (or restrict to a small safe range), and set AtPark to True. ).
     #[http("park", method = Put)]
-    async fn park(&self) -> ASCOMResult {
+    async fn park(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -504,13 +504,13 @@ pub trait Telescope: Device + Send + Sync {
         #[http("Direction")] direction: GuideDirection,
 
         #[http("Duration")] duration: i32,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets the telescope's park position to be its current position.
     #[http("setpark", method = Put)]
-    async fn set_park(&self) -> ASCOMResult {
+    async fn set_park(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -524,7 +524,7 @@ pub trait Telescope: Device + Send + Sync {
         #[http("Azimuth")] azimuth: f64,
 
         #[http("Altitude")] altitude: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -538,7 +538,7 @@ pub trait Telescope: Device + Send + Sync {
         #[http("Azimuth")] azimuth: f64,
 
         #[http("Altitude")] altitude: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -552,7 +552,7 @@ pub trait Telescope: Device + Send + Sync {
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -566,7 +566,7 @@ pub trait Telescope: Device + Send + Sync {
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -574,7 +574,7 @@ pub trait Telescope: Device + Send + Sync {
     ///
     /// Move the telescope to the TargetRightAscension and TargetDeclination equatorial coordinates, return when slew is complete.
     #[http("slewtotarget", method = Put)]
-    async fn slew_to_target(&self) -> ASCOMResult {
+    async fn slew_to_target(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -582,7 +582,7 @@ pub trait Telescope: Device + Send + Sync {
     ///
     /// The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
     #[http("slewtotargetasync", method = Put)]
-    async fn slew_to_target_async(&self) -> ASCOMResult {
+    async fn slew_to_target_async(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -594,7 +594,7 @@ pub trait Telescope: Device + Send + Sync {
         #[http("Azimuth")] azimuth: f64,
 
         #[http("Altitude")] altitude: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -606,19 +606,19 @@ pub trait Telescope: Device + Send + Sync {
         #[http("RightAscension")] right_ascension: f64,
 
         #[http("Declination")] declination: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Matches the scope's equatorial coordinates to the TargetRightAscension and TargetDeclination equatorial coordinates.
     #[http("synctotarget", method = Put)]
-    async fn sync_to_target(&self) -> ASCOMResult {
+    async fn sync_to_target(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Takes telescope out of the Parked state.
     #[http("unpark", method = Put)]
-    async fn unpark(&self) -> ASCOMResult {
+    async fn unpark(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

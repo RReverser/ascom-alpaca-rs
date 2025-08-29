@@ -34,7 +34,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the binning factor for the X axis.
     #[http("binx", method = Put)]
-    async fn set_bin_x(&self, #[http("BinX")] bin_x: i32) -> ASCOMResult {
+    async fn set_bin_x(&self, #[http("BinX")] bin_x: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -46,7 +46,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the binning factor for the Y axis.
     #[http("biny", method = Put)]
-    async fn set_bin_y(&self, #[http("BinY")] bin_y: i32) -> ASCOMResult {
+    async fn set_bin_y(&self, #[http("BinY")] bin_y: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -126,7 +126,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// True = cooler on, False = cooler off.
     #[http("cooleron", method = Put)]
-    async fn set_cooler_on(&self, #[http("CoolerOn")] cooler_on: bool) -> ASCOMResult {
+    async fn set_cooler_on(&self, #[http("CoolerOn")] cooler_on: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -168,7 +168,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets whether Fast Readout Mode is enabled.
     #[http("fastreadout", method = Put)]
-    async fn set_fast_readout(&self, #[http("FastReadout")] fast_readout: bool) -> ASCOMResult {
+    async fn set_fast_readout(&self, #[http("FastReadout")] fast_readout: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -186,7 +186,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// The camera's gain (GAIN VALUE MODE) OR the index of the selected camera gain description in the Gains array (GAINS INDEX MODE).
     #[http("gain", method = Put)]
-    async fn set_gain(&self, #[http("Gain")] gain: i32) -> ASCOMResult {
+    async fn set_gain(&self, #[http("Gain")] gain: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -280,7 +280,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe width.
     #[http("numx", method = Put)]
-    async fn set_num_x(&self, #[http("NumX")] num_x: i32) -> ASCOMResult {
+    async fn set_num_x(&self, #[http("NumX")] num_x: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -292,7 +292,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe height.
     #[http("numy", method = Put)]
-    async fn set_num_y(&self, #[http("NumY")] num_y: i32) -> ASCOMResult {
+    async fn set_num_y(&self, #[http("NumY")] num_y: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -304,7 +304,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the camera's offset (OFFSET VALUE MODE) OR the index of the selected camera offset description in the offsets array (OFFSETS INDEX MODE).
     #[http("offset", method = Put)]
-    async fn set_offset(&self, #[http("Offset")] offset: i32) -> ASCOMResult {
+    async fn set_offset(&self, #[http("Offset")] offset: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -356,7 +356,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the ReadoutMode as an index into the array ReadoutModes.
     #[http("readoutmode", method = Put)]
-    async fn set_readout_mode(&self, #[http("ReadoutMode")] readout_mode: i32) -> ASCOMResult {
+    async fn set_readout_mode(&self, #[http("ReadoutMode")] readout_mode: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -392,7 +392,7 @@ pub trait Camera: Device + Send + Sync {
         &self,
 
         #[http("SetCCDTemperature")] set_ccd_temperature: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -406,7 +406,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe X axis start position in binned pixels.
     #[http("startx", method = Put)]
-    async fn set_start_x(&self, #[http("StartX")] start_x: i32) -> ASCOMResult {
+    async fn set_start_x(&self, #[http("StartX")] start_x: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -420,7 +420,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Sets the current subframe Y axis start position in binned pixels.
     #[http("starty", method = Put)]
-    async fn set_start_y(&self, #[http("StartY")] start_y: i32) -> ASCOMResult {
+    async fn set_start_y(&self, #[http("StartY")] start_y: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -440,13 +440,13 @@ pub trait Camera: Device + Send + Sync {
         &self,
 
         #[http("SubExposureDuration")] sub_exposure_duration: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Aborts the current exposure, if any, and returns the camera to Idle state.
     #[http("abortexposure", method = Put)]
-    async fn abort_exposure(&self) -> ASCOMResult {
+    async fn abort_exposure(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -458,7 +458,7 @@ pub trait Camera: Device + Send + Sync {
         #[http("Direction")] direction: GuideDirection,
 
         #[http("Duration")] duration: i32,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -472,7 +472,7 @@ pub trait Camera: Device + Send + Sync {
         #[http("Duration")] duration: f64,
 
         #[http("Light")] light: bool,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -480,7 +480,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// If an exposure is in progress, the readout process is initiated. Ignored if readout is already in process.
     #[http("stopexposure", method = Put)]
-    async fn stop_exposure(&self) -> ASCOMResult {
+    async fn stop_exposure(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

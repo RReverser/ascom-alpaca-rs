@@ -41,7 +41,7 @@ pub trait Device: Debug + Send + Sync {
         #[http("Command")] command: String,
 
         #[http("Raw")] raw: String,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -77,7 +77,7 @@ pub trait Device: Debug + Send + Sync {
     ///
     /// _Platform 7 onward._
     #[http("connect", method = Put)]
-    async fn connect(&self) -> ASCOMResult {
+    async fn connect(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -91,7 +91,7 @@ pub trait Device: Debug + Send + Sync {
     ///
     /// Sets the connected state of the device.
     #[http("connected", method = Put)]
-    async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult {
+    async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -123,7 +123,7 @@ pub trait Device: Debug + Send + Sync {
     ///
     /// _Platform 7 onward._
     #[http("disconnect", method = Put)]
-    async fn disconnect(&self) -> ASCOMResult {
+    async fn disconnect(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

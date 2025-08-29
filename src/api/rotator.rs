@@ -39,7 +39,7 @@ pub trait Rotator: Device + Send + Sync {
 
     /// Sets the rotator’s Reverse state.
     #[http("reverse", method = Put)]
-    async fn set_reverse(&self, #[http("Reverse")] reverse: bool) -> ASCOMResult {
+    async fn set_reverse(&self, #[http("Reverse")] reverse: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -57,31 +57,31 @@ pub trait Rotator: Device + Send + Sync {
 
     /// Immediately stop any Rotator motion due to a previous Move or MoveAbsolute method call.
     #[http("halt", method = Put)]
-    async fn halt(&self) -> ASCOMResult {
+    async fn halt(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
     #[http("move", method = Put)]
-    async fn move_(&self, #[http("Position")] position: f64) -> ASCOMResult {
+    async fn move_(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Causes the rotator to move the absolute position of Position degrees.
     #[http("moveabsolute", method = Put)]
-    async fn move_absolute(&self, #[http("Position")] position: f64) -> ASCOMResult {
+    async fn move_absolute(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Causes the rotator to move the mechanical position of Position degrees.
     #[http("movemechanical", method = Put)]
-    async fn move_mechanical(&self, #[http("Position")] position: f64) -> ASCOMResult {
+    async fn move_mechanical(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Causes the rotator to sync to the position of Position degrees.
     #[http("sync", method = Put)]
-    async fn sync(&self, #[http("Position")] position: f64) -> ASCOMResult {
+    async fn sync(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

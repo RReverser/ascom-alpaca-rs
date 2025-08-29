@@ -51,7 +51,7 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Sets the state of temperature compensation mode.
     #[http("tempcomp", method = Put)]
-    async fn set_temp_comp(&self, #[http("TempComp")] temp_comp: bool) -> ASCOMResult {
+    async fn set_temp_comp(&self, #[http("TempComp")] temp_comp: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -69,13 +69,13 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Immediately stop any focuser motion due to a previous Move(Int32) method call.
     #[http("halt", method = Put)]
-    async fn halt(&self) -> ASCOMResult {
+    async fn halt(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Moves the focuser by the specified amount or to the specified position depending on the value of the Absolute property.
     #[http("move", method = Put)]
-    async fn move_(&self, #[http("Position")] position: i32) -> ASCOMResult {
+    async fn move_(&self, #[http("Position")] position: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

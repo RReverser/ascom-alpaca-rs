@@ -25,7 +25,7 @@ pub trait FilterWheel: Device + Send + Sync {
 
     /// Sets the filter wheel position.
     #[http("position", method = Put)]
-    async fn set_position(&self, #[http("Position")] position: i32) -> ASCOMResult {
+    async fn set_position(&self, #[http("Position")] position: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

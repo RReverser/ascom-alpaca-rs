@@ -53,31 +53,31 @@ pub trait CoverCalibrator: Device + Send + Sync {
 
     /// Turns the calibrator off if the device has calibration capability.
     #[http("calibratoroff", method = Put)]
-    async fn calibrator_off(&self) -> ASCOMResult {
+    async fn calibrator_off(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Turns the calibrator on at the specified brightness if the device has calibration capability.
     #[http("calibratoron", method = Put)]
-    async fn calibrator_on(&self, #[http("Brightness")] brightness: i32) -> ASCOMResult {
+    async fn calibrator_on(&self, #[http("Brightness")] brightness: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Initiates cover closing if a cover is present.
     #[http("closecover", method = Put)]
-    async fn close_cover(&self) -> ASCOMResult {
+    async fn close_cover(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Stops any cover movement that may be in progress if a cover is present and cover movement can be interrupted.
     #[http("haltcover", method = Put)]
-    async fn halt_cover(&self) -> ASCOMResult {
+    async fn halt_cover(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Initiates cover opening if a cover is present.
     #[http("opencover", method = Put)]
-    async fn open_cover(&self) -> ASCOMResult {
+    async fn open_cover(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

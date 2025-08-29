@@ -79,7 +79,7 @@ pub trait Switch: Device + Send + Sync {
     ///
     /// _ISwitchV3 and later._
     #[http("setasync", method = Put)]
-    async fn set_async(&self, #[http("Id")] id: i32, #[http("State")] state: bool) -> ASCOMResult {
+    async fn set_async(&self, #[http("Id")] id: i32, #[http("State")] state: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -93,13 +93,13 @@ pub trait Switch: Device + Send + Sync {
         #[http("Id")] id: i32,
 
         #[http("Value")] value: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets a switch controller device to the specified state, true or false.
     #[http("setswitch", method = Put)]
-    async fn set_switch(&self, #[http("Id")] id: i32, #[http("State")] state: bool) -> ASCOMResult {
+    async fn set_switch(&self, #[http("Id")] id: i32, #[http("State")] state: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -111,7 +111,7 @@ pub trait Switch: Device + Send + Sync {
         #[http("Id")] id: i32,
 
         #[http("Name")] name: String,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -123,7 +123,7 @@ pub trait Switch: Device + Send + Sync {
         #[http("Id")] id: i32,
 
         #[http("Value")] value: f64,
-    ) -> ASCOMResult {
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 

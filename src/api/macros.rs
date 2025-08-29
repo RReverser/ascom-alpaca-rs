@@ -91,7 +91,7 @@ macro_rules! rpc_trait {
                 $(# $method_attr:tt)*
                 async fn $method_name:ident(
                     & $self:ident $(, #[http($param_query:literal $(, via = $param_via:path)?)] $param:ident: $param_ty:ty)* $(,)?
-                ) -> $return_type:ty $default_body:block
+                ) -> ASCOMResult<$return_type:ty> $default_body:tt
             )*
         }
     ) => (paste::paste! {
@@ -114,7 +114,7 @@ macro_rules! rpc_trait {
         #[expect(non_camel_case_types)]
         pub(super) enum Response {
             $(
-                $method_name(<$return_type as $crate::errors::ASCOMResultOk>::Ok),
+                $method_name($return_type),
             )*
         }
 
@@ -164,13 +164,13 @@ macro_rules! rpc_trait {
                 /// Definition before the `#[async_trait]` expansion:
                 ///
                 /// ```ignore
-                #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ", stringify!($return_type))]
+                #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ASCOMResult<", stringify!($return_type), ">")]
                 /// # { unimplemented!() }
                 /// ```
                 $(# $method_attr)*
                 async fn $method_name(
                     & $self $(, $param: $param_ty)*
-                ) -> $return_type $default_body
+                ) -> ASCOMResult<$return_type> $default_body
             )*
 
             rpc_trait!(@extras $trait_name trait);
@@ -183,7 +183,7 @@ macro_rules! rpc_trait {
                 $(# $method_attr)*
                 async fn $method_name(
                     & $self $(, $param: $param_ty)*
-                ) -> $return_type {
+                ) -> ASCOMResult<$return_type> {
                     $self
                     .exec_action(Action::$method_name {
                         $(

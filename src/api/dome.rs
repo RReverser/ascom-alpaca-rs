@@ -97,7 +97,7 @@ pub trait Dome: Device + Send + Sync {
 
     /// Sets the current subframe height.
     #[http("slaved", method = Put)]
-    async fn set_slaved(&self, #[http("Slaved")] slaved: bool) -> ASCOMResult {
+    async fn set_slaved(&self, #[http("Slaved")] slaved: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -109,55 +109,55 @@ pub trait Dome: Device + Send + Sync {
 
     /// Calling this method will immediately disable hardware slewing (Slaved will become False).
     #[http("abortslew", method = Put)]
-    async fn abort_slew(&self) -> ASCOMResult {
+    async fn abort_slew(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Close the shutter or otherwise shield telescope from the sky.
     #[http("closeshutter", method = Put)]
-    async fn close_shutter(&self) -> ASCOMResult {
+    async fn close_shutter(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// After Home position is established initializes Azimuth to the default value and sets the AtHome flag.
     #[http("findhome", method = Put)]
-    async fn find_home(&self) -> ASCOMResult {
+    async fn find_home(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Open shutter or otherwise expose telescope to the sky.
     #[http("openshutter", method = Put)]
-    async fn open_shutter(&self) -> ASCOMResult {
+    async fn open_shutter(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// After assuming programmed park position, sets AtPark flag.
     #[http("park", method = Put)]
-    async fn park(&self) -> ASCOMResult {
+    async fn park(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Set the current azimuth, altitude position of dome to be the park position.
     #[http("setpark", method = Put)]
-    async fn set_park(&self) -> ASCOMResult {
+    async fn set_park(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Slew the dome to the given altitude position.
     #[http("slewtoaltitude", method = Put)]
-    async fn slew_to_altitude(&self, #[http("Altitude")] altitude: f64) -> ASCOMResult {
+    async fn slew_to_altitude(&self, #[http("Altitude")] altitude: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Slew the dome to the given azimuth position.
     #[http("slewtoazimuth", method = Put)]
-    async fn slew_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult {
+    async fn slew_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Synchronize the current position of the dome to the given azimuth.
     #[http("synctoazimuth", method = Put)]
-    async fn sync_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult {
+    async fn sync_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
