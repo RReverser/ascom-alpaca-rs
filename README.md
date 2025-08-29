@@ -189,7 +189,7 @@ let mut bound_client = discovery_client.bind().await?;
 bound_client.discover_addrs()
     // create a `Client` for each discovered address
     .map(|addr| Ok(Client::new_from_addr(addr)))
-    .try_for_each(|client| async move {
+    .try_for_each(async move |client| {
         /* ...do something with devices via each client... */
         Ok::<_, eyre::Error>(())
     })
@@ -200,7 +200,7 @@ Or, if you just want to list all available devices and don't care about per-serv
 
 ```rust
 bound_client.discover_devices()
-    .for_each(|device| async move {
+    .for_each(async move |device| {
         /* ...do something with each device... */
     })
     .await;

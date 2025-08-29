@@ -35,7 +35,7 @@ fn kill_server() {
 /// killed whenever the test process exits.
 #[tracing::instrument]
 pub async fn get_simulator_devices() -> eyre::Result<&'static Devices> {
-    OMNISIM.get_or_try_init(|| async {
+    OMNISIM.get_or_try_init(async || {
         let mut server =
             cmd!(
                 r"C:\Program Files\ASCOM\OmniSimulator",

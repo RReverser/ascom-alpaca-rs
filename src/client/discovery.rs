@@ -108,7 +108,7 @@ impl BoundClient {
     ///
     /// This function returns a stream of discovered device addresses.
     pub fn discover_addrs(&mut self) -> impl '_ + futures::Stream<Item = SocketAddr> {
-        async_fn_stream::fn_stream(|emitter| async move {
+        async_fn_stream::fn_stream(async move |emitter| {
             self.seen.clear();
 
             for _ in 0..self.client.num_requests {
@@ -141,7 +141,7 @@ impl BoundClient {
     /// If you need more control, use [`Self::discover_addrs`] and [`crate::Client::new_from_addr`] directly instead.
     pub fn discover_devices(&mut self) -> impl '_ + futures::Stream<Item = TypedDevice> {
         self.discover_addrs()
-            .filter_map(|addr| async move {
+            .filter_map(async move |addr| {
                 match crate::Client::new_from_addr(addr).get_devices().await {
                     Ok(devices) => Some(devices),
                     Err(err) => {

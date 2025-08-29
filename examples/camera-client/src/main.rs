@@ -107,7 +107,7 @@ impl StateCtx {
 
                     let cameras = discovery_client
                         .discover_devices()
-                        .filter_map(|device| async move {
+                        .filter_map(async move |device| {
                             #[allow(irrefutable_let_patterns)]
                             if let TypedDevice::Camera(camera) = device {
                                 Some(camera)

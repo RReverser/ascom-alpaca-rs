@@ -31,7 +31,7 @@ use crate::Devices;
 use axum::extract::{FromRequest, Path, Request};
 use axum::response::{Html, IntoResponse, Response};
 use axum::{routing, Router};
-use futures::future::{BoxFuture, Future, FutureExt};
+use futures::future::{BoxFuture, FutureExt};
 use http::StatusCode;
 use net_literals::addr;
 use serde::Deserialize;
@@ -96,9 +96,9 @@ impl<S: Send + Sync> FromRequest<S> for ServerHandler {
 }
 
 impl ServerHandler {
-    async fn exec<Output, RespFut: Future<Output = Output>>(
+    async fn exec<Output>(
         mut self,
-        make_response: impl FnOnce(ActionParams) -> RespFut,
+        make_response: impl AsyncFnOnce(ActionParams) -> Output,
     ) -> axum::response::Result<Response>
     where
         ResponseWithTransaction<Output>: IntoResponse,
@@ -243,20 +243,18 @@ impl Server {
             .route(
                 "/management/apiversions",
                 routing::get(|server_handler: ServerHandler| {
-                    server_handler.exec(|_params| async move { ValueResponse { value: [1_u32] } })
+                    server_handler.exec(async move |_params| ValueResponse { value: [1_u32] })
                 }),
             )
             .route("/management/v1/configureddevices", {
                 let this = Arc::clone(&devices);
 
                 routing::get(|server_handler: ServerHandler| {
-                    server_handler.exec(|_params| async move {
-                        ValueResponse {
-                            value: this
-                                .iter_all()
-                                .map(|(device, number)| device.to_configured_device(number))
-                                .collect::<Vec<_>>(),
-                        }
+                    server_handler.exec(async move |_params| ValueResponse {
+                        value: this
+                            .iter_all()
+                            .map(|(device, number)| device.to_configured_device(number))
+                            .collect::<Vec<_>>(),
                     })
                 })
             })
@@ -264,10 +262,8 @@ impl Server {
                 let server_info = Arc::clone(&server_info);
 
                 routing::get(move |server_handler: ServerHandler| {
-                    server_handler.exec(|_params| async move {
-                        ValueResponse {
-                            value: Arc::clone(&server_info),
-                        }
+                    server_handler.exec(async move |_params| ValueResponse {
+                        value: Arc::clone(&server_info),
                     })
                 })
             })
@@ -275,7 +271,7 @@ impl Server {
                 let this = Arc::clone(&devices);
                 let server_info = Arc::clone(&server_info);
 
-                routing::get(|| async move {
+                routing::get(async move || {
                     let mut setup_page = setup_page::SetupPage {
                         server_info: &server_info,
                         grouped_devices: BTreeMap::new(),
@@ -297,13 +293,13 @@ impl Server {
             .route(
                 "/api/v1/{device_type}/{device_number}/{action}",
                 routing::any(
-                    move |Path(ApiPath {
-                              device_type,
-                              device_number,
-                              action,
-                          }),
-                          #[cfg(feature = "camera")] headers: http::HeaderMap,
-                          server_handler: ServerHandler| async move {
+                    async move |Path(ApiPath {
+                                    device_type,
+                                    device_number,
+                                    action,
+                                }),
+                                #[cfg(feature = "camera")] headers: http::HeaderMap,
+                                server_handler: ServerHandler| {
                         #[cfg(feature = "camera")]
                         let mut action = action;
 
@@ -322,7 +318,7 @@ impl Server {
                                 && ImageArray::is_accepted(&headers)
                             {
                                 return server_handler
-                                    .exec(|_params| async move {
+                                    .exec(async move |_params| {
                                         Ok::<_, Error>(ImageBytesResponse(
                                             devices
                                                 .get_for_server::<dyn Camera>(device_number)?

@@ -15,7 +15,7 @@ async fn main() -> eyre::Result<()> {
         .await?
         .discover_addrs()
         .map(Ok)
-        .try_for_each_concurrent(None, |addr| async move {
+        .try_for_each_concurrent(None, async move |addr| {
             let client = Client::new_from_addr(addr);
             let server_info = client.get_server_info().await;
             println!("Server info: {server_info:#?}");
