@@ -178,6 +178,7 @@ macro_rules! rpc_trait {
 
         #[cfg(feature = "client")]
         #[async_trait::async_trait]
+        #[allow(useless_deprecated)]
         impl $trait_name for $crate::client::RawDeviceClient {
             $(
                 $(# $method_attr)*
@@ -213,6 +214,7 @@ macro_rules! rpc_trait {
         }
 
         #[cfg(feature = "server")]
+        #[allow(deprecated)]
         impl Action {
             pub(super) async fn handle(self, device: &dyn $trait_name) -> ASCOMResult<Response> {
                 match self {
