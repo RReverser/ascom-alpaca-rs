@@ -335,18 +335,16 @@ macro_rules! rpc_mod {
         }
 
         #[cfg(feature = "client")]
-        const _: () = {
-            impl $crate::client::RawDeviceClient {
-                pub(crate) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
-                    match device_type {
-                        $(
-                            # $cfg
-                            DeviceType::$trait_name => TypedDevice::$trait_name(self),
-                        )*
-                    }
+        impl $crate::client::RawDeviceClient {
+            pub(crate) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
+                match device_type {
+                    $(
+                        # $cfg
+                        DeviceType::$trait_name => TypedDevice::$trait_name(self),
+                    )*
                 }
             }
-        };
+        }
 
         #[cfg(feature = "server")]
         #[derive(serde::Deserialize)]
