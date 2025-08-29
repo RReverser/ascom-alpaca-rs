@@ -12,7 +12,7 @@ pub trait Focuser: Device + Send + Sync {
     /// True if the focuser is currently moving to a new position.
     ///
     /// False if the focuser is stationary.
-    #[http("ismoving", method = Get)]
+    #[http("ismoving", method = Get, device_state = IsMoving)]
     async fn is_moving(&self) -> ASCOMResult<bool>;
 
     /// Maximum increment size allowed by the focuser; i.e. the maximum number of steps allowed in one move operation.
@@ -24,7 +24,7 @@ pub trait Focuser: Device + Send + Sync {
     async fn max_step(&self) -> ASCOMResult<i32>;
 
     /// Current focuser position, in steps.
-    #[http("position", method = Get)]
+    #[http("position", method = Get, device_state = Position)]
     async fn position(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -50,7 +50,7 @@ pub trait Focuser: Device + Send + Sync {
     async fn temp_comp_available(&self) -> ASCOMResult<bool>;
 
     /// Current ambient temperature as measured by the focuser.
-    #[http("temperature", method = Get)]
+    #[http("temperature", method = Get, device_state = Temperature)]
     async fn temperature(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }

@@ -1,6 +1,5 @@
 use crate::{ASCOMError, ASCOMResult};
 use macro_rules_attribute::apply;
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 /// ASCOM Methods Common To All Devices.
@@ -80,8 +79,6 @@ pub trait Device: Debug + Send + Sync {
     #[http("connected", method = Get)]
     async fn connected(&self) -> ASCOMResult<bool>;
 
-    /// **Deprecated in favour of the newer non-blocking [`connect`](Self::connect) and [`disconnect`](Self::disconnect) methods, with the new [`connecting`](Self::connecting) property serving as the completion property.**
-    ///
     /// Sets the connected state of the device.
     #[http("connected", method = Put)]
     async fn set_connected(&self, #[http("Connected")] connected: bool) -> ASCOMResult<()>;
@@ -97,16 +94,6 @@ pub trait Device: Debug + Send + Sync {
     /// The description of the device.
     #[http("description", method = Get)]
     async fn description(&self) -> ASCOMResult<String>;
-
-    /// Devices must return all operational values that are definitively known but can omit entries where values are unknown.
-    ///
-    /// Devices must not throw exceptions / return errors when values are not known. An empty list must  be returned if no values are known. Client Applications must expect that, from time to time, some operational state values may not be present in the device response and must be prepared to handle “missing” values.
-    ///
-    /// _Platform 7 onward._
-    #[http("devicestate", method = Get)]
-    async fn device_state(&self) -> ASCOMResult<Vec<DeviceStateItem>> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
 
     /// The description of the driver.
     #[http("driverinfo", method = Get)]
@@ -129,21 +116,4 @@ pub trait Device: Debug + Send + Sync {
     async fn supported_actions(&self) -> ASCOMResult<Vec<String>> {
         Ok(vec![])
     }
-}
-
-/// A DeviceState object representing an operational property of this device.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeviceStateItem {
-    /// The property name.
-    ///
-    /// The name casing must match the casing in the relevant interface definition.
-    pub name: String,
-
-    /// The corresponding value of the named operational property.
-    ///
-    /// This is a dynamically-typed value that can hold one of several basic types including Int16, Int32, Single, Double, String, Boolean and DateTime (returned as an ISO 8601 format string).
-    ///
-    /// **NOTE** The data type must be the same as that returned by the operational property.
-    pub value: serde_json::Value,
 }

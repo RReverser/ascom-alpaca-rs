@@ -18,6 +18,8 @@ pub use server_info::*;
 #[cfg(any(feature = "camera", feature = "telescope"))]
 mod camera_telescope_shared;
 
+mod time_repr;
+
 use std::fmt::Debug;
 use std::sync::Arc;
 

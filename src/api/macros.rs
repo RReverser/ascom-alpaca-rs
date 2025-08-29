@@ -82,12 +82,101 @@ macro_rules! rpc_trait {
     // Don't add any extra code for other traits in other locations.
     (@extras $trait_name:ident $loc:ident) => {};
 
+    (@device_state $trait_name:ident $(
+        $name:ident : $wire_name:ident as $ty:ty
+    )*) => {
+        /// An object representing all operational properties of the device.
+        #[derive(Default, Debug, Clone, Copy)]
+        pub struct DeviceState {
+            /// The time at which the operational states were measured, when known.
+            pub timestamp: Option<std::time::SystemTime>,
+            $(
+                #[doc = concat!("Result of [`", stringify!($trait_name), "::", stringify!($name), "`].")]
+                pub $name: Option<$ty>,
+            )*
+        }
+
+        impl DeviceState {
+            async fn gather(_device: &(impl ?Sized + $trait_name)) -> Self {
+                DeviceState {
+                    timestamp: Some(std::time::SystemTime::now()),
+                    $($name: _device.$name().await.ok(),)*
+                }
+            }
+        }
+
+        impl serde::Serialize for DeviceState {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                #[derive(serde::Serialize)]
+                #[serde(rename_all = "PascalCase")]
+                struct DeviceStateItem<T> {
+                    name: &'static str,
+                    value: T,
+                }
+
+                let mut seq = serializer.serialize_seq(None)?;
+                if let Some(timestamp) = &self.timestamp {
+                    serde::ser::SerializeSeq::serialize_element(&mut seq, &DeviceStateItem {
+                        name: "TimeStamp",
+                        value: crate::api::time_repr::TimeRepr::<crate::api::time_repr::Iso8601>::from(*timestamp),
+                    })?;
+                }
+                $(if let Some(value) = &self.$name {
+                    serde::ser::SerializeSeq::serialize_element(&mut seq, &DeviceStateItem {
+                        name: stringify!($wire_name),
+                        value,
+                    })?;
+                })*
+                serde::ser::SerializeSeq::end(seq)
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for DeviceState {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                #[derive(serde::Deserialize)]
+                #[serde(tag = "Name", content = "Value")]
+                enum DeviceStateItem {
+                    TimeStamp(crate::api::time_repr::TimeRepr::<crate::api::time_repr::Iso8601>),
+                    $($wire_name($ty),)*
+                }
+
+                struct Visitor;
+
+                impl<'de> serde::de::Visitor<'de> for Visitor {
+                    type Value = DeviceState;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        formatter.write_str("a sequence of DeviceStateItem objects")
+                    }
+
+                    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                        let mut state = DeviceState {
+                            timestamp: None,
+                            $($name: None,)*
+                        };
+
+                        while let Some(item) = seq.next_element::<DeviceStateItem>()? {
+                            match item {
+                                DeviceStateItem::TimeStamp(value) => state.timestamp = Some(value.into()),
+                                $(DeviceStateItem::$wire_name(value) => state.$name = Some(value),)*
+                            }
+                        }
+
+                        Ok(state)
+                    }
+                }
+
+                deserializer.deserialize_seq(Visitor)
+            }
+        }
+    };
+
     (
         $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $trait_parents:ty {
             $(
                 $(#[doc = $doc:literal])*
-                #[http($method_path:literal, method = $http_method:ident $(, via = $via:ty)?)]
+                #[http($method_path:literal, method = $http_method:ident $(, via = $via:ty)? $(, device_state = $device_state_name:ident)?)]
                 $(# $method_attr:tt)*
                 async fn $method_name:ident(
                     & $self:ident $(, #[http($param_query:literal $(, via = $param_via:ty)?)] $param:ident: $param_ty:ty)* $(,)?
@@ -95,6 +184,10 @@ macro_rules! rpc_trait {
             )*
         }
     ) => (paste::paste! {
+        rpc_trait!(@device_state $trait_name $($(
+            $method_name: $device_state_name as $return_type
+        )?)*);
+
         #[cfg_attr(feature = "client", derive(serde::Serialize), serde(untagged))]
         #[expect(non_camel_case_types)]
         pub(super) enum Action {
@@ -106,6 +199,7 @@ macro_rules! rpc_trait {
                     )*
                 },
             )*
+            DeviceState,
         }
 
         #[cfg(feature = "server")]
@@ -116,6 +210,7 @@ macro_rules! rpc_trait {
             $(
                 $method_name($return_type),
             )*
+            DeviceState(DeviceState),
         }
 
         impl $crate::params::Action for Action {
@@ -136,6 +231,7 @@ macro_rules! rpc_trait {
                             Self::$method_name { $($param),* }
                         }
                     )*
+                    ("devicestate", _) => Self::DeviceState,
                     _ => return Ok(None),
                 }))
             }
@@ -144,6 +240,7 @@ macro_rules! rpc_trait {
             fn into_parts(self) -> $crate::params::ActionParams<impl serde::Serialize> {
                 let (method, action) = match self {
                     $(Self::$method_name { .. } => ($crate::params::Method::$http_method, $method_path),)*
+                    Self::DeviceState => ($crate::params::Method::Get, "devicestate"),
                 };
 
                 $crate::params::ActionParams {
@@ -174,6 +271,13 @@ macro_rules! rpc_trait {
             )*
 
             rpc_trait!(@extras $trait_name trait);
+
+            /// Return all operational properties of this device.
+            ///
+            /// See [What is the “read all” feature and what are its rules?](https://ascom-standards.org/newdocs/readall-faq.html#readall-faq).
+            async fn device_state(&self) -> ASCOMResult<DeviceState> {
+                Ok(DeviceState::gather(self).await)
+            }
         }
 
         #[cfg(feature = "client")]
@@ -223,6 +327,9 @@ macro_rules! rpc_trait {
                             device.$method_name($($param),*).await.map(Response::$method_name)
                         }
                     )*
+                    Self::DeviceState => {
+                        $trait_name::device_state(&*device).await.map(Response::DeviceState)
+                    }
                 }
             }
         }

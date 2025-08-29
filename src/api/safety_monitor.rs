@@ -8,7 +8,7 @@ pub trait SafetyMonitor: Device + Send + Sync {
     /// Indicates whether the monitored state is safe for use.
     ///
     /// True if the state is safe, False if it is unsafe.
-    #[http("issafe", method = Get)]
+    #[http("issafe", method = Get, device_state = IsSafe)]
     async fn is_safe(&self) -> ASCOMResult<bool>;
 
     /// This method returns the version of the ASCOM device interface contract to which this device complies.

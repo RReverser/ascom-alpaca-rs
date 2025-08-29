@@ -64,7 +64,7 @@ serde_plain = { version = "1.0.2", optional = true }
 serde_repr = "0.1.20"
 socket2 = "0.6.0"
 thiserror = "2.0.14"
-time = { version = "0.3.41", features = ["macros"], optional = true }
+time = { version = "0.3.41", features = ["macros"] }
 tokio = { workspace = true, features = ["net", "rt", "io-util"] }
 tracing = { workspace = true }
 tracing-futures = { version = "0.2.5", features = [
@@ -114,7 +114,6 @@ camera = [
 	"dep:mediatype",
 	"dep:ndarray",
 	"dep:serde-ndim",
-	"dep:time",
 ]
 cover_calibrator = ["__anydevice"]
 dome = ["__anydevice"]
@@ -124,7 +123,7 @@ observing_conditions = ["__anydevice"]
 rotator = ["__anydevice"]
 safety_monitor = ["__anydevice"]
 switch = ["__anydevice"]
-telescope = ["__anydevice", "dep:time"]
+telescope = ["__anydevice"]
 
 __anynetwork = []
 client = [
@@ -135,7 +134,7 @@ client = [
 	"dep:bytes",
 	"dep:mime",
 	"dep:rand",
-	"time?/parsing",
+	"time/parsing",
 ]
 server = [
 	"__anynetwork",
@@ -144,7 +143,7 @@ server = [
 	"dep:http",
 	"dep:indexmap",
 	"dep:serde_plain",
-	"time?/formatting",
+	"time/formatting",
 ]
 
 [package.metadata.docs.rs]

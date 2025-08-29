@@ -8,7 +8,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 #[apply(rpc_trait)]
 pub trait Dome: Device + Send + Sync {
     /// The dome altitude (degrees, horizon zero and increasing positive to 90 zenith).
-    #[http("altitude", method = Get)]
+    #[http("altitude", method = Get, device_state = Altitude)]
     async fn altitude(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -16,7 +16,7 @@ pub trait Dome: Device + Send + Sync {
     /// Indicates whether the dome is in the home position.
     ///
     /// This is normally used following a FindHome()  operation. The value is reset with any azimuth slew operation that moves the dome away from the home position. AtHome may also become true durng normal slew operations, if the dome passes through the home position and the dome controller hardware is capable of detecting that; or at the end of a slew operation if the dome comes to rest at the home position.
-    #[http("athome", method = Get)]
+    #[http("athome", method = Get, device_state = AtHome)]
     async fn at_home(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -24,13 +24,13 @@ pub trait Dome: Device + Send + Sync {
     /// True if the dome is in the programmed park position.
     ///
     /// Set only following a Park() operation and reset with any slew operation.
-    #[http("atpark", method = Get)]
+    #[http("atpark", method = Get, device_state = AtPark)]
     async fn at_park(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the dome azimuth (degrees, North zero and increasing clockwise, i.e., 90 East, 180 South, 270 West).
-    #[http("azimuth", method = Get)]
+    #[http("azimuth", method = Get, device_state = Azimuth)]
     async fn azimuth(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -84,7 +84,7 @@ pub trait Dome: Device + Send + Sync {
     }
 
     /// Returns the status of the dome shutter or roll-off roof.
-    #[http("shutterstatus", method = Get)]
+    #[http("shutterstatus", method = Get, device_state = ShutterStatus)]
     async fn shutter_status(&self) -> ASCOMResult<ShutterState> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -102,7 +102,7 @@ pub trait Dome: Device + Send + Sync {
     }
 
     /// True if any part of the dome is currently moving, False if all dome components are steady.
-    #[http("slewing", method = Get)]
+    #[http("slewing", method = Get, device_state = Slewing)]
     async fn slewing(&self) -> ASCOMResult<bool>;
 
     /// Calling this method will immediately disable hardware slewing (Slaved will become False).

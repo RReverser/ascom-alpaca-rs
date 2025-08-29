@@ -14,15 +14,15 @@ pub trait Rotator: Device + Send + Sync {
     /// True if the rotator is currently moving to a new position.
     ///
     /// False if the focuser is stationary.
-    #[http("ismoving", method = Get)]
+    #[http("ismoving", method = Get, device_state = IsMoving)]
     async fn is_moving(&self) -> ASCOMResult<bool>;
 
     /// Returns the raw mechanical position of the rotator in degrees.
-    #[http("mechanicalposition", method = Get)]
+    #[http("mechanicalposition", method = Get, device_state = MechanicalPosition)]
     async fn mechanical_position(&self) -> ASCOMResult<f64>;
 
     /// Current instantaneous Rotator position, in degrees.
-    #[http("position", method = Get)]
+    #[http("position", method = Get, device_state = Position)]
     async fn position(&self) -> ASCOMResult<f64>;
 
     /// Returns the rotator’s Reverse state.

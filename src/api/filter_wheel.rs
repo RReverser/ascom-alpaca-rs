@@ -1,6 +1,6 @@
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
+use macro_rules_attribute::apply;
 
 /// FilterWheel Specific Methods.
 #[apply(rpc_trait)]
@@ -14,7 +14,7 @@ pub trait FilterWheel: Device + Send + Sync {
     async fn names(&self) -> ASCOMResult<Vec<String>>;
 
     /// Returns the current filter wheel position.
-    #[http("position", method = Get)]
+    #[http("position", method = Get, device_state = Position)]
     async fn position(&self) -> ASCOMResult<i32>;
 
     /// Sets the filter wheel position.
