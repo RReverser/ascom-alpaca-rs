@@ -96,9 +96,7 @@ pub trait Device: Debug + Send + Sync {
 
     /// The description of the device.
     #[http("description", method = Get)]
-    async fn description(&self) -> ASCOMResult<String> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn description(&self) -> ASCOMResult<String>;
 
     /// Devices must return all operational values that are definitively known but can omit entries where values are unknown.
     ///
@@ -112,15 +110,13 @@ pub trait Device: Debug + Send + Sync {
 
     /// The description of the driver.
     #[http("driverinfo", method = Get)]
-    async fn driver_info(&self) -> ASCOMResult<String> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn driver_info(&self) -> ASCOMResult<String>;
 
     /// A string containing only the major and minor version of the driver.
+    ///
+    /// This must be in the form "n.n".
     #[http("driverversion", method = Get)]
-    async fn driver_version(&self) -> ASCOMResult<String> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn driver_version(&self) -> ASCOMResult<String>;
 
     /// The name of the device.
     #[http("name", method = Get)]

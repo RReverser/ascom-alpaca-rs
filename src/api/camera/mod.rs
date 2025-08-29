@@ -3,12 +3,12 @@ pub use image_array::*;
 
 pub use super::camera_telescope_shared::GuideDirection;
 
+use super::camera_telescope_shared::{Fits, TimeRepr};
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use super::camera_telescope_shared::{TimeRepr, Fits};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::time::SystemTime;
 
 /// Camera Specific Methods.
@@ -144,21 +144,15 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the maximum exposure time supported by StartExposure.
     #[http("exposuremax", method = Get)]
-    async fn exposure_max(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn exposure_max(&self) -> ASCOMResult<f64>;
 
     /// Returns the Minimium exposure time in seconds that the camera supports through StartExposure.
     #[http("exposuremin", method = Get)]
-    async fn exposure_min(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn exposure_min(&self) -> ASCOMResult<f64>;
 
     /// Returns the smallest increment in exposure time supported by StartExposure.
     #[http("exposureresolution", method = Get)]
-    async fn exposure_resolution(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn exposure_resolution(&self) -> ASCOMResult<f64>;
 
     /// Returns whenther Fast Readout Mode is enabled.
     #[http("fastreadout", method = Get)]
@@ -210,9 +204,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns a flag indicating whether this camera has a mechanical shutter.
     #[http("hasshutter", method = Get)]
-    async fn has_shutter(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn has_shutter(&self) -> ASCOMResult<bool>;
 
     /// Returns the current heat sink temperature (called "ambient temperature" by some manufacturers) in degrees Celsius.
     #[http("heatsinktemperature", method = Get)]
@@ -256,9 +248,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Reports the maximum ADU value the camera can produce.
     #[http("maxadu", method = Get)]
-    async fn max_adu(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn max_adu(&self) -> ASCOMResult<i32>;
 
     /// Returns the maximum allowed binning for the X camera axis.
     #[http("maxbinx", method = Get)]
@@ -336,15 +326,11 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the width of the CCD chip pixels in microns.
     #[http("pixelsizex", method = Get)]
-    async fn pixel_size_x(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn pixel_size_x(&self) -> ASCOMResult<f64>;
 
     /// Returns the Height of the CCD chip pixels in microns.
     #[http("pixelsizey", method = Get)]
-    async fn pixel_size_y(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn pixel_size_y(&self) -> ASCOMResult<f64>;
 
     /// ReadoutMode is an index into the array ReadoutModes and returns the desired readout mode for the camera.
     ///
@@ -400,29 +386,21 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// If binning is active, value is in binned pixels.
     #[http("startx", method = Get)]
-    async fn start_x(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn start_x(&self) -> ASCOMResult<i32>;
 
     /// Sets the current subframe X axis start position in binned pixels.
     #[http("startx", method = Put)]
-    async fn set_start_x(&self, #[http("StartX")] start_x: i32) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn set_start_x(&self, #[http("StartX")] start_x: i32) -> ASCOMResult<()>;
 
     /// Returns the current subframe start position for the Y axis (0 based).
     ///
     /// If binning is active, value is in binned pixels.
     #[http("starty", method = Get)]
-    async fn start_y(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn start_y(&self) -> ASCOMResult<i32>;
 
     /// Sets the current subframe Y axis start position in binned pixels.
     #[http("starty", method = Put)]
-    async fn set_start_y(&self, #[http("StartY")] start_y: i32) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn set_start_y(&self, #[http("StartY")] start_y: i32) -> ASCOMResult<()>;
 
     /// The Camera's sub exposure duration in seconds.
     ///
@@ -472,9 +450,7 @@ pub trait Camera: Device + Send + Sync {
         #[http("Duration")] duration: f64,
 
         #[http("Light")] light: bool,
-    ) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    ) -> ASCOMResult<()>;
 
     /// Stops the current exposure, if any.
     ///

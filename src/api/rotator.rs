@@ -1,6 +1,6 @@
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
+use macro_rules_attribute::apply;
 
 /// Rotator Specific Methods.
 #[apply(rpc_trait)]
@@ -15,33 +15,23 @@ pub trait Rotator: Device + Send + Sync {
     ///
     /// False if the focuser is stationary.
     #[http("ismoving", method = Get)]
-    async fn is_moving(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn is_moving(&self) -> ASCOMResult<bool>;
 
     /// Returns the raw mechanical position of the rotator in degrees.
     #[http("mechanicalposition", method = Get)]
-    async fn mechanical_position(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn mechanical_position(&self) -> ASCOMResult<f64>;
 
     /// Current instantaneous Rotator position, in degrees.
     #[http("position", method = Get)]
-    async fn position(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn position(&self) -> ASCOMResult<f64>;
 
     /// Returns the rotator’s Reverse state.
     #[http("reverse", method = Get)]
-    async fn reverse(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn reverse(&self) -> ASCOMResult<bool>;
 
     /// Sets the rotator’s Reverse state.
     #[http("reverse", method = Put)]
-    async fn set_reverse(&self, #[http("Reverse")] reverse: bool) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn set_reverse(&self, #[http("Reverse")] reverse: bool) -> ASCOMResult<()>;
 
     /// The minimum StepSize, in degrees.
     #[http("stepsize", method = Get)]
@@ -51,9 +41,7 @@ pub trait Rotator: Device + Send + Sync {
 
     /// The destination position angle for Move() and MoveAbsolute().
     #[http("targetposition", method = Get)]
-    async fn target_position(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn target_position(&self) -> ASCOMResult<f64>;
 
     /// Immediately stop any Rotator motion due to a previous Move or MoveAbsolute method call.
     #[http("halt", method = Put)]
@@ -63,27 +51,19 @@ pub trait Rotator: Device + Send + Sync {
 
     /// Causes the rotator to move Position degrees relative to the current Position value.
     #[http("move", method = Put)]
-    async fn move_(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn move_(&self, #[http("Position")] position: f64) -> ASCOMResult<()>;
 
     /// Causes the rotator to move the absolute position of Position degrees.
     #[http("moveabsolute", method = Put)]
-    async fn move_absolute(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn move_absolute(&self, #[http("Position")] position: f64) -> ASCOMResult<()>;
 
     /// Causes the rotator to move the mechanical position of Position degrees.
     #[http("movemechanical", method = Put)]
-    async fn move_mechanical(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn move_mechanical(&self, #[http("Position")] position: f64) -> ASCOMResult<()>;
 
     /// Causes the rotator to sync to the position of Position degrees.
     #[http("sync", method = Put)]
-    async fn sync(&self, #[http("Position")] position: f64) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn sync(&self, #[http("Position")] position: f64) -> ASCOMResult<()>;
 
     /// This method returns the version of the ASCOM device interface contract to which this device complies.
     ///

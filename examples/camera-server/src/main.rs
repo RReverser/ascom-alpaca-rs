@@ -234,6 +234,14 @@ impl AlpacaCamera for Webcam {
         Ok(0)
     }
 
+    async fn pixel_size_x(&self) -> ASCOMResult<f64> {
+        Ok(1.0)
+    }
+
+    async fn pixel_size_y(&self) -> ASCOMResult<f64> {
+        Ok(1.0)
+    }
+
     async fn sensor_name(&self) -> ASCOMResult<String> {
         Ok(String::default())
     }

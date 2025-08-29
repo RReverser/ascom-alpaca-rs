@@ -1,8 +1,8 @@
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 /// CoverCalibrator Specific Methods.
 #[apply(rpc_trait)]
@@ -18,32 +18,28 @@ pub trait CoverCalibrator: Device + Send + Sync {
     /// _ICoverCalibratorV2 and later._
     #[http("calibratorchanging", method = Get)]
     async fn calibrator_changing(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+        Ok(self.calibrator_state().await? == CalibratorStatus::NotReady)
     }
 
     /// Returns the state of the calibration device, if present, otherwise returns "NotPresent".
     ///
     /// The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
     #[http("calibratorstate", method = Get)]
-    async fn calibrator_state(&self) -> ASCOMResult<CalibratorStatus> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn calibrator_state(&self) -> ASCOMResult<CalibratorStatus>;
 
     /// True if the cover is moving.
     ///
     /// _ICoverCalibratorV2 and later._
     #[http("covermoving", method = Get)]
     async fn cover_moving(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
+        Ok(self.cover_state().await? == CoverStatus::Moving)
     }
 
     /// Returns the state of the device cover, if present, otherwise returns "NotPresent".
     ///
     /// The cover state mode is specified as an integer value from the CoverStatus Enum.
     #[http("coverstate", method = Get)]
-    async fn cover_state(&self) -> ASCOMResult<CoverStatus> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn cover_state(&self) -> ASCOMResult<CoverStatus>;
 
     /// The Brightness value that makes the calibrator deliver its maximum illumination.
     #[http("maxbrightness", method = Get)]

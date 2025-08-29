@@ -1,35 +1,27 @@
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
+use macro_rules_attribute::apply;
 
 /// Focuser Specific Methods.
 #[apply(rpc_trait)]
 pub trait Focuser: Device + Send + Sync {
     /// True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
     #[http("absolute", method = Get)]
-    async fn absolute(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn absolute(&self) -> ASCOMResult<bool>;
 
     /// True if the focuser is currently moving to a new position.
     ///
     /// False if the focuser is stationary.
     #[http("ismoving", method = Get)]
-    async fn is_moving(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn is_moving(&self) -> ASCOMResult<bool>;
 
     /// Maximum increment size allowed by the focuser; i.e. the maximum number of steps allowed in one move operation.
     #[http("maxincrement", method = Get)]
-    async fn max_increment(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn max_increment(&self) -> ASCOMResult<i32>;
 
     /// Maximum step position permitted.
     #[http("maxstep", method = Get)]
-    async fn max_step(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn max_step(&self) -> ASCOMResult<i32>;
 
     /// Current focuser position, in steps.
     #[http("position", method = Get)]
@@ -45,9 +37,7 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Gets the state of temperature compensation mode (if available), else always False.
     #[http("tempcomp", method = Get)]
-    async fn temp_comp(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn temp_comp(&self) -> ASCOMResult<bool>;
 
     /// Sets the state of temperature compensation mode.
     #[http("tempcomp", method = Put)]
@@ -57,9 +47,7 @@ pub trait Focuser: Device + Send + Sync {
 
     /// True if focuser has temperature compensation available.
     #[http("tempcompavailable", method = Get)]
-    async fn temp_comp_available(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn temp_comp_available(&self) -> ASCOMResult<bool>;
 
     /// Current ambient temperature as measured by the focuser.
     #[http("temperature", method = Get)]
@@ -73,11 +61,9 @@ pub trait Focuser: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Moves the focuser by the specified amount or to the specified position depending on the value of the Absolute property.
+    /// Starts moving the focuser by the specified amount or to the specified position depending on the value of the Absolute property.
     #[http("move", method = Put)]
-    async fn move_(&self, #[http("Position")] position: i32) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn move_(&self, #[http("Position")] position: i32) -> ASCOMResult<()>;
 
     /// This method returns the version of the ASCOM device interface contract to which this device complies.
     ///

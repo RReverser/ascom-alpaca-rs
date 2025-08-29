@@ -1,8 +1,8 @@
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 /// Dome Specific Methods.
 #[apply(rpc_trait)]
@@ -103,17 +103,13 @@ pub trait Dome: Device + Send + Sync {
 
     /// True if any part of the dome is currently moving, False if all dome components are steady.
     #[http("slewing", method = Get)]
-    async fn slewing(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn slewing(&self) -> ASCOMResult<bool>;
 
     /// Calling this method will immediately disable hardware slewing (Slaved will become False).
     #[http("abortslew", method = Put)]
-    async fn abort_slew(&self) -> ASCOMResult<()> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn abort_slew(&self) -> ASCOMResult<()>;
 
-    /// Close the shutter or otherwise shield telescope from the sky.
+    /// Start to close the shutter or otherwise shield the telescope from the sky.
     #[http("closeshutter", method = Put)]
     async fn close_shutter(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -125,13 +121,13 @@ pub trait Dome: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Open shutter or otherwise expose telescope to the sky.
+    /// Start to open shutter or otherwise expose telescope to the sky.
     #[http("openshutter", method = Put)]
     async fn open_shutter(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// After assuming programmed park position, sets AtPark flag.
+    /// Start slewing the dome to its park position.
     #[http("park", method = Put)]
     async fn park(&self) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -143,19 +139,19 @@ pub trait Dome: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Slew the dome to the given altitude position.
+    /// Start slewing so that requested viewing altitude (degrees) is available for observing.
     #[http("slewtoaltitude", method = Put)]
     async fn slew_to_altitude(&self, #[http("Altitude")] altitude: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Slew the dome to the given azimuth position.
+    /// Start slewing so that requested viewing azimuth (degrees) is available for observing.
     #[http("slewtoazimuth", method = Put)]
     async fn slew_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Synchronize the current position of the dome to the given azimuth.
+    /// Synchronize the current azimuth of the dome (degrees) to the given azimuth.
     #[http("synctoazimuth", method = Put)]
     async fn sync_to_azimuth(&self, #[http("Azimuth")] azimuth: f64) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)

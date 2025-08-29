@@ -87,10 +87,10 @@ macro_rules! rpc_trait {
         $pub:vis trait $trait_name:ident: $trait_parents:ty {
             $(
                 $(#[doc = $doc:literal])*
-                #[http($method_path:literal, method = $http_method:ident $(, via = $via:path)?)]
+                #[http($method_path:literal, method = $http_method:ident $(, via = $via:ty)?)]
                 $(# $method_attr:tt)*
                 async fn $method_name:ident(
-                    & $self:ident $(, #[http($param_query:literal $(, via = $param_via:path)?)] $param:ident: $param_ty:ty)* $(,)?
+                    & $self:ident $(, #[http($param_query:literal $(, via = $param_via:ty)?)] $param:ident: $param_ty:ty)* $(,)?
                 ) -> ASCOMResult<$return_type:ty> $default_body:tt
             )*
         }

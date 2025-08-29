@@ -1,12 +1,12 @@
 pub use super::camera_telescope_shared::GuideDirection;
 
+use super::camera_telescope_shared::{Iso8601, TimeRepr};
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use super::camera_telescope_shared::{TimeRepr, Iso8601};
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::ops::RangeInclusive;
 use std::time::SystemTime;
 
@@ -41,17 +41,13 @@ pub trait Telescope: Device + Send + Sync {
     ///
     /// Set only following a FindHome()  operation, and reset with any slew operation. This property must be False if the telescope does not support homing.
     #[http("athome", method = Get)]
-    async fn at_home(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn at_home(&self) -> ASCOMResult<bool>;
 
     /// True if the telescope has been put into the parked state by the seee Park()  method.
     ///
     /// Set False by calling the Unpark() method.
     #[http("atpark", method = Get)]
-    async fn at_park(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn at_park(&self) -> ASCOMResult<bool>;
 
     /// The azimuth at the local horizon of the mount's current position (degrees, North-referenced, positive East/clockwise).
     #[http("azimuth", method = Get)]
@@ -167,9 +163,7 @@ pub trait Telescope: Device + Send + Sync {
     ///
     /// Please note that rightascensionrate units are arcseconds per sidereal second.
     #[http("declinationrate", method = Get)]
-    async fn declination_rate(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn declination_rate(&self) -> ASCOMResult<f64>;
 
     /// Sets the declination tracking rate (arcseconds per SI second).
     ///
@@ -201,9 +195,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Returns the current equatorial coordinate system used by this telescope (e.g. Topocentric or J2000).
     #[http("equatorialsystem", method = Get)]
-    async fn equatorial_system(&self) -> ASCOMResult<EquatorialCoordinateType> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn equatorial_system(&self) -> ASCOMResult<EquatorialCoordinateType>;
 
     /// The telescope's focal length in meters.
     #[http("focallength", method = Get)]
@@ -251,17 +243,13 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The right ascension (hours) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property.
     #[http("rightascension", method = Get)]
-    async fn right_ascension(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn right_ascension(&self) -> ASCOMResult<f64>;
 
     /// The right ascension tracking rate (arcseconds per sidereal second, default = 0.0).
     ///
     /// Please note that the declinationrate units are arcseconds per SI second.
     #[http("rightascensionrate", method = Get)]
-    async fn right_ascension_rate(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn right_ascension_rate(&self) -> ASCOMResult<f64>;
 
     /// Sets the right ascension tracking rate (arcseconds per sidereal second).
     ///
@@ -283,15 +271,16 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the pointing state of the mount.
     #[http("sideofpier", method = Put)]
-    async fn set_side_of_pier(&self, #[http("SideOfPier")] side_of_pier: PierSide) -> ASCOMResult<()> {
+    async fn set_side_of_pier(
+        &self,
+        #[http("SideOfPier")] side_of_pier: PierSide,
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// The local apparent sidereal time from the telescope's internal clock (hours, sidereal).
     #[http("siderealtime", method = Get)]
-    async fn sidereal_time(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn sidereal_time(&self) -> ASCOMResult<f64>;
 
     /// The elevation above mean sea level (meters) of the site at which the telescope is located.
     #[http("siteelevation", method = Get)]
@@ -317,7 +306,10 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Sets the observing site's latitude (degrees).
     #[http("sitelatitude", method = Put)]
-    async fn set_site_latitude(&self, #[http("SiteLatitude")] site_latitude: f64) -> ASCOMResult<()> {
+    async fn set_site_latitude(
+        &self,
+        #[http("SiteLatitude")] site_latitude: f64,
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -393,9 +385,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Returns the state of the telescope's sidereal tracking drive.
     #[http("tracking", method = Get)]
-    async fn tracking(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn tracking(&self) -> ASCOMResult<bool>;
 
     /// Sets the state of the telescope's sidereal tracking drive.
     #[http("tracking", method = Put)]
@@ -405,9 +395,7 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The current tracking rate of the telescope's sidereal drive.
     #[http("trackingrate", method = Get)]
-    async fn tracking_rate(&self) -> ASCOMResult<DriveRate> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn tracking_rate(&self) -> ASCOMResult<DriveRate>;
 
     /// Sets the tracking rate of the telescope's sidereal drive.
     #[http("trackingrate", method = Put)]
@@ -427,17 +415,14 @@ pub trait Telescope: Device + Send + Sync {
 
     /// Returns the UTC date/time of the telescope's internal clock.
     #[http("utcdate", method = Get, via = TimeRepr<Iso8601>)]
-    async fn utc_date(&self) -> ASCOMResult<SystemTime> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn utc_date(&self) -> ASCOMResult<SystemTime>;
 
     /// Sets the UTC date/time of the telescope's internal clock.
     #[http("utcdate", method = Put)]
     async fn set_utc_date(
         &self,
 
-        #[http("UTCDate", via = TimeRepr<Iso8601>)]
-        utc_date: SystemTime,
+        #[http("UTCDate", via = TimeRepr<Iso8601>)] utc_date: SystemTime,
     ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -450,9 +435,10 @@ pub trait Telescope: Device + Send + Sync {
 
     /// The rates at which the telescope may be moved about the specified axis by the MoveAxis(TelescopeAxes, Double) method.
     #[http("axisrates", method = Get, via = AxisRates)]
-    async fn axis_rates(&self, #[http("Axis")] axis: TelescopeAxis) -> ASCOMResult<Vec<RangeInclusive<f64>>> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn axis_rates(
+        &self,
+        #[http("Axis")] axis: TelescopeAxis,
+    ) -> ASCOMResult<Vec<RangeInclusive<f64>>>;
 
     /// True if this telescope can move the requested axis.
     #[http("canmoveaxis", method = Get)]
@@ -514,8 +500,6 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// **This method is deprecated in favour of [`slew_to_alt_az_async`](Self::slew_to_alt_az_async).**
-    ///
     /// Move the telescope to the given local horizontal coordinates, return when slew is complete.
     #[http("slewtoaltaz", method = Put)]
     async fn slew_to_alt_az(
@@ -528,7 +512,7 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Move the telescope to the given local horizontal coordinates, return immediatley after the slew starts.
+    /// Move the telescope to the given local horizontal coordinates, return immediately after the slew starts.
     ///
     /// The client can poll the Slewing method to determine when the mount reaches the intended coordinates.
     #[http("slewtoaltazasync", method = Put)]
@@ -542,8 +526,6 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// **This method is deprecated in favour of [`slew_to_coordinates_async`](Self::slew_to_coordinates_async).**
-    ///
     /// Move the telescope to the given equatorial coordinates, return when slew is complete.
     #[http("slewtocoordinates", method = Put)]
     async fn slew_to_coordinates(
@@ -757,19 +739,25 @@ struct AxisRates(Vec<AxisRate>);
 
 impl From<AxisRates> for Vec<RangeInclusive<f64>> {
     fn from(axis_rates: AxisRates) -> Self {
-        axis_rates.0.into_iter().map(|axis_rate| axis_rate.minimum..=axis_rate.maximum).collect()
+        axis_rates
+            .0
+            .into_iter()
+            .map(|axis_rate| axis_rate.minimum..=axis_rate.maximum)
+            .collect()
     }
 }
 
 impl From<Vec<RangeInclusive<f64>>> for AxisRates {
     fn from(ranges: Vec<RangeInclusive<f64>>) -> Self {
-        Self(ranges.into_iter().map(|range| {
-            let (minimum, maximum) = range.into_inner();
-            AxisRate {
-                minimum,
-                maximum,
-            }
-        }).collect())
+        Self(
+            ranges
+                .into_iter()
+                .map(|range| {
+                    let (minimum, maximum) = range.into_inner();
+                    AxisRate { minimum, maximum }
+                })
+                .collect(),
+        )
     }
 }
 

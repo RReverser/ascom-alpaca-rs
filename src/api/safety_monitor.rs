@@ -1,6 +1,6 @@
 use super::Device;
+use crate::ASCOMResult;
 use macro_rules_attribute::apply;
-use crate::{ASCOMError, ASCOMResult};
 
 /// SafetyMonitor Specific Methods.
 #[apply(rpc_trait)]
@@ -9,9 +9,7 @@ pub trait SafetyMonitor: Device + Send + Sync {
     ///
     /// True if the state is safe, False if it is unsafe.
     #[http("issafe", method = Get)]
-    async fn is_safe(&self) -> ASCOMResult<bool> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn is_safe(&self) -> ASCOMResult<bool>;
 
     /// This method returns the version of the ASCOM device interface contract to which this device complies.
     ///

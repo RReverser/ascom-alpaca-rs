@@ -7,21 +7,15 @@ use crate::{ASCOMError, ASCOMResult};
 pub trait FilterWheel: Device + Send + Sync {
     /// An integer array of filter focus offsets.
     #[http("focusoffsets", method = Get)]
-    async fn focus_offsets(&self) -> ASCOMResult<Vec<i32>> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn focus_offsets(&self) -> ASCOMResult<Vec<i32>>;
 
     /// The names of the filters.
     #[http("names", method = Get)]
-    async fn names(&self) -> ASCOMResult<Vec<String>> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn names(&self) -> ASCOMResult<Vec<String>>;
 
     /// Returns the current filter wheel position.
     #[http("position", method = Get)]
-    async fn position(&self) -> ASCOMResult<i32> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn position(&self) -> ASCOMResult<i32>;
 
     /// Sets the filter wheel position.
     #[http("position", method = Put)]

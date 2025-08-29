@@ -1,15 +1,13 @@
 use super::Device;
-use macro_rules_attribute::apply;
 use crate::{ASCOMError, ASCOMResult};
+use macro_rules_attribute::apply;
 
 /// ObservingConditions Specific Methods.
 #[apply(rpc_trait)]
 pub trait ObservingConditions: Device + Send + Sync {
     /// Gets the time period over which observations will be averaged.
     #[http("averageperiod", method = Get)]
-    async fn average_period(&self) -> ASCOMResult<f64> {
-        Err(ASCOMError::NOT_IMPLEMENTED)
-    }
+    async fn average_period(&self) -> ASCOMResult<f64>;
 
     /// Sets the time period over which observations will be averaged.
     #[http("averageperiod", method = Put)]
