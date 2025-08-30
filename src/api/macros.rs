@@ -173,6 +173,9 @@ macro_rules! rpc_trait {
         }
     };
 
+    (@via $return_type:ty, $via:ty) => ($via);
+    (@via $return_type:ty) => ($return_type);
+
     (
         $(# $attr:tt)*
         $pub:vis trait $trait_name:ident: $trait_parents:ty {
@@ -210,7 +213,7 @@ macro_rules! rpc_trait {
         #[expect(non_camel_case_types)]
         pub(super) enum Response {
             $(
-                $method_name($return_type),
+                $method_name(rpc_trait!(@via $return_type $(, $via)?)),
             )*
             DeviceState(DeviceState),
         }
@@ -330,11 +333,16 @@ macro_rules! rpc_trait {
                 match self {
                     $(
                         Self::$method_name { $($param),* } => {
-                            device.$method_name($($param),*).await.map(Response::$method_name)
+                            device.$method_name($($param),*)
+                            .await
+                            $(.map(<$via>::from))?
+                            .map(Response::$method_name)
                         }
                     )*
                     Self::DeviceState => {
-                        $trait_name::device_state(&*device).await.map(Response::DeviceState)
+                        $trait_name::device_state(&*device)
+                        .await
+                        .map(Response::DeviceState)
                     }
                 }
             }

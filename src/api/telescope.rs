@@ -1,7 +1,7 @@
 pub use super::camera_telescope_shared::GuideDirection;
 
-use super::time_repr::{Iso8601, TimeRepr};
 use super::Device;
+use super::time_repr::{Iso8601, TimeRepr};
 use crate::{ASCOMError, ASCOMResult};
 use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -735,7 +735,7 @@ struct AxisRate {
 
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-struct AxisRates(Vec<AxisRate>);
+pub(super) struct AxisRates(Vec<AxisRate>);
 
 impl From<AxisRates> for Vec<RangeInclusive<f64>> {
     fn from(axis_rates: AxisRates) -> Self {
