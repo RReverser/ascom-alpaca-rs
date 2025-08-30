@@ -101,6 +101,10 @@ impl Devices {
     /// Register a device in the storage.
     ///
     /// `device` can be an instance of any of the category traits (`Camera`, `Telescope`, etc.).
+    ///
+    /// Note that you don't need to provide the generic type parameter - it's here only for type
+    /// inference purposes to allow "overloads" that automatically register device into the correct
+    /// storage.
     #[tracing::instrument(level = "debug", skip(self))]
     pub fn register<DynTrait: ?Sized>(&mut self, device: impl RegistrableDevice<DynTrait>) {
         device.add_to(self);
