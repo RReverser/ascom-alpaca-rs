@@ -97,11 +97,13 @@ macro_rules! rpc_trait {
         }
 
         impl DeviceState {
-            async fn gather(_device: &(impl ?Sized + $trait_name)) -> Self {
-                DeviceState {
-                    timestamp: Some(std::time::SystemTime::now()),
-                    $($name: _device.$name().await.ok(),)*
-                }
+            fn gather(_device: &(impl ?Sized + $trait_name)) -> futures::future::BoxFuture<'_, ASCOMResult<Self>> {
+                Box::pin(async move {
+                    Ok(Self {
+                        timestamp: Some(std::time::SystemTime::now()),
+                        $($name: _device.$name().await.ok(),)*
+                    })
+                })
             }
         }
 
@@ -175,6 +177,15 @@ macro_rules! rpc_trait {
 
     (@via $return_type:ty, $via:ty) => ($via);
     (@via $return_type:ty) => ($return_type);
+
+    (@body ; $($header:tt)*) => {
+        $($header)* ;
+    };
+    (@body $default_body:block $($header:tt)*) => {
+        $($header)* {
+            Box::pin(async move $default_body)
+        }
+    };
 
     (
         $(# $attr:tt)*
@@ -257,31 +268,31 @@ macro_rules! rpc_trait {
         }
 
         $(# $attr)*
-        #[async_trait::async_trait]
         #[allow(unused_variables)]
+        #[expect(single_use_lifetimes)]
         $pub trait $trait_name: $trait_parents {
-            $(
-                $(#[doc = $doc])*
-                ///
+            $(rpc_trait!(@body $default_body
                 /// Definition before the `#[async_trait]` expansion:
                 ///
                 /// ```no_run
                 #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ASCOMResult<", stringify!($return_type), ">")]
                 /// # { unimplemented!() }
                 /// ```
+                ///
+                $(#[doc = $doc])*
                 $(# $method_attr)*
-                async fn $method_name(
-                    & $self $(, $param: $param_ty)*
-                ) -> ASCOMResult<$return_type> $default_body
-            )*
+                fn $method_name<'this: 'async_trait, 'async_trait>(
+                    &'this $self $(, $param: $param_ty)*
+                ) -> futures::future::BoxFuture<'async_trait, ASCOMResult<$return_type>>
+            );)*
 
             rpc_trait!(@extras $trait_name trait);
 
             /// Return all operational properties of this device.
             ///
             /// See [What is the “read all” feature and what are its rules?](https://ascom-standards.org/newdocs/readall-faq.html#readall-faq).
-            async fn device_state(&self) -> ASCOMResult<DeviceState> {
-                Ok(DeviceState::gather(self).await)
+            fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> futures::future::BoxFuture<'async_trait, ASCOMResult<DeviceState>> {
+                DeviceState::gather(self)
             }
         }
 
