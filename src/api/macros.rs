@@ -18,7 +18,7 @@ macro_rules! rpc_trait {
         /// Use the `/{device_type}/{device_number}/setup` URL instead.
         ///
         /// Definition before the `#[async_trait]` expansion:
-        /// ```ignore
+        /// ```no_run
         /// async fn setup(&self) -> eyre::Result<String>
         /// # { unimplemented!() }
         /// ```
@@ -265,7 +265,7 @@ macro_rules! rpc_trait {
                 ///
                 /// Definition before the `#[async_trait]` expansion:
                 ///
-                /// ```ignore
+                /// ```no_run
                 #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ASCOMResult<", stringify!($return_type), ">")]
                 /// # { unimplemented!() }
                 /// ```
