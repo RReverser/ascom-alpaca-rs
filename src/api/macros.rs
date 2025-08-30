@@ -10,18 +10,17 @@ macro_rules! rpc_trait {
         /// Unique ID of this device.
         fn unique_id(&self) -> &str;
 
+        /// ```no_run
+        /// async fn setup(&self) -> eyre::Result<String>
+        /// # { unimplemented!() }
+        /// ```
+        ///
         /// Web page user interface that enables device specific configuration to be set for each available device.
         ///
         /// The server should implement this to return HTML string. You can use [`Self::action`] to store the configuration.
         ///
         /// Note: on the client side you almost never want to just retrieve HTML to show it in the browser, as that breaks relative URLs.
         /// Use the `/{device_type}/{device_number}/setup` URL instead.
-        ///
-        /// Definition before the `#[async_trait]` expansion:
-        /// ```no_run
-        /// async fn setup(&self) -> eyre::Result<String>
-        /// # { unimplemented!() }
-        /// ```
         fn setup(&self) -> futures::future::BoxFuture<'_, eyre::Result<String>> {
             Box::pin(futures::future::ok(include_str!("../server/device_setup_template.html").to_owned()))
         }
@@ -272,8 +271,6 @@ macro_rules! rpc_trait {
         #[expect(single_use_lifetimes)]
         $pub trait $trait_name: $trait_parents {
             $(rpc_trait!(@body $default_body
-                /// Definition before the `#[async_trait]` expansion:
-                ///
                 /// ```no_run
                 #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ASCOMResult<", stringify!($return_type), ">")]
                 /// # { unimplemented!() }
