@@ -105,6 +105,7 @@ macro_rules! rpc_trait {
             }
         }
 
+        #[cfg(feature = "server")]
         impl serde::Serialize for DeviceState {
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 #[derive(serde::Serialize)]
@@ -131,6 +132,7 @@ macro_rules! rpc_trait {
             }
         }
 
+        #[cfg(feature = "client")]
         impl<'de> serde::Deserialize<'de> for DeviceState {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 #[derive(serde::Deserialize)]
