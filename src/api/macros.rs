@@ -81,6 +81,79 @@ macro_rules! rpc_trait {
     // Don't add any extra code for other traits in other locations.
     (@extras $trait_name:ident $loc:ident) => {};
 
+    // Switch needs some special handling to gather device state across all devices.
+    (@device_state Switch) => {
+        /// An object representing operational properties of a specific device connected to the switch.
+        #[derive(Default, Debug, Clone, Copy)]
+        pub struct SwitchDeviceState {
+            /// Result of [`Switch::get_switch`].
+            pub get_switch: Option<bool>,
+            /// Result of [`Switch::get_switch_value`].
+            pub get_switch_value: Option<f64>,
+            /// Result of [`Switch::state_change_complete`].
+            pub state_change_complete: Option<bool>,
+        }
+
+        impl SwitchDeviceState {
+            async fn gather(switch: &(impl ?Sized + Switch), id: i32) -> Self {
+                Self {
+                    get_switch: switch.get_switch(id).await.ok(),
+                    get_switch_value: switch.get_switch_value(id).await.ok(),
+                    state_change_complete: switch.state_change_complete(id).await.ok(),
+                }
+            }
+        }
+
+        /// An object representing all operational properties of the device.
+        #[derive(Default, Debug, Clone)]
+        pub struct DeviceState {
+            /// The time at which the operational states were measured, when known.
+            pub timestamp: Option<std::time::SystemTime>,
+            /// States of individual switch devices, indexed by their ID.
+            pub switch_devices: Vec<SwitchDeviceState>,
+        }
+
+        impl DeviceState {
+            fn gather(switch: &(impl ?Sized + Switch)) -> crate::api::ASCOMResultFuture<'_, Self> {
+                Box::pin(async move {
+                    Ok(Self {
+                        timestamp: Some(std::time::SystemTime::now()),
+                        switch_devices: match switch.max_switch().await {
+                            Ok(n) => futures::future::join_all((0_i32..n).map(|id| SwitchDeviceState::gather(switch, id))).await,
+                            Err(err) => {
+                                tracing::error!(%err, "Failed to get max switch");
+                                Vec::new()
+                            }
+                        },
+                    })
+                })
+            }
+        }
+
+        #[cfg(feature = "server")]
+        impl serde::Serialize for DeviceState {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                use crate::api::DeviceStateItem;
+
+                let mut seq = serializer.serialize_seq(None)?;
+                DeviceStateItem::serialize_timestamp(&self.timestamp, &mut seq)?;
+                for (i, device) in self.switch_devices.iter().enumerate() {
+                    DeviceStateItem::serialize(format!("GetSwitch{i}"), device.get_switch.as_ref(), &mut seq)?;
+                    DeviceStateItem::serialize(format!("GetSwitchValue{i}"), device.get_switch_value.as_ref(), &mut seq)?;
+                    DeviceStateItem::serialize(format!("StateChangeComplete{i}"), device.state_change_complete.as_ref(), &mut seq)?;
+                }
+                serde::ser::SerializeSeq::end(seq)
+            }
+        }
+
+        #[cfg(feature = "client")]
+        impl<'de> serde::Deserialize<'de> for DeviceState {
+            fn deserialize<D: serde::Deserializer<'de>>(_deserializer: D) -> Result<Self, D::Error> {
+                Err(serde::de::Error::custom("Deserialization for switch states is not yet implemented."))
+            }
+        }
+    };
+
     (@device_state $trait_name:ident $(
         $name:ident : $wire_name:ident as $ty:ty
     )*) => {
@@ -109,26 +182,9 @@ macro_rules! rpc_trait {
         #[cfg(feature = "server")]
         impl serde::Serialize for DeviceState {
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                #[derive(serde::Serialize)]
-                #[serde(rename_all = "PascalCase")]
-                struct DeviceStateItem<T> {
-                    name: &'static str,
-                    value: T,
-                }
-
                 let mut seq = serializer.serialize_seq(None)?;
-                if let Some(timestamp) = &self.timestamp {
-                    serde::ser::SerializeSeq::serialize_element(&mut seq, &DeviceStateItem {
-                        name: "TimeStamp",
-                        value: crate::api::time_repr::TimeRepr::<crate::api::time_repr::Iso8601>::from(*timestamp),
-                    })?;
-                }
-                $(if let Some(value) = &self.$name {
-                    serde::ser::SerializeSeq::serialize_element(&mut seq, &DeviceStateItem {
-                        name: stringify!($wire_name),
-                        value,
-                    })?;
-                })*
+                crate::api::DeviceStateItem::serialize_timestamp(&self.timestamp, &mut seq)?;
+                $(crate::api::DeviceStateItem::serialize(stringify!($wire_name), self.$name.as_ref(), &mut seq)?;)*
                 serde::ser::SerializeSeq::end(seq)
             }
         }
