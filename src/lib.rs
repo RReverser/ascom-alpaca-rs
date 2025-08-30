@@ -346,6 +346,7 @@ mod response;
 ///
 /// They're defined in the library for access to the private types, but actually used from `benches/benches.rs`.
 #[cfg(feature = "criterion")]
+#[doc(hidden)]
 pub mod benches {
     #[cfg(feature = "client")]
     pub use crate::client::benches as client;
