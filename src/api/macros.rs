@@ -303,6 +303,10 @@ macro_rules! rpc_trait {
             )*
 
             rpc_trait!(@extras $trait_name client);
+
+            async fn device_state(&self) -> ASCOMResult<DeviceState> {
+                self.exec_action(Action::DeviceState).await
+            }
         }
 
         impl PartialEq for dyn $trait_name {
