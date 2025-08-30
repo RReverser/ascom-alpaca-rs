@@ -30,6 +30,12 @@ mod macros;
 pub mod device;
 pub use device::Device;
 
+/// A helper alias for the common type of futures returned by device traits.
+///
+/// You normally don't need to use it as long as you use `#[async_trait]` - it's mostly here for documentation purposes.
+pub type ASCOMResultFuture<'async_trait, T> =
+    futures::future::BoxFuture<'async_trait, crate::ASCOMResult<T>>;
+
 rpc_mod! {
     #[cfg(feature = "camera")]
     Camera = "camera",

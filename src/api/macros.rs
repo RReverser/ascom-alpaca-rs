@@ -96,7 +96,7 @@ macro_rules! rpc_trait {
         }
 
         impl DeviceState {
-            fn gather(_device: &(impl ?Sized + $trait_name)) -> futures::future::BoxFuture<'_, ASCOMResult<Self>> {
+            fn gather(_device: &(impl ?Sized + $trait_name)) -> crate::api::ASCOMResultFuture<'_, Self> {
                 Box::pin(async move {
                     Ok(Self {
                         timestamp: Some(std::time::SystemTime::now()),
@@ -280,7 +280,7 @@ macro_rules! rpc_trait {
                 $(# $method_attr)*
                 fn $method_name<'this: 'async_trait, 'async_trait>(
                     &'this $self $(, $param: $param_ty)*
-                ) -> futures::future::BoxFuture<'async_trait, ASCOMResult<$return_type>>
+                ) -> crate::api::ASCOMResultFuture<'async_trait, $return_type>
             );)*
 
             rpc_trait!(@extras $trait_name trait);
@@ -288,7 +288,7 @@ macro_rules! rpc_trait {
             /// Return all operational properties of this device.
             ///
             /// See [What is the “read all” feature and what are its rules?](https://ascom-standards.org/newdocs/readall-faq.html#readall-faq).
-            fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> futures::future::BoxFuture<'async_trait, ASCOMResult<DeviceState>> {
+            fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> crate::api::ASCOMResultFuture<'async_trait, DeviceState> {
                 DeviceState::gather(self)
             }
         }
