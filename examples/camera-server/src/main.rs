@@ -21,7 +21,7 @@ use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{
     CameraFormat, CameraInfo, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
 };
-use nokhwa::{nokhwa_initialize, Camera, NokhwaError};
+use nokhwa::{Camera, NokhwaError, nokhwa_initialize};
 use parking_lot::{Mutex, RwLock};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -428,7 +428,7 @@ impl AlpacaCamera for Webcam {
         let camera = match &*exposing_state_lock {
             ExposingState::Idle { camera, .. } => Arc::clone(camera),
             ExposingState::Exposing { .. } => {
-                return Err(ASCOMError::invalid_operation("Camera is already exposing"))
+                return Err(ASCOMError::invalid_operation("Camera is already exposing"));
             }
         };
         let subframe = self.subframe.read().clone();

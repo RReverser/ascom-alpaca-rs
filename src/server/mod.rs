@@ -22,15 +22,15 @@ pub(crate) use transaction::*;
 #[cfg(feature = "test")]
 pub(crate) mod test;
 
+use crate::Devices;
 #[cfg(feature = "camera")]
 use crate::api::Camera;
 use crate::api::{CargoServerInfo, DeviceType, ServerInfo};
 use crate::discovery::DEFAULT_DISCOVERY_PORT;
 use crate::response::ValueResponse;
-use crate::Devices;
 use axum::extract::{FromRequest, Path, Request};
 use axum::response::{Html, IntoResponse, Response};
-use axum::{routing, Router};
+use axum::{Router, routing};
 use fnv::FnvHashSet;
 use futures::future::{BoxFuture, FutureExt};
 use http::StatusCode;

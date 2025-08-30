@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::SystemTime;
 use time::macros::format_description;
-use time::{format_description, OffsetDateTime};
+use time::{OffsetDateTime, format_description};
 
 pub(crate) trait FormatWrapper: Debug {
     type Format: 'static + ?Sized;

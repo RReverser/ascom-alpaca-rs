@@ -1,6 +1,6 @@
 use super::DEFAULT_DISCOVERY_PORT;
 use crate::discovery::{
-    bind_socket, get_active_interfaces, AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG,
+    AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG, bind_socket, get_active_interfaces,
 };
 use netdev::Interface;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};

@@ -5,7 +5,7 @@ use std::process::Stdio;
 use tokio::net::TcpStream;
 use tokio::process::Child;
 use tokio::sync::{Mutex, OnceCell};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 const ADDR: SocketAddr = addr!("127.0.0.1:32323");
 

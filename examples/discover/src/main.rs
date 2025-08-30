@@ -1,7 +1,7 @@
 //! A simple discovery example listing all the found servers and devices.
 
-use ascom_alpaca::discovery::DiscoveryClient;
 use ascom_alpaca::Client;
+use ascom_alpaca::discovery::DiscoveryClient;
 use futures::{StreamExt, TryStreamExt};
 
 #[tokio::main]

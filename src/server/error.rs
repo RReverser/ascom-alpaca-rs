@@ -1,5 +1,5 @@
-use crate::api::DeviceType;
 use crate::ASCOMError;
+use crate::api::DeviceType;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use thiserror::Error;

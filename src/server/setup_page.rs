@@ -104,7 +104,7 @@ pub(super) struct SetupPage<'ctx> {
     pub grouped_devices: BTreeMap<DeviceType, Vec<(usize, String)>>,
 }
 
-fn group_to_html(group_ty: DeviceType, group: &[(usize, String)]) -> impl '_ + Display {
+fn group_to_html(group_ty: DeviceType, group: &[(usize, String)]) -> impl Display {
     html!(
         figure,
         html!(

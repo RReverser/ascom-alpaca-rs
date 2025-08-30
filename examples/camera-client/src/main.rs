@@ -15,7 +15,7 @@ use ascom_alpaca::api::camera::{ImageArray, SensorType as AlpacaSensorType};
 use ascom_alpaca::api::{Camera, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
 use ascom_alpaca::{ASCOMErrorCode, ASCOMResult};
-use bayer::{demosaic, BayerDepth, RasterDepth, RasterMut, CFA};
+use bayer::{BayerDepth, CFA, RasterDepth, RasterMut, demosaic};
 use eframe::egui::{self, CentralPanel, ComboBox, Slider, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle};
 use eyre::{Context, Result};
@@ -25,7 +25,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 type ChildTask = tokio_util::task::AbortOnDropHandle<State>;
 
@@ -330,10 +330,10 @@ struct CaptureState {
 impl CaptureState {
     async fn start_capture_loop(mut self) {
         while !self.tx.is_closed() {
-            if let Some(send) = self.capture_image().await.transpose() {
-                if self.tx.send(send).await.is_ok() {
-                    self.ctx.request_repaint();
-                }
+            if let Some(send) = self.capture_image().await.transpose()
+                && self.tx.send(send).await.is_ok()
+            {
+                self.ctx.request_repaint();
             }
         }
         // Channel is closed, cleanup.

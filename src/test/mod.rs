@@ -40,10 +40,10 @@ macro_rules! cmd {
 #[cfg(test)]
 pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>() -> eyre::Result<()>
 {
+    use crate::Server;
     use crate::api::CargoServerInfo;
     use crate::client::test::get_simulator_devices;
     use crate::server::test::run_conformu_tests;
-    use crate::Server;
     use net_literals::addr;
 
     let proxy = Server {

@@ -109,7 +109,7 @@ impl Devices {
     /// Iterate over all devices of a given type.
     pub fn iter<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
-    ) -> impl '_ + ExactSizeIterator<Item = Arc<DynTrait>> {
+    ) -> impl ExactSizeIterator<Item = Arc<DynTrait>> {
         DynTrait::get_storage(self).iter().map(Arc::clone)
     }
 

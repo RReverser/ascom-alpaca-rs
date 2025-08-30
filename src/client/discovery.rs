@@ -1,16 +1,16 @@
 use crate::api::TypedDevice;
 use crate::discovery::{
-    bind_socket, get_active_interfaces, AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6,
-    DISCOVERY_MSG,
+    AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG, bind_socket,
+    get_active_interfaces,
 };
 use futures::StreamExt;
-use netdev::interface::InterfaceType;
 use netdev::Interface;
+use netdev::interface::InterfaceType;
 use socket2::SockRef;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 use tokio::task::spawn_blocking;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tracing_futures::Instrument;
 
 /// Discovery client.
@@ -107,7 +107,7 @@ impl BoundClient {
     /// Discover Alpaca servers on the local network.
     ///
     /// This function returns a stream of discovered device addresses.
-    pub fn discover_addrs(&mut self) -> impl '_ + futures::Stream<Item = SocketAddr> {
+    pub fn discover_addrs(&mut self) -> impl futures::Stream<Item = SocketAddr> {
         async_fn_stream::fn_stream(async move |emitter| {
             self.seen.clear();
 
@@ -139,7 +139,7 @@ impl BoundClient {
     ///
     /// This function will log but otherwise ignore errors from discovered but unreachable servers.
     /// If you need more control, use [`Self::discover_addrs`] and [`crate::Client::new_from_addr`] directly instead.
-    pub fn discover_devices(&mut self) -> impl '_ + futures::Stream<Item = TypedDevice> {
+    pub fn discover_devices(&mut self) -> impl futures::Stream<Item = TypedDevice> {
         self.discover_addrs()
             .filter_map(async move |addr| {
                 match crate::Client::new_from_addr(addr).get_devices().await {

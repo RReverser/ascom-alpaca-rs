@@ -48,7 +48,7 @@ pub(crate) fn bind_socket(addr: SocketAddr) -> eyre::Result<UdpSocket> {
     {
         use eyre::Context;
         use windows_sys::Win32::Networking::WinSock::{
-            ioctlsocket, WSAGetLastError, SIO_UDP_CONNRESET,
+            SIO_UDP_CONNRESET, WSAGetLastError, ioctlsocket,
         };
 
         unsafe {

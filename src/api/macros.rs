@@ -428,7 +428,7 @@ macro_rules! rpc_mod {
             // TODO: make this IntoIterator (although the type is going to be ugly-looking).
             // The usize is returned as 2nd arg just to attract attention to it not being
             // a normal whole-iteration index.
-            pub fn iter_all(&self) -> impl '_ + Iterator<Item = (TypedDevice, usize)> {
+            pub fn iter_all(&self) -> impl Iterator<Item = (TypedDevice, usize)> {
                 let iter = std::iter::empty();
 
                 $(
@@ -546,7 +546,7 @@ macro_rules! rpc_mod {
                     })
                 }
 
-                pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl serde::Serialize> {
+                pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl serde::Serialize + use<>> {
                     let action = TypedDeviceAction::from_parts(device_type, action, params)?;
 
                     Ok(match action {

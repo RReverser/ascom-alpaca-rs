@@ -184,7 +184,7 @@ impl Client {
     }
 
     /// Get a list of all devices registered on the server.
-    pub async fn get_devices(&self) -> eyre::Result<impl Iterator<Item = TypedDevice>> {
+    pub async fn get_devices(&self) -> eyre::Result<impl Iterator<Item = TypedDevice> + use<>> {
         let api_client = self.inner.join_url("api/v1/")?;
 
         Ok(self

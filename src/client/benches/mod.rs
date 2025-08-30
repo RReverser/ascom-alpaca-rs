@@ -1,9 +1,9 @@
 use super::Response;
-use crate::api::camera::ImageArray;
+use crate::ASCOMResult;
 use crate::api::ConfiguredDevice;
+use crate::api::camera::ImageArray;
 use crate::client::FallibleDeviceType;
 use crate::response::ValueResponse;
-use crate::ASCOMResult;
 use criterion::Criterion;
 use mime::APPLICATION_JSON;
 
