@@ -141,3 +141,171 @@ pub trait Switch: Device + Send + Sync {
         Ok(3_i32)
     }
 }
+
+/// An object representing operational properties of a specific device connected to the switch.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct SwitchDeviceState {
+    /// Result of [`Switch::get_switch`].
+    pub get_switch: Option<bool>,
+    /// Result of [`Switch::get_switch_value`].
+    pub get_switch_value: Option<f64>,
+    /// Result of [`Switch::state_change_complete`].
+    pub state_change_complete: Option<bool>,
+}
+
+impl SwitchDeviceState {
+    async fn gather(switch: &(impl ?Sized + Switch), id: i32) -> Self {
+        Self {
+            get_switch: switch.get_switch(id).await.ok(),
+            get_switch_value: switch.get_switch_value(id).await.ok(),
+            state_change_complete: switch.state_change_complete(id).await.ok(),
+        }
+    }
+}
+
+/// An object representing all operational properties of the device.
+#[derive(Default, Debug, Clone)]
+pub struct DeviceState {
+    /// The time at which the operational states were measured, when known.
+    pub timestamp: Option<std::time::SystemTime>,
+    /// States of individual switch devices, indexed by their ID.
+    pub switch_devices: Vec<SwitchDeviceState>,
+}
+
+impl DeviceState {
+    fn gather(switch: &(impl ?Sized + Switch)) -> crate::api::ASCOMResultFuture<'_, Self> {
+        Box::pin(async move {
+            Ok(Self {
+                timestamp: Some(std::time::SystemTime::now()),
+                switch_devices: match switch.max_switch().await {
+                    Ok(n) => {
+                        futures::future::join_all(
+                            (0_i32..n).map(|id| SwitchDeviceState::gather(switch, id)),
+                        )
+                        .await
+                    }
+                    Err(err) => {
+                        tracing::error!(%err, "Failed to get max switch");
+                        Vec::new()
+                    }
+                },
+            })
+        })
+    }
+}
+
+#[cfg(feature = "server")]
+impl serde::Serialize for DeviceState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use crate::api::DeviceStateItem;
+
+        let mut seq = serializer.serialize_seq(None)?;
+        DeviceStateItem::serialize_timestamp(&self.timestamp, &mut seq)?;
+        for (i, device) in self.switch_devices.iter().enumerate() {
+            DeviceStateItem::serialize(
+                format!("GetSwitch{i}"),
+                device.get_switch.as_ref(),
+                &mut seq,
+            )?;
+            DeviceStateItem::serialize(
+                format!("GetSwitchValue{i}"),
+                device.get_switch_value.as_ref(),
+                &mut seq,
+            )?;
+            DeviceStateItem::serialize(
+                format!("StateChangeComplete{i}"),
+                device.state_change_complete.as_ref(),
+                &mut seq,
+            )?;
+        }
+        serde::ser::SerializeSeq::end(seq)
+    }
+}
+
+#[cfg(feature = "client")]
+impl<'de> serde::Deserialize<'de> for DeviceState {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use crate::api::time_repr::{Iso8601, TimeRepr};
+        use serde::{Deserialize, de};
+
+        #[derive(Deserialize)]
+        enum DeviceStateField {
+            GetSwitch(bool),
+            GetSwitchValue(f64),
+            StateChangeComplete(bool),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(tag = "Name", content = "Value")]
+        enum DeviceStateItem<'input> {
+            TimeStamp(TimeRepr<Iso8601>),
+            #[serde(untagged, rename_all = "PascalCase")]
+            Other {
+                name: &'input str,
+                value: serde_json::Value,
+            },
+        }
+
+        struct Visitor;
+
+        impl<'de> de::Visitor<'de> for Visitor {
+            type Value = DeviceState;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a sequence of DeviceStateItem objects")
+            }
+
+            fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let mut state = DeviceState::default();
+
+                while let Some(item) = seq.next_element::<DeviceStateItem<'de>>()? {
+                    match item {
+                        DeviceStateItem::TimeStamp(value) => state.timestamp = Some(value.into()),
+                        // This is pretty complicated because we want to transform shape like `{Name: "GetSwitch2", Value}` into `switch_devices[2].get_switch = Value`.
+                        DeviceStateItem::Other { name, value } => {
+                            let index_start =
+                                name.find(|c: char| c.is_ascii_digit()).ok_or_else(|| {
+                                    de::Error::custom(format!(
+                                        "could not find switch device index in {name:?}"
+                                    ))
+                                })?;
+                            let (name, index) = name.split_at(index_start);
+                            let index = index.parse::<usize>().map_err(|err| {
+                                de::Error::custom(format_args!(
+                                    "could not parse switch device index {index:?}: {err}"
+                                ))
+                            })?;
+                            let field = DeviceStateField::deserialize(
+                                de::value::MapDeserializer::new(std::iter::once((name, value))),
+                            )
+                            .map_err(de::Error::custom)?;
+                            // Auto-extend the vec to accommodate the new index. We don't have access to total number of devices here without another async call,
+                            // so we have to make guesses based on the returned data.
+                            if index >= state.switch_devices.len() {
+                                state
+                                    .switch_devices
+                                    .resize_with(index + 1, SwitchDeviceState::default);
+                            }
+                            let switch_device = &mut state.switch_devices[index];
+                            match field {
+                                DeviceStateField::GetSwitch(value) => {
+                                    switch_device.get_switch = Some(value);
+                                }
+                                DeviceStateField::GetSwitchValue(value) => {
+                                    switch_device.get_switch_value = Some(value);
+                                }
+                                DeviceStateField::StateChangeComplete(value) => {
+                                    switch_device.state_change_complete = Some(value);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Ok(state)
+            }
+        }
+
+        deserializer.deserialize_seq(Visitor)
+    }
+}
