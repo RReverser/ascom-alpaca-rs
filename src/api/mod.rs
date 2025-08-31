@@ -18,6 +18,9 @@ pub use server_info::*;
 #[cfg(any(feature = "camera", feature = "telescope"))]
 mod camera_telescope_shared;
 
+mod device_state;
+pub use device_state::TimestampedDeviceState;
+
 mod time_repr;
 
 use std::fmt::Debug;
@@ -161,46 +164,5 @@ impl FromIterator<TypedDevice> for Devices {
         let mut devices = Self::default();
         devices.extend(iter);
         devices
-    }
-}
-
-#[cfg(feature = "server")]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "PascalCase")]
-struct DeviceStateItem<T> {
-    name: std::borrow::Cow<'static, str>,
-    value: T,
-}
-
-#[cfg(feature = "server")]
-impl<T: serde::Serialize> DeviceStateItem<T> {
-    fn serialize<S: serde::ser::SerializeSeq>(
-        name: impl Into<std::borrow::Cow<'static, str>>,
-        value: Option<T>,
-        seq: &mut S,
-    ) -> Result<(), S::Error> {
-        value.map_or_else(
-            || Ok(()),
-            |value| {
-                serde::ser::SerializeSeq::serialize_element(
-                    seq,
-                    &Self {
-                        name: name.into(),
-                        value,
-                    },
-                )
-            },
-        )
-    }
-}
-
-#[cfg(feature = "server")]
-impl DeviceStateItem<time_repr::TimeRepr<time_repr::Iso8601>> {
-    #[expect(clippy::ref_option)]
-    fn serialize_timestamp<S: serde::ser::SerializeSeq>(
-        timestamp: &Option<std::time::SystemTime>,
-        seq: &mut S,
-    ) -> Result<(), S::Error> {
-        Self::serialize("TimeStamp", timestamp.map(From::from), seq)
     }
 }

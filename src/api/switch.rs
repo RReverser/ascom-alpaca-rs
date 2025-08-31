@@ -166,85 +166,54 @@ impl SwitchDeviceState {
 /// An object representing all operational properties of the device.
 #[derive(Default, Debug, Clone)]
 pub struct DeviceState {
-    /// The time at which the operational states were measured, when known.
-    pub timestamp: Option<std::time::SystemTime>,
     /// States of individual switch devices, indexed by their ID.
     pub switch_devices: Vec<SwitchDeviceState>,
 }
 
 impl DeviceState {
-    fn gather(switch: &(impl ?Sized + Switch)) -> crate::api::ASCOMResultFuture<'_, Self> {
-        Box::pin(async move {
-            Ok(Self {
-                timestamp: Some(std::time::SystemTime::now()),
-                switch_devices: match switch.max_switch().await {
-                    Ok(n) => {
-                        futures::future::join_all(
-                            (0_i32..n).map(|id| SwitchDeviceState::gather(switch, id)),
-                        )
-                        .await
-                    }
-                    Err(err) => {
-                        tracing::error!(%err, "Failed to get max switch");
-                        Vec::new()
-                    }
-                },
-            })
-        })
+    async fn new(switch: &(impl ?Sized + Switch)) -> Self {
+        Self {
+            switch_devices: match switch.max_switch().await {
+                Ok(n) => {
+                    futures::future::join_all(
+                        (0_i32..n).map(|id| SwitchDeviceState::gather(switch, id)),
+                    )
+                    .await
+                }
+                Err(err) => {
+                    tracing::error!(%err, "Failed to get max switch");
+                    Vec::new()
+                }
+            },
+        }
     }
 }
 
 #[cfg(feature = "server")]
 impl serde::Serialize for DeviceState {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use crate::api::DeviceStateItem;
+        use serde::ser::SerializeMap;
 
-        let mut seq = serializer.serialize_seq(None)?;
-        DeviceStateItem::serialize_timestamp(&self.timestamp, &mut seq)?;
+        let mut map = serializer.serialize_map(None)?;
         for (i, device) in self.switch_devices.iter().enumerate() {
-            DeviceStateItem::serialize(
-                format!("GetSwitch{i}"),
-                device.get_switch.as_ref(),
-                &mut seq,
-            )?;
-            DeviceStateItem::serialize(
-                format!("GetSwitchValue{i}"),
-                device.get_switch_value.as_ref(),
-                &mut seq,
-            )?;
-            DeviceStateItem::serialize(
-                format!("StateChangeComplete{i}"),
-                device.state_change_complete.as_ref(),
-                &mut seq,
-            )?;
+            if let Some(value) = &device.get_switch {
+                map.serialize_entry(&format!("GetSwitch{i}"), value)?;
+            }
+            if let Some(value) = &device.get_switch_value {
+                map.serialize_entry(&format!("GetSwitchValue{i}"), value)?;
+            }
+            if let Some(value) = &device.state_change_complete {
+                map.serialize_entry(&format!("StateChangeComplete{i}"), value)?;
+            }
         }
-        serde::ser::SerializeSeq::end(seq)
+        map.end()
     }
 }
 
 #[cfg(feature = "client")]
 impl<'de> serde::Deserialize<'de> for DeviceState {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        use crate::api::time_repr::{Iso8601, TimeRepr};
-        use serde::{Deserialize, de};
-
-        #[derive(Deserialize)]
-        enum DeviceStateField {
-            GetSwitch(bool),
-            GetSwitchValue(f64),
-            StateChangeComplete(bool),
-        }
-
-        #[derive(Deserialize)]
-        #[serde(tag = "Name", content = "Value")]
-        enum DeviceStateItem<'input> {
-            TimeStamp(TimeRepr<Iso8601>),
-            #[serde(untagged, rename_all = "PascalCase")]
-            Other {
-                name: &'input str,
-                value: serde_json::Value,
-            },
-        }
+        use serde::de;
 
         struct Visitor;
 
@@ -252,52 +221,46 @@ impl<'de> serde::Deserialize<'de> for DeviceState {
             type Value = DeviceState;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a sequence of DeviceStateItem objects")
+                formatter.write_str("device state object")
             }
 
-            fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
                 let mut state = DeviceState::default();
 
-                while let Some(item) = seq.next_element::<DeviceStateItem<'de>>()? {
-                    match item {
-                        DeviceStateItem::TimeStamp(value) => state.timestamp = Some(value.into()),
-                        // This is pretty complicated because we want to transform shape like `{Name: "GetSwitch2", Value}` into `switch_devices[2].get_switch = Value`.
-                        DeviceStateItem::Other { name, value } => {
-                            let index_start =
-                                name.find(|c: char| c.is_ascii_digit()).ok_or_else(|| {
-                                    de::Error::custom(format!(
-                                        "could not find switch device index in {name:?}"
-                                    ))
-                                })?;
-                            let (name, index) = name.split_at(index_start);
-                            let index = index.parse::<usize>().map_err(|err| {
-                                de::Error::custom(format_args!(
-                                    "could not parse switch device index {index:?}: {err}"
-                                ))
-                            })?;
-                            let field = DeviceStateField::deserialize(
-                                de::value::MapDeserializer::new(std::iter::once((name, value))),
-                            )
-                            .map_err(de::Error::custom)?;
-                            // Auto-extend the vec to accommodate the new index. We don't have access to total number of devices here without another async call,
-                            // so we have to make guesses based on the returned data.
-                            if index >= state.switch_devices.len() {
-                                state
-                                    .switch_devices
-                                    .resize_with(index + 1, SwitchDeviceState::default);
-                            }
-                            let switch_device = &mut state.switch_devices[index];
-                            match field {
-                                DeviceStateField::GetSwitch(value) => {
-                                    switch_device.get_switch = Some(value);
-                                }
-                                DeviceStateField::GetSwitchValue(value) => {
-                                    switch_device.get_switch_value = Some(value);
-                                }
-                                DeviceStateField::StateChangeComplete(value) => {
-                                    switch_device.state_change_complete = Some(value);
-                                }
-                            }
+                while let Some(name) = map.next_key::<&'de str>()? {
+                    // This is pretty complicated because we want to transform shape like `{Name: "GetSwitch2", Value}` into `switch_devices[2].get_switch = Value`.
+                    let index_start = name.find(|c: char| c.is_ascii_digit()).ok_or_else(|| {
+                        de::Error::custom(format!("could not find switch device index in {name:?}"))
+                    })?;
+                    let (name, index) = name.split_at(index_start);
+                    let index = index.parse::<usize>().map_err(|err| {
+                        de::Error::custom(format_args!(
+                            "could not parse switch device index {index:?}: {err}"
+                        ))
+                    })?;
+                    // Auto-extend the vec to accommodate the new index. We don't have access to total number of devices here without another async call,
+                    // so we have to make guesses based on the returned data.
+                    if index >= state.switch_devices.len() {
+                        state
+                            .switch_devices
+                            .resize_with(index + 1, SwitchDeviceState::default);
+                    }
+                    let switch_device = &mut state.switch_devices[index];
+                    match name {
+                        "GetSwitch" => {
+                            switch_device.get_switch = Some(map.next_value()?);
+                        }
+                        "GetSwitchValue" => {
+                            switch_device.get_switch_value = Some(map.next_value()?);
+                        }
+                        "StateChangeComplete" => {
+                            switch_device.state_change_complete = Some(map.next_value()?);
+                        }
+                        other => {
+                            return Err(de::Error::unknown_field(
+                                other,
+                                &["GetSwitch", "GetSwitchValue", "StateChangeComplete"],
+                            ));
                         }
                     }
                 }
@@ -306,6 +269,6 @@ impl<'de> serde::Deserialize<'de> for DeviceState {
             }
         }
 
-        deserializer.deserialize_seq(Visitor)
+        deserializer.deserialize_map(Visitor)
     }
 }

@@ -265,6 +265,7 @@ dependencies = [
  "fnv",
  "futures",
  "http",
+ "impl_serialize",
  "indexmap",
  "macro_rules_attribute",
  "mediatype",
@@ -2223,6 +2224,16 @@ dependencies = [
  "num-traits",
  "png",
  "tiff",
+]
+
+[[package]]
+name = "impl_serialize"
+version = "3.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d6ae409a916619bceabc79816ae929d1ef39a7b3d49a641fdfaac9a1bfc0c60"
+dependencies = [
+ "serde",
+ "unhygienic2",
 ]
 
 [[package]]
@@ -4586,6 +4597,12 @@ dependencies = [
  "tempfile",
  "winapi",
 ]
+
+[[package]]
+name = "unhygienic2"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02a30ee73576cf3db4ccbc211b533ae0285dafdaa48d5fcf4d63123c66a61cd5"
 
 [[package]]
 name = "unicode-ident"

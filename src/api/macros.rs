@@ -88,71 +88,23 @@ macro_rules! rpc_trait {
         $name:ident : $wire_name:ident as $ty:ty
     )*) => {
         /// An object representing all operational properties of the device.
-        #[derive(Default, Debug, Clone, Copy)]
+        #[derive(Default, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+        #[allow(clippy::unsafe_derive_deserialize)] // seems to be false positive
         pub struct DeviceState {
-            /// The time at which the operational states were measured, when known.
-            pub timestamp: Option<std::time::SystemTime>,
             $(
                 #[doc = concat!("Result of [`", stringify!($trait_name), "::", stringify!($name), "`].")]
+                #[serde(skip_serializing_if = "Option::is_none")]
                 pub $name: Option<$ty>,
             )*
         }
 
         impl DeviceState {
-            fn gather(_device: &(impl ?Sized + $trait_name)) -> crate::api::ASCOMResultFuture<'_, Self> {
-                Box::pin(async move {
-                    Ok(Self {
-                        timestamp: Some(std::time::SystemTime::now()),
-                        $($name: _device.$name().await.ok(),)*
-                    })
-                })
-            }
-        }
+            async fn new(_device: &(impl ?Sized + $trait_name)) -> Self {
+                let ($($name,)*) = tokio::join!($(_device.$name(),)*);
 
-        #[cfg(feature = "server")]
-        impl serde::Serialize for DeviceState {
-            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                let mut seq = serializer.serialize_seq(None)?;
-                crate::api::DeviceStateItem::serialize_timestamp(&self.timestamp, &mut seq)?;
-                $(crate::api::DeviceStateItem::serialize(stringify!($wire_name), self.$name.as_ref(), &mut seq)?;)*
-                serde::ser::SerializeSeq::end(seq)
-            }
-        }
-
-        #[cfg(feature = "client")]
-        impl<'de> serde::Deserialize<'de> for DeviceState {
-            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                #[derive(serde::Deserialize)]
-                #[serde(tag = "Name", content = "Value")]
-                enum DeviceStateItem {
-                    TimeStamp(crate::api::time_repr::TimeRepr::<crate::api::time_repr::Iso8601>),
-                    $($wire_name($ty),)*
+                Self {
+                    $($name: $name.ok(),)*
                 }
-
-                struct Visitor;
-
-                impl<'de> serde::de::Visitor<'de> for Visitor {
-                    type Value = DeviceState;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        formatter.write_str("a sequence of DeviceStateItem objects")
-                    }
-
-                    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-                        let mut state = DeviceState::default();
-
-                        while let Some(item) = seq.next_element::<DeviceStateItem>()? {
-                            match item {
-                                DeviceStateItem::TimeStamp(value) => state.timestamp = Some(value.into()),
-                                $(DeviceStateItem::$wire_name(value) => state.$name = Some(value),)*
-                            }
-                        }
-
-                        Ok(state)
-                    }
-                }
-
-                deserializer.deserialize_seq(Visitor)
             }
         }
     };
@@ -208,7 +160,8 @@ macro_rules! rpc_trait {
             $(
                 $method_name(rpc_trait!(@via $return_type $(, $via)?)),
             )*
-            DeviceState(DeviceState),
+            #[serde(with = "crate::api::device_state::ser")]
+            DeviceState(crate::api::TimestampedDeviceState<DeviceState>),
         }
 
         impl $crate::params::Action for Action {
@@ -271,8 +224,10 @@ macro_rules! rpc_trait {
             /// Return all operational properties of this device.
             ///
             /// See [What is the “read all” feature and what are its rules?](https://ascom-standards.org/newdocs/readall-faq.html#readall-faq).
-            fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> crate::api::ASCOMResultFuture<'async_trait, DeviceState> {
-                DeviceState::gather(self)
+            fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> crate::api::ASCOMResultFuture<'async_trait, crate::api::TimestampedDeviceState<DeviceState>> {
+                Box::pin(async move {
+                    Ok(crate::api::TimestampedDeviceState::new(DeviceState::new(self).await))
+                })
             }
         }
 
@@ -298,8 +253,8 @@ macro_rules! rpc_trait {
 
             rpc_trait!(@extras $trait_name client);
 
-            async fn device_state(&self) -> ASCOMResult<DeviceState> {
-                self.exec_action(Action::DeviceState).await
+            async fn device_state(&self) -> ASCOMResult<crate::api::TimestampedDeviceState<DeviceState>> {
+                self.exec_action(Action::DeviceState).await.map(crate::api::device_state::de::TimestampedDeviceStateRepr::into_inner)
             }
         }
 
