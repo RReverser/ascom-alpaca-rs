@@ -31,7 +31,7 @@ fn expect_key<'de, A: MapAccess<'de>>(map: &mut A, expected_key: KnownKey) -> Re
                 continue;
             }
             Some(key) if key == expected_key => Ok(()),
-            mismatched_key_or_none => Err(serde::de::Error::custom(format!(
+            mismatched_key_or_none => Err(serde::de::Error::custom(format_args!(
                 "expected field {expected_key:?}, got {mismatched_key_or_none:?}"
             ))),
         };
