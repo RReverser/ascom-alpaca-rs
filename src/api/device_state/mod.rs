@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
 #[cfg(feature = "server")]
@@ -8,9 +7,9 @@ pub(crate) mod ser;
 pub(crate) mod de;
 
 /// A wrapper for the device-specific state with the common optional timestamp field.
-#[derive(
-    Default, Debug, Clone, derive_more::Deref, derive_more::DerefMut, Serialize, Deserialize,
-)]
+#[derive(Default, Debug, Clone, derive_more::Deref, derive_more::DerefMut)]
+#[cfg_attr(feature = "server", derive(serde::Serialize))]
+#[cfg_attr(feature = "client", derive(serde::Deserialize))]
 pub struct TimestampedDeviceState<T> {
     /// The timestamp of the last update to the state, if available.
     #[serde(

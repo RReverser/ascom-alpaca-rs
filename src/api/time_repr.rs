@@ -57,7 +57,6 @@ where
     }
 }
 
-#[cfg(feature = "client")]
 impl<'de, F: FormatWrapper> serde::Deserialize<'de> for TimeRepr<F>
 where
     F::Format: time::parsing::Parsable,

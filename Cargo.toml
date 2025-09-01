@@ -64,7 +64,7 @@ serde_plain = { version = "1.0.2", optional = true }
 serde_repr = "0.1.20"
 socket2 = "0.6.0"
 thiserror = "2.0.14"
-time = { version = "0.3.41", features = ["macros"] }
+time = { version = "0.3.41", features = ["macros", "parsing"] }
 tokio = { workspace = true, features = ["net", "rt", "io-util"] }
 tracing = { workspace = true }
 tracing-futures = { version = "0.2.5", features = [
@@ -79,7 +79,6 @@ impl_serialize = "3.1.4"
 windows-sys = { version = "0.60.2", features = ["Win32_Networking_WinSock"] }
 
 [dev-dependencies]
-ascom-alpaca = { path = ".", features = ["client", "server", "test"] }
 ctor = "0.5.0"
 tracing-error = "0.2.1"
 color-eyre = "0.6.5"
@@ -107,6 +106,7 @@ all-devices = [
 ]
 
 test = ["tokio/process", "dep:dtor", "dep:reqwest"]
+__test = ["client", "server", "test"]
 
 __anydevice = []
 camera = [
@@ -135,7 +135,6 @@ client = [
 	"dep:bytes",
 	"dep:mime",
 	"dep:rand",
-	"time/parsing",
 ]
 server = [
 	"__anynetwork",

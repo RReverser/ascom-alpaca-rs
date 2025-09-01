@@ -100,7 +100,7 @@ macro_rules! rpc_trait {
 
         impl DeviceState {
             async fn new(_device: &(impl ?Sized + $trait_name)) -> Self {
-                let ($($name,)*) = tokio::join!($(_device.$name(),)*);
+                let ($($name,)*) = futures::join!($(_device.$name(),)*);
 
                 Self {
                     $($name: $name.ok(),)*
