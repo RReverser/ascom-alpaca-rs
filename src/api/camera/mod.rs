@@ -3,12 +3,14 @@ pub use image_array::*;
 
 pub use super::camera_telescope_shared::GuideDirection;
 
-use super::time_repr::{Fits, TimeRepr};
 use super::Device;
+use super::time_repr::{Fits, TimeRepr};
 use crate::{ASCOMError, ASCOMResult};
 use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+#[cfg(feature = "client")]
+use std::ops::RangeInclusive;
 use std::time::SystemTime;
 
 /// Camera Specific Methods.
@@ -142,11 +144,11 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the maximum exposure time supported by StartExposure.
+    /// Returns the maximum exposure time in seconds supported by StartExposure.
     #[http("exposuremax", method = Get)]
     async fn exposure_max(&self) -> ASCOMResult<f64>;
 
-    /// Returns the Minimium exposure time in seconds that the camera supports through StartExposure.
+    /// Returns the minimium exposure time in seconds supported by StartExposure.
     #[http("exposuremin", method = Get)]
     async fn exposure_min(&self) -> ASCOMResult<f64>;
 
@@ -190,7 +192,7 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the Minimum value of Gain.
+    /// Returns the minimum value of Gain.
     #[http("gainmin", method = Get)]
     async fn gain_min(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -262,25 +264,25 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the current subframe width, if binning is active, value is in binned pixels.
+    /// Returns the current subframe width in binned pixels.
     #[http("numx", method = Get)]
     async fn num_x(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets the current subframe width.
+    /// Sets the current subframe width in binned pixels.
     #[http("numx", method = Put)]
     async fn set_num_x(&self, #[http("NumX")] num_x: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the current subframe height, if binning is active, value is in binned pixels.
+    /// Returns the current subframe height in binned pixels.
     #[http("numy", method = Get)]
     async fn num_y(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets the current subframe height.
+    /// Sets the current subframe height in binned pixels.
     #[http("numy", method = Put)]
     async fn set_num_y(&self, #[http("NumY")] num_y: i32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -382,9 +384,7 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the current subframe start position for the X axis (0 based).
-    ///
-    /// If binning is active, value is in binned pixels.
+    /// Returns the current subframe start position for the X axis (0 based) in binned pixels.
     #[http("startx", method = Get)]
     async fn start_x(&self) -> ASCOMResult<i32>;
 
@@ -392,9 +392,7 @@ pub trait Camera: Device + Send + Sync {
     #[http("startx", method = Put)]
     async fn set_start_x(&self, #[http("StartX")] start_x: i32) -> ASCOMResult<()>;
 
-    /// Returns the current subframe start position for the Y axis (0 based).
-    ///
-    /// If binning is active, value is in binned pixels.
+    /// Returns the current subframe start position for the Y axis (0 based) in binned pixels.
     #[http("starty", method = Get)]
     async fn start_y(&self) -> ASCOMResult<i32>;
 
@@ -466,6 +464,85 @@ pub trait Camera: Device + Send + Sync {
     #[http("interfaceversion", method = Get)]
     async fn interface_version(&self) -> ASCOMResult<i32> {
         Ok(4_i32)
+    }
+}
+
+convenience_props!(Camera {
+    /// Returns the X and Y offsets of the Bayer matrix, as defined in SensorType.
+    bayer_offset(bayer_offset_x, bayer_offset_y): [i32; 2],
+
+    /// Returns the binning factors for the X and Y axes.
+    #[
+        /// Sets the binning factors for the X and Y axes.
+        set
+    ]
+    bin(bin_x, bin_y): [i32; 2],
+
+    /// Returns the width and height of the CCD camera chip in unbinned pixels.
+    camera_size(camera_xsize, camera_ysize): [i32; 2],
+
+    /// Returns the exposure time range in seconds supported by StartExposure.
+    exposure_range(exposure_min, exposure_max): RangeInclusive<f64>,
+
+    /// Returns the supported gain range.
+    gain_range(gain_min, gain_max): RangeInclusive<i32>,
+
+    /// Returns the maximum allowed binning for the X and Y camera axes.
+    max_bin(max_bin_x, max_bin_y): [i32; 2],
+
+    /// Returns the current subframe width and height in binned pixels.
+    #[
+        /// Sets the current subframe width and height in binned pixels.
+        set
+    ]
+    num(num_x, num_y): [i32; 2],
+
+    /// Returns the supported offset range.
+    offset_range(offset_min, offset_max): RangeInclusive<i32>,
+
+    /// Returns the width and height of the CCD chip pixels in microns.
+    pixel_size(pixel_size_x, pixel_size_y): [f64; 2],
+
+    /// Returns the current subframe start position for the X and Y axes (0 based) in binned pixels.
+    start(start_x, start_y): [i32; 2],
+});
+
+/// Camera gain mode.
+///
+/// See [ASCOM docs](https://ascom-standards.org/newdocs/camera.html#Camera.Gain) for more details on gain modes.
+#[cfg(feature = "client")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GainMode {
+    /// A range of valid Gain values.
+    Range(RangeInclusive<i32>),
+    /// A list of valid Gain values.
+    List(Vec<String>),
+}
+
+#[cfg(feature = "client")]
+impl dyn Camera {
+    /// Return the camera gain mode with valid Gain values, or `None` if Gain is not supported.
+    ///
+    /// This is a convenience method for clients aggregating following properties:
+    /// - [`gain_min`](Camera::gain_min)
+    /// - [`gain_max`](Camera::gain_max)
+    /// - [`gains`](Camera::gains)
+    pub async fn gain_mode(&self) -> ASCOMResult<Option<GainMode>> {
+        fn if_implemented<T>(res: ASCOMResult<T>) -> ASCOMResult<Option<T>> {
+            match res {
+                Err(err) if err.code == crate::ASCOMErrorCode::NOT_IMPLEMENTED => Ok(None),
+                _ => res.map(Some),
+            }
+        }
+
+        // Try to get the gain list first.
+        Ok(match if_implemented(self.gains().await)? {
+            Some(gains) => Some(GainMode::List(gains)),
+            None => {
+                // If gain list is not supported, we fall back to the gain range.
+                if_implemented(self.gain_range().await)?.map(GainMode::Range)
+            }
+        })
     }
 }
 

@@ -11,10 +11,9 @@
     clippy::too_many_lines
 )]
 
-use ascom_alpaca::api::camera::{ImageArray, SensorType as AlpacaSensorType};
+use ascom_alpaca::api::camera::{GainMode, ImageArray, SensorType as AlpacaSensorType};
 use ascom_alpaca::api::{Camera, TypedDevice};
 use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
-use ascom_alpaca::{ASCOMErrorCode, ASCOMResult};
 use bayer::{BayerDepth, CFA, RasterDepth, RasterMut, demosaic};
 use eframe::egui::{self, CentralPanel, ComboBox, Slider, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle};
@@ -40,7 +39,7 @@ enum State {
         frame_num: u32,
         img: Option<TextureHandle>,
         exposure_range: RangeInclusive<f64>,
-        gain_mode: GainMode,
+        gain_mode: Option<GainMode>,
         params_tx: watch::Sender<CaptureParams>,
         image_loop: JoinHandle<()>, /* not `ChildTask` because it has its own cancellation mechanism */
     },
@@ -50,19 +49,6 @@ enum State {
 impl From<eyre::Error> for State {
     fn from(err: eyre::Error) -> Self {
         Self::Error(format!("{err:#}"))
-    }
-}
-
-enum GainMode {
-    Range(RangeInclusive<i32>),
-    List(Vec<String>),
-    None,
-}
-
-fn if_implemented<T>(res: ASCOMResult<T>) -> ASCOMResult<Option<T>> {
-    match res {
-        Err(err) if err.code == ASCOMErrorCode::NOT_IMPLEMENTED => Ok(None),
-        _ => res.map(Some),
     }
 }
 
@@ -140,16 +126,14 @@ impl StateCtx {
                         camera.set_connected(true).await?;
                         let (
                             camera_name,
-                            exposure_min,
-                            exposure_max,
+                            exposure_range,
                             can_abort_exposure,
                             max_adu,
                             sensor_type,
                             (gain_mode, gain),
                         ) = tokio::try_join!(
                             camera.name().map_err(eyre::Error::from),
-                            camera.exposure_min().map_err(eyre::Error::from),
-                            camera.exposure_max().map_err(eyre::Error::from),
+                            camera.exposure_range().map_err(eyre::Error::from),
                             camera.can_abort_exposure().map_err(eyre::Error::from),
                             async {
                                 let max_adu = camera.max_adu().await?;
@@ -160,16 +144,12 @@ impl StateCtx {
                                     AlpacaSensorType::Monochrome => SensorType::Monochrome,
                                     AlpacaSensorType::Color => SensorType::Color,
                                     AlpacaSensorType::RGGB => {
-                                        let (offset_x, offset_y) = tokio::try_join!(
-                                            camera.bayer_offset_x(),
-                                            camera.bayer_offset_y()
-                                        )?;
-                                        SensorType::Bayer(match (offset_x, offset_y) {
-                                            (0, 0) => CFA::RGGB,
-                                            (1, 0) => CFA::GRBG,
-                                            (0, 1) => CFA::GBRG,
-                                            (1, 1) => CFA::BGGR,
-                                            _ => eyre::bail!("Invalid bayer offset: ({}, {})", offset_x, offset_y),
+                                        SensorType::Bayer(match camera.bayer_offset().await? {
+                                            [0, 0] => CFA::RGGB,
+                                            [1, 0] => CFA::GRBG,
+                                            [0, 1] => CFA::GBRG,
+                                            [1, 1] => CFA::BGGR,
+                                            offset => eyre::bail!("Invalid bayer offset: {offset:?}"),
                                         })
                                     }
                                     sensor_type => {
@@ -179,13 +159,10 @@ impl StateCtx {
                                 })
                             },
                             async {
-                                let gain_mode = match if_implemented(camera.gain_min().await)? {
-                                    Some(min) => GainMode::Range(min..=camera.gain_max().await?),
-                                    None => if_implemented(camera.gains().await)?.map_or(GainMode::None, GainMode::List),
-                                };
+                                let gain_mode = camera.gain_mode().await?;
                                 let gain = match gain_mode {
-                                    GainMode::None => 0,
-                                    _ => camera.gain().await?,
+                                    Some(_) => camera.gain().await?,
+                                    None => 0,
                                 };
                                 Ok((gain_mode, gain))
                             }
@@ -217,7 +194,7 @@ impl StateCtx {
                             frame_num: 0,
                             rx,
                             img: None,
-                            exposure_range: exposure_min..=exposure_max,
+                            exposure_range,
                         })
                     });
                 }
@@ -252,7 +229,7 @@ impl StateCtx {
                         )
                         .changed();
                     let gain_changed = match gain_mode {
-                        GainMode::List(values) => ComboBox::from_label("Gain")
+                        Some(GainMode::List(values)) => ComboBox::from_label("Gain")
                             .selected_text(&values[params.gain as usize])
                             .show_ui(ui, |ui| {
                                 values.iter().enumerate().any(|(i, value)| {
@@ -262,10 +239,10 @@ impl StateCtx {
                             })
                             .inner
                             .unwrap_or(false),
-                        GainMode::Range(range) => ui
+                        Some(GainMode::Range(range)) => ui
                             .add(Slider::new(&mut params.gain, range.clone()).text("Gain"))
                             .changed(),
-                        GainMode::None => false,
+                        None => false,
                     };
                     let dynamic_stretch_changed = ui
                         .checkbox(&mut params.dynamic_stretch, "Dynamic stretch")

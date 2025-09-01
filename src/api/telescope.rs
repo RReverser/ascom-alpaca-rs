@@ -2,6 +2,8 @@ pub use super::camera_telescope_shared::GuideDirection;
 
 use super::Device;
 use super::time_repr::{Iso8601, TimeRepr};
+#[cfg(feature = "client")]
+use crate::api::macros::ConvertConvenienceProp;
 use crate::{ASCOMError, ASCOMResult};
 use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -298,7 +300,7 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// The geodetic(map) latitude (degrees, positive North, WGS84) of the site at which the telescope is located.
+    /// The geodetic latitude (degrees, positive North, WGS84) of the site at which the telescope is located.
     #[http("sitelatitude", method = Get)]
     async fn site_latitude(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -612,6 +614,99 @@ pub trait Telescope: Device + Send + Sync {
         Ok(4_i32)
     }
 }
+
+/// The geodetic coordinates of the site at which the telescope is located.
+#[cfg(feature = "client")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SiteCoords {
+    /// Latitude (degrees, positive North, WGS84).
+    pub latitude: f64,
+    /// Longitude (degrees, positive East, WGS84).
+    pub longitude: f64,
+    /// Elevation above mean sea level (meters).
+    pub elevation: f64,
+}
+
+#[cfg(feature = "client")]
+impl ConvertConvenienceProp for SiteCoords {
+    type Inner = f64;
+    type Arr = [f64; 3];
+
+    fn from_arr([latitude, longitude, elevation]: Self::Arr) -> Self {
+        Self {
+            latitude,
+            longitude,
+            elevation,
+        }
+    }
+
+    fn into_arr(self) -> Self::Arr {
+        [self.latitude, self.longitude, self.elevation]
+    }
+}
+
+/// A struct for convenience properties that apply to both the right ascension and declination coordinates.
+#[cfg(feature = "client")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RaDec {
+    /// Value along the right ascension axis.
+    right_ascension: f64,
+    /// Value along the declination axis.
+    declination: f64,
+}
+
+#[cfg(feature = "client")]
+impl ConvertConvenienceProp for RaDec {
+    type Inner = f64;
+    type Arr = [f64; 2];
+
+    fn from_arr([right_ascension, declination]: Self::Arr) -> Self {
+        Self {
+            right_ascension,
+            declination,
+        }
+    }
+
+    fn into_arr(self) -> Self::Arr {
+        [self.right_ascension, self.declination]
+    }
+}
+
+convenience_props!(Telescope {
+    /// The current right ascension and declination movement rate offsets for telescope guiding (degrees/sec).
+    #[
+        /// Sets the right ascension and declination movement rate offsets for telescope guiding (degrees/sec).
+        set
+    ]
+    guide_rates_ra_dec(guide_rate_right_ascension, guide_rate_declination): RaDec,
+
+    /// The right ascension (hours) and declination (degrees) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property.
+    ra_dec(right_ascension, declination): RaDec,
+
+    /// The right ascension and declination tracking rates (arcseconds per sidereal second, default = 0.0).
+    #[
+        /// Set the right ascension and declination tracking rates (arcseconds per sidereal second).
+        set
+    ]
+    ra_dec_rates(right_ascension_rate, declination_rate): RaDec,
+
+    /// The altitude and azimuth (degrees) of the mount's current position at the local horizon.
+    alt_az(altitude, azimuth): RaDec,
+
+    /// The geodetic coordinates of the site at which the telescope is located.
+    #[
+        /// Set the geodetic coordinates of the site at which the telescope is located.
+        set
+    ]
+    site_coords(site_latitude, site_longitude, site_elevation): SiteCoords,
+
+    /// The right ascension (hours) and declination (degrees, positive North) for the target of an equatorial slew or sync operation.
+    #[
+        /// Set the right ascension (hours) and declination (degrees) for the target of an equatorial slew or sync operation.
+        set
+    ]
+    target_ra_dec(target_right_ascension, target_declination): RaDec,
+});
 
 /// The alignment mode (geometry) of the mount.
 #[derive(
