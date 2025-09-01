@@ -1,5 +1,6 @@
-use serde::de::{DeserializeSeed, Error, MapAccess, SeqAccess, Visitor};
+use serde::de::{DeserializeSeed, Error, IntoDeserializer, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
+use std::marker::PhantomData;
 
 struct DeviceStateDeserializer<D>(D);
 
@@ -11,25 +12,37 @@ impl<'de, V: Visitor<'de>> Visitor<'de> for DeviceStateDeserializer<V> {
     }
 
     fn visit_seq<S: SeqAccess<'de>>(self, seq: S) -> Result<Self::Value, S::Error> {
-        self.0.visit_map(DeviceStateDeserializer(seq))
+        self.0.visit_map(EntryMapAccess {
+            seq,
+            stored_value: serde_json::Value::Null,
+        })
     }
 }
 
-impl<'de, A: SeqAccess<'de>> MapAccess<'de> for DeviceStateDeserializer<A> {
+struct EntryMapAccess<A> {
+    seq: A,
+    stored_value: serde_json::Value,
+}
+
+impl<'de, A: SeqAccess<'de>> MapAccess<'de> for EntryMapAccess<A> {
     type Error = A::Error;
 
     fn next_key_seed<K: DeserializeSeed<'de>>(
         &mut self,
-        _seed: K,
+        seed: K,
     ) -> Result<Option<K::Value>, Self::Error> {
-        unimplemented!("currently we only support whole entries for simplicity")
+        Ok(self.next_entry_seed(seed, PhantomData)?.map(|(k, v)| {
+            self.stored_value = v;
+            k
+        }))
     }
 
     fn next_value_seed<V: DeserializeSeed<'de>>(
         &mut self,
-        _seed: V,
+        seed: V,
     ) -> Result<V::Value, Self::Error> {
-        unimplemented!("currently we only support whole entries for simplicity")
+        seed.deserialize(self.stored_value.take().into_deserializer())
+            .map_err(Error::custom)
     }
 
     fn next_entry_seed<K: DeserializeSeed<'de>, V: DeserializeSeed<'de>>(
@@ -118,7 +131,7 @@ impl<'de, A: SeqAccess<'de>> MapAccess<'de> for DeviceStateDeserializer<A> {
             }
         }
 
-        self.0.next_element_seed(Entry { name, value })
+        self.seq.next_element_seed(Entry { name, value })
     }
 }
 
