@@ -650,9 +650,9 @@ impl ConvertConvenienceProp for SiteCoords {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RaDec {
     /// Value along the right ascension axis.
-    right_ascension: f64,
+    pub right_ascension: f64,
     /// Value along the declination axis.
-    declination: f64,
+    pub declination: f64,
 }
 
 #[cfg(feature = "client")]
