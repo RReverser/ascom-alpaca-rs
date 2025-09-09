@@ -373,7 +373,13 @@ macro_rules! rpc_trait {
             rpc_trait!(@extras $trait_name client);
 
             async fn device_state(&self) -> ASCOMResult<crate::api::TimestampedDeviceState<DeviceState>> {
-                self.exec_action(Action::DeviceState).await.map(crate::api::device_state::de::TimestampedDeviceStateRepr::into_inner)
+                match self.exec_action(Action::DeviceState).await.map(crate::api::device_state::de::TimestampedDeviceStateRepr::into_inner) {
+                    Err(crate::ASCOMError { code: crate::ASCOMErrorCode::NOT_IMPLEMENTED, .. }) => {
+                        // Fallback to individual property retrieval.
+                        Ok(crate::api::TimestampedDeviceState::new(DeviceState::new(self).await))
+                    }
+                    result => result,
+                }
             }
         }
 

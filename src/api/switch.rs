@@ -154,7 +154,7 @@ pub struct SwitchDeviceState {
 }
 
 impl SwitchDeviceState {
-    async fn gather(switch: &(impl ?Sized + Switch), id: i32) -> Self {
+    async fn new(switch: &(impl ?Sized + Switch), id: i32) -> Self {
         Self {
             get_switch: switch.get_switch(id).await.ok(),
             get_switch_value: switch.get_switch_value(id).await.ok(),
@@ -176,7 +176,7 @@ impl DeviceState {
             switch_devices: match switch.max_switch().await {
                 Ok(n) => {
                     futures::future::join_all(
-                        (0_i32..n).map(|id| SwitchDeviceState::gather(switch, id)),
+                        (0_i32..n).map(|id| SwitchDeviceState::new(switch, id)),
                     )
                     .await
                 }
