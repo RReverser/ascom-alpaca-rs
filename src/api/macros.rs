@@ -144,6 +144,16 @@ macro_rules! rpc_trait {
             Box::pin(futures::future::ok(include_str!("../server/device_setup_template.html").to_owned()))
         }
     };
+    (@extras $trait_name:ident trait) => {
+        /// Return all operational properties of this device.
+        ///
+        /// See [What is the “read all” feature and what are its rules?](https://ascom-standards.org/newdocs/readall-faq.html#readall-faq).
+        fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> crate::api::ASCOMResultFuture<'async_trait, crate::api::TimestampedDeviceState<DeviceState>> {
+            Box::pin(async move {
+                Ok(crate::api::TimestampedDeviceState::new(DeviceState::new(self).await))
+            })
+        }
+    };
 
     (@extras Device client) => {
         fn static_name(&self) -> &str {
@@ -167,8 +177,34 @@ macro_rules! rpc_trait {
             })
         }
     };
+    (@extras $trait_name:ident client) => {
+        #[expect(single_use_lifetimes)] // we need compat with #[async_trait]
+        fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> crate::api::ASCOMResultFuture<'async_trait, crate::api::TimestampedDeviceState<DeviceState>> {
+            Box::pin(async move {
+                match self.exec_action(Action::DeviceState).await.map(crate::api::device_state::de::TimestampedDeviceStateRepr::into_inner) {
+                    Err(crate::ASCOMError { code: crate::ASCOMErrorCode::NOT_IMPLEMENTED, .. }) => {
+                        // Fallback to individual property retrieval.
+                        Ok(crate::api::TimestampedDeviceState::new(DeviceState::new(self).await))
+                    }
+                    result => result,
+                }
+            })
+        }
+    };
 
-    (@extras Device mod) => {};
+    (@extras Device mod) => {
+        #[cfg(feature = "server")]
+        #[derive(serde::Serialize)]
+        pub(super) struct DeviceState; // dummy, we don't have any properties here
+
+        #[cfg(feature = "server")]
+        impl dyn Device {
+            async fn device_state(&self) -> ASCOMResult<crate::api::TimestampedDeviceState<DeviceState>> {
+                // we don't expose Device::device_state, but we do need to handle it on the server
+                Ok(crate::api::TimestampedDeviceState::new(DeviceState))
+            }
+        }
+    };
     (@extras $trait_name:ident mod) => {
         impl super::RetrieavableDevice for dyn $trait_name {
             const TYPE: super::DeviceType = super::DeviceType::$trait_name;
@@ -197,8 +233,8 @@ macro_rules! rpc_trait {
         }
     };
 
-    // Don't add any extra code for other traits in other locations.
-    (@extras $trait_name:ident $loc:ident) => {};
+    // We only have dummy device state in the server-side handler.
+    (@device_state Device) => {};
 
     // Switch needs some special handling to gather device state across all devices.
     (@device_state Switch) => {};
@@ -339,15 +375,6 @@ macro_rules! rpc_trait {
             );)*
 
             rpc_trait!(@extras $trait_name trait);
-
-            /// Return all operational properties of this device.
-            ///
-            /// See [What is the “read all” feature and what are its rules?](https://ascom-standards.org/newdocs/readall-faq.html#readall-faq).
-            fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> crate::api::ASCOMResultFuture<'async_trait, crate::api::TimestampedDeviceState<DeviceState>> {
-                Box::pin(async move {
-                    Ok(crate::api::TimestampedDeviceState::new(DeviceState::new(self).await))
-                })
-            }
         }
 
         #[cfg(feature = "client")]
@@ -371,16 +398,6 @@ macro_rules! rpc_trait {
             )*
 
             rpc_trait!(@extras $trait_name client);
-
-            async fn device_state(&self) -> ASCOMResult<crate::api::TimestampedDeviceState<DeviceState>> {
-                match self.exec_action(Action::DeviceState).await.map(crate::api::device_state::de::TimestampedDeviceStateRepr::into_inner) {
-                    Err(crate::ASCOMError { code: crate::ASCOMErrorCode::NOT_IMPLEMENTED, .. }) => {
-                        // Fallback to individual property retrieval.
-                        Ok(crate::api::TimestampedDeviceState::new(DeviceState::new(self).await))
-                    }
-                    result => result,
-                }
-            }
         }
 
         impl PartialEq for dyn $trait_name {
@@ -411,7 +428,7 @@ macro_rules! rpc_trait {
                         }
                     )*
                     Self::DeviceState => {
-                        $trait_name::device_state(&*device)
+                        device.device_state()
                         .await
                         .map(Response::DeviceState)
                     }
