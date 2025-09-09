@@ -306,12 +306,10 @@ struct CaptureState {
 
 impl CaptureState {
     async fn start_capture_loop(mut self) {
-        while !self.tx.is_closed() {
-            if let Some(send) = self.capture_image().await.transpose()
-                && self.tx.send(send).await.is_ok()
-            {
-                self.ctx.request_repaint();
-            }
+        while let Some(send) = self.capture_image().await.transpose()
+            && self.tx.send(send).await.is_ok()
+        {
+            self.ctx.request_repaint();
         }
         // Channel is closed, cleanup.
         if let Err(err) = self.camera.set_connected(false).await {
