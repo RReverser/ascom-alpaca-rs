@@ -557,7 +557,7 @@ impl AlpacaCamera for Webcam {
 }
 
 fn exact_div(a: u32, b: u32) -> Option<u32> {
-    (a % b == 0).then_some(a / b)
+    a.is_multiple_of(b).then_some(a / b)
 }
 
 #[tracing::instrument(ret(level = "debug"), err)]
