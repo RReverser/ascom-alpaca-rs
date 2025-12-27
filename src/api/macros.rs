@@ -383,6 +383,8 @@ macro_rules! rpc_trait {
         #[allow(useless_deprecated)]
         impl $trait_name for $crate::client::RawDeviceClient {
             $(
+                // some attrs are only applicable to the original method declaration in the trait, not to the impls
+                #[allow(unused_attributes)]
                 $(# $method_attr)*
                 async fn $method_name(
                     & $self $(, $param: $param_ty)*
