@@ -244,6 +244,7 @@ macro_rules! rpc_trait {
     )*) => {
         /// An object representing all operational properties of the device.
         #[derive(Default, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+        #[serde(rename_all = "PascalCase")]
         #[allow(clippy::unsafe_derive_deserialize)] // seems to be false positive
         pub struct DeviceState {
             $(
