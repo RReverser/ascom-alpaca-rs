@@ -28,7 +28,7 @@ pub trait Switch: Device + Send + Sync {
     }
 
     /// Return the state of switch device id as a boolean.  Devices are numbered from 0 to MaxSwitch - 1.
-    #[http("getswitch", method = Get /* TODO: , device_state = GetSwitch */)]
+    #[http("getswitch", method = Get)]
     async fn get_switch(&self, #[http("Id")] id: i32) -> ASCOMResult<bool>;
 
     /// Gets the description of the specified switch device.
@@ -46,7 +46,7 @@ pub trait Switch: Device + Send + Sync {
     /// Gets the value of the specified switch device as a double.
     ///
     /// Devices are numbered from 0 to MaxSwitch - 1, The value of this switch is expected to be between MinSwitchValue and MaxSwitchValue.
-    #[http("getswitchvalue", method = Get /* TODO: , device_state = GetSwitchValue */)]
+    #[http("getswitchvalue", method = Get)]
     async fn get_switch_value(&self, #[http("Id")] id: i32) -> ASCOMResult<f64>;
 
     /// Gets the minimum value of the specified switch device as a double.
@@ -124,7 +124,7 @@ pub trait Switch: Device + Send + Sync {
     /// True if the state of the specified switch is changing, otherwise false.
     ///
     /// _ISwitchV3 and later._
-    #[http("statechangecomplete", method = Get /* TODO:, device_state = StateChangeComplete */)]
+    #[http("statechangecomplete", method = Get)]
     async fn state_change_complete(&self, #[http("Id")] id: i32) -> ASCOMResult<bool>;
 
     /// Returns the step size that this device supports (the difference between successive values of the device).
