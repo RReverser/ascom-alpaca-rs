@@ -14,7 +14,7 @@ pub trait FilterWheel: Device + Send + Sync {
     async fn names(&self) -> ASCOMResult<Vec<String>>;
 
     /// Returns the current filter wheel position.
-    #[http("position", method = Get, device_state = Position)]
+    #[http("position", method = Get, device_state = "Position")]
     async fn position(&self) -> ASCOMResult<i32>;
 
     /// Sets the filter wheel position.

@@ -22,7 +22,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// The altitude above the local horizon of the mount's current position (degrees, positive up).
-    #[http("altitude", method = Get, device_state = Altitude)]
+    #[http("altitude", method = Get, device_state = "Altitude")]
     async fn altitude(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -42,17 +42,17 @@ pub trait Telescope: Device + Send + Sync {
     /// True if the mount is stopped in the Home position.
     ///
     /// Set only following a FindHome()  operation, and reset with any slew operation. This property must be False if the telescope does not support homing.
-    #[http("athome", method = Get, device_state = AtHome)]
+    #[http("athome", method = Get, device_state = "AtHome")]
     async fn at_home(&self) -> ASCOMResult<bool>;
 
     /// True if the telescope has been put into the parked state by the seee Park()  method.
     ///
     /// Set False by calling the Unpark() method.
-    #[http("atpark", method = Get, device_state = AtPark)]
+    #[http("atpark", method = Get, device_state = "AtPark")]
     async fn at_park(&self) -> ASCOMResult<bool>;
 
     /// The azimuth at the local horizon of the mount's current position (degrees, North-referenced, positive East/clockwise).
-    #[http("azimuth", method = Get, device_state = Azimuth)]
+    #[http("azimuth", method = Get, device_state = "Azimuth")]
     async fn azimuth(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -156,7 +156,7 @@ pub trait Telescope: Device + Send + Sync {
     /// The declination (degrees) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property.
     ///
     /// Reading the property will raise an error if the value is unavailable.
-    #[http("declination", method = Get, device_state = Declination)]
+    #[http("declination", method = Get, device_state = "Declination")]
     async fn declination(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -238,13 +238,13 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// True if a PulseGuide(GuideDirections, Int32) command is in progress, False otherwise.
-    #[http("ispulseguiding", method = Get, device_state = IsPulseGuiding)]
+    #[http("ispulseguiding", method = Get, device_state = "IsPulseGuiding")]
     async fn is_pulse_guiding(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// The right ascension (hours) of the mount's current equatorial coordinates, in the coordinate system given by the EquatorialSystem property.
-    #[http("rightascension", method = Get, device_state = RightAscension)]
+    #[http("rightascension", method = Get, device_state = "RightAscension")]
     async fn right_ascension(&self) -> ASCOMResult<f64>;
 
     /// The right ascension tracking rate (arcseconds per sidereal second, default = 0.0).
@@ -266,7 +266,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// Indicates the pointing state of the mount.
-    #[http("sideofpier", method = Get, device_state = SideOfPier)]
+    #[http("sideofpier", method = Get, device_state = "SideOfPier")]
     async fn side_of_pier(&self) -> ASCOMResult<PierSide> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -332,7 +332,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// True if telescope is currently moving in response to one of the Slew methods or the MoveAxis(TelescopeAxes, Double) method, False at all other times.
-    #[http("slewing", method = Get, device_state = Slewing)]
+    #[http("slewing", method = Get, device_state = "Slewing")]
     async fn slewing(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -386,7 +386,7 @@ pub trait Telescope: Device + Send + Sync {
     }
 
     /// Returns the state of the telescope's sidereal tracking drive.
-    #[http("tracking", method = Get, device_state = Tracking)]
+    #[http("tracking", method = Get, device_state = "Tracking")]
     async fn tracking(&self) -> ASCOMResult<bool>;
 
     /// Sets the state of the telescope's sidereal tracking drive.

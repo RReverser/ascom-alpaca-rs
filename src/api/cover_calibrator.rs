@@ -8,7 +8,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 #[apply(rpc_trait)]
 pub trait CoverCalibrator: Device + Send + Sync {
     /// Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on).
-    #[http("brightness", method = Get, device_state = Brightness)]
+    #[http("brightness", method = Get, device_state = "Brightness")]
     async fn brightness(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -16,7 +16,7 @@ pub trait CoverCalibrator: Device + Send + Sync {
     /// True if the calibrator is not yet stable.
     ///
     /// _ICoverCalibratorV2 and later._
-    #[http("calibratorchanging", method = Get, device_state = CalibratorChanging)]
+    #[http("calibratorchanging", method = Get, device_state = "CalibratorChanging")]
     async fn calibrator_changing(&self) -> ASCOMResult<bool> {
         Ok(self.calibrator_state().await? == CalibratorStatus::NotReady)
     }
@@ -24,13 +24,13 @@ pub trait CoverCalibrator: Device + Send + Sync {
     /// Returns the state of the calibration device, if present, otherwise returns "NotPresent".
     ///
     /// The calibrator state mode is specified as an integer value from the CalibratorStatus Enum.
-    #[http("calibratorstate", method = Get, device_state = CalibratorState)]
+    #[http("calibratorstate", method = Get, device_state = "CalibratorState")]
     async fn calibrator_state(&self) -> ASCOMResult<CalibratorStatus>;
 
     /// True if the cover is moving.
     ///
     /// _ICoverCalibratorV2 and later._
-    #[http("covermoving", method = Get, device_state = CoverMoving)]
+    #[http("covermoving", method = Get, device_state = "CoverMoving")]
     async fn cover_moving(&self) -> ASCOMResult<bool> {
         Ok(self.cover_state().await? == CoverStatus::Moving)
     }
@@ -38,7 +38,7 @@ pub trait CoverCalibrator: Device + Send + Sync {
     /// Returns the state of the device cover, if present, otherwise returns "NotPresent".
     ///
     /// The cover state mode is specified as an integer value from the CoverStatus Enum.
-    #[http("coverstate", method = Get, device_state = CoverState)]
+    #[http("coverstate", method = Get, device_state = "CoverState")]
     async fn cover_state(&self) -> ASCOMResult<CoverStatus>;
 
     /// The Brightness value that makes the calibrator deliver its maximum illumination.

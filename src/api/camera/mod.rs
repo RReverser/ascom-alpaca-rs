@@ -53,7 +53,7 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Returns the current camera operational state as an integer.
-    #[http("camerastate", method = Get, device_state = CameraState)]
+    #[http("camerastate", method = Get, device_state = "CameraState")]
     async fn camera_state(&self) -> ASCOMResult<CameraState> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -113,7 +113,7 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Returns the current CCD temperature in degrees Celsius.
-    #[http("ccdtemperature", method = Get, device_state = CCDTemperature)]
+    #[http("ccdtemperature", method = Get, device_state = "CCDTemperature")]
     async fn ccd_temperature(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -133,7 +133,7 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Returns the present cooler power level, in percent.
-    #[http("coolerpower", method = Get, device_state = CoolerPower)]
+    #[http("coolerpower", method = Get, device_state = "CoolerPower")]
     async fn cooler_power(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -209,7 +209,7 @@ pub trait Camera: Device + Send + Sync {
     async fn has_shutter(&self) -> ASCOMResult<bool>;
 
     /// Returns the current heat sink temperature (called "ambient temperature" by some manufacturers) in degrees Celsius.
-    #[http("heatsinktemperature", method = Get, device_state = HeatSinkTemperature)]
+    #[http("heatsinktemperature", method = Get, device_state = "HeatSinkTemperature")]
     async fn heat_sink_temperature(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -223,13 +223,13 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Returns a flag indicating whether the image is ready to be downloaded from the camera.
-    #[http("imageready", method = Get, device_state = ImageReady)]
+    #[http("imageready", method = Get, device_state = "ImageReady")]
     async fn image_ready(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns a flag indicating whether the camera is currrently in a PulseGuide operation.
-    #[http("ispulseguiding", method = Get, device_state = IsPulseGuiding)]
+    #[http("ispulseguiding", method = Get, device_state = "IsPulseGuiding")]
     async fn is_pulse_guiding(&self) -> ASCOMResult<bool> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -321,7 +321,7 @@ pub trait Camera: Device + Send + Sync {
     /// Returns the percentage of the current operation that is complete.
     ///
     /// If valid, returns an integer between 0 and 100, where 0 indicates 0% progress (function just started) and 100 indicates 100% progress (i.e. completion).
-    #[http("percentcompleted", method = Get, device_state = PercentCompleted)]
+    #[http("percentcompleted", method = Get, device_state = "PercentCompleted")]
     async fn percent_completed(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }

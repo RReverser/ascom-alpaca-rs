@@ -20,49 +20,49 @@ pub trait ObservingConditions: Device + Send + Sync {
     }
 
     /// Gets the percentage of the sky obscured by cloud.
-    #[http("cloudcover", method = Get, device_state = CloudCover)]
+    #[http("cloudcover", method = Get, device_state = "CloudCover")]
     async fn cloud_cover(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the atmospheric dew point at the observatory reported in °C.
-    #[http("dewpoint", method = Get, device_state = DewPoint)]
+    #[http("dewpoint", method = Get, device_state = "DewPoint")]
     async fn dew_point(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the atmospheric  humidity (%) at the observatory.
-    #[http("humidity", method = Get, device_state = Humidity)]
+    #[http("humidity", method = Get, device_state = "Humidity")]
     async fn humidity(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the atmospheric pressure in hectoPascals at the observatory's altitude - NOT reduced to sea level.
-    #[http("pressure", method = Get, device_state = Pressure)]
+    #[http("pressure", method = Get, device_state = "Pressure")]
     async fn pressure(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the rain rate (mm/hour) at the observatory.
-    #[http("rainrate", method = Get, device_state = RainRate)]
+    #[http("rainrate", method = Get, device_state = "RainRate")]
     async fn rain_rate(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the sky brightness at the observatory (Lux).
-    #[http("skybrightness", method = Get, device_state = SkyBrightness)]
+    #[http("skybrightness", method = Get, device_state = "SkyBrightness")]
     async fn sky_brightness(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the sky quality at the observatory (magnitudes per square arc second).
-    #[http("skyquality", method = Get, device_state = SkyQuality)]
+    #[http("skyquality", method = Get, device_state = "SkyQuality")]
     async fn sky_quality(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the sky temperature(°C) at the observatory.
-    #[http("skytemperature", method = Get, device_state = SkyTemperature)]
+    #[http("skytemperature", method = Get, device_state = "SkyTemperature")]
     async fn sky_temperature(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -74,7 +74,7 @@ pub trait ObservingConditions: Device + Send + Sync {
     }
 
     /// Gets the temperature(°C) at the observatory.
-    #[http("temperature", method = Get, device_state = Temperature)]
+    #[http("temperature", method = Get, device_state = "Temperature")]
     async fn temperature(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -82,19 +82,19 @@ pub trait ObservingConditions: Device + Send + Sync {
     /// Gets the wind direction.
     ///
     /// The returned value must be between 0.0 and 360.0, interpreted according to the metereological standard, where a special value of 0.0 is returned when the wind speed is 0.0. Wind direction is measured clockwise from north, through east, where East=90.0, South=180.0, West=270.0 and North=360.0.
-    #[http("winddirection", method = Get, device_state = WindDirection)]
+    #[http("winddirection", method = Get, device_state = "WindDirection")]
     async fn wind_direction(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the peak 3 second wind gust(m/s) at the observatory over the last 2 minutes.
-    #[http("windgust", method = Get, device_state = WindGust)]
+    #[http("windgust", method = Get, device_state = "WindGust")]
     async fn wind_gust(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Gets the wind speed(m/s) at the observatory.
-    #[http("windspeed", method = Get, device_state = WindSpeed)]
+    #[http("windspeed", method = Get, device_state = "WindSpeed")]
     async fn wind_speed(&self) -> ASCOMResult<f64> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }

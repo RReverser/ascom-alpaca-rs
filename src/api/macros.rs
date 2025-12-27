@@ -240,16 +240,16 @@ macro_rules! rpc_trait {
     (@device_state Switch) => {};
 
     (@device_state $trait_name:ident $(
-        $name:ident : $wire_name:ident as $ty:ty
+        $name:ident : $wire_name:literal as $ty:ty
     )*) => {
         /// An object representing all operational properties of the device.
         #[derive(Default, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-        #[serde(rename_all = "PascalCase")]
         #[allow(clippy::unsafe_derive_deserialize)] // seems to be false positive
         pub struct DeviceState {
             $(
                 #[doc = concat!("Result of [`", stringify!($trait_name), "::", stringify!($name), "`].")]
                 #[serde(skip_serializing_if = "Option::is_none")]
+                #[serde(rename = $wire_name)]
                 pub $name: Option<$ty>,
             )*
         }
@@ -282,7 +282,7 @@ macro_rules! rpc_trait {
         $pub:vis trait $trait_name:ident: $trait_parents:ty {
             $(
                 $(#[doc = $doc:literal])*
-                #[http($method_path:literal, method = $http_method:ident $(, via = $via:ty)? $(, device_state = $device_state_name:ident)?)]
+                #[http($method_path:literal, method = $http_method:ident $(, via = $via:ty)? $(, device_state = $device_state_name:literal)?)]
                 $(# $method_attr:tt)*
                 async fn $method_name:ident(
                     & $self:ident $(, #[http($param_query:literal $(, via = $param_via:ty)?)] $param:ident: $param_ty:ty)* $(,)?
