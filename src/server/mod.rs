@@ -34,11 +34,10 @@ use axum::{Router, routing};
 use fnv::FnvHashSet;
 use futures::future::{BoxFuture, FutureExt};
 use http::StatusCode;
-use net_literals::addr;
 use serde::Deserialize;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::BTreeMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, RwLock};
 use tokio::net::TcpListener;
 use tracing::Instrument;
@@ -75,7 +74,7 @@ impl Server {
         Self {
             devices: Devices::default(),
             info,
-            listen_addr: addr!("[::]:0"),
+            listen_addr: SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
             discovery_port: DEFAULT_DISCOVERY_PORT,
         }
     }

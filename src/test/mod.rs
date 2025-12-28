@@ -44,11 +44,11 @@ pub(crate) async fn run_proxy_tests<T: ?Sized + crate::api::RetrieavableDevice>(
     use crate::api::CargoServerInfo;
     use crate::client::test::get_simulator_devices;
     use crate::server::test::run_conformu_tests;
-    use net_literals::addr;
+    use std::net::Ipv4Addr;
 
     let proxy = Server {
         devices: get_simulator_devices().await?.clone(),
-        listen_addr: addr!("127.0.0.1:0"),
+        listen_addr: (Ipv4Addr::LOCALHOST, 0).into(),
         ..Server::new(CargoServerInfo!())
     };
 

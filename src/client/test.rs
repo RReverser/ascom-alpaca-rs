@@ -1,13 +1,12 @@
 use crate::{Client, Devices};
-use net_literals::addr;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::process::Stdio;
 use tokio::net::TcpStream;
 use tokio::process::Child;
 use tokio::sync::{Mutex, OnceCell};
 use tokio::time::{Duration, sleep};
 
-const ADDR: SocketAddr = addr!("127.0.0.1:32323");
+const ADDR: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 32323);
 
 struct OmniSim {
     server: Mutex<Child>,

@@ -16,7 +16,6 @@ derive_more = { workspace = true, features = ["debug", "add"] }
 eyre = { workspace = true }
 futures = { workspace = true }
 ndarray = { workspace = true, features = ["rayon"] }
-net-literals = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

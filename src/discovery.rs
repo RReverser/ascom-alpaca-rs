@@ -4,7 +4,6 @@
 pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
 #[cfg(feature = "server")]
 pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
-use net_literals::ipv6;
 use netdev::Interface;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
@@ -13,7 +12,8 @@ use std::net::{Ipv6Addr, SocketAddr};
 use std::os::windows::prelude::AsRawSocket;
 use tokio::net::UdpSocket;
 
-pub(crate) const DISCOVERY_ADDR_V6: Ipv6Addr = ipv6!("ff12::a1:9aca");
+/// `ff12::a1:9aca` as per ASCOM Alpaca specification.
+pub(crate) const DISCOVERY_ADDR_V6: Ipv6Addr = Ipv6Addr::new(0xff12, 0, 0, 0, 0, 0, 0xa1, 0x9aca);
 pub(crate) const DISCOVERY_MSG: &[u8] = b"alpacadiscovery1";
 pub(crate) const DEFAULT_DISCOVERY_PORT: u16 = 32227;
 

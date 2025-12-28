@@ -16,7 +16,6 @@ use async_trait::async_trait;
 use eyre::ContextCompat;
 use futures::future::{BoxFuture, FutureExt, Shared};
 use ndarray::Array3;
-use net_literals::addr;
 use nokhwa::pixel_format::RgbFormat;
 use nokhwa::utils::{
     CameraFormat, CameraInfo, FrameFormat, RequestedFormat, RequestedFormatType, Resolution,
@@ -25,6 +24,7 @@ use nokhwa::{Camera, NokhwaError, nokhwa_initialize};
 use parking_lot::{Mutex, RwLock};
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use tokio::sync::{mpsc, oneshot};
@@ -658,7 +658,7 @@ async fn setup_server() -> eyre::Result<Server> {
     }
 
     let mut server = Server::new(CargoServerInfo!());
-    server.listen_addr = addr!("127.0.0.1:8000");
+    server.listen_addr = (Ipv4Addr::LOCALHOST, 8000).into();
 
     for camera_info in nokhwa::query(nokhwa::utils::ApiBackend::Auto)? {
         if let Ok(webcam) = get_webcam(&camera_info) {
