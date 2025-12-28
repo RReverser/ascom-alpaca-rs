@@ -251,7 +251,7 @@ checksum = "175571dd1d178ced59193a6fc02dde1b972eb0bc56c892cde9beeceac5bf0f6b"
 
 [[package]]
 name = "ascom-alpaca"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "async-fn-stream",
  "async-trait",
