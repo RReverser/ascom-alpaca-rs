@@ -4,8 +4,7 @@ use crate::discovery::{
     get_active_interfaces,
 };
 use futures::StreamExt;
-use netdev::Interface;
-use netdev::interface::InterfaceType;
+use netdev::prelude::{Interface, InterfaceType};
 use socket2::SockRef;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
