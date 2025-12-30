@@ -1,8 +1,5 @@
 {
-  "rust-analyzer.cargo.features": [
-    "all-devices",
-    "__test"
-  ],
+  "rust-analyzer.cargo.features": "all",
   "rust-analyzer.check.workspace": true,
   "rust-analyzer.check.command": "clippy"
 }
