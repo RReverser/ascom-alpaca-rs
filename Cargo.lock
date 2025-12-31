@@ -257,7 +257,6 @@ dependencies = [
  "async-trait",
  "axum",
  "bytemuck",
- "bytes",
  "color-eyre",
  "criterion",
  "ctor",

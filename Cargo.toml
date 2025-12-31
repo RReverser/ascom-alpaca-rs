@@ -37,7 +37,6 @@ bytemuck = { version = "1.24.0", features = [
 	"derive",
 	"extern_crate_std",
 ], optional = true }
-bytes = { version = "1.11.0", optional = true }
 criterion = { version = "0.8.1", optional = true }
 derive_more = { workspace = true, features = [
 	"debug",
@@ -137,7 +136,6 @@ client = [
 	"dep:async-fn-stream",
 	"dep:tracing-futures",
 	"dep:reqwest",
-	"dep:bytes",
 	"dep:mime",
 	"dep:rand",
 ]
