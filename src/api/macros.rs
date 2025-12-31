@@ -129,7 +129,7 @@ macro_rules! rpc_trait {
         /// Unique ID of this device.
         fn unique_id(&self) -> &str;
 
-        /// ```no_run
+        /// ```rust,no_run
         /// async fn setup(&self) -> eyre::Result<String>
         /// # { unimplemented!() }
         /// ```
@@ -363,7 +363,7 @@ macro_rules! rpc_trait {
         #[expect(single_use_lifetimes)]
         $pub trait $trait_name: $trait_parents {
             $(rpc_trait!(@body $default_body
-                /// ```no_run
+                /// ```rust,no_run
                 #[doc = concat!("async fn ", stringify!($method_name), "(&self", $(", ", stringify!($param), ": ", stringify!($param_ty),)* ") -> ASCOMResult<", stringify!($return_type), ">")]
                 /// # { unimplemented!() }
                 /// ```

@@ -3,9 +3,7 @@ This is a Rust implementation of the standard [ASCOM Alpaca API](https://ascom-s
 
 It implements main Alpaca API clients and servers, as well as transparent support for auto-discovery mechanism and `ImageBytes` encoding for camera images.
 
-## Usage
-
-### Compilation features
+## Compilation features
 
 This crate defines two sets of compilation features that help to keep binary size & compilation speed in check by opting into only the features you need.
 
@@ -34,7 +32,9 @@ Once you decided on the features you need, you can add this crate to your `Cargo
 ascom-alpaca = { version = "0.1", features = ["client", "camera"] }
 ```
 
-### Device methods
+ascom-alpaca also provides a `test` feature that enables [testing utilities](crate::test) for both clients and servers. See the corresponding section below for details.
+
+## Device methods
 
 All the device type trait methods are async and correspond to the [ASCOM Alpaca API](https://ascom-standards.org/api/). They all return [`ASCOMResult<...>`](crate::ASCOMResult).
 
@@ -43,11 +43,11 @@ The [`Device`](crate::api::Device) supertrait includes "ASCOM Methods Common To 
 - [`fn static_name(&self) -> &str`](crate::api::Device::static_name): Returns the static device name.
 - [`fn unique_id(&self) -> &str`](crate::api::Device::unique_id): Returns globally-unique device ID.
 
-### Implementing a device server
+## Implementing a device server
 
 Since async traits are not yet natively supported on stable Rust, the traits are implemented using the [async-trait](https://crates.io/crates/async-trait) crate. Other than that, you should implement trait with all the Alpaca methods as usual:
 
-```no_run
+```rust,no_run
 use ascom_alpaca::ASCOMResult;
 use ascom_alpaca::api::{Device, Camera};
 use async_trait::async_trait;
@@ -93,7 +93,7 @@ Any skipped methods will default to the following values:
 
 Once traits are implemented, you can create a server, register your device(s), and start listening:
 
-```no_run
+```rust,no_run
 use ascom_alpaca::Server;
 use ascom_alpaca::api::CargoServerInfo;
 use std::convert::Infallible;
@@ -129,7 +129,40 @@ async fn main() -> eyre::Result<Infallible> {
 
 This will start both the main Alpaca server as well as an auto-discovery responder.
 
-**Examples:**
+### Testing
+
+You can use the [`test::run_conformu_tests`] helper to run the official [ConformU](https://github.com/ASCOMInitiative/ConformU) conformance checker against your server from within your Rust tests.
+
+This helper expects the `conformu` binary to be available in your `PATH` or in the default installation directory on Windows (`C:\Program Files\ASCOM\ConformU`), will launch it automatically and translate the messages into Rust tracing logs.
+
+```rust,no_run
+# use ascom_alpaca::Server;
+# use ascom_alpaca::api::{Camera, CargoServerInfo};
+# async fn test_my_server_conformance() -> eyre::Result<()> {
+# struct MyCamera;
+# impl MyCamera { fn default() -> Self { Self } }
+use ascom_alpaca::test::run_conformu_tests;
+
+let mut server = Server::new(CargoServerInfo!());
+
+// Register your device(s)
+server.devices.register(MyCamera::default());
+
+// Bind to a random port
+let bound_server = server.bind().await?;
+let server_url = format!("http://{}/", bound_server.listen_addr());
+
+tokio::select! {
+    // Start the server in the background. It should never stop first except on an error.
+    result = bound_server.start() => match result? {},
+
+    // Run the conformance tests against it
+    res = run_conformu_tests::<dyn Camera>(server_url, 0) => res,
+}
+# }
+```
+
+### Examples
 
 - [`examples/camera-server.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/camera-server.rs):
   A cross-platform example exposing your connected webcam(s) as Alpaca `Camera`s.
@@ -155,11 +188,11 @@ This will start both the main Alpaca server as well as an auto-discovery respond
 - [`star-adventurer-alpaca`](https://github.com/jsorrell/star-adventurer-alpaca): An implentation of the Alpaca protocol for Star Adventurer trackers.
 - [`qhyccd-alpaca`](https://github.com/ivonnyssen/qhyccd-alpaca): Alpaca driver for QHYCCD cameras and filter wheels written in Rust.
 
-### Accessing devices from a client
+## Accessing devices from a client
 
 If you know address of the device server you want to access, you can access it directly via `Client` struct:
 
-```no_run
+```rust,no_run
 # #[tokio::main]
 # async fn main() -> eyre::Result<()> {
 use ascom_alpaca::Client;
@@ -179,7 +212,7 @@ println!("Devices: {:#?}", client.get_devices().await?.collect::<Vec<_>>());
 
 If you want to discover device servers on the local network, you can do that via the `discovery::DiscoveryClient` struct:
 
-```no_run
+```rust,no_run
 # #[tokio::main]
 # async fn main() -> eyre::Result<()> {
 use ascom_alpaca::discovery::DiscoveryClient;
@@ -209,7 +242,7 @@ bound_client.discover_addrs()
 
 Or, if you just want to list all available devices and don't care about per-server information or errors:
 
-```no_run
+```rust,no_run
 # #[tokio::main]
 # async fn main() -> eyre::Result<()> {
 # use ascom_alpaca::discovery::DiscoveryClient;
@@ -231,7 +264,7 @@ Also, same device server can be discovered multiple times if it's available on m
 While it's not possible to reliably deduplicate servers, you can deduplicate devices by storing them in something like [`HashSet`](::std::collections::HashSet)
 or in the same [`Devices`](crate::api::Devices) struct that is used for registering arbitrary devices on the server:
 
-```no_run
+```rust,no_run
 # #[tokio::main]
 # async fn main() -> eyre::Result<()> {
 use ascom_alpaca::api::{Camera, Devices};
@@ -260,7 +293,30 @@ for camera in devices.iter::<dyn Camera>() {
 # }
 ```
 
-**Examples:**
+### Testing
+
+You can use the [`test::get_simulator_devices`] helper to get a list of simulated test devices, powered by [ASCOM Alpaca Simulators](https://github.com/ASCOMInitiative/ASCOM.Alpaca.Simulators).
+
+This helper expects the `ascom.alpaca.simulators` binary to be available in your `PATH` or in the default installation directory on Windows (`C:\Program Files\ASCOM\OmniSimulator`) and will launch it automatically in background on the first use.
+
+```rust,no_run
+# use ascom_alpaca::api::Camera;
+# async fn test_my_client() -> eyre::Result<()> {
+// This will start the simulator if it's not already running
+// and return a cached list of devices.
+let devices = ascom_alpaca::test::get_simulator_devices().await?;
+
+// You can then find the device you're interested in:
+let camera = devices.iter::<dyn Camera>().next().expect("No camera found");
+
+// And run your tests against it:
+let bayer_x = camera.bayer_offset_x().await?;
+assert_eq!(bayer_x, 0);
+# Ok(())
+# }
+```
+
+### Examples
 
 - [`examples/discover.rs`](https://github.com/RReverser/ascom-alpaca-rs/blob/main/examples/discover.rs):
   A simple discovery example listing all the found servers and devices.
@@ -272,7 +328,7 @@ for camera in devices.iter::<dyn Camera>() {
 
   <img alt="Screenshot of a live view from the simulator camera" src="https://github.com/RReverser/ascom-alpaca-rs/assets/557590/faecb549-dc0c-4f07-902f-7d49429b6458" width="50%" />
 
-### Logging and tracing
+## Logging and tracing
 
 This crate uses [`tracing`](https://crates.io/crates/tracing) framework for logging spans and events, integrating with the Alpaca `ClientID`, `ClientTransactionID` and `ServerTransactionID` fields.
 
@@ -280,15 +336,9 @@ You can enable logging in your app by using any of the [subscriber crates](https
 
 For example, [`tracing_subscriber::fmt`](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/index.html) will log all the events to stderr depending on the `RUST_LOG` environment variable:
 
-```no_run
+```rust,no_run
 tracing_subscriber::fmt::init();
 ```
-
-## Testing
-
-Since this is a library for communicating to networked devices, it should be tested against real devices at a higher level.
-
-In particular, if you're implementing an Alpaca device, make sure to run [ConformU](https://github.com/ASCOMInitiative/ConformU) - ASCOM's official conformance checker - against your device server.
 
 ## License
 
