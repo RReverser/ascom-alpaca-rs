@@ -110,7 +110,6 @@ all-devices = [
 ]
 
 test = ["tokio/process", "dep:dtor", "dep:reqwest"]
-__test = ["client", "server", "test"]
 
 __anydevice = []
 camera = [
