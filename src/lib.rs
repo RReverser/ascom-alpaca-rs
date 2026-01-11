@@ -347,7 +347,7 @@ Licensed under either of
 - Apache License, Version 2.0 ([LICENSE-APACHE-2.0](LICENSE-APACHE-2.0))
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 */
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(not(feature = "__anydevice"))]
 compile_error!(
