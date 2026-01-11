@@ -28,6 +28,23 @@ use tokio::time::{Duration, sleep};
 
 type ChildTask = tokio_util::task::AbortOnDropHandle<State>;
 
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
+struct SliderDuration(Duration);
+
+impl eframe::emath::Numeric for SliderDuration {
+    const INTEGRAL: bool = false;
+    const MIN: Self = Self(Duration::ZERO);
+    const MAX: Self = Self(Duration::MAX);
+
+    fn to_f64(self) -> f64 {
+        self.0.as_secs_f64()
+    }
+
+    fn from_f64(num: f64) -> Self {
+        Self(Duration::try_from_secs_f64(num).unwrap_or_default())
+    }
+}
+
 enum State {
     Init,
     Discovering(ChildTask),
@@ -38,7 +55,7 @@ enum State {
         rx: mpsc::Receiver<Result<ColorImage>>,
         frame_num: u32,
         img: Option<TextureHandle>,
-        exposure_range_sec: RangeInclusive<f64>,
+        exposure_range: RangeInclusive<SliderDuration>,
         gain_mode: Option<GainMode>,
         params_tx: watch::Sender<CaptureParams>,
         image_loop: JoinHandle<()>, /* not `ChildTask` because it has its own cancellation mechanism */
@@ -169,7 +186,7 @@ impl StateCtx {
                         )?;
                         let (tx, rx) = mpsc::channel(1);
                         let (params_tx, params_rx) = watch::channel(CaptureParams {
-                            duration_sec: 0.05,
+                            duration: SliderDuration(Duration::from_millis(50)),
                             gain,
                             dynamic_stretch: true
                         });
@@ -194,8 +211,8 @@ impl StateCtx {
                             frame_num: 0,
                             rx,
                             img: None,
-                            exposure_range_sec: exposure_range.start().as_secs_f64()
-                                ..=exposure_range.end().as_secs_f64(),
+                            exposure_range: SliderDuration(*exposure_range.start())
+                                ..=SliderDuration(*exposure_range.end())
                         })
                     });
                 }
@@ -215,7 +232,7 @@ impl StateCtx {
                 camera_name,
                 rx,
                 img,
-                exposure_range_sec: exposure_range,
+                exposure_range,
                 image_loop,
                 frame_num,
             } => {
@@ -224,7 +241,7 @@ impl StateCtx {
                 params_tx.send_if_modified(|params| {
                     let exposure_changed = ui
                         .add(
-                            Slider::new(&mut params.duration_sec, exposure_range.clone())
+                            Slider::new(&mut params.duration, exposure_range.clone())
                                 .logarithmic(true)
                                 .text("Exposure (sec)"),
                         )
@@ -283,7 +300,7 @@ impl StateCtx {
 
 #[derive(Clone, Copy)]
 struct CaptureParams {
-    duration_sec: f64,
+    duration: SliderDuration,
     gain: i32,
     dynamic_stretch: bool,
 }
@@ -349,10 +366,8 @@ impl CaptureState {
 
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, eyre::Error> {
         let params = *self.params_rx.borrow();
-        self.camera
-            .start_exposure(Duration::from_secs_f64(params.duration_sec), true)
-            .await?;
-        sleep(Duration::from_secs_f64(params.duration_sec)).await;
+        self.camera.start_exposure(params.duration.0, true).await?;
+        sleep(params.duration.0).await;
         while !self.camera.image_ready().await? {
             sleep(Duration::from_millis(100)).await;
         }
