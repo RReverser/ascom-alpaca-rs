@@ -60,13 +60,13 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the width of the CCD camera chip in unbinned pixels.
     #[http("cameraxsize", method = Get)]
-    async fn camera_xsize(&self) -> ASCOMResult<i32> {
+    async fn camera_x_size(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the height of the CCD camera chip in unbinned pixels.
     #[http("cameraysize", method = Get)]
-    async fn camera_ysize(&self) -> ASCOMResult<i32> {
+    async fn camera_y_size(&self) -> ASCOMResult<i32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -479,7 +479,7 @@ convenience_props!(Camera {
     bin(bin_x, bin_y): [i32; 2],
 
     /// Returns the width and height of the CCD camera chip in unbinned pixels.
-    camera_size(camera_xsize, camera_ysize): [i32; 2],
+    camera_size(camera_x_size, camera_y_size): [i32; 2],
 
     /// Returns the exposure time range in seconds supported by StartExposure.
     exposure_range(exposure_min, exposure_max): RangeInclusive<f64>,

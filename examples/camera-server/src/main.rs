@@ -343,11 +343,11 @@ impl AlpacaCamera for Webcam {
         Ok(u16::MAX.into())
     }
 
-    async fn camera_xsize(&self) -> ASCOMResult<i32> {
+    async fn camera_x_size(&self) -> ASCOMResult<i32> {
         Ok(self.max_format.width() as i32)
     }
 
-    async fn camera_ysize(&self) -> ASCOMResult<i32> {
+    async fn camera_y_size(&self) -> ASCOMResult<i32> {
         Ok(self.max_format.height() as i32)
     }
 
