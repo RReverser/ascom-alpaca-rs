@@ -5,8 +5,7 @@
     clippy::cast_sign_loss,
     clippy::cast_possible_wrap,
     clippy::unwrap_used,
-    clippy::default_numeric_fallback,
-    clippy::too_many_lines
+    clippy::default_numeric_fallback
 )]
 
 use ascom_alpaca::api::camera::{CameraState, ImageArray, SensorType};
@@ -26,7 +25,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
@@ -109,7 +108,7 @@ enum ExposingState {
     },
     Exposing {
         start: Instant,
-        expected_duration: f64,
+        expected_duration: Duration,
         stop_tx: Option<oneshot::Sender<StopExposure>>,
         done: Shared<BoxFuture<'static, bool>>,
     },
@@ -125,7 +124,7 @@ struct Webcam {
     #[debug(skip)]
     exposing: Arc<RwLock<ExposingState>>,
     last_exposure_start_time: RwLock<Option<SystemTime>>,
-    last_exposure_duration: Arc<RwLock<Option<f64>>>,
+    last_exposure_duration: Arc<RwLock<Option<Duration>>>,
     valid_bins: Vec<i32>,
 }
 
@@ -291,16 +290,18 @@ impl AlpacaCamera for Webcam {
         Ok(1.)
     }
 
-    async fn exposure_max(&self) -> ASCOMResult<f64> {
-        Ok(self.exposure_resolution().await? * f64::from(u8::MAX))
+    async fn exposure_max(&self) -> ASCOMResult<Duration> {
+        Ok(Duration::from_secs(10))
     }
 
-    async fn exposure_min(&self) -> ASCOMResult<f64> {
+    async fn exposure_min(&self) -> ASCOMResult<Duration> {
         self.exposure_resolution().await
     }
 
-    async fn exposure_resolution(&self) -> ASCOMResult<f64> {
-        Ok(1. / f64::from(self.max_format.frame_rate()))
+    async fn exposure_resolution(&self) -> ASCOMResult<Duration> {
+        Ok(Duration::from_secs_f64(
+            1. / f64::from(self.max_format.frame_rate()),
+        ))
     }
 
     async fn full_well_capacity(&self) -> ASCOMResult<f64> {
@@ -333,7 +334,7 @@ impl AlpacaCamera for Webcam {
             .ok_or(ASCOMError::INVALID_OPERATION)
     }
 
-    async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
+    async fn last_exposure_duration(&self) -> ASCOMResult<Duration> {
         self.last_exposure_duration
             .read()
             .ok_or(ASCOMError::INVALID_OPERATION)
@@ -395,7 +396,7 @@ impl AlpacaCamera for Webcam {
                 start,
                 expected_duration,
                 ..
-            } => Ok((100. * start.elapsed().as_secs_f64() / expected_duration) as i32),
+            } => Ok((start.elapsed().div_duration_f64(*expected_duration) * 100.) as i32),
         }
     }
 
@@ -419,10 +420,7 @@ impl AlpacaCamera for Webcam {
         Ok(SensorType::Color)
     }
 
-    async fn start_exposure(&self, duration: f64, _light: bool) -> ASCOMResult {
-        if duration < 0. {
-            return Err(ASCOMError::invalid_value("Duration must be non-negative"));
-        }
+    async fn start_exposure(&self, duration: Duration, _light: bool) -> ASCOMResult {
         let exposing_state = Arc::clone(&self.exposing);
         let mut exposing_state_lock = exposing_state.write_arc();
         let camera = match &*exposing_state_lock {
@@ -476,7 +474,7 @@ impl AlpacaCamera for Webcam {
             loop {
                 let frame_res = camera_lock.frame();
                 let failed = frame_res.is_err();
-                let total_duration = start.elapsed().as_secs_f64();
+                let total_duration = start.elapsed();
                 if frames_tx.send(frame_res).is_err() || failed || total_duration >= duration {
                     // Receiver was dropped due to stop_exposure or abort_exposure or retrieving frame failed.
                     // Either way, stop exposing.

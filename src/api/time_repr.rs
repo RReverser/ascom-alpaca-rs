@@ -2,9 +2,8 @@ pub(super) use time::format_description::well_known::Iso8601;
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::time::SystemTime;
-use time::macros::format_description;
-use time::{OffsetDateTime, format_description};
+use std::time::{Duration, SystemTime};
+use time::OffsetDateTime;
 
 pub(super) trait FormatWrapper: Debug {
     type Format: 'static + ?Sized;
@@ -16,17 +15,6 @@ impl FormatWrapper for Iso8601 {
     type Format = Self;
 
     const FORMAT: &'static Self = &Self::DEFAULT;
-}
-
-#[derive(Debug)]
-pub(super) struct Fits;
-
-impl FormatWrapper for Fits {
-    type Format = [format_description::BorrowedFormatItem<'static>];
-
-    const FORMAT: &'static Self::Format = format_description!(
-        "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond digits:3]]]"
-    );
 }
 
 #[derive(Debug)]
@@ -86,5 +74,27 @@ where
         }
 
         deserializer.deserialize_str(Visitor(PhantomData))
+    }
+}
+
+/// A wrapper for serializing and deserializing `Duration` as `f64` milliseconds.
+#[derive(derive_more::From, derive_more::Into)]
+pub(super) struct DurationInMs(Duration);
+
+#[cfg(feature = "client")]
+impl serde::Serialize for DurationInMs {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        // TODO: switch to as_millis_f64 when stabilized.
+        (self.0.as_secs_f64() * 1000.0).serialize(serializer)
+    }
+}
+
+#[cfg(feature = "server")]
+impl<'de> serde::Deserialize<'de> for DurationInMs {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let ms = f64::deserialize(deserializer)?;
+        Ok(Self(
+            Duration::try_from_secs_f64(ms / 1000.0).map_err(serde::de::Error::custom)?,
+        ))
     }
 }

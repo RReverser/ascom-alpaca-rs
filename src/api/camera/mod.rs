@@ -4,14 +4,18 @@ pub use image_array::*;
 pub use super::camera_telescope_shared::GuideDirection;
 
 use super::Device;
-use super::time_repr::{Fits, TimeRepr};
+#[cfg(feature = "server")]
+use super::time_repr::DurationInMs;
+use super::time_repr::{FormatWrapper, TimeRepr};
 use crate::{ASCOMError, ASCOMResult};
 use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 #[cfg(feature = "client")]
 use std::ops::RangeInclusive;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
+use time::format_description;
+use time::macros::format_description;
 
 /// Camera Specific Methods.
 #[apply(rpc_trait)]
@@ -145,16 +149,16 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Returns the maximum exposure time in seconds supported by StartExposure.
-    #[http("exposuremax", method = Get)]
-    async fn exposure_max(&self) -> ASCOMResult<f64>;
+    #[http("exposuremax", method = Get, via = DurationInSec)]
+    async fn exposure_max(&self) -> ASCOMResult<Duration>;
 
     /// Returns the minimium exposure time in seconds supported by StartExposure.
-    #[http("exposuremin", method = Get)]
-    async fn exposure_min(&self) -> ASCOMResult<f64>;
+    #[http("exposuremin", method = Get, via = DurationInSec)]
+    async fn exposure_min(&self) -> ASCOMResult<Duration>;
 
     /// Returns the smallest increment in exposure time supported by StartExposure.
-    #[http("exposureresolution", method = Get)]
-    async fn exposure_resolution(&self) -> ASCOMResult<f64>;
+    #[http("exposureresolution", method = Get, via = DurationInSec)]
+    async fn exposure_resolution(&self) -> ASCOMResult<Duration>;
 
     /// Returns whenther Fast Readout Mode is enabled.
     #[http("fastreadout", method = Get)]
@@ -234,9 +238,9 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Reports the actual exposure duration in seconds (i.e. shutter open time).
-    #[http("lastexposureduration", method = Get)]
-    async fn last_exposure_duration(&self) -> ASCOMResult<f64> {
+    /// Reports the actual exposure duration (i.e. shutter open time).
+    #[http("lastexposureduration", method = Get, via = DurationInSec)]
+    async fn last_exposure_duration(&self) -> ASCOMResult<Duration> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -433,7 +437,7 @@ pub trait Camera: Device + Send + Sync {
 
         #[http("Direction")] direction: GuideDirection,
 
-        #[http("Duration")] duration: i32,
+        #[http("Duration", via = DurationInMs)] duration: Duration,
     ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -445,7 +449,7 @@ pub trait Camera: Device + Send + Sync {
     async fn start_exposure(
         &self,
 
-        #[http("Duration")] duration: f64,
+        #[http("Duration", via = DurationInSec)] duration: Duration,
 
         #[http("Light")] light: bool,
     ) -> ASCOMResult<()>;
@@ -482,7 +486,7 @@ convenience_props!(Camera {
     camera_size(camera_x_size, camera_y_size): [i32; 2],
 
     /// Returns the exposure time range in seconds supported by StartExposure.
-    exposure_range(exposure_min, exposure_max): RangeInclusive<f64>,
+    exposure_range(exposure_min, exposure_max): RangeInclusive<Duration>,
 
     /// Returns the supported gain range.
     gain_range(gain_min, gain_max): RangeInclusive<i32>,
@@ -610,4 +614,34 @@ pub enum SensorType {
 
     /// Single-plane Bayer matrix LRGB sensor.
     LRGB = 5,
+}
+
+#[derive(Debug)]
+pub(super) struct Fits;
+
+impl FormatWrapper for Fits {
+    type Format = [format_description::BorrowedFormatItem<'static>];
+
+    const FORMAT: &'static Self::Format = format_description!(
+        "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond digits:3]]]"
+    );
+}
+
+/// A wrapper for serializing and deserializing `Duration` as `f64` seconds.
+#[derive(derive_more::From, derive_more::Into)]
+pub(super) struct DurationInSec(Duration);
+
+impl serde::Serialize for DurationInSec {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.as_secs_f64().serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for DurationInSec {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let seconds = f64::deserialize(deserializer)?;
+        Ok(Self(
+            Duration::try_from_secs_f64(seconds).map_err(serde::de::Error::custom)?,
+        ))
+    }
 }

@@ -1,6 +1,8 @@
 pub use super::camera_telescope_shared::GuideDirection;
 
 use super::Device;
+#[cfg(feature = "server")]
+use super::time_repr::DurationInMs;
 use super::time_repr::{Iso8601, TimeRepr};
 #[cfg(feature = "client")]
 use crate::api::macros::ConvertConvenienceProp;
@@ -10,7 +12,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::ops::RangeInclusive;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 /// Telescope Specific Methods.
 #[apply(rpc_trait)]
@@ -337,18 +339,18 @@ pub trait Telescope: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the post-slew settling time (sec.).
-    #[http("slewsettletime", method = Get)]
-    async fn slew_settle_time(&self) -> ASCOMResult<i32> {
+    /// Returns the post-slew settling time.
+    #[http("slewsettletime", method = Get, via = DurationInSecInt)]
+    async fn slew_settle_time(&self) -> ASCOMResult<Duration> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Sets the  post-slew settling time (integer sec.).
+    /// Sets the post-slew settling time.
     #[http("slewsettletime", method = Put)]
     async fn set_slew_settle_time(
         &self,
 
-        #[http("SlewSettleTime")] slew_settle_time: i32,
+        #[http("SlewSettleTime", via = DurationInSecInt)] slew_settle_time: Duration,
     ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -491,7 +493,7 @@ pub trait Telescope: Device + Send + Sync {
 
         #[http("Direction")] direction: GuideDirection,
 
-        #[http("Duration")] duration: i32,
+        #[http("Duration", via = DurationInMs)] duration: Duration,
     ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
@@ -878,4 +880,21 @@ pub enum TelescopeAxis {
 
     /// Tertiary axis (e.g. imager rotator/de-rotator).
     Tertiary = 2,
+}
+
+/// A wrapper for serializing and deserializing `Duration` as integer seconds.
+#[derive(derive_more::From, derive_more::Into)]
+pub(super) struct DurationInSecInt(Duration);
+
+impl Serialize for DurationInSecInt {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.as_secs().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for DurationInSecInt {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let seconds = u64::deserialize(deserializer)?;
+        Ok(Self(Duration::from_secs(seconds)))
+    }
 }

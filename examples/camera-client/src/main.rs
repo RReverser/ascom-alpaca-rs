@@ -38,7 +38,7 @@ enum State {
         rx: mpsc::Receiver<Result<ColorImage>>,
         frame_num: u32,
         img: Option<TextureHandle>,
-        exposure_range: RangeInclusive<f64>,
+        exposure_range_sec: RangeInclusive<f64>,
         gain_mode: Option<GainMode>,
         params_tx: watch::Sender<CaptureParams>,
         image_loop: JoinHandle<()>, /* not `ChildTask` because it has its own cancellation mechanism */
@@ -194,7 +194,8 @@ impl StateCtx {
                             frame_num: 0,
                             rx,
                             img: None,
-                            exposure_range,
+                            exposure_range_sec: exposure_range.start().as_secs_f64()
+                                ..=exposure_range.end().as_secs_f64(),
                         })
                     });
                 }
@@ -214,7 +215,7 @@ impl StateCtx {
                 camera_name,
                 rx,
                 img,
-                exposure_range,
+                exposure_range_sec: exposure_range,
                 image_loop,
                 frame_num,
             } => {
@@ -349,7 +350,7 @@ impl CaptureState {
     async fn capture_image_without_cancellation(&self) -> Result<ColorImage, eyre::Error> {
         let params = *self.params_rx.borrow();
         self.camera
-            .start_exposure(params.duration_sec, true)
+            .start_exposure(Duration::from_secs_f64(params.duration_sec), true)
             .await?;
         sleep(Duration::from_secs_f64(params.duration_sec)).await;
         while !self.camera.image_ready().await? {

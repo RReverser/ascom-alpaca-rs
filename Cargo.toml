@@ -43,6 +43,8 @@ derive_more = { workspace = true, features = [
 	"deref",
 	"deref_mut",
 	"display",
+	"from",
+	"into",
 ] }
 dtor = { version = "0.1.1", optional = true }
 netdev = { version = "0.40.0" }
@@ -137,6 +139,7 @@ client = [
 	"dep:reqwest",
 	"dep:mime",
 	"dep:rand",
+	"tokio/macros",
 ]
 server = [
 	"__anynetwork",

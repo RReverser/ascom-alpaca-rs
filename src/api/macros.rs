@@ -305,6 +305,7 @@ macro_rules! rpc_trait {
                     )*
                 },
             )*
+            #[allow(dead_code)]
             DeviceState,
         }
 
