@@ -17,11 +17,11 @@ pub trait Focuser: Device + Send + Sync {
 
     /// Maximum increment size allowed by the focuser; i.e. the maximum number of steps allowed in one move operation.
     #[http("maxincrement", method = Get)]
-    async fn max_increment(&self) -> ASCOMResult<i32>;
+    async fn max_increment(&self) -> ASCOMResult<u32>;
 
     /// Maximum step position permitted.
     #[http("maxstep", method = Get)]
-    async fn max_step(&self) -> ASCOMResult<i32>;
+    async fn max_step(&self) -> ASCOMResult<u32>;
 
     /// Current focuser position, in steps.
     #[http("position", method = Get, device_state = "Position")]
@@ -69,7 +69,7 @@ pub trait Focuser: Device + Send + Sync {
     ///
     /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
     #[http("interfaceversion", method = Get)]
-    async fn interface_version(&self) -> ASCOMResult<i32> {
-        Ok(4_i32)
+    async fn interface_version(&self) -> ASCOMResult<u16> {
+        Ok(4)
     }
 }

@@ -9,13 +9,13 @@ pub trait Switch: Device + Send + Sync {
     ///
     /// Devices are numbered from 0 to MaxSwitch - 1.
     #[http("maxswitch", method = Get)]
-    async fn max_switch(&self) -> ASCOMResult<i32>;
+    async fn max_switch(&self) -> ASCOMResult<usize>;
 
     /// This endpoint must be implemented and indicates whether the given switch can operate asynchronously.
     ///
     /// _ISwitchV3 and later._
     #[http("canasync", method = Get)]
-    async fn can_async(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
+    async fn can_async(&self, #[http("Id")] id: usize) -> ASCOMResult<bool> {
         Ok(false)
     }
 
@@ -23,43 +23,43 @@ pub trait Switch: Device + Send + Sync {
     ///
     /// This is false if the device cannot be written to, for example a limit switch or a sensor.  Devices are numbered from 0 to MaxSwitch - 1.
     #[http("canwrite", method = Get)]
-    async fn can_write(&self, #[http("Id")] id: i32) -> ASCOMResult<bool> {
+    async fn can_write(&self, #[http("Id")] id: usize) -> ASCOMResult<bool> {
         Ok(false)
     }
 
     /// Return the state of switch device id as a boolean.  Devices are numbered from 0 to MaxSwitch - 1.
     #[http("getswitch", method = Get)]
-    async fn get_switch(&self, #[http("Id")] id: i32) -> ASCOMResult<bool>;
+    async fn get_switch(&self, #[http("Id")] id: usize) -> ASCOMResult<bool>;
 
     /// Gets the description of the specified switch device.
     ///
     /// This is to allow a fuller description of the device to be returned, for example for a tool tip. Devices are numbered from 0 to MaxSwitch - 1.
     #[http("getswitchdescription", method = Get)]
-    async fn get_switch_description(&self, #[http("Id")] id: i32) -> ASCOMResult<String>;
+    async fn get_switch_description(&self, #[http("Id")] id: usize) -> ASCOMResult<String>;
 
     /// Gets the name of the specified switch device.
     ///
     /// Devices are numbered from 0 to MaxSwitch - 1.
     #[http("getswitchname", method = Get)]
-    async fn get_switch_name(&self, #[http("Id")] id: i32) -> ASCOMResult<String>;
+    async fn get_switch_name(&self, #[http("Id")] id: usize) -> ASCOMResult<String>;
 
     /// Gets the value of the specified switch device as a double.
     ///
     /// Devices are numbered from 0 to MaxSwitch - 1, The value of this switch is expected to be between MinSwitchValue and MaxSwitchValue.
     #[http("getswitchvalue", method = Get)]
-    async fn get_switch_value(&self, #[http("Id")] id: i32) -> ASCOMResult<f64>;
+    async fn get_switch_value(&self, #[http("Id")] id: usize) -> ASCOMResult<f64>;
 
     /// Gets the minimum value of the specified switch device as a double.
     ///
     /// Devices are numbered from 0 to MaxSwitch - 1.
     #[http("minswitchvalue", method = Get)]
-    async fn min_switch_value(&self, #[http("Id")] id: i32) -> ASCOMResult<f64>;
+    async fn min_switch_value(&self, #[http("Id")] id: usize) -> ASCOMResult<f64>;
 
     /// Gets the maximum value of the specified switch device as a double.
     ///
     /// Devices are numbered from 0 to MaxSwitch - 1.
     #[http("maxswitchvalue", method = Get)]
-    async fn max_switch_value(&self, #[http("Id")] id: i32) -> ASCOMResult<f64>;
+    async fn max_switch_value(&self, #[http("Id")] id: usize) -> ASCOMResult<f64>;
 
     /// This is an asynchronous method that must return as soon as the state change operation has been successfully started,  with StateChangeComplete(Int16) for the given switch Id = False.  After the state change has completed StateChangeComplete(Int16) becomes True.
     ///
@@ -67,7 +67,7 @@ pub trait Switch: Device + Send + Sync {
     #[http("setasync", method = Put)]
     async fn set_async(
         &self,
-        #[http("Id")] id: i32,
+        #[http("Id")] id: usize,
         #[http("State")] state: bool,
     ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -80,7 +80,7 @@ pub trait Switch: Device + Send + Sync {
     async fn set_async_value(
         &self,
 
-        #[http("Id")] id: i32,
+        #[http("Id")] id: usize,
 
         #[http("Value")] value: f64,
     ) -> ASCOMResult<()> {
@@ -91,7 +91,7 @@ pub trait Switch: Device + Send + Sync {
     #[http("setswitch", method = Put)]
     async fn set_switch(
         &self,
-        #[http("Id")] id: i32,
+        #[http("Id")] id: usize,
         #[http("State")] state: bool,
     ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -102,7 +102,7 @@ pub trait Switch: Device + Send + Sync {
     async fn set_switch_name(
         &self,
 
-        #[http("Id")] id: i32,
+        #[http("Id")] id: usize,
 
         #[http("Name")] name: String,
     ) -> ASCOMResult<()> {
@@ -114,7 +114,7 @@ pub trait Switch: Device + Send + Sync {
     async fn set_switch_value(
         &self,
 
-        #[http("Id")] id: i32,
+        #[http("Id")] id: usize,
 
         #[http("Value")] value: f64,
     ) -> ASCOMResult<()> {
@@ -125,20 +125,20 @@ pub trait Switch: Device + Send + Sync {
     ///
     /// _ISwitchV3 and later._
     #[http("statechangecomplete", method = Get)]
-    async fn state_change_complete(&self, #[http("Id")] id: i32) -> ASCOMResult<bool>;
+    async fn state_change_complete(&self, #[http("Id")] id: usize) -> ASCOMResult<bool>;
 
     /// Returns the step size that this device supports (the difference between successive values of the device).
     ///
     /// Devices are numbered from 0 to MaxSwitch - 1.
     #[http("switchstep", method = Get)]
-    async fn switch_step(&self, #[http("Id")] id: i32) -> ASCOMResult<f64>;
+    async fn switch_step(&self, #[http("Id")] id: usize) -> ASCOMResult<f64>;
 
     /// This method returns the version of the ASCOM device interface contract to which this device complies.
     ///
     /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
     #[http("interfaceversion", method = Get)]
-    async fn interface_version(&self) -> ASCOMResult<i32> {
-        Ok(3_i32)
+    async fn interface_version(&self) -> ASCOMResult<u16> {
+        Ok(3)
     }
 }
 
@@ -154,7 +154,7 @@ pub struct SwitchDeviceState {
 }
 
 impl SwitchDeviceState {
-    async fn new(switch: &(impl ?Sized + Switch), id: i32) -> Self {
+    async fn new(switch: &(impl ?Sized + Switch), id: usize) -> Self {
         Self {
             get_switch: switch.get_switch(id).await.ok(),
             get_switch_value: switch.get_switch_value(id).await.ok(),
@@ -175,10 +175,8 @@ impl DeviceState {
         Self {
             switch_devices: match switch.max_switch().await {
                 Ok(n) => {
-                    futures::future::join_all(
-                        (0_i32..n).map(|id| SwitchDeviceState::new(switch, id)),
-                    )
-                    .await
+                    futures::future::join_all((0..n).map(|id| SwitchDeviceState::new(switch, id)))
+                        .await
                 }
                 Err(err) => {
                     tracing::error!(%err, "Failed to get max switch");

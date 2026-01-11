@@ -15,11 +15,11 @@ pub trait FilterWheel: Device + Send + Sync {
 
     /// Returns the current filter wheel position.
     #[http("position", method = Get, device_state = "Position")]
-    async fn position(&self) -> ASCOMResult<i32>;
+    async fn position(&self) -> ASCOMResult<usize>;
 
     /// Sets the filter wheel position.
     #[http("position", method = Put)]
-    async fn set_position(&self, #[http("Position")] position: i32) -> ASCOMResult<()> {
+    async fn set_position(&self, #[http("Position")] position: usize) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -27,7 +27,7 @@ pub trait FilterWheel: Device + Send + Sync {
     ///
     /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
     #[http("interfaceversion", method = Get)]
-    async fn interface_version(&self) -> ASCOMResult<i32> {
-        Ok(3_i32)
+    async fn interface_version(&self) -> ASCOMResult<u16> {
+        Ok(3)
     }
 }

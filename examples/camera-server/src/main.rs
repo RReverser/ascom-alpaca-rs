@@ -41,19 +41,13 @@ const ERR_EXPOSING_STATE_CHANGED_UNEXPECTEDLY: ASCOMError = ASCOMError {
     ),
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-struct Point {
-    x: i32,
-    y: i32,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, derive_more::Add)]
+struct Vec2<T> {
+    x: T,
+    y: T,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Size {
-    x: i32,
-    y: i32,
-}
-
-impl From<Resolution> for Size {
+impl From<Resolution> for Vec2<u32> {
     fn from(resolution: Resolution) -> Self {
         Self {
             x: resolution.width() as _,
@@ -62,19 +56,8 @@ impl From<Resolution> for Size {
     }
 }
 
-impl std::ops::Add<Size> for Point {
-    type Output = Self;
-
-    fn add(self, size: Size) -> Self::Output {
-        Self {
-            x: self.x + size.x,
-            y: self.y + size.y,
-        }
-    }
-}
-
 // Define comparison as "is this point more bottom-right than the other?".
-impl Ord for Point {
+impl<T: Ord> Ord for Vec2<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self.x.cmp(&other.x), self.y.cmp(&other.y)) {
             (Ordering::Less, _) | (_, Ordering::Less) => Ordering::Less,
@@ -84,7 +67,7 @@ impl Ord for Point {
     }
 }
 
-impl PartialOrd for Point {
+impl<T: Ord> PartialOrd for Vec2<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -92,9 +75,9 @@ impl PartialOrd for Point {
 
 #[derive(Debug, Clone)]
 struct Subframe {
-    bin: Size,
-    offset: Point,
-    size: Size,
+    bin: Vec2<u8>,
+    offset: Vec2<u32>,
+    size: Vec2<u32>,
 }
 
 struct StopExposure {
@@ -125,7 +108,7 @@ struct Webcam {
     exposing: Arc<RwLock<ExposingState>>,
     last_exposure_start_time: RwLock<Option<SystemTime>>,
     last_exposure_duration: Arc<RwLock<Option<Duration>>>,
-    valid_bins: Vec<i32>,
+    valid_bins: Vec<u8>,
 }
 
 fn convert_err(nokhwa: NokhwaError) -> ASCOMError {
@@ -225,11 +208,11 @@ impl Device for Webcam {
 
 #[async_trait]
 impl AlpacaCamera for Webcam {
-    async fn bayer_offset_x(&self) -> ASCOMResult<i32> {
+    async fn bayer_offset_x(&self) -> ASCOMResult<u8> {
         Ok(0)
     }
 
-    async fn bayer_offset_y(&self) -> ASCOMResult<i32> {
+    async fn bayer_offset_y(&self) -> ASCOMResult<u8> {
         Ok(0)
     }
 
@@ -245,11 +228,11 @@ impl AlpacaCamera for Webcam {
         Ok(String::default())
     }
 
-    async fn bin_x(&self) -> ASCOMResult<i32> {
+    async fn bin_x(&self) -> ASCOMResult<u8> {
         Ok(self.subframe.read().bin.x)
     }
 
-    async fn set_bin_x(&self, bin_x: i32) -> ASCOMResult {
+    async fn set_bin_x(&self, bin_x: u8) -> ASCOMResult {
         if self.valid_bins.contains(&bin_x) {
             self.subframe.write().bin.x = bin_x;
             Ok(())
@@ -258,11 +241,11 @@ impl AlpacaCamera for Webcam {
         }
     }
 
-    async fn bin_y(&self) -> ASCOMResult<i32> {
+    async fn bin_y(&self) -> ASCOMResult<u8> {
         Ok(self.subframe.read().bin.x)
     }
 
-    async fn set_bin_y(&self, bin_y: i32) -> ASCOMResult {
+    async fn set_bin_y(&self, bin_y: u8) -> ASCOMResult {
         if self.valid_bins.contains(&bin_y) {
             self.subframe.write().bin.y = bin_y;
             Ok(())
@@ -271,11 +254,11 @@ impl AlpacaCamera for Webcam {
         }
     }
 
-    async fn max_bin_x(&self) -> ASCOMResult<i32> {
+    async fn max_bin_x(&self) -> ASCOMResult<u8> {
         Ok(*self.valid_bins.last().unwrap())
     }
 
-    async fn max_bin_y(&self) -> ASCOMResult<i32> {
+    async fn max_bin_y(&self) -> ASCOMResult<u8> {
         Ok(*self.valid_bins.last().unwrap())
     }
 
@@ -344,67 +327,67 @@ impl AlpacaCamera for Webcam {
         Ok(u16::MAX.into())
     }
 
-    async fn camera_x_size(&self) -> ASCOMResult<i32> {
-        Ok(self.max_format.width() as i32)
+    async fn camera_x_size(&self) -> ASCOMResult<u32> {
+        Ok(self.max_format.width())
     }
 
-    async fn camera_y_size(&self) -> ASCOMResult<i32> {
-        Ok(self.max_format.height() as i32)
+    async fn camera_y_size(&self) -> ASCOMResult<u32> {
+        Ok(self.max_format.height())
     }
 
-    async fn start_x(&self) -> ASCOMResult<i32> {
+    async fn start_x(&self) -> ASCOMResult<u32> {
         Ok(self.subframe.read().offset.x)
     }
 
-    async fn set_start_x(&self, start_x: i32) -> ASCOMResult {
+    async fn set_start_x(&self, start_x: u32) -> ASCOMResult {
         self.subframe.write().offset.x = start_x;
         Ok(())
     }
 
-    async fn start_y(&self) -> ASCOMResult<i32> {
+    async fn start_y(&self) -> ASCOMResult<u32> {
         Ok(self.subframe.read().offset.y)
     }
 
-    async fn set_start_y(&self, start_y: i32) -> ASCOMResult {
+    async fn set_start_y(&self, start_y: u32) -> ASCOMResult {
         self.subframe.write().offset.y = start_y;
         Ok(())
     }
 
-    async fn num_x(&self) -> ASCOMResult<i32> {
+    async fn num_x(&self) -> ASCOMResult<u32> {
         Ok(self.subframe.read().size.x)
     }
 
-    async fn set_num_x(&self, num_x: i32) -> ASCOMResult {
+    async fn set_num_x(&self, num_x: u32) -> ASCOMResult {
         self.subframe.write().size.x = num_x;
         Ok(())
     }
 
-    async fn num_y(&self) -> ASCOMResult<i32> {
+    async fn num_y(&self) -> ASCOMResult<u32> {
         Ok(self.subframe.read().size.y)
     }
 
-    async fn set_num_y(&self, num_y: i32) -> ASCOMResult {
+    async fn set_num_y(&self, num_y: u32) -> ASCOMResult {
         self.subframe.write().size.y = num_y;
         Ok(())
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    async fn percent_completed(&self) -> ASCOMResult<i32> {
+    async fn percent_completed(&self) -> ASCOMResult<u8> {
         match &*self.exposing.read() {
             ExposingState::Idle { .. } => Ok(100),
             ExposingState::Exposing {
                 start,
                 expected_duration,
                 ..
-            } => Ok((start.elapsed().div_duration_f64(*expected_duration) * 100.) as i32),
+            } => Ok((start.elapsed().div_duration_f64(*expected_duration) * 100.) as u8),
         }
     }
 
-    async fn readout_mode(&self) -> ASCOMResult<i32> {
+    async fn readout_mode(&self) -> ASCOMResult<usize> {
         Ok(0)
     }
 
-    async fn set_readout_mode(&self, readout_mode: i32) -> ASCOMResult {
+    async fn set_readout_mode(&self, readout_mode: usize) -> ASCOMResult {
         if readout_mode == 0 {
             Ok(())
         } else {
@@ -436,12 +419,10 @@ impl AlpacaCamera for Webcam {
         }
         let mut camera_lock = camera.lock_arc();
         let mut resolution = self.max_format.resolution();
-        resolution.width_x /= subframe.bin.x as u32;
-        resolution.height_y /= subframe.bin.y as u32;
-        let size = Size::from(resolution);
-        if subframe.offset < Point::default()
-            || subframe.offset + subframe.size > Point::default() + size
-        {
+        resolution.width_x /= u32::from(subframe.bin.x);
+        resolution.height_y /= u32::from(subframe.bin.y);
+        let size = Vec2::from(resolution);
+        if subframe.offset + subframe.size > size {
             return Err(ASCOMError::invalid_value("Subframe is out of bounds"));
         }
         let mut format = self.max_format;
@@ -497,8 +478,8 @@ impl AlpacaCamera for Webcam {
                         frame.decode_image_to_buffer::<RgbFormat>(single_frame_buffer.as_slice_mut().unwrap()).map_err(convert_err)?;
 
                         let cropped_view = single_frame_buffer.slice(ndarray::s![
-                            subframe.offset.y..subframe_end_offset.y,
-                            subframe.offset.x..subframe_end_offset.x,
+                            subframe.offset.y as usize..subframe_end_offset.y as usize,
+                            subframe.offset.x as usize..subframe_end_offset.x as usize,
                             ..
                         ]);
 
@@ -554,10 +535,6 @@ impl AlpacaCamera for Webcam {
     }
 }
 
-fn exact_div(a: u32, b: u32) -> Option<u32> {
-    a.is_multiple_of(b).then_some(a / b)
-}
-
 #[tracing::instrument(ret(level = "debug"), err)]
 fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
     // Workaround for https://github.com/l1npengtul/nokhwa/issues/110:
@@ -570,7 +547,7 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
 
     let compatible_formats = camera.compatible_camera_formats()?;
 
-    let format = *compatible_formats
+    let max_format = *compatible_formats
         .iter()
         .max_by_key(|format| {
             (
@@ -590,16 +567,27 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
             )
         })?;
 
+    let max_format_res = Vec2::from(max_format.resolution());
+
     let mut valid_bins = compatible_formats
         .iter()
-        .filter(|other| {
-            format.format() == other.format() && format.frame_rate() == other.frame_rate()
+        .filter(|format| {
+            max_format.format() == format.format() && max_format.frame_rate() == format.frame_rate()
         })
-        .filter_map(|other| {
-            let bin_x = exact_div(format.resolution().x(), other.resolution().x())?;
-            let bin_y = exact_div(format.resolution().y(), other.resolution().y())?;
+        .filter_map(|format| {
+            fn exact_div(a: u32, b: u32) -> Option<u8> {
+                if !a.is_multiple_of(b) {
+                    return None;
+                }
+                (a / b).try_into().ok()
+            }
 
-            (bin_x == bin_y).then_some(bin_x as i32)
+            let format_res = Vec2::from(format.resolution());
+
+            let bin_x = exact_div(max_format_res.x, format_res.x)?;
+            let bin_y = exact_div(max_format_res.y, format_res.y)?;
+
+            (bin_x == bin_y).then_some(bin_x as u8)
         })
         .collect::<Vec<_>>();
 
@@ -608,7 +596,7 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
 
     let camera = Camera::new(
         camera_info.index().clone(),
-        RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(format)),
+        RequestedFormat::new::<RgbFormat>(RequestedFormatType::Exact(max_format)),
     )?;
 
     Ok(Webcam {
@@ -619,11 +607,11 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
         name: camera_info.human_name(),
         description: camera_info.description().to_owned(),
         subframe: RwLock::new(Subframe {
-            offset: Point::default(),
-            size: format.resolution().into(),
-            bin: Size { x: 1, y: 1 },
+            offset: Vec2 { x: 0, y: 0 },
+            size: max_format.resolution().into(),
+            bin: Vec2 { x: 1, y: 1 },
         }),
-        max_format: format,
+        max_format,
         valid_bins,
         exposing: Arc::new(RwLock::new(ExposingState::Idle {
             camera: Arc::new(Mutex::new(camera)),

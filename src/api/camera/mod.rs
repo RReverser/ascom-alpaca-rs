@@ -20,37 +20,37 @@ use time::macros::format_description;
 pub trait Camera: Device + Send + Sync {
     /// Returns the X offset of the Bayer matrix, as defined in SensorType.
     #[http("bayeroffsetx", method = Get)]
-    async fn bayer_offset_x(&self) -> ASCOMResult<i32> {
+    async fn bayer_offset_x(&self) -> ASCOMResult<u8> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the Y offset of the Bayer matrix, as defined in SensorType.
     #[http("bayeroffsety", method = Get)]
-    async fn bayer_offset_y(&self) -> ASCOMResult<i32> {
+    async fn bayer_offset_y(&self) -> ASCOMResult<u8> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the binning factor for the X axis.
     #[http("binx", method = Get)]
-    async fn bin_x(&self) -> ASCOMResult<i32> {
+    async fn bin_x(&self) -> ASCOMResult<u8> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets the binning factor for the X axis.
     #[http("binx", method = Put)]
-    async fn set_bin_x(&self, #[http("BinX")] bin_x: i32) -> ASCOMResult<()> {
+    async fn set_bin_x(&self, #[http("BinX")] bin_x: u8) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the binning factor for the Y axis.
     #[http("biny", method = Get)]
-    async fn bin_y(&self) -> ASCOMResult<i32> {
+    async fn bin_y(&self) -> ASCOMResult<u8> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets the binning factor for the Y axis.
     #[http("biny", method = Put)]
-    async fn set_bin_y(&self, #[http("BinY")] bin_y: i32) -> ASCOMResult<()> {
+    async fn set_bin_y(&self, #[http("BinY")] bin_y: u8) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -62,13 +62,13 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the width of the CCD camera chip in unbinned pixels.
     #[http("cameraxsize", method = Get)]
-    async fn camera_x_size(&self) -> ASCOMResult<i32> {
+    async fn camera_x_size(&self) -> ASCOMResult<u32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the height of the CCD camera chip in unbinned pixels.
     #[http("cameraysize", method = Get)]
-    async fn camera_y_size(&self) -> ASCOMResult<i32> {
+    async fn camera_y_size(&self) -> ASCOMResult<u32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -127,8 +127,6 @@ pub trait Camera: Device + Send + Sync {
     }
 
     /// Turns on and off the camera cooler.
-    ///
-    /// True = cooler on, False = cooler off.
     #[http("cooleron", method = Put)]
     async fn set_cooler_on(&self, #[http("CoolerOn")] cooler_on: bool) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
@@ -256,37 +254,37 @@ pub trait Camera: Device + Send + Sync {
 
     /// Returns the maximum allowed binning for the X camera axis.
     #[http("maxbinx", method = Get)]
-    async fn max_bin_x(&self) -> ASCOMResult<i32> {
+    async fn max_bin_x(&self) -> ASCOMResult<u8> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the maximum allowed binning for the Y camera axis.
     #[http("maxbiny", method = Get)]
-    async fn max_bin_y(&self) -> ASCOMResult<i32> {
+    async fn max_bin_y(&self) -> ASCOMResult<u8> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the current subframe width in binned pixels.
     #[http("numx", method = Get)]
-    async fn num_x(&self) -> ASCOMResult<i32> {
+    async fn num_x(&self) -> ASCOMResult<u32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets the current subframe width in binned pixels.
     #[http("numx", method = Put)]
-    async fn set_num_x(&self, #[http("NumX")] num_x: i32) -> ASCOMResult<()> {
+    async fn set_num_x(&self, #[http("NumX")] num_x: u32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Returns the current subframe height in binned pixels.
     #[http("numy", method = Get)]
-    async fn num_y(&self) -> ASCOMResult<i32> {
+    async fn num_y(&self) -> ASCOMResult<u32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets the current subframe height in binned pixels.
     #[http("numy", method = Put)]
-    async fn set_num_y(&self, #[http("NumY")] num_y: i32) -> ASCOMResult<()> {
+    async fn set_num_y(&self, #[http("NumY")] num_y: u32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -324,7 +322,7 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// If valid, returns an integer between 0 and 100, where 0 indicates 0% progress (function just started) and 100 indicates 100% progress (i.e. completion).
     #[http("percentcompleted", method = Get, device_state = "PercentCompleted")]
-    async fn percent_completed(&self) -> ASCOMResult<i32> {
+    async fn percent_completed(&self) -> ASCOMResult<u8> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -340,13 +338,16 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// Defaults to 0 if not set.
     #[http("readoutmode", method = Get)]
-    async fn readout_mode(&self) -> ASCOMResult<i32> {
+    async fn readout_mode(&self) -> ASCOMResult<usize> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
     /// Sets the ReadoutMode as an index into the array ReadoutModes.
     #[http("readoutmode", method = Put)]
-    async fn set_readout_mode(&self, #[http("ReadoutMode")] readout_mode: i32) -> ASCOMResult<()> {
+    async fn set_readout_mode(
+        &self,
+        #[http("ReadoutMode")] readout_mode: usize,
+    ) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -386,21 +387,21 @@ pub trait Camera: Device + Send + Sync {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
-    /// Returns the current subframe start position for the X axis (0 based) in binned pixels.
+    /// Returns the current subframe start position for the X axis in binned pixels.
     #[http("startx", method = Get)]
-    async fn start_x(&self) -> ASCOMResult<i32>;
+    async fn start_x(&self) -> ASCOMResult<u32>;
 
     /// Sets the current subframe X axis start position in binned pixels.
     #[http("startx", method = Put)]
-    async fn set_start_x(&self, #[http("StartX")] start_x: i32) -> ASCOMResult<()>;
+    async fn set_start_x(&self, #[http("StartX")] start_x: u32) -> ASCOMResult<()>;
 
-    /// Returns the current subframe start position for the Y axis (0 based) in binned pixels.
+    /// Returns the current subframe start position for the Y axis in binned pixels.
     #[http("starty", method = Get)]
-    async fn start_y(&self) -> ASCOMResult<i32>;
+    async fn start_y(&self) -> ASCOMResult<u32>;
 
     /// Sets the current subframe Y axis start position in binned pixels.
     #[http("starty", method = Put)]
-    async fn set_start_y(&self, #[http("StartY")] start_y: i32) -> ASCOMResult<()>;
+    async fn set_start_y(&self, #[http("StartY")] start_y: u32) -> ASCOMResult<()>;
 
     /// The Camera's sub exposure duration in seconds.
     ///
@@ -464,24 +465,24 @@ pub trait Camera: Device + Send + Sync {
     ///
     /// Only one interface version is current at a moment in time and all new devices should be built to the latest interface version. Applications can choose which device interface versions they support and it is in their interest to support  previous versions as well as the current version to ensure thay can use the largest number of devices.
     #[http("interfaceversion", method = Get)]
-    async fn interface_version(&self) -> ASCOMResult<i32> {
-        Ok(4_i32)
+    async fn interface_version(&self) -> ASCOMResult<u16> {
+        Ok(4)
     }
 }
 
 convenience_props!(Camera {
     /// Returns the X and Y offsets of the Bayer matrix, as defined in SensorType.
-    bayer_offset(bayer_offset_x, bayer_offset_y): [i32; 2],
+    bayer_offset(bayer_offset_x, bayer_offset_y): [u8; 2],
 
     /// Returns the binning factors for the X and Y axes.
     #[
         /// Sets the binning factors for the X and Y axes.
         set
     ]
-    bin(bin_x, bin_y): [i32; 2],
+    bin(bin_x, bin_y): [u8; 2],
 
     /// Returns the width and height of the CCD camera chip in unbinned pixels.
-    camera_size(camera_x_size, camera_y_size): [i32; 2],
+    camera_size(camera_x_size, camera_y_size): [u32; 2],
 
     /// Returns the exposure time range in seconds supported by StartExposure.
     exposure_range(exposure_min, exposure_max): RangeInclusive<Duration>,
@@ -490,14 +491,14 @@ convenience_props!(Camera {
     gain_range(gain_min, gain_max): RangeInclusive<i32>,
 
     /// Returns the maximum allowed binning for the X and Y camera axes.
-    max_bin(max_bin_x, max_bin_y): [i32; 2],
+    max_bin(max_bin_x, max_bin_y): [u8; 2],
 
     /// Returns the current subframe width and height in binned pixels.
     #[
         /// Sets the current subframe width and height in binned pixels.
         set
     ]
-    num(num_x, num_y): [i32; 2],
+    num(num_x, num_y): [u32; 2],
 
     /// Returns the supported offset range.
     offset_range(offset_min, offset_max): RangeInclusive<i32>,
@@ -505,8 +506,8 @@ convenience_props!(Camera {
     /// Returns the width and height of the CCD chip pixels in microns.
     pixel_size(pixel_size_x, pixel_size_y): [f64; 2],
 
-    /// Returns the current subframe start position for the X and Y axes (0 based) in binned pixels.
-    start(start_x, start_y): [i32; 2],
+    /// Returns the current subframe start position for the X and Y axes in binned pixels.
+    start(start_x, start_y): [u32; 2],
 });
 
 /// Camera gain mode.
