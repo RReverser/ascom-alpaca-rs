@@ -1,9 +1,7 @@
 pub use super::camera_telescope_shared::GuideDirection;
 
 use super::Device;
-#[cfg(feature = "server")]
-use super::time_repr::DurationInMs;
-use super::time_repr::{Iso8601, TimeRepr};
+use super::time_repr::{DurationInMs, Iso8601, TimeRepr};
 #[cfg(feature = "client")]
 use crate::api::macros::ConvertConvenienceProp;
 use crate::{ASCOMError, ASCOMResult};

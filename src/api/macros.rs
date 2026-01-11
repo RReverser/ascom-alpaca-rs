@@ -301,7 +301,7 @@ macro_rules! rpc_trait {
                 $method_name {
                     $(
                         #[cfg_attr(feature = "client", serde(rename = $param_query))]
-                        $param: $param_ty,
+                        $param: rpc_trait!(@via $param_ty $(, $param_via)?),
                     )*
                 },
             )*
@@ -326,17 +326,12 @@ macro_rules! rpc_trait {
             fn from_parts(action: &str, params: &mut $crate::server::ActionParams) -> $crate::server::Result<Option<Self>> {
                 Ok(Some(match (action, params) {
                     $(
-                        ($method_path, $crate::server::ActionParams::$http_method(params)) => {
-                            #[expect(unused)]
-                            let mut params = params;
-                            $(
-                                let $param =
-                                    params.extract($param_query)
-                                    $(.map(<$param_via>::into))?
-                                    ?;
-                            )*
-
-                            Self::$method_name { $($param),* }
+                        ($method_path, $crate::server::ActionParams::$http_method(_params)) => {
+                            Self::$method_name {
+                                $(
+                                    $param: _params.extract($param_query)?,
+                                )*
+                            }
                         }
                     )*
                     ("devicestate", _) => Self::DeviceState,
@@ -393,7 +388,7 @@ macro_rules! rpc_trait {
                     $self
                     .exec_action(Action::$method_name {
                         $(
-                            $param,
+                            $param: $param.into(),
                         )*
                     })
                     .await
@@ -425,7 +420,7 @@ macro_rules! rpc_trait {
                 match self {
                     $(
                         Self::$method_name { $($param),* } => {
-                            device.$method_name($($param),*)
+                            device.$method_name($($param.into()),*)
                             .await
                             $(.map(<$via>::from))?
                             .map(Response::$method_name)

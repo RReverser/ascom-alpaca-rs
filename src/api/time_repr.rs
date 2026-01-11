@@ -32,7 +32,6 @@ impl<F> From<TimeRepr<F>> for SystemTime {
     }
 }
 
-#[cfg(feature = "server")]
 impl<F: FormatWrapper> serde::Serialize for TimeRepr<F>
 where
     F::Format: time::formatting::Formattable,

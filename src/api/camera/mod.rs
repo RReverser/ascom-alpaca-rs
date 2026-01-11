@@ -4,9 +4,7 @@ pub use image_array::*;
 pub use super::camera_telescope_shared::GuideDirection;
 
 use super::Device;
-#[cfg(feature = "server")]
-use super::time_repr::DurationInMs;
-use super::time_repr::{FormatWrapper, TimeRepr};
+use super::time_repr::{DurationInMs, FormatWrapper, TimeRepr};
 use crate::{ASCOMError, ASCOMResult};
 use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
