@@ -1,5 +1,5 @@
 #[cfg(feature = "client")]
-pub(crate) trait ConvertConvenienceProp {
+pub(super) trait ConvertConvenienceProp {
     type Inner;
     type Arr;
 
@@ -455,7 +455,7 @@ macro_rules! rpc_mod {
         )*
 
         #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug, derive_more::Display, serde::Serialize, serde::Deserialize)]
-        pub(crate) enum DeviceType {
+        pub(super) enum DeviceType {
             $(
                 # $cfg
                 #[display($path)]
@@ -550,7 +550,7 @@ macro_rules! rpc_mod {
 
         #[cfg(feature = "client")]
         impl $crate::client::RawDeviceClient {
-            pub(crate) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
+            pub(super) const fn into_typed_client(self: std::sync::Arc<Self>, device_type: DeviceType) -> TypedDevice {
                 match device_type {
                     $(
                         # $cfg
@@ -563,7 +563,7 @@ macro_rules! rpc_mod {
         #[cfg(feature = "server")]
         #[derive(serde::Deserialize)]
         #[serde(remote = "DeviceType")]
-        pub(crate) enum DevicePath {
+        pub(super) enum DevicePath {
             $(
                 # $cfg
                 #[serde(rename = $path)]
@@ -574,7 +574,7 @@ macro_rules! rpc_mod {
         #[cfg(feature = "server")]
         const _: () = {
             impl TypedDevice {
-                pub(crate) fn to_configured_device(&self, as_number: usize) -> ConfiguredDevice<DeviceType> {
+                pub(super) fn to_configured_device(&self, as_number: usize) -> ConfiguredDevice<DeviceType> {
                     match *self {
                         $(
                             # $cfg
@@ -633,7 +633,7 @@ macro_rules! rpc_mod {
             }
 
             impl Devices {
-                pub(crate) fn get_device_for_server(
+                pub(super) fn get_device_for_server(
                     &self,
                     device_type: DeviceType,
                     device_number: usize,
@@ -649,7 +649,7 @@ macro_rules! rpc_mod {
                     })
                 }
 
-                pub(crate) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl serde::Serialize + use<>> {
+                pub(super) async fn handle_action<'this>(&'this self, device_type: DeviceType, device_number: usize, action: &'this str, params: $crate::server::ActionParams) -> $crate::server::Result<impl serde::Serialize + use<>> {
                     let action = TypedDeviceAction::from_parts(device_type, action, params)?;
 
                     Ok(match action {

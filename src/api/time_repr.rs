@@ -1,4 +1,4 @@
-pub(crate) use time::format_description::well_known::Iso8601;
+pub(super) use time::format_description::well_known::Iso8601;
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -6,7 +6,7 @@ use std::time::SystemTime;
 use time::macros::format_description;
 use time::{OffsetDateTime, format_description};
 
-pub(crate) trait FormatWrapper: Debug {
+pub(super) trait FormatWrapper: Debug {
     type Format: 'static + ?Sized;
 
     const FORMAT: &'static Self::Format;
@@ -19,7 +19,7 @@ impl FormatWrapper for Iso8601 {
 }
 
 #[derive(Debug)]
-pub(crate) struct Fits;
+pub(super) struct Fits;
 
 impl FormatWrapper for Fits {
     type Format = [format_description::BorrowedFormatItem<'static>];
@@ -30,7 +30,7 @@ impl FormatWrapper for Fits {
 }
 
 #[derive(Debug)]
-pub(crate) struct TimeRepr<F>(OffsetDateTime, PhantomData<F>);
+pub(super) struct TimeRepr<F>(OffsetDateTime, PhantomData<F>);
 
 impl<F> From<SystemTime> for TimeRepr<F> {
     fn from(value: SystemTime) -> Self {

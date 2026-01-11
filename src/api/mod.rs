@@ -71,7 +71,7 @@ rpc_mod! {
     Telescope = "telescope",
 }
 
-pub(crate) trait RetrieavableDevice: 'static + Device {
+pub(super) trait RetrieavableDevice: 'static + Device {
     #[allow(unused)]
     const TYPE: DeviceType;
 
@@ -93,7 +93,7 @@ pub(crate) trait RetrieavableDevice: 'static + Device {
 /// DynTrait is unused here, it's only necessary to cheat the type system
 /// and allow "overlapping" blanket impls of RegistrableDevice for different
 /// kinds of devices so that `devices.register(device)` "just works".
-pub(crate) trait RegistrableDevice<DynTrait: ?Sized>: Debug {
+pub(super) trait RegistrableDevice<DynTrait: ?Sized>: Debug {
     fn add_to(self, storage: &mut Devices);
 }
 
@@ -137,7 +137,7 @@ impl Devices {
     }
 
     #[cfg(feature = "server")]
-    pub(crate) fn get_for_server<DynTrait: ?Sized + RetrieavableDevice>(
+    pub(super) fn get_for_server<DynTrait: ?Sized + RetrieavableDevice>(
         &self,
         device_number: usize,
     ) -> crate::server::Result<Arc<DynTrait>> {
