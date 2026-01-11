@@ -111,7 +111,7 @@ impl ASCOMError {
     pub fn new(code: ASCOMErrorCode, message: impl Display) -> Self {
         Self {
             code,
-            message: message.to_string().into(),
+            message: format!("{message:#}").into(),
         }
     }
 }
