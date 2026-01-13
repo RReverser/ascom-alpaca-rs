@@ -185,7 +185,7 @@ tokio::select! {
   Long exposures are simulated by stacking up individual frames up to the total duration.
   This approach can't provide precise requested exposure, but works well enough otherwise.
 
-- [`star-adventurer-alpaca`](https://github.com/jsorrell/star-adventurer-alpaca): An implentation of the Alpaca protocol for Star Adventurer trackers.
+- [`star-adventurer-alpaca`](https://github.com/jsorrell/star-adventurer-alpaca): An implementation of the Alpaca protocol for Star Adventurer trackers.
 - [`qhyccd-alpaca`](https://github.com/ivonnyssen/qhyccd-alpaca): Alpaca driver for QHYCCD cameras and filter wheels written in Rust.
 
 ## Accessing devices from a client
