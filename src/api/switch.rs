@@ -195,13 +195,13 @@ impl serde::Serialize for DeviceState {
         let mut map = serializer.serialize_map(None)?;
         for (i, device) in self.switch_devices.iter().enumerate() {
             if let Some(value) = &device.get_switch {
-                map.serialize_entry(&format!("GetSwitch{i}"), value)?;
+                map.serialize_entry(&format_args!("GetSwitch{i}"), value)?;
             }
             if let Some(value) = &device.get_switch_value {
-                map.serialize_entry(&format!("GetSwitchValue{i}"), value)?;
+                map.serialize_entry(&format_args!("GetSwitchValue{i}"), value)?;
             }
             if let Some(value) = &device.state_change_complete {
-                map.serialize_entry(&format!("StateChangeComplete{i}"), value)?;
+                map.serialize_entry(&format_args!("StateChangeComplete{i}"), value)?;
             }
         }
         map.end()
