@@ -250,7 +250,7 @@ pub trait Camera: Device + Send + Sync {
 
     /// Reports the maximum ADU value the camera can produce.
     #[http("maxadu", method = Get)]
-    async fn max_adu(&self) -> ASCOMResult<i32>;
+    async fn max_adu(&self) -> ASCOMResult<u32>;
 
     /// Returns the maximum allowed binning for the X camera axis.
     #[http("maxbinx", method = Get)]

@@ -323,7 +323,7 @@ impl AlpacaCamera for Webcam {
             .ok_or(ASCOMError::INVALID_OPERATION)
     }
 
-    async fn max_adu(&self) -> ASCOMResult<i32> {
+    async fn max_adu(&self) -> ASCOMResult<u32> {
         Ok(u16::MAX.into())
     }
 

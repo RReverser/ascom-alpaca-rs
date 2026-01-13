@@ -17,7 +17,7 @@ use ascom_alpaca::discovery::{BoundDiscoveryClient, DiscoveryClient};
 use bayer::{BayerDepth, CFA, RasterDepth, RasterMut, demosaic};
 use eframe::egui::{self, CentralPanel, ComboBox, Slider, TextureOptions, Ui};
 use eframe::epaint::{Color32, ColorImage, TextureHandle};
-use eyre::{Context, Result};
+use eyre::Result;
 use futures::{Future, FutureExt, StreamExt, TryFutureExt};
 use std::collections::HashSet;
 use std::ops::RangeInclusive;
@@ -152,10 +152,7 @@ impl StateCtx {
                             camera.name().map_err(eyre::Error::from),
                             camera.exposure_range().map_err(eyre::Error::from),
                             camera.can_abort_exposure().map_err(eyre::Error::from),
-                            async {
-                                let max_adu = camera.max_adu().await?;
-                                u32::try_from(max_adu).context("Max ADU is out of range")
-                            },
+                            camera.max_adu().map_err(eyre::Error::from),
                             async {
                                 Ok(match camera.sensor_type().await? {
                                     AlpacaSensorType::Monochrome => SensorType::Monochrome,
