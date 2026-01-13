@@ -9,7 +9,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 pub trait CoverCalibrator: Device + Send + Sync {
     /// Returns the current calibrator brightness in the range 0 (completely off) to MaxBrightness (fully on).
     #[http("brightness", method = Get, device_state = "Brightness")]
-    async fn brightness(&self) -> ASCOMResult<i32> {
+    async fn brightness(&self) -> ASCOMResult<u32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -43,7 +43,7 @@ pub trait CoverCalibrator: Device + Send + Sync {
 
     /// The Brightness value that makes the calibrator deliver its maximum illumination.
     #[http("maxbrightness", method = Get)]
-    async fn max_brightness(&self) -> ASCOMResult<i32> {
+    async fn max_brightness(&self) -> ASCOMResult<u32> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
@@ -55,7 +55,7 @@ pub trait CoverCalibrator: Device + Send + Sync {
 
     /// Turns the calibrator on at the specified brightness if the device has calibration capability.
     #[http("calibratoron", method = Put)]
-    async fn calibrator_on(&self, #[http("Brightness")] brightness: i32) -> ASCOMResult<()> {
+    async fn calibrator_on(&self, #[http("Brightness")] brightness: u32) -> ASCOMResult<()> {
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
