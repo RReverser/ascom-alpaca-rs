@@ -3,7 +3,7 @@ pub use super::camera_telescope_shared::GuideDirection;
 use super::Device;
 use super::time_repr::{DurationInMs, Iso8601, TimeRepr};
 #[cfg(feature = "client")]
-use crate::api::macros::ConvertConvenienceProp;
+use crate::api::camera_telescope_shared::ConvertConvenienceProp;
 use crate::{ASCOMError, ASCOMResult};
 use macro_rules_attribute::apply;
 use num_enum::{IntoPrimitive, TryFromPrimitive};

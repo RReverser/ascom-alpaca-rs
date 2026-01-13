@@ -16,6 +16,7 @@ mod server_info;
 pub use server_info::*;
 
 #[cfg(any(feature = "camera", feature = "telescope"))]
+#[macro_use]
 mod camera_telescope_shared;
 
 mod device_state;
