@@ -31,8 +31,20 @@ where
         &mut self,
         name: &'static str,
     ) -> super::Result<Option<T>> {
-        self.0
-            .swap_remove(name.as_ref())
+        let value_opt = self.0.swap_remove(name.as_ref());
+
+        // Specialization: indices should return InvalidValue for negatives.
+        if let Some(ref value) = value_opt
+            && (TypeId::of::<T>() == TypeId::of::<usize>())
+            && value.trim_start().starts_with('-')
+        {
+            return Err(crate::ASCOMError::invalid_value(format!(
+                "Parameter {name:?} must be non-negative, got: {value}"
+            ))
+            .into());
+        }
+
+        value_opt
             .map(|mut value| {
                 // Specialization: optimized path to avoid cloning the string.
                 if TypeId::of::<T>() == TypeId::of::<String>() {
