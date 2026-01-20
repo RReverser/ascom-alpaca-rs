@@ -52,6 +52,13 @@ where
         match self.response {
             Ok(response) => Ok(Ok(response)),
             Err(Error::Ascom(err)) => Ok(Err(err)),
+            Err(Error::ParameterOutOfRange {
+                name,
+                value,
+                target_type,
+            }) => Ok(Err(ASCOMError::invalid_value(format!(
+                "Parameter {name:?} value {value} is out of range for {target_type}"
+            )))),
             Err(err @ (Error::MissingParameter { .. } | Error::BadParameter { .. })) => {
                 Err((StatusCode::BAD_REQUEST, err.to_string()))
             }
