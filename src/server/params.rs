@@ -6,10 +6,243 @@ use axum::response::{IntoResponse, Response};
 use http::{Method, StatusCode};
 use indexmap::IndexMap;
 use serde::Deserialize;
-use serde::de::{DeserializeOwned, IntoDeserializer};
-use std::any::TypeId;
-use std::fmt::Debug;
+use serde::de::{DeserializeOwned, Deserializer, Error as _, Visitor};
+use std::fmt::{self, Debug};
 use std::hash::Hash;
+
+/// Error type for ALPACA parameter parsing that distinguishes parse errors from range errors.
+#[derive(Debug)]
+enum AlpacaParseError {
+    /// Invalid format (not a valid integer/bool/etc) -> `BadParameter` (HTTP 400)
+    BadFormat(String),
+    /// Valid i32 but out of range for target type -> `INVALID_VALUE` (ASCOM error)
+    OutOfRange { value: i32, target_type: &'static str },
+}
+
+impl fmt::Display for AlpacaParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BadFormat(msg) => write!(f, "{msg}"),
+            Self::OutOfRange { value, target_type } => {
+                write!(f, "value {value} is out of range for {target_type}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for AlpacaParseError {}
+
+impl serde::de::Error for AlpacaParseError {
+    fn custom<T: fmt::Display>(msg: T) -> Self {
+        Self::BadFormat(msg.to_string())
+    }
+}
+
+/// Custom serde Deserializer for ALPACA parameters.
+///
+/// Per ASCOM spec, integers are transmitted as i32, so we parse as i32 first
+/// then convert to the target type. This allows distinguishing parse errors
+/// (`BadParameter`) from range errors (`INVALID_VALUE`).
+struct AlpacaDeserializer {
+    value: String,
+}
+
+impl AlpacaDeserializer {
+    /// Parse an integer per ALPACA spec: parse as i32, then convert to target type.
+    fn parse_integer<T: TryFrom<i32>>(&self) -> Result<T, AlpacaParseError> {
+        let i32_value: i32 = self.value.trim().parse().map_err(|_parse_err| {
+            AlpacaParseError::BadFormat(format!("invalid integer: {}", self.value))
+        })?;
+
+        T::try_from(i32_value).map_err(|_range_err| AlpacaParseError::OutOfRange {
+            value: i32_value,
+            target_type: std::any::type_name::<T>(),
+        })
+    }
+}
+
+impl<'de> Deserializer<'de> for AlpacaDeserializer {
+    type Error = AlpacaParseError;
+
+    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_string(self.value)
+    }
+
+    fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        match self.value.trim().to_ascii_lowercase().as_str() {
+            "true" => visitor.visit_bool(true),
+            "false" => visitor.visit_bool(false),
+            _ => Err(AlpacaParseError::BadFormat(format!(
+                "invalid boolean: {}",
+                self.value
+            ))),
+        }
+    }
+
+    fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i8(self.parse_integer()?)
+    }
+
+    fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i16(self.parse_integer()?)
+    }
+
+    fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i32(self.parse_integer()?)
+    }
+
+    fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_i64(self.parse_integer()?)
+    }
+
+    fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u8(self.parse_integer()?)
+    }
+
+    fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u16(self.parse_integer()?)
+    }
+
+    fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u32(self.parse_integer()?)
+    }
+
+    fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_u64(self.parse_integer()?)
+    }
+
+    fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let value: f32 = self.value.trim().parse().map_err(|_parse_err| {
+            AlpacaParseError::BadFormat(format!("invalid float: {}", self.value))
+        })?;
+        visitor.visit_f32(value)
+    }
+
+    fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let value: f64 = self.value.trim().parse().map_err(|_parse_err| {
+            AlpacaParseError::BadFormat(format!("invalid float: {}", self.value))
+        })?;
+        visitor.visit_f64(value)
+    }
+
+    fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        let mut chars = self.value.chars();
+        match (chars.next(), chars.next()) {
+            (Some(c), None) => visitor.visit_char(c),
+            _ => Err(AlpacaParseError::BadFormat(format!(
+                "expected single character: {}",
+                self.value
+            ))),
+        }
+    }
+
+    fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_bytes(self.value.as_bytes())
+    }
+
+    fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_byte_buf(self.value.into_bytes())
+    }
+
+    fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_string(self.value)
+    }
+
+    fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_string(self.value)
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        visitor.visit_newtype_struct(self)
+    }
+
+    fn deserialize_enum<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        visitor.visit_enum(serde::de::value::StringDeserializer::new(self.value))
+    }
+
+    fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_string(self.value)
+    }
+
+    fn deserialize_ignored_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_string(self.value)
+    }
+
+    fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "Option types are not supported as ALPACA parameters".to_owned(),
+        ))
+    }
+
+    fn deserialize_unit<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "unit type is not supported as ALPACA parameter".to_owned(),
+        ))
+    }
+
+    fn deserialize_unit_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "unit struct is not supported as ALPACA parameter".to_owned(),
+        ))
+    }
+
+    fn deserialize_seq<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "sequences are not supported as ALPACA parameters".to_owned(),
+        ))
+    }
+
+    fn deserialize_tuple<V: Visitor<'de>>(
+        self,
+        _len: usize,
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "tuples are not supported as ALPACA parameters".to_owned(),
+        ))
+    }
+
+    fn deserialize_tuple_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "tuple structs are not supported as ALPACA parameters".to_owned(),
+        ))
+    }
+
+    fn deserialize_map<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "maps are not supported as ALPACA parameters".to_owned(),
+        ))
+    }
+
+    fn deserialize_struct<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        Err(AlpacaParseError::BadFormat(
+            "structs are not supported as ALPACA parameters".to_owned(),
+        ))
+    }
+}
 
 #[derive(Deserialize, derive_more::Debug)]
 #[debug("{_0:?}")]
@@ -27,40 +260,29 @@ impl<ParamStr: ?Sized + Hash + Eq + Debug> OpaqueParams<ParamStr>
 where
     str: AsRef<ParamStr>,
 {
-    pub(crate) fn maybe_extract<T: 'static + DeserializeOwned>(
+    pub(crate) fn maybe_extract<T: DeserializeOwned>(
         &mut self,
         name: &'static str,
     ) -> super::Result<Option<T>> {
-        let value_opt = self.0.swap_remove(name.as_ref());
-
-        // Specialization: indices should return InvalidValue for negatives.
-        if let Some(ref value) = value_opt
-            && (TypeId::of::<T>() == TypeId::of::<usize>())
-            && value.trim_start().starts_with('-')
-        {
-            return Err(crate::ASCOMError::invalid_value(format!(
-                "Parameter {name:?} must be non-negative, got: {value}"
-            ))
-            .into());
-        }
-
-        value_opt
-            .map(|mut value| {
-                // Specialization: optimized path to avoid cloning the string.
-                if TypeId::of::<T>() == TypeId::of::<String>() {
-                    return T::deserialize(value.into_deserializer());
-                }
-                // Specialization: booleans in ASCOM must be case-insensitive.
-                if TypeId::of::<T>() == TypeId::of::<bool>() {
-                    value.make_ascii_lowercase();
-                }
-                serde_plain::from_str(&value)
+        self.0
+            .swap_remove(name.as_ref())
+            .map(|value| {
+                T::deserialize(AlpacaDeserializer { value }).map_err(|err| match err {
+                    AlpacaParseError::OutOfRange { value, target_type } => Error::ParameterOutOfRange {
+                        name,
+                        value,
+                        target_type,
+                    },
+                    AlpacaParseError::BadFormat(msg) => Error::BadParameter {
+                        name,
+                        err: serde_plain::Error::custom(msg),
+                    },
+                })
             })
             .transpose()
-            .map_err(|err| Error::BadParameter { name, err })
     }
 
-    pub(crate) fn extract<T: 'static + DeserializeOwned>(
+    pub(crate) fn extract<T: DeserializeOwned>(
         &mut self,
         name: &'static str,
     ) -> super::Result<T> {
