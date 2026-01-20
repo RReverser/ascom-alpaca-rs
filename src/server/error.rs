@@ -24,6 +24,12 @@ pub(crate) enum Error {
         #[source]
         err: serde_plain::Error,
     },
+    #[error("Parameter {name:?} value {value} is out of range for {target_type}")]
+    ParameterOutOfRange {
+        name: &'static str,
+        value: i32,
+        target_type: &'static str,
+    },
     #[error(transparent)]
     Ascom(#[from] ASCOMError),
 }
@@ -32,7 +38,9 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let code = match self {
             Self::UnknownDeviceNumber { .. } | Self::UnknownAction { .. } => StatusCode::NOT_FOUND,
-            Self::MissingParameter { .. } | Self::BadParameter { .. } => StatusCode::BAD_REQUEST,
+            Self::MissingParameter { .. }
+            | Self::BadParameter { .. }
+            | Self::ParameterOutOfRange { .. } => StatusCode::BAD_REQUEST,
             Self::Ascom(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         (code, format!("{self:#}")).into_response()
