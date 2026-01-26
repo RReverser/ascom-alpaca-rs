@@ -61,6 +61,15 @@ pub trait Switch: Device + Send + Sync {
     #[http("maxswitchvalue", method = Get)]
     async fn max_switch_value(&self, #[http("Id")] id: usize) -> ASCOMResult<f64>;
 
+    /// Cancels an in-progress asynchronous state change operation.
+    ///
+    /// _ISwitchV3 and later._
+    #[http("cancelasync", method = Put)]
+    async fn cancel_async(&self, #[http("Id")] id: usize) -> ASCOMResult<()> {
+        let _ = id;
+        Err(ASCOMError::NOT_IMPLEMENTED)
+    }
+
     /// This is an asynchronous method that must return as soon as the state change operation has been successfully started,  with StateChangeComplete(Int16) for the given switch Id = False.  After the state change has completed StateChangeComplete(Int16) becomes True.
     ///
     /// _ISwitchV3 and later._
