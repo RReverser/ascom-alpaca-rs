@@ -1,6 +1,7 @@
 use crate::api::RetrieavableDevice;
 use reqwest::{IntoUrl, Url};
 use std::fmt::Debug;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -23,11 +24,20 @@ impl ConformU {
     }
 
     /// Run the specified test with ConformU against the specified device URL.
-    #[tracing::instrument(level = "error", skip(device_url))]
-    async fn test(self, device_url: &Url) -> eyre::Result<()> {
+    #[tracing::instrument(level = "error", skip(device_url, settings_file))]
+    async fn test(self, device_url: &Url, settings_file: Option<&Path>) -> eyre::Result<()> {
+        use std::ffi::OsString;
+
+        // Build args list - must be done before cmd! macro to avoid borrow issues
+        let mut args: Vec<OsString> = vec![self.as_arg().into()];
+        if let Some(path) = settings_file {
+            args.push("--settingsfile".into());
+            args.push(path.into());
+        }
+        args.push(device_url.as_str().into());
+
         let mut conformu = cmd!(r"C:\Program Files\ASCOM\ConformU", "conformu")
-            .arg(self.as_arg())
-            .arg(device_url.as_str())
+            .args(&args)
             .stdout(Stdio::piped())
             .spawn()?;
 
@@ -151,21 +161,86 @@ fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'l
     Some(part)
 }
 
+/// Builder for configuring and running ConformU tests.
+///
+/// Created via [`conformu_tests`].
+#[derive(Debug)]
+pub struct ConformUTestBuilder {
+    device_url: Url,
+    settings_file: Option<PathBuf>,
+}
+
+impl ConformUTestBuilder {
+    /// Create a new builder for testing a device at the specified URL.
+    fn new(device_url: Url) -> Self {
+        Self {
+            device_url,
+            settings_file: None,
+        }
+    }
+
+    /// Set a custom ConformU settings file.
+    ///
+    /// This can be used to configure test parameters like `SwitchReadDelay`
+    /// and `SwitchWriteDelay` to speed up CI test runs.
+    pub fn settings_file(mut self, path: impl AsRef<Path>) -> Self {
+        self.settings_file = Some(path.as_ref().to_path_buf());
+        self
+    }
+
+    /// Run all ConformU tests (AlpacaProtocol and Conformance).
+    #[tracing::instrument(level = "error", skip(self))]
+    pub async fn run(self) -> eyre::Result<()> {
+        // Must be executed serially as they operate on the same device.
+        ConformU::AlpacaProtocol
+            .test(&self.device_url, self.settings_file.as_deref())
+            .await?;
+        ConformU::Conformance
+            .test(&self.device_url, self.settings_file.as_deref())
+            .await
+    }
+}
+
+/// Create a builder for running ConformU tests against the device at the specified URL.
+///
+/// This assumes that ConformU is installed and available on PATH or in the
+/// default installation location.
+///
+/// # Example
+///
+/// ```ignore
+/// // Run with default settings
+/// conformu_tests::<dyn Switch>(server_url, 0)?.run().await?;
+///
+/// // Run with custom settings file for faster CI
+/// conformu_tests::<dyn Switch>(server_url, 0)?
+///     .settings_file("conformu-fast.json")
+///     .run()
+///     .await?;
+/// ```
+#[allow(private_bounds)]
+pub fn conformu_tests<T: ?Sized + RetrieavableDevice>(
+    server_url: impl IntoUrl + Debug,
+    device_number: usize,
+) -> eyre::Result<ConformUTestBuilder> {
+    let url = server_url
+        .into_url()?
+        .join(&format!("api/v1/{ty}/{device_number}", ty = T::TYPE))?;
+
+    Ok(ConformUTestBuilder::new(url))
+}
+
 /// Run all the ConformU tests against the device at the specified URL.
 ///
 /// This assumes that ConformU is installed and available on PATH or in the
 /// default installation location.
+///
+/// For more configuration options, use [`conformu_tests`] to get a builder.
 #[tracing::instrument(level = "error", fields(ty = ?T::TYPE))]
 #[allow(private_bounds)]
 pub async fn run_conformu_tests<T: ?Sized + RetrieavableDevice>(
     server_url: impl IntoUrl + Debug,
     device_number: usize,
 ) -> eyre::Result<()> {
-    let url = server_url
-        .into_url()?
-        .join(&format!("api/v1/{ty}/{device_number}", ty = T::TYPE))?;
-
-    // Must be executed serially as they operate on the same device.
-    ConformU::AlpacaProtocol.test(&url).await?;
-    ConformU::Conformance.test(&url).await
+    conformu_tests::<T>(server_url, device_number)?.run().await
 }

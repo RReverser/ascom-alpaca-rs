@@ -16,7 +16,10 @@ enum AlpacaParseError {
     /// Invalid format (not a valid integer/bool/etc) -> `BadParameter` (HTTP 400)
     BadFormat(String),
     /// Valid i32 but out of range for target type -> `INVALID_VALUE` (ASCOM error)
-    OutOfRange { value: i32, target_type: &'static str },
+    OutOfRange {
+        value: i32,
+        target_type: &'static str,
+    },
 }
 
 impl fmt::Display for AlpacaParseError {
@@ -268,11 +271,13 @@ where
             .swap_remove(name.as_ref())
             .map(|value| {
                 T::deserialize(AlpacaDeserializer { value }).map_err(|err| match err {
-                    AlpacaParseError::OutOfRange { value, target_type } => Error::ParameterOutOfRange {
-                        name,
-                        value,
-                        target_type,
-                    },
+                    AlpacaParseError::OutOfRange { value, target_type } => {
+                        Error::ParameterOutOfRange {
+                            name,
+                            value,
+                            target_type,
+                        }
+                    }
                     AlpacaParseError::BadFormat(msg) => Error::BadParameter {
                         name,
                         err: serde_plain::Error::custom(msg),
@@ -282,10 +287,7 @@ where
             .transpose()
     }
 
-    pub(crate) fn extract<T: DeserializeOwned>(
-        &mut self,
-        name: &'static str,
-    ) -> super::Result<T> {
+    pub(crate) fn extract<T: DeserializeOwned>(&mut self, name: &'static str) -> super::Result<T> {
         self.maybe_extract(name)?
             .ok_or(Error::MissingParameter { name })
     }
