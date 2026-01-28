@@ -172,7 +172,7 @@ pub struct ConformUTestBuilder {
 
 impl ConformUTestBuilder {
     /// Create a new builder for testing a device at the specified URL.
-    fn new(device_url: Url) -> Self {
+    const fn new(device_url: Url) -> Self {
         Self {
             device_url,
             settings_file: None,
@@ -219,12 +219,13 @@ impl ConformUTestBuilder {
     ///     .run()
     ///     .await?;
     /// ```
+    #[must_use]
     pub fn settings_file(mut self, path: impl AsRef<Path>) -> Self {
         self.settings_file = Some(path.as_ref().to_path_buf());
         self
     }
 
-    /// Run all ConformU tests (AlpacaProtocol and Conformance).
+    /// Run all ConformU tests (`AlpacaProtocol` and `Conformance`).
     #[tracing::instrument(level = "error", skip(self))]
     pub async fn run(self) -> eyre::Result<()> {
         // Must be executed serially as they operate on the same device.
