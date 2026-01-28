@@ -181,8 +181,44 @@ impl ConformUTestBuilder {
 
     /// Set a custom ConformU settings file.
     ///
-    /// This can be used to configure test parameters like `SwitchReadDelay`
-    /// and `SwitchWriteDelay` to speed up CI test runs.
+    /// # Important: Complete Settings File Required
+    ///
+    /// ConformU requires a **complete** settings file with all properties.
+    /// Partial files containing only a few settings will be silently ignored
+    /// and overwritten with defaults.
+    ///
+    /// ## Generating a Default Settings Template
+    ///
+    /// To generate a complete settings file with all default values, run ConformU
+    /// with an empty JSON object file. ConformU will populate it with all defaults:
+    ///
+    /// ```bash
+    /// echo "{}" > conformu-settings.json
+    /// conformu conformance --settingsfile conformu-settings.json http://localhost:99999/api/v1/switch/0
+    /// # The command will fail (no server), but conformu-settings.json now has all defaults
+    /// ```
+    ///
+    /// You can then edit the generated file to customize specific values
+    /// (e.g., reduce `SwitchReadDelay` and `SwitchWriteDelay` for faster CI).
+    ///
+    /// ## Switch Testing Performance
+    ///
+    /// For Switch device tests, the default delays are:
+    /// - `SwitchReadDelay`: 500ms
+    /// - `SwitchWriteDelay`: 3000ms
+    ///
+    /// For CI environments, reducing these (e.g., to 50ms and 100ms) can cut test
+    /// time from ~8 minutes to ~35 seconds.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Use a pre-configured settings file with reduced delays
+    /// conformu_tests::<dyn Switch>(server_url, 0)?
+    ///     .settings_file("test-fixtures/conformu-settings.json")
+    ///     .run()
+    ///     .await?;
+    /// ```
     pub fn settings_file(mut self, path: impl AsRef<Path>) -> Self {
         self.settings_file = Some(path.as_ref().to_path_buf());
         self
@@ -213,8 +249,9 @@ impl ConformUTestBuilder {
 /// conformu_tests::<dyn Switch>(server_url, 0)?.run().await?;
 ///
 /// // Run with custom settings file for faster CI
+/// // Note: ConformU requires a COMPLETE settings file - see settings_file() docs
 /// conformu_tests::<dyn Switch>(server_url, 0)?
-///     .settings_file("conformu-fast.json")
+///     .settings_file("test-fixtures/conformu-settings.json")
 ///     .run()
 ///     .await?;
 /// ```
