@@ -1,3 +1,10 @@
+// Increase recursion limit to work around a Rust trait solver limitation on macOS.
+// The `objc2` crate (pulled in transitively via `netdev` on Apple targets) defines a blanket
+// `impl IntoIterator for &Retained<T> where &T: IntoIterator` that causes infinite recursion
+// when the solver evaluates `serde_ndim`'s `NDim: IntoIterator` supertrait bound.
+// See: https://github.com/rust-lang/rust/issues/136856
+#![recursion_limit = "256"]
+
 /*!
 This is a Rust implementation of the standard [ASCOM Alpaca API](https://ascom-standards.org/api/) for astronomy devices.
 
