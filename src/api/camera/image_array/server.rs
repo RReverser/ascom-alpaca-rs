@@ -96,6 +96,7 @@ impl Serialize for ImageArray {
 
         #[derive(Serialize)]
         #[serde(untagged)]
+        #[serde(bound(serialize = ""))]
         enum Value<'img> {
             Rank2(#[serde(with = "serde_ndim")] ndarray::ArrayView2<'img, i32>),
             Rank3(#[serde(with = "serde_ndim")] ndarray::ArrayView3<'img, i32>),
