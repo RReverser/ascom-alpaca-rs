@@ -1,10 +1,9 @@
 use crate::api::TypedDevice;
 use crate::discovery::{
-    AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG, bind_socket,
-    get_active_interfaces,
+    AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG, GroupedInterface,
+    bind_socket, get_active_interfaces,
 };
 use futures::StreamExt;
-use netdev::prelude::{Interface, InterfaceType};
 use socket2::SockRef;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
@@ -36,14 +35,14 @@ pub struct Client {
 pub struct BoundClient {
     client: Client,
     socket: UdpSocket,
-    interfaces: Vec<Interface>,
+    interfaces: Vec<GroupedInterface>,
     buf: Vec<u8>,
     seen: Vec<SocketAddr>,
 }
 
 impl BoundClient {
-    #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
-    async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &Interface) {
+    #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.name = %intf.name, ?intf.ipv4, ?intf.ipv6))]
+    async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &GroupedInterface) {
         let send_op = async {
             if addr.is_multicast() {
                 SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
@@ -63,8 +62,8 @@ impl BoundClient {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn send_discovery_msgs(&self) {
         for intf in &self.interfaces {
-            for net in &intf.ipv4 {
-                let broadcast = net.addr() | !net.netmask();
+            for v4 in &intf.ipv4 {
+                let broadcast = v4.addr | !v4.netmask;
 
                 self.send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
                     .await;
@@ -72,7 +71,7 @@ impl BoundClient {
 
             if !intf.ipv6.is_empty() {
                 self.send_discovery_msg(
-                    if intf.if_type == InterfaceType::Loopback {
+                    if intf.is_loopback {
                         // Loopback interface doesn't have a link-local address
                         // so it can't be used for multicast.
                         Ipv6Addr::LOCALHOST
@@ -168,7 +167,7 @@ impl Client {
     #[tracing::instrument(level = "error")]
     pub async fn bind(self) -> eyre::Result<BoundClient> {
         let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0).into())?;
-        let interfaces = spawn_blocking(|| get_active_interfaces().collect()).await?;
+        let interfaces = spawn_blocking(get_active_interfaces).await??;
         Ok(BoundClient {
             client: self,
             socket,
