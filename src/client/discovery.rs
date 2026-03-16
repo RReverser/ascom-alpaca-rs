@@ -45,7 +45,11 @@ impl BoundClient {
     async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &GroupedInterface) {
         let send_op = async {
             if addr.is_multicast() {
-                SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
+                let Some(index) = intf.index else {
+                    tracing::warn!("skipping multicast send: no interface index");
+                    return Ok(());
+                };
+                SockRef::from(&self.socket).set_multicast_if_v6(index)?;
             }
             // UDP packets are sent as whole messages, no need to check length.
             self.socket
