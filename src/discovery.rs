@@ -33,7 +33,7 @@ pub(crate) struct Ipv4Info {
 #[derive(Debug)]
 pub(crate) struct GroupedInterface {
     pub(crate) name: String,
-    pub(crate) index: u32,
+    pub(crate) index: Option<u32>,
     pub(crate) is_loopback: bool,
     pub(crate) ipv4: Vec<Ipv4Info>,
     pub(crate) ipv6: Vec<Ipv6Addr>,
@@ -49,11 +49,12 @@ pub(crate) fn get_active_interfaces() -> eyre::Result<Vec<GroupedInterface>> {
 
         let grouped = if let Some(existing) = interfaces.iter_mut().find(|g| g.name == iface.name)
         {
+            existing.is_loopback |= iface.is_loopback();
             existing
         } else {
             interfaces.push(GroupedInterface {
                 name: iface.name.clone(),
-                index: iface.index.unwrap_or(0),
+                index: iface.index,
                 is_loopback: iface.is_loopback(),
                 ipv4: Vec::new(),
                 ipv6: Vec::new(),
@@ -147,32 +148,42 @@ mod tests {
         (ipv6.segments()[0] & 0xffc0) == 0xfe80
     }
 
-    static DEFAULT_ADDR: LazyLock<DefaultAddr> = LazyLock::new(|| {
-        let addrs = if_addrs::get_if_addrs().expect("couldn't get network interfaces");
+    /// Determine the default IPv4 address using the UDP socket trick:
+    /// "connect" to a non-routable address and read back the source IP the OS chose.
+    fn get_default_ipv4() -> Option<Ipv4Addr> {
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+        socket.connect("10.254.254.254:1").ok()?;
+        match socket.local_addr().ok()?.ip() {
+            IpAddr::V4(ip) => Some(ip),
+            IpAddr::V6(_) => None,
+        }
+    }
 
-        // Only extract private / link-local addresses, since binding to others might fail in tests.
-        let active_non_loopback = || {
-            addrs
-                .iter()
-                .filter(|iface| !iface.is_loopback() && iface.is_oper_up())
-        };
+    static DEFAULT_ADDR: LazyLock<DefaultAddr> = LazyLock::new(|| {
+        // Use the UDP socket trick to find the default route's IPv4, matching
+        // the old netdev::get_default_interface() behaviour.
+        let default_ip = get_default_ipv4().expect("no default IPv4 route");
+
+        // Find which interface owns that IP, then grab its link-local IPv6 too.
+        // This guarantees both addresses come from the same interface.
+        let addrs = if_addrs::get_if_addrs().expect("couldn't get network interfaces");
+        let default_intf_name = &addrs
+            .iter()
+            .find(|iface| iface.ip() == IpAddr::V4(default_ip))
+            .expect("default IP not found on any interface")
+            .name;
 
         DefaultAddr {
-            v4: active_non_loopback()
-                .filter_map(|iface| match &iface.addr {
-                    if_addrs::IfAddr::V4(v4) => Some(v4.ip),
-                    _ => None,
-                })
-                .find(Ipv4Addr::is_private)
-                .expect("no private IPv4 address"),
-
-            v6: active_non_loopback()
+            v4: default_ip,
+            v6: addrs
+                .iter()
+                .filter(|iface| &iface.name == default_intf_name)
                 .filter_map(|iface| match &iface.addr {
                     if_addrs::IfAddr::V6(v6) => Some(v6.ip),
-                    _ => None,
+                    if_addrs::IfAddr::V4(_) => None,
                 })
                 .find(is_unicast_link_local)
-                .expect("no unique local IPv6 address"),
+                .expect("no link-local IPv6 on default interface"),
         }
     });
 
