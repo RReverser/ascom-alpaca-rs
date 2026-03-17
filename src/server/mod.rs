@@ -55,8 +55,9 @@ pub struct Server {
     pub listen_addr: SocketAddr,
     /// Port for the discovery server to listen on.
     ///
-    /// Defaults to 32227.
-    pub discovery_port: u16,
+    /// Defaults to `Some(32227)`. Set to `None` to disable the discovery server
+    /// (useful in tests or environments where discovery is not needed).
+    pub discovery_port: Option<u16>,
 }
 
 impl Server {
@@ -75,7 +76,7 @@ impl Server {
             devices: Devices::default(),
             info,
             listen_addr: SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
-            discovery_port: DEFAULT_DISCOVERY_PORT,
+            discovery_port: Some(DEFAULT_DISCOVERY_PORT),
         }
     }
 }
@@ -136,7 +137,7 @@ pub struct BoundServer {
     #[debug(skip)]
     axum: BoxFuture<'static, eyre::Result<std::convert::Infallible>>,
     axum_listen_addr: SocketAddr,
-    discovery: BoundDiscoveryServer,
+    discovery: Option<BoundDiscoveryServer>,
 }
 
 impl BoundServer {
@@ -146,9 +147,10 @@ impl BoundServer {
         self.axum_listen_addr
     }
 
-    /// Returns the address the discovery server is listening on.
-    pub fn discovery_listen_addr(&self) -> SocketAddr {
-        self.discovery.listen_addr()
+    /// Returns the address the discovery server is listening on,
+    /// or `None` if discovery is disabled.
+    pub fn discovery_listen_addr(&self) -> Option<SocketAddr> {
+        self.discovery.as_ref().map(|d| d.listen_addr())
     }
 
     /// Starts the Alpaca and discovery servers.
@@ -156,10 +158,14 @@ impl BoundServer {
     /// Note: this function starts an infinite async loop and it's your responsibility to spawn it off
     /// via [`tokio::spawn`] if necessary.
     pub async fn start(self) -> eyre::Result<std::convert::Infallible> {
-        match tokio::select! {
-            axum = self.axum => axum?,
-            discovery = self.discovery.start() => discovery,
-        } {}
+        if let Some(discovery) = self.discovery {
+            match tokio::select! {
+                axum = self.axum => axum?,
+                discovery = discovery.start() => discovery,
+            } {}
+        } else {
+            match self.axum.await? {}
+        }
     }
 }
 
@@ -203,11 +209,16 @@ impl Server {
 
         // Bind discovery server only once the Alpaca server is bound successfully.
         // We need to know the bound address & the port to advertise.
-        let discovery_server = DiscoveryServer::for_alpaca_server_at(bound_addr)
-            .bind()
-            .await?;
-
-        tracing::debug!("Bound Alpaca discovery server");
+        let discovery_server = if let Some(port) = self.discovery_port {
+            let mut discovery = DiscoveryServer::for_alpaca_server_at(bound_addr);
+            discovery.listen_addr.set_port(port);
+            let bound = discovery.bind().await?;
+            tracing::debug!("Bound Alpaca discovery server");
+            Some(bound)
+        } else {
+            tracing::debug!("Discovery server disabled");
+            None
+        };
 
         Ok(BoundServer {
             axum: async move {
