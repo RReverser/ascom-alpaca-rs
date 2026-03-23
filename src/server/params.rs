@@ -15,9 +15,9 @@ use std::hash::Hash;
 enum AlpacaParseError {
     /// Invalid format (not a valid integer/bool/etc) -> `BadParameter` (HTTP 400)
     BadFormat(String),
-    /// Valid i32 but out of range for target type -> `INVALID_VALUE` (ASCOM error)
+    /// Valid integer but out of range for target type -> `INVALID_VALUE` (ASCOM error)
     OutOfRange {
-        value: i32,
+        value: i64,
         target_type: &'static str,
     },
 }
@@ -43,22 +43,23 @@ impl serde::de::Error for AlpacaParseError {
 
 /// Custom serde Deserializer for ALPACA parameters.
 ///
-/// Per ASCOM spec, integers are transmitted as i32, so we parse as i32 first
-/// then convert to the target type. This allows distinguishing parse errors
-/// (`BadParameter`) from range errors (`INVALID_VALUE`).
+/// Integers are parsed as i64 first, then converted to the target type.
+/// This allows distinguishing parse errors (`BadParameter`) from range errors
+/// (`INVALID_VALUE`), and supports both i32 device parameters and uint32
+/// transaction/identity parameters (`ClientID`, `ClientTransactionID`).
 struct AlpacaDeserializer {
     value: String,
 }
 
 impl AlpacaDeserializer {
-    /// Parse an integer per ALPACA spec: parse as i32, then convert to target type.
-    fn parse_integer<T: TryFrom<i32>>(&self) -> Result<T, AlpacaParseError> {
-        let i32_value: i32 = self.value.trim().parse().map_err(|_parse_err| {
+    /// Parse an integer: parse as i64 first, then convert to the target type.
+    fn parse_integer<T: TryFrom<i64>>(&self) -> Result<T, AlpacaParseError> {
+        let i64_value: i64 = self.value.trim().parse().map_err(|_parse_err| {
             AlpacaParseError::BadFormat(format!("invalid integer: {}", self.value))
         })?;
 
-        T::try_from(i32_value).map_err(|_range_err| AlpacaParseError::OutOfRange {
-            value: i32_value,
+        T::try_from(i64_value).map_err(|_range_err| AlpacaParseError::OutOfRange {
+            value: i64_value,
             target_type: std::any::type_name::<T>(),
         })
     }
@@ -327,5 +328,99 @@ impl<S: Send + Sync> FromRequest<S> for ActionParams {
             )),
             _ => Err((StatusCode::METHOD_NOT_ALLOWED, "Method not allowed").into_response()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse<T: DeserializeOwned>(value: &str) -> super::super::Result<T> {
+        let deser = AlpacaDeserializer {
+            value: value.to_owned(),
+        };
+        T::deserialize(deser).map_err(|err| match err {
+            AlpacaParseError::OutOfRange { value, target_type } => Error::ParameterOutOfRange {
+                name: "test",
+                value,
+                target_type,
+            },
+            AlpacaParseError::BadFormat(msg) => Error::BadParameter {
+                name: "test",
+                err: serde_plain::Error::custom(msg),
+            },
+        })
+    }
+
+    #[test]
+    fn u32_above_i32_max() {
+        let val: u32 = parse("3000000000").expect("should parse u32 above i32::MAX");
+        assert_eq!(val, 3_000_000_000_u32);
+    }
+
+    #[test]
+    fn u32_max_value() {
+        let val: u32 = parse("4294967295").expect("should parse u32::MAX");
+        assert_eq!(val, u32::MAX);
+    }
+
+    #[test]
+    fn i32_positive() {
+        let val: i32 = parse("42").expect("should parse positive i32");
+        assert_eq!(val, 42_i32);
+    }
+
+    #[test]
+    fn i32_negative() {
+        let val: i32 = parse("-1").expect("should parse negative i32");
+        assert_eq!(val, -1_i32);
+    }
+
+    #[test]
+    fn i32_max_boundary() {
+        let val: i32 = parse("2147483647").expect("should parse i32::MAX");
+        assert_eq!(val, i32::MAX);
+    }
+
+    #[test]
+    fn i32_out_of_range() {
+        let err = parse::<i32>("3000000000").expect_err("should fail for i32 out of range");
+        assert!(
+            matches!(err, Error::ParameterOutOfRange { .. }),
+            "expected OutOfRange, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn u32_negative_out_of_range() {
+        let err = parse::<u32>("-1").expect_err("should fail for negative u32");
+        assert!(
+            matches!(err, Error::ParameterOutOfRange { .. }),
+            "expected OutOfRange, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn u8_out_of_range() {
+        let err = parse::<u8>("256").expect_err("should fail for u8 out of range");
+        assert!(
+            matches!(err, Error::ParameterOutOfRange { .. }),
+            "expected OutOfRange, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn bad_format_non_numeric() {
+        let err = parse::<u32>("abc").expect_err("should fail for non-numeric input");
+        assert!(
+            matches!(err, Error::BadParameter { .. }),
+            "expected BadParameter, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn whitespace_trimming() {
+        let val: u32 = parse("  42  ").expect("should parse with surrounding whitespace");
+        assert_eq!(val, 42_u32);
     }
 }
