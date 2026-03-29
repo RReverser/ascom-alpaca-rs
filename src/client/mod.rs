@@ -68,10 +68,19 @@ pub(crate) struct RawClient {
     #[debug(r#""{base_url}""#)]
     pub(crate) base_url: reqwest::Url,
     pub(crate) client_id: NonZeroU32,
+    #[debug(skip)]
+    pub(crate) http: reqwest::Client,
 }
 
 impl RawClient {
     pub(crate) fn new(base_url: reqwest::Url) -> eyre::Result<Self> {
+        Self::new_with_client(base_url, REQWEST.clone())
+    }
+
+    pub(crate) fn new_with_client(
+        base_url: reqwest::Url,
+        http: reqwest::Client,
+    ) -> eyre::Result<Self> {
         eyre::ensure!(
             !base_url.cannot_be_a_base(),
             "{} is not a valid base URL",
@@ -80,6 +89,7 @@ impl RawClient {
         Ok(Self {
             base_url,
             client_id: rand::random(),
+            http,
         })
     }
 
@@ -103,7 +113,7 @@ impl RawClient {
         async move {
             tracing::debug!(?method, params = ?serdebug::debug(&params), base_url = %self.base_url, "Sending request");
 
-            let mut request = REQWEST.request(method.into(), self.base_url.join(action)?);
+            let mut request = self.http.request(method.into(), self.base_url.join(action)?);
 
             let add_params = match method {
                 Method::Get => RequestBuilder::query,
@@ -161,6 +171,7 @@ impl RawClient {
         Ok(Self {
             base_url: self.base_url.join(path)?,
             client_id: self.client_id,
+            http: self.http.clone(),
         })
     }
 }
@@ -175,6 +186,15 @@ impl Client {
     /// Create a new client with given server URL.
     pub fn new(base_url: impl IntoUrl) -> eyre::Result<Self> {
         RawClient::new(base_url.into_url()?).map(|inner| Self { inner })
+    }
+
+    /// Create a new client with a caller-provided [`reqwest::Client`].
+    ///
+    /// This allows injecting a custom HTTP client configured with TLS CA
+    /// trust, HTTP Basic Auth default headers, or other settings that the
+    /// default client does not provide.
+    pub fn new_with_client(base_url: impl IntoUrl, client: reqwest::Client) -> eyre::Result<Self> {
+        RawClient::new_with_client(base_url.into_url()?, client).map(|inner| Self { inner })
     }
 
     /// Create a new client with given server address.
