@@ -27,7 +27,7 @@ pub(crate) enum Error {
     #[error("Parameter {name:?} value {value} is out of range for {target_type}")]
     ParameterOutOfRange {
         name: &'static str,
-        value: i32,
+        value: i64,
         target_type: &'static str,
     },
     #[error(transparent)]
