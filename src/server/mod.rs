@@ -150,7 +150,7 @@ impl BoundServer {
     /// Returns the address the discovery server is listening on,
     /// or `None` if discovery is disabled.
     pub fn discovery_listen_addr(&self) -> Option<SocketAddr> {
-        self.discovery.as_ref().map(|d| d.listen_addr())
+        self.discovery.as_ref().map(discovery::BoundServer::listen_addr)
     }
 
     /// Starts the Alpaca and discovery servers.
@@ -158,13 +158,14 @@ impl BoundServer {
     /// Note: this function starts an infinite async loop and it's your responsibility to spawn it off
     /// via [`tokio::spawn`] if necessary.
     pub async fn start(self) -> eyre::Result<std::convert::Infallible> {
-        if let Some(discovery) = self.discovery {
-            match tokio::select! {
-                axum = self.axum => axum?,
-                discovery = discovery.start() => discovery,
-            } {}
-        } else {
-            match self.axum.await? {}
+        match self.discovery {
+            Some(discovery) => {
+                match tokio::select! {
+                    axum = self.axum => axum?,
+                    discovery = discovery.start() => discovery,
+                } {}
+            }
+            None => match self.axum.await? {},
         }
     }
 }
