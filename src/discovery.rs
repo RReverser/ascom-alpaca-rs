@@ -4,10 +4,9 @@
 pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
 #[cfg(feature = "server")]
 pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
-use netdev::Interface;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
-use std::net::{Ipv6Addr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 #[cfg(windows)]
 use std::os::windows::prelude::AsRawSocket;
 use tokio::net::UdpSocket;
@@ -23,10 +22,61 @@ pub(crate) struct AlpacaPort {
     pub(crate) alpaca_port: u16,
 }
 
-pub(crate) fn get_active_interfaces() -> impl Iterator<Item = Interface> {
-    netdev::get_interfaces()
-        .into_iter()
-        .filter(Interface::is_running)
+/// IPv4 address information for a network interface.
+#[derive(Debug)]
+pub(crate) struct Ipv4Info {
+    pub(crate) addr: Ipv4Addr,
+    pub(crate) netmask: Ipv4Addr,
+}
+
+/// A network interface with all its IPv4 and IPv6 addresses grouped together.
+#[derive(Debug)]
+pub(crate) struct GroupedInterface {
+    pub(crate) name: String,
+    pub(crate) index: u32,
+    pub(crate) is_loopback: bool,
+    pub(crate) ipv4: Vec<Ipv4Info>,
+    pub(crate) ipv6: Vec<Ipv6Addr>,
+}
+
+pub(crate) fn get_active_interfaces() -> eyre::Result<Vec<GroupedInterface>> {
+    let mut interfaces: Vec<GroupedInterface> = Vec::new();
+
+    for iface in if_addrs::get_if_addrs()? {
+        if !iface.is_oper_up() {
+            continue;
+        }
+
+        let grouped = if let Some(existing) = interfaces.iter_mut().find(|g| g.name == iface.name)
+        {
+            existing
+        } else {
+            interfaces.push(GroupedInterface {
+                name: iface.name.clone(),
+                index: iface.index.unwrap_or(0),
+                is_loopback: iface.is_loopback(),
+                ipv4: Vec::new(),
+                ipv6: Vec::new(),
+            });
+            interfaces
+                .last_mut()
+                .expect("internal error: just pushed an element")
+        };
+
+        match iface.addr {
+            if_addrs::IfAddr::V4(v4) => {
+                grouped.ipv4.push(Ipv4Info {
+                    addr: v4.ip,
+                    netmask: v4.netmask,
+                });
+            }
+            if_addrs::IfAddr::V6(v6) => {
+                grouped.ipv6.push(v6.ip);
+            }
+        }
+    }
+
+    Ok(interfaces)
 }
 
 #[tracing::instrument(level = "trace")]
@@ -98,21 +148,29 @@ mod tests {
     }
 
     static DEFAULT_ADDR: LazyLock<DefaultAddr> = LazyLock::new(|| {
-        let intf = netdev::get_default_interface().expect("coudn't get default interface");
+        let addrs = if_addrs::get_if_addrs().expect("couldn't get network interfaces");
 
         // Only extract private / link-local addresses, since binding to others might fail in tests.
+        let active_non_loopback = || {
+            addrs
+                .iter()
+                .filter(|iface| !iface.is_loopback() && iface.is_oper_up())
+        };
+
         DefaultAddr {
-            v4: intf
-                .ipv4
-                .into_iter()
-                .map(|net| net.addr())
+            v4: active_non_loopback()
+                .filter_map(|iface| match &iface.addr {
+                    if_addrs::IfAddr::V4(v4) => Some(v4.ip),
+                    _ => None,
+                })
                 .find(Ipv4Addr::is_private)
                 .expect("no private IPv4 address"),
 
-            v6: intf
-                .ipv6
-                .into_iter()
-                .map(|net| net.addr())
+            v6: active_non_loopback()
+                .filter_map(|iface| match &iface.addr {
+                    if_addrs::IfAddr::V6(v6) => Some(v6.ip),
+                    _ => None,
+                })
                 .find(is_unicast_link_local)
                 .expect("no unique local IPv6 address"),
         }
