@@ -26,18 +26,12 @@ impl ConformU {
     /// Run the specified test with ConformU against the specified device URL.
     #[tracing::instrument(level = "error", skip(device_url, settings_file))]
     async fn test(self, device_url: &Url, settings_file: Option<&Path>) -> eyre::Result<()> {
-        use std::ffi::OsString;
-
-        // Build args list - must be done before cmd! macro to avoid borrow issues
-        let mut args: Vec<OsString> = vec![self.as_arg().into()];
-        if let Some(path) = settings_file {
-            args.push("--settingsfile".into());
-            args.push(path.into());
-        }
-        args.push(device_url.as_str().into());
-
         let mut conformu = cmd!(r"C:\Program Files\ASCOM\ConformU", "conformu")
-            .args(&args)
+            .arg(self.as_arg())
+            .args(settings_file.into_iter().flat_map(|path| {
+                [std::ffi::OsStr::new("--settingsfile"), path.as_os_str()]
+            }))
+            .arg(device_url.as_str())
             .stdout(Stdio::piped())
             .spawn()?;
 
@@ -217,7 +211,7 @@ impl ConformUTestBuilder {
     ///
     /// ```bash
     /// echo "{}" > conformu-settings.json
-    /// conformu conformance --settingsfile conformu-settings.json http://localhost:99999/api/v1/switch/0
+    /// conformu conformance --settingsfile conformu-settings.json http://localhost:9999/api/v1/switch/0
     /// # The command will fail (no server), but conformu-settings.json now has all defaults
     /// ```
     ///
