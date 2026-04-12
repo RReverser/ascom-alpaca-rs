@@ -7,7 +7,7 @@ mod logging_env;
 pub use crate::client::test::get_simulator_devices;
 
 #[cfg(feature = "server")]
-pub use crate::server::test::{ConformUTestBuilder, conformu_tests, run_conformu_tests};
+pub use crate::server::test::{ConformUTestBuilder, run_conformu_tests};
 
 pub(crate) fn resolve_path(path_hint: &'static str, exe_name: &'static str) -> PathBuf {
     use std::env;

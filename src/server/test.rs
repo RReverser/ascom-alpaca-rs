@@ -163,7 +163,19 @@ fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'l
 
 /// Builder for configuring and running ConformU tests.
 ///
-/// Created via [`conformu_tests`].
+/// # Example
+///
+/// ```ignore
+/// // Run with default settings
+/// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?.run().await?;
+///
+/// // Run with custom settings file for faster CI
+/// // Note: ConformU requires a COMPLETE settings file - see settings_file() docs
+/// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?
+///     .settings_file("test-fixtures/conformu-settings.json")
+///     .run()
+///     .await?;
+/// ```
 #[derive(Debug)]
 pub struct ConformUTestBuilder {
     device_url: Url,
@@ -172,11 +184,22 @@ pub struct ConformUTestBuilder {
 
 impl ConformUTestBuilder {
     /// Create a new builder for testing a device at the specified URL.
-    const fn new(device_url: Url) -> Self {
-        Self {
-            device_url,
+    ///
+    /// This assumes that ConformU is installed and available on PATH or in the
+    /// default installation location.
+    #[allow(private_bounds)]
+    pub fn new<T: ?Sized + RetrieavableDevice>(
+        server_url: impl IntoUrl + Debug,
+        device_number: usize,
+    ) -> eyre::Result<Self> {
+        let url = server_url
+            .into_url()?
+            .join(&format!("api/v1/{ty}/{device_number}", ty = T::TYPE))?;
+
+        Ok(Self {
+            device_url: url,
             settings_file: None,
-        }
+        })
     }
 
     /// Set a custom ConformU settings file.
@@ -214,7 +237,7 @@ impl ConformUTestBuilder {
     ///
     /// ```ignore
     /// // Use a pre-configured settings file with reduced delays
-    /// conformu_tests::<dyn Switch>(server_url, 0)?
+    /// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?
     ///     .settings_file("test-fixtures/conformu-settings.json")
     ///     .run()
     ///     .await?;
@@ -238,47 +261,19 @@ impl ConformUTestBuilder {
     }
 }
 
-/// Create a builder for running ConformU tests against the device at the specified URL.
-///
-/// This assumes that ConformU is installed and available on PATH or in the
-/// default installation location.
-///
-/// # Example
-///
-/// ```ignore
-/// // Run with default settings
-/// conformu_tests::<dyn Switch>(server_url, 0)?.run().await?;
-///
-/// // Run with custom settings file for faster CI
-/// // Note: ConformU requires a COMPLETE settings file - see settings_file() docs
-/// conformu_tests::<dyn Switch>(server_url, 0)?
-///     .settings_file("test-fixtures/conformu-settings.json")
-///     .run()
-///     .await?;
-/// ```
-#[allow(private_bounds)]
-pub fn conformu_tests<T: ?Sized + RetrieavableDevice>(
-    server_url: impl IntoUrl + Debug,
-    device_number: usize,
-) -> eyre::Result<ConformUTestBuilder> {
-    let url = server_url
-        .into_url()?
-        .join(&format!("api/v1/{ty}/{device_number}", ty = T::TYPE))?;
-
-    Ok(ConformUTestBuilder::new(url))
-}
-
 /// Run all the ConformU tests against the device at the specified URL.
 ///
 /// This assumes that ConformU is installed and available on PATH or in the
 /// default installation location.
 ///
-/// For more configuration options, use [`conformu_tests`] to get a builder.
+/// For more configuration options, use [`ConformUTestBuilder`].
 #[tracing::instrument(level = "error", fields(ty = ?T::TYPE))]
 #[allow(private_bounds)]
 pub async fn run_conformu_tests<T: ?Sized + RetrieavableDevice>(
     server_url: impl IntoUrl + Debug,
     device_number: usize,
 ) -> eyre::Result<()> {
-    conformu_tests::<T>(server_url, device_number)?.run().await
+    ConformUTestBuilder::new::<T>(server_url, device_number)?
+        .run()
+        .await
 }
