@@ -66,7 +66,6 @@ pub trait Switch: Device + Send + Sync {
     /// _ISwitchV3 and later._
     #[http("cancelasync", method = Put)]
     async fn cancel_async(&self, #[http("Id")] id: usize) -> ASCOMResult<()> {
-        let _ = id;
         Err(ASCOMError::NOT_IMPLEMENTED)
     }
 
