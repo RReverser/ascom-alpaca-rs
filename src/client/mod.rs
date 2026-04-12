@@ -73,10 +73,6 @@ pub(crate) struct RawClient {
 }
 
 impl RawClient {
-    pub(crate) fn new(base_url: reqwest::Url) -> eyre::Result<Self> {
-        Self::new_with_client(base_url, REQWEST.clone())
-    }
-
     pub(crate) fn new_with_client(
         base_url: reqwest::Url,
         http: reqwest::Client,
@@ -185,7 +181,7 @@ pub struct Client {
 impl Client {
     /// Create a new client with given server URL.
     pub fn new(base_url: impl IntoUrl) -> eyre::Result<Self> {
-        RawClient::new(base_url.into_url()?).map(|inner| Self { inner })
+        RawClient::new_with_client(base_url.into_url()?, REQWEST.clone()).map(|inner| Self { inner })
     }
 
     /// Create a new client with a caller-provided [`reqwest::Client`].
