@@ -181,7 +181,7 @@ pub struct Client {
 impl Client {
     /// Create a new client with given server URL.
     pub fn new(base_url: impl IntoUrl) -> eyre::Result<Self> {
-        RawClient::new_with_client(base_url.into_url()?, REQWEST.clone()).map(|inner| Self { inner })
+        Self::new_with_client(base_url, REQWEST.clone())
     }
 
     /// Create a new client with a caller-provided [`reqwest::Client`].
@@ -244,5 +244,53 @@ impl Client {
             })
             .await
             .map(|value_response| value_response.value)
+    }
+}
+
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn new_with_client_uses_injected_http_client() -> eyre::Result<()> {
+        let app = axum::Router::new().fallback(|req: axum::extract::Request| async move {
+            let custom_value = req
+                .headers()
+                .get("X-Custom-Test")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_owned();
+
+            axum::Json(serde_json::json!({
+                "ServerTransactionID": 1_u32,
+                "ErrorNumber": 0_u32,
+                "ErrorMessage": "",
+                "Value": {
+                    "ServerName": custom_value,
+                    "Manufacturer": "test",
+                    "ManufacturerVersion": "1.0",
+                    "Location": "test"
+                }
+            }))
+        });
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        let _server = tokio::spawn(axum::serve(listener, app).into_future());
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        let _ = headers.insert("X-Custom-Test", "injected-client".parse()?);
+        let custom = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
+
+        let client = Client::new_with_client(format!("http://{addr}/"), custom)?;
+        let info = client.get_server_info().await?;
+        eyre::ensure!(
+            &*info.server_name == "injected-client",
+            "expected server to echo custom header, got {:?}",
+            info.server_name,
+        );
+        Ok(())
     }
 }

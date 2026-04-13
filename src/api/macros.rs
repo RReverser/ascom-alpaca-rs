@@ -48,7 +48,7 @@ macro_rules! rpc_trait {
         fn setup(&self) -> futures::future::BoxFuture<'_, eyre::Result<String>> {
             Box::pin(async move {
                 Ok(
-                    $crate::client::REQWEST
+                    self.inner.http
                         .get(self.inner.base_url.join("setup")?)
                         .send()
                         .await?
