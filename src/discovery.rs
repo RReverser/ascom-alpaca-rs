@@ -50,6 +50,7 @@ pub(crate) fn get_active_interfaces() -> eyre::Result<Vec<GroupedInterface>> {
         let grouped = if let Some(existing) = interfaces.iter_mut().find(|g| g.name == iface.name)
         {
             existing.is_loopback |= iface.is_loopback();
+            existing.index = existing.index.or(iface.index);
             existing
         } else {
             interfaces.push(GroupedInterface {
