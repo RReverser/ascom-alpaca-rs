@@ -150,7 +150,9 @@ impl BoundServer {
     /// Returns the address the discovery server is listening on,
     /// or `None` if discovery is disabled.
     pub fn discovery_listen_addr(&self) -> Option<SocketAddr> {
-        self.discovery.as_ref().map(discovery::BoundServer::listen_addr)
+        self.discovery
+            .as_ref()
+            .map(discovery::BoundServer::listen_addr)
     }
 
     /// Starts the Alpaca and discovery servers.
