@@ -15,7 +15,8 @@ use tokio::net::UdpSocket;
 /// `ff12::a1:9aca` as per ASCOM Alpaca specification.
 pub(crate) const DISCOVERY_ADDR_V6: Ipv6Addr = Ipv6Addr::new(0xff12, 0, 0, 0, 0, 0, 0xa1, 0x9aca);
 pub(crate) const DISCOVERY_MSG: &[u8] = b"alpacadiscovery1";
-pub(crate) const DEFAULT_DISCOVERY_PORT: u16 = 32227;
+/// Default ASCOM Alpaca discovery port as defined by the specification.
+pub const DEFAULT_DISCOVERY_PORT: u16 = 32227;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct AlpacaPort {

@@ -587,7 +587,7 @@ fn get_webcam(camera_info: &CameraInfo) -> eyre::Result<Webcam> {
             let bin_x = exact_div(max_format_res.x, format_res.x)?;
             let bin_y = exact_div(max_format_res.y, format_res.y)?;
 
-            (bin_x == bin_y).then_some(bin_x as u8)
+            (bin_x == bin_y).then_some(bin_x)
         })
         .collect::<Vec<_>>();
 
