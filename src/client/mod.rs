@@ -68,10 +68,15 @@ pub(crate) struct RawClient {
     #[debug(r#""{base_url}""#)]
     pub(crate) base_url: reqwest::Url,
     pub(crate) client_id: NonZeroU32,
+    #[debug(skip)]
+    pub(crate) http: reqwest::Client,
 }
 
 impl RawClient {
-    pub(crate) fn new(base_url: reqwest::Url) -> eyre::Result<Self> {
+    pub(crate) fn new_with_client(
+        base_url: reqwest::Url,
+        http: reqwest::Client,
+    ) -> eyre::Result<Self> {
         eyre::ensure!(
             !base_url.cannot_be_a_base(),
             "{} is not a valid base URL",
@@ -80,6 +85,7 @@ impl RawClient {
         Ok(Self {
             base_url,
             client_id: rand::random(),
+            http,
         })
     }
 
@@ -103,7 +109,7 @@ impl RawClient {
         async move {
             tracing::debug!(?method, params = ?serdebug::debug(&params), base_url = %self.base_url, "Sending request");
 
-            let mut request = REQWEST.request(method.into(), self.base_url.join(action)?);
+            let mut request = self.http.request(method.into(), self.base_url.join(action)?);
 
             let add_params = match method {
                 Method::Get => RequestBuilder::query,
@@ -161,6 +167,7 @@ impl RawClient {
         Ok(Self {
             base_url: self.base_url.join(path)?,
             client_id: self.client_id,
+            http: self.http.clone(),
         })
     }
 }
@@ -174,7 +181,16 @@ pub struct Client {
 impl Client {
     /// Create a new client with given server URL.
     pub fn new(base_url: impl IntoUrl) -> eyre::Result<Self> {
-        RawClient::new(base_url.into_url()?).map(|inner| Self { inner })
+        Self::new_with_client(base_url, REQWEST.clone())
+    }
+
+    /// Create a new client with a caller-provided [`reqwest::Client`].
+    ///
+    /// This allows injecting a custom HTTP client configured with TLS CA
+    /// trust, HTTP Basic Auth default headers, or other settings that the
+    /// default client does not provide.
+    pub fn new_with_client(base_url: impl IntoUrl, client: reqwest::Client) -> eyre::Result<Self> {
+        RawClient::new_with_client(base_url.into_url()?, client).map(|inner| Self { inner })
     }
 
     /// Create a new client with given server address.
@@ -228,5 +244,53 @@ impl Client {
             })
             .await
             .map(|value_response| value_response.value)
+    }
+}
+
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn new_with_client_uses_injected_http_client() -> eyre::Result<()> {
+        let app = axum::Router::new().fallback(|req: axum::extract::Request| async move {
+            let custom_value = req
+                .headers()
+                .get("X-Custom-Test")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_owned();
+
+            axum::Json(serde_json::json!({
+                "ServerTransactionID": 1_u32,
+                "ErrorNumber": 0_u32,
+                "ErrorMessage": "",
+                "Value": {
+                    "ServerName": custom_value,
+                    "Manufacturer": "test",
+                    "ManufacturerVersion": "1.0",
+                    "Location": "test"
+                }
+            }))
+        });
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        let _server = tokio::spawn(axum::serve(listener, app).into_future());
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        let _ = headers.insert("X-Custom-Test", "injected-client".parse()?);
+        let custom = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
+
+        let client = Client::new_with_client(format!("http://{addr}/"), custom)?;
+        let info = client.get_server_info().await?;
+        eyre::ensure!(
+            &*info.server_name == "injected-client",
+            "expected server to echo custom header, got {:?}",
+            info.server_name,
+        );
+        Ok(())
     }
 }
