@@ -1,6 +1,7 @@
 use crate::api::RetrieavableDevice;
 use reqwest::{IntoUrl, Url};
 use std::fmt::Debug;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -23,10 +24,13 @@ impl ConformU {
     }
 
     /// Run the specified test with ConformU against the specified device URL.
-    #[tracing::instrument(level = "error", skip(device_url))]
-    async fn test(self, device_url: &Url) -> eyre::Result<()> {
+    #[tracing::instrument(level = "error", skip(device_url, settings_file))]
+    async fn test(self, device_url: &Url, settings_file: Option<&Path>) -> eyre::Result<()> {
         let mut conformu = cmd!(r"C:\Program Files\ASCOM\ConformU", "conformu")
             .arg(self.as_arg())
+            .args(settings_file.into_iter().flat_map(|path| {
+                [std::ffi::OsStr::new("--settingsfile"), path.as_os_str()]
+            }))
             .arg(device_url.as_str())
             .stdout(Stdio::piped())
             .spawn()?;
@@ -151,21 +155,119 @@ fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'l
     Some(part)
 }
 
+/// Builder for configuring and running ConformU tests.
+///
+/// # Example
+///
+/// ```ignore
+/// // Run with default settings
+/// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?.run().await?;
+///
+/// // Run with custom settings file for faster CI
+/// // Note: ConformU requires a COMPLETE settings file - see settings_file() docs
+/// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?
+///     .settings_file("test-fixtures/conformu-settings.json")
+///     .run()
+///     .await?;
+/// ```
+#[derive(Debug)]
+pub struct ConformUTestBuilder {
+    device_url: Url,
+    settings_file: Option<PathBuf>,
+}
+
+impl ConformUTestBuilder {
+    /// Create a new builder for testing a device at the specified URL.
+    ///
+    /// This assumes that ConformU is installed and available on PATH or in the
+    /// default installation location.
+    #[allow(private_bounds)]
+    pub fn new<T: ?Sized + RetrieavableDevice>(
+        server_url: impl IntoUrl + Debug,
+        device_number: usize,
+    ) -> eyre::Result<Self> {
+        let url = server_url
+            .into_url()?
+            .join(&format!("api/v1/{ty}/{device_number}", ty = T::TYPE))?;
+
+        Ok(Self {
+            device_url: url,
+            settings_file: None,
+        })
+    }
+
+    /// Set a custom ConformU settings file.
+    ///
+    /// # Important: Complete Settings File Required
+    ///
+    /// ConformU requires a **complete** settings file with all properties.
+    /// Partial files containing only a few settings will be silently ignored
+    /// and overwritten with defaults.
+    ///
+    /// ## Generating a Default Settings Template
+    ///
+    /// To generate a complete settings file with all default values, run ConformU
+    /// with an empty JSON object file. ConformU will populate it with all defaults:
+    ///
+    /// ```bash
+    /// echo "{}" > conformu-settings.json
+    /// conformu conformance --settingsfile conformu-settings.json http://localhost:9999/api/v1/switch/0
+    /// # The command will fail (no server), but conformu-settings.json now has all defaults
+    /// ```
+    ///
+    /// You can then edit the generated file to customize specific values
+    /// (e.g., reduce `SwitchReadDelay` and `SwitchWriteDelay` for faster CI).
+    ///
+    /// ## Switch Testing Performance
+    ///
+    /// For Switch device tests, the default delays are:
+    /// - `SwitchReadDelay`: 500ms
+    /// - `SwitchWriteDelay`: 3000ms
+    ///
+    /// For CI environments, reducing these (e.g., to 50ms and 100ms) can cut test
+    /// time from ~8 minutes to ~35 seconds.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Use a pre-configured settings file with reduced delays
+    /// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?
+    ///     .settings_file("test-fixtures/conformu-settings.json")
+    ///     .run()
+    ///     .await?;
+    /// ```
+    #[must_use]
+    pub fn settings_file(mut self, path: impl AsRef<Path>) -> Self {
+        self.settings_file = Some(path.as_ref().to_path_buf());
+        self
+    }
+
+    /// Run all ConformU tests (`AlpacaProtocol` and `Conformance`).
+    #[tracing::instrument(level = "error", skip(self))]
+    pub async fn run(self) -> eyre::Result<()> {
+        // Must be executed serially as they operate on the same device.
+        ConformU::AlpacaProtocol
+            .test(&self.device_url, self.settings_file.as_deref())
+            .await?;
+        ConformU::Conformance
+            .test(&self.device_url, self.settings_file.as_deref())
+            .await
+    }
+}
+
 /// Run all the ConformU tests against the device at the specified URL.
 ///
 /// This assumes that ConformU is installed and available on PATH or in the
 /// default installation location.
+///
+/// For more configuration options, use [`ConformUTestBuilder`].
 #[tracing::instrument(level = "error", fields(ty = ?T::TYPE))]
 #[allow(private_bounds)]
 pub async fn run_conformu_tests<T: ?Sized + RetrieavableDevice>(
     server_url: impl IntoUrl + Debug,
     device_number: usize,
 ) -> eyre::Result<()> {
-    let url = server_url
-        .into_url()?
-        .join(&format!("api/v1/{ty}/{device_number}", ty = T::TYPE))?;
-
-    // Must be executed serially as they operate on the same device.
-    ConformU::AlpacaProtocol.test(&url).await?;
-    ConformU::Conformance.test(&url).await
+    ConformUTestBuilder::new::<T>(server_url, device_number)?
+        .run()
+        .await
 }
