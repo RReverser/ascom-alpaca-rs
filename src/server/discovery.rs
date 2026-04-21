@@ -28,15 +28,9 @@ fn join_multicast_group(socket: &UdpSocket, intf: &GroupedInterface) {
     }
 }
 
-#[tracing::instrument(level = "debug", ret, skip(socket))]
-fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
-    let interfaces = match get_active_interfaces() {
-        Ok(interfaces) => interfaces,
-        Err(err) => {
-            tracing::warn!(%err, "failed to get network interfaces");
-            return;
-        }
-    };
+#[tracing::instrument(level = "debug", skip(socket))]
+fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) -> eyre::Result<()> {
+    let interfaces = get_active_interfaces()?;
 
     if listen_addr.is_unspecified() {
         // If it's [::], join multicast on every available interface with IPv6 support.
@@ -54,6 +48,8 @@ fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
 
         join_multicast_group(socket, intf);
     }
+
+    Ok(())
 }
 
 impl Server {
@@ -78,10 +74,10 @@ impl Server {
             // Both if_addrs::get_if_addrs and join_multicast_group can take a long time.
             // Spawn them all off to the async runtime.
             socket = spawn_blocking(move || {
-                join_multicast_groups(&socket, listen_addr);
-                socket
+                join_multicast_groups(&socket, listen_addr)?;
+                Ok::<_, eyre::Report>(socket)
             })
-            .await?;
+            .await??;
         }
         Ok(BoundServer {
             socket,
