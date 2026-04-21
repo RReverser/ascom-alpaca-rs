@@ -171,6 +171,10 @@ impl Client {
     #[tracing::instrument(level = "error")]
     pub async fn bind(self) -> eyre::Result<BoundClient> {
         let socket = bind_socket((Ipv6Addr::UNSPECIFIED, 0).into())?;
+        // Required on Linux/macOS to permit sending to IPv4 subnet broadcast
+        // addresses (e.g. 127.255.255.255). Without this, send_to returns
+        // EACCES and IPv4 discovery silently fails.
+        SockRef::from(&socket).set_broadcast(true)?;
         let interfaces = spawn_blocking(get_active_interfaces).await??;
         Ok(BoundClient {
             client: self,

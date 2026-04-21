@@ -299,14 +299,12 @@ mod tests {
                     .collect::<Vec<_>>()
                     .await;
 
-                let v4_addrs = addrs
+                let has_v4 = addrs
                     .iter()
-                    .filter(|addr| addr.port() == TEST_ALPACA_PORT && addr.is_ipv4())
-                    .map(SocketAddr::ip)
-                    .collect::<Vec<_>>();
+                    .any(|addr| addr.port() == TEST_ALPACA_PORT && addr.is_ipv4());
 
                 eyre::ensure!(
-                    !v4_addrs.is_empty(),
+                    has_v4,
                     "expected at least one IPv4 discovered addr, got {addrs:?}"
                 );
 
