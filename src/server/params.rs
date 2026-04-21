@@ -6,31 +6,20 @@ use axum::response::{IntoResponse, Response};
 use http::{Method, StatusCode};
 use indexmap::IndexMap;
 use serde::Deserialize;
-use serde::de::{DeserializeOwned, Deserializer, Error as _, Visitor};
+use serde::de::{DeserializeOwned, Deserializer, Visitor};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 
 /// Error type for Alpaca parameter parsing that distinguishes parse errors from range errors.
-#[derive(Debug)]
-enum AlpacaParseError {
-    /// Invalid format (not a valid integer/bool/etc) -> `BadParameter` (HTTP 400)
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum AlpacaParseError {
+    /// Invalid format (not a valid integer/bool/etc) -> HTTP 400
+    #[error("{0}")]
     BadFormat(String),
-    /// Valid integer but out of range for target type -> `INVALID_VALUE` (ASCOM error)
+    /// Valid integer but out of range for target type -> ASCOM `INVALID_VALUE`
+    #[error("value {value} is out of range for {target_type}")]
     OutOfRange { value: i64, target_type: &'static str },
 }
-
-impl fmt::Display for AlpacaParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::BadFormat(msg) => write!(f, "{msg}"),
-            Self::OutOfRange { value, target_type } => {
-                write!(f, "value {value} is out of range for {target_type}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for AlpacaParseError {}
 
 impl serde::de::Error for AlpacaParseError {
     fn custom<T: fmt::Display>(msg: T) -> Self {
@@ -268,17 +257,8 @@ where
         self.0
             .swap_remove(name.as_ref())
             .map(|value| {
-                T::deserialize(AlpacaDeserializer { value }).map_err(|err| match err {
-                    AlpacaParseError::OutOfRange { value, target_type } => Error::ParameterOutOfRange {
-                        name,
-                        value,
-                        target_type,
-                    },
-                    AlpacaParseError::BadFormat(msg) => Error::BadParameter {
-                        name,
-                        err: serde_plain::Error::custom(msg),
-                    },
-                })
+                T::deserialize(AlpacaDeserializer { value })
+                    .map_err(|err| Error::BadParameter { name, err })
             })
             .transpose()
     }
@@ -337,17 +317,7 @@ mod tests {
         let deser = AlpacaDeserializer {
             value: value.to_owned(),
         };
-        T::deserialize(deser).map_err(|err| match err {
-            AlpacaParseError::OutOfRange { value, target_type } => Error::ParameterOutOfRange {
-                name: "test",
-                value,
-                target_type,
-            },
-            AlpacaParseError::BadFormat(msg) => Error::BadParameter {
-                name: "test",
-                err: serde_plain::Error::custom(msg),
-            },
-        })
+        T::deserialize(deser).map_err(|err| Error::BadParameter { name: "test", err })
     }
 
     #[test]
@@ -384,7 +354,13 @@ mod tests {
     fn i32_out_of_range() {
         let err = parse::<i32>("3000000000").expect_err("should fail for i32 out of range");
         assert!(
-            matches!(err, Error::ParameterOutOfRange { .. }),
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::OutOfRange { .. },
+                    ..
+                }
+            ),
             "expected OutOfRange, got: {err:?}"
         );
     }
@@ -393,7 +369,13 @@ mod tests {
     fn u32_negative_out_of_range() {
         let err = parse::<u32>("-1").expect_err("should fail for negative u32");
         assert!(
-            matches!(err, Error::ParameterOutOfRange { .. }),
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::OutOfRange { .. },
+                    ..
+                }
+            ),
             "expected OutOfRange, got: {err:?}"
         );
     }
@@ -402,7 +384,13 @@ mod tests {
     fn u8_out_of_range() {
         let err = parse::<u8>("256").expect_err("should fail for u8 out of range");
         assert!(
-            matches!(err, Error::ParameterOutOfRange { .. }),
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::OutOfRange { .. },
+                    ..
+                }
+            ),
             "expected OutOfRange, got: {err:?}"
         );
     }
@@ -411,8 +399,14 @@ mod tests {
     fn bad_format_non_numeric() {
         let err = parse::<u32>("abc").expect_err("should fail for non-numeric input");
         assert!(
-            matches!(err, Error::BadParameter { .. }),
-            "expected BadParameter, got: {err:?}"
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::BadFormat(_),
+                    ..
+                }
+            ),
+            "expected BadFormat, got: {err:?}"
         );
     }
 
