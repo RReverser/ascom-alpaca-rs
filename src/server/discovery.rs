@@ -18,8 +18,8 @@ pub struct Server {
 
 #[tracing::instrument(level = "trace", skip_all, fields(intf.name = %intf.name, ?intf.ipv4, ?intf.ipv6))]
 fn join_multicast_group(socket: &UdpSocket, intf: &GroupedInterface) {
-    let Some(index) = intf.index else {
-        tracing::warn!("skipping multicast join: no interface index");
+    let Some(index) = intf.ipv6_index else {
+        tracing::warn!("skipping multicast join: no IPv6 interface index");
         return;
     };
     match socket.join_multicast_v6(&DISCOVERY_ADDR_V6, index) {

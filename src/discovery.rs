@@ -30,10 +30,17 @@ pub(crate) struct Ipv4Info {
 }
 
 /// A network interface with all its IPv4 and IPv6 addresses grouped together.
+///
+/// `ipv6_index` is populated only from V6 entries: on Windows, the V4 and V6
+/// interface indices for the same adapter can differ (`IfIndex` vs
+/// `Ipv6IfIndex` in `IP_ADAPTER_ADDRESSES`), and the IPv6 multicast APIs
+/// (`IPV6_MULTICAST_IF`, `IPV6_JOIN_GROUP`) need the V6-specific one. We don't
+/// store a V4 index because IPv4 discovery uses subnet-directed broadcast,
+/// where the routing table picks the outbound interface by destination.
 #[derive(Debug)]
 pub(crate) struct GroupedInterface {
     pub(crate) name: String,
-    pub(crate) index: Option<u32>,
+    pub(crate) ipv6_index: Option<u32>,
     pub(crate) is_loopback: bool,
     pub(crate) ipv4: Vec<Ipv4Info>,
     pub(crate) ipv6: Vec<Ipv6Addr>,
@@ -50,12 +57,11 @@ pub(crate) fn get_active_interfaces() -> eyre::Result<Vec<GroupedInterface>> {
         let grouped = if let Some(existing) = interfaces.iter_mut().find(|g| g.name == iface.name)
         {
             existing.is_loopback |= iface.is_loopback();
-            existing.index = existing.index.or(iface.index);
             existing
         } else {
             interfaces.push(GroupedInterface {
                 name: iface.name.clone(),
-                index: iface.index,
+                ipv6_index: None,
                 is_loopback: iface.is_loopback(),
                 ipv4: Vec::new(),
                 ipv6: Vec::new(),
@@ -73,6 +79,7 @@ pub(crate) fn get_active_interfaces() -> eyre::Result<Vec<GroupedInterface>> {
                 });
             }
             if_addrs::IfAddr::V6(v6) => {
+                grouped.ipv6_index = grouped.ipv6_index.or(iface.index);
                 grouped.ipv6.push(v6.ip);
             }
         }
