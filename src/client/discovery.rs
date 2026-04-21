@@ -45,8 +45,8 @@ impl BoundClient {
     async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &GroupedInterface) {
         let send_op = async {
             if addr.is_multicast() {
-                let Some(index) = intf.index else {
-                    tracing::warn!("skipping multicast send: no interface index");
+                let Some(index) = intf.ipv6_index else {
+                    tracing::warn!("skipping multicast send: no IPv6 interface index");
                     return Ok(());
                 };
                 SockRef::from(&self.socket).set_multicast_if_v6(index)?;
