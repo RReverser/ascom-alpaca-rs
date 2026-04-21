@@ -1,3 +1,4 @@
+use super::params::AlpacaParseError;
 use super::{Error, ResponseWithTransaction};
 use crate::response::ValueResponse;
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
@@ -52,6 +53,12 @@ where
         match self.response {
             Ok(response) => Ok(Ok(response)),
             Err(Error::Ascom(err)) => Ok(Err(err)),
+            Err(Error::BadParameter {
+                name,
+                err: AlpacaParseError::OutOfRange { value, target_type },
+            }) => Ok(Err(ASCOMError::invalid_value(format!(
+                "Parameter {name:?} value {value} is out of range for {target_type}"
+            )))),
             Err(err @ (Error::MissingParameter { .. } | Error::BadParameter { .. })) => {
                 Err((StatusCode::BAD_REQUEST, err.to_string()))
             }
