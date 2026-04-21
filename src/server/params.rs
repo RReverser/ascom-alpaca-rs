@@ -10,7 +10,7 @@ use serde::de::{DeserializeOwned, Deserializer, Error as _, Visitor};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 
-/// Error type for ALPACA parameter parsing that distinguishes parse errors from range errors.
+/// Error type for Alpaca parameter parsing that distinguishes parse errors from range errors.
 #[derive(Debug)]
 enum AlpacaParseError {
     /// Invalid format (not a valid integer/bool/etc) -> `BadParameter` (HTTP 400)
@@ -38,7 +38,7 @@ impl serde::de::Error for AlpacaParseError {
     }
 }
 
-/// Custom serde Deserializer for ALPACA parameters.
+/// Custom serde Deserializer for Alpaca parameters.
 ///
 /// Integers are parsed as i64 first, then converted to the target type.
 /// This allows distinguishing parse errors (`BadParameter`) from range errors
@@ -180,13 +180,13 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
 
     fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "Option types are not supported as ALPACA parameters".to_owned(),
+            "Option types are not supported as Alpaca parameters".to_owned(),
         ))
     }
 
     fn deserialize_unit<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "unit type is not supported as ALPACA parameter".to_owned(),
+            "unit type is not supported as Alpaca parameter".to_owned(),
         ))
     }
 
@@ -196,13 +196,13 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "unit struct is not supported as ALPACA parameter".to_owned(),
+            "unit struct is not supported as Alpaca parameter".to_owned(),
         ))
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "sequences are not supported as ALPACA parameters".to_owned(),
+            "sequences are not supported as Alpaca parameters".to_owned(),
         ))
     }
 
@@ -212,7 +212,7 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "tuples are not supported as ALPACA parameters".to_owned(),
+            "tuples are not supported as Alpaca parameters".to_owned(),
         ))
     }
 
@@ -223,13 +223,13 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "tuple structs are not supported as ALPACA parameters".to_owned(),
+            "tuple structs are not supported as Alpaca parameters".to_owned(),
         ))
     }
 
     fn deserialize_map<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "maps are not supported as ALPACA parameters".to_owned(),
+            "maps are not supported as Alpaca parameters".to_owned(),
         ))
     }
 
@@ -240,7 +240,7 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
         Err(AlpacaParseError::BadFormat(
-            "structs are not supported as ALPACA parameters".to_owned(),
+            "structs are not supported as Alpaca parameters".to_owned(),
         ))
     }
 }
