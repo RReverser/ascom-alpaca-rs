@@ -31,15 +31,22 @@ use crate::response::ValueResponse;
 use axum::extract::{FromRequest, Path, Request};
 use axum::response::{Html, IntoResponse, Response};
 use axum::{Router, routing};
+use bytes::Bytes;
 use fnv::FnvHashSet;
 use futures::future::{BoxFuture, FutureExt};
 use http::StatusCode;
+use http_body::Body as HttpBody;
+use http_body_util::BodyExt;
+use http_body_util::combinators::UnsyncBoxBody;
 use serde::Deserialize;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::BTreeMap;
+use std::convert::Infallible;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, RwLock};
+use std::task::{Context, Poll};
 use tokio::net::TcpListener;
+use tower_service::Service;
 use tracing::Instrument;
 
 /// The Alpaca server.
@@ -78,6 +85,65 @@ impl Server {
             listen_addr: SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
             discovery_port: Some(DEFAULT_DISCOVERY_PORT),
         }
+    }
+}
+
+/// Boxed error type used by [`AlpacaService`]'s response body.
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Tower [`Service`] for the Alpaca HTTP protocol.
+///
+/// Obtained via [`Server::into_service`]. Accepts any request body
+/// implementing [`http_body::Body`] with `Data = Bytes`; produces
+/// responses with a type-erased [`UnsyncBoxBody`] so the caller doesn't
+/// need to know the concrete server implementation's body type.
+///
+/// Use this when you need custom socket binding, TLS termination, or
+/// middleware composition. The caller is responsible for starting the
+/// Alpaca discovery server separately if needed.
+///
+/// # Example
+///
+/// ```no_run
+/// # use ascom_alpaca::{Server, api::CargoServerInfo};
+/// # async fn run() -> eyre::Result<()> {
+/// let server = Server::new(CargoServerInfo!());
+/// let service = server.into_service();
+/// // Compose with your preferred TLS / middleware stack, e.g.
+/// // `axum_server::bind_rustls` or `hyper_util::server::conn::auto`.
+/// # Ok(()) }
+/// ```
+#[derive(Clone, derive_more::Debug)]
+pub struct AlpacaService {
+    #[debug(skip)]
+    router: Router,
+}
+
+impl<B> Service<http::Request<B>> for AlpacaService
+where
+    B: HttpBody<Data = Bytes> + Send + 'static,
+    B::Error: Into<BoxError>,
+{
+    type Response = http::Response<UnsyncBoxBody<Bytes, BoxError>>;
+    type Error = Infallible;
+    type Future = BoxFuture<'static, std::result::Result<Self::Response, Infallible>>;
+
+    fn poll_ready(
+        &mut self,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Infallible>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: http::Request<B>) -> Self::Future {
+        let fut = self.router.call(req);
+        async move {
+            let resp = fut.await?;
+            let (parts, body) = resp.into_parts();
+            let boxed = body.map_err(Into::into).boxed_unsync();
+            Ok(http::Response::from_parts(parts, boxed))
+        }
+        .boxed()
     }
 }
 
@@ -135,7 +201,7 @@ impl ServerHandler {
 pub struct BoundServer {
     // Axum types are a bit complicated, so just Box it for now.
     #[debug(skip)]
-    axum: BoxFuture<'static, eyre::Result<std::convert::Infallible>>,
+    axum: BoxFuture<'static, eyre::Result<Infallible>>,
     axum_listen_addr: SocketAddr,
     discovery: Option<BoundDiscoveryServer>,
 }
@@ -159,7 +225,7 @@ impl BoundServer {
     ///
     /// Note: this function starts an infinite async loop and it's your responsibility to spawn it off
     /// via [`tokio::spawn`] if necessary.
-    pub async fn start(self) -> eyre::Result<std::convert::Infallible> {
+    pub async fn start(self) -> eyre::Result<Infallible> {
         match self.discovery {
             Some(discovery) => {
                 match tokio::select! {
@@ -227,7 +293,7 @@ impl Server {
             axum: async move {
                 axum::serve(
                     listener,
-                    self.into_router()
+                    self.into_router_inner()
                         // .layer(TraceLayer::new_for_http())
                         .into_make_service(),
                 )
@@ -244,12 +310,24 @@ impl Server {
     /// Binds the Alpaca and discovery servers to local ports and starts them.
     ///
     /// This is a convenience method that is equivalent to calling [`Self::bind`] and [`BoundServer::start`].
-    pub async fn start(self) -> eyre::Result<std::convert::Infallible> {
+    pub async fn start(self) -> eyre::Result<Infallible> {
         self.bind().await?.start().await
     }
 
+    /// Consumes the server and returns the Alpaca HTTP [`Service`].
+    ///
+    /// Use this when you need to handle socket binding, TLS termination,
+    /// or middleware composition yourself instead of calling [`Self::bind`].
+    /// The caller is responsible for starting the Alpaca discovery server
+    /// separately if needed.
+    ///
+    /// See [`AlpacaService`] for the returned type.
+    pub fn into_service(self) -> AlpacaService {
+        AlpacaService { router: self.into_router_inner() }
+    }
+
     #[expect(clippy::too_many_lines)]
-    fn into_router(self) -> Router {
+    fn into_router_inner(self) -> Router {
         let devices = Arc::new(self.devices);
         let server_info = Arc::new(self.info);
         let connecting_devices = Arc::new(RwLock::new(FnvHashSet::default()));
