@@ -265,4 +265,98 @@ mod tests {
         test_external_v4 = DEFAULT_ADDR.v4 => default_v4;
         test_external_v6 = DEFAULT_ADDR.v6 => default_v6;
     }
+
+    /// IPv4-only discovery test suitable for CI environments that lack a
+    /// default route or link-local IPv6 on the default interface.
+    ///
+    /// Unlike the tests above, this does not touch `DEFAULT_ADDR`, so it
+    /// doesn't require interface enumeration to find a link-local IPv6. The
+    /// server binds to `0.0.0.0` so that loopback subnet broadcasts
+    /// (`127.255.255.255`) reach it regardless of OS-specific loopback
+    /// routing behavior, and the server skips all multicast joins because
+    /// the listen address is IPv4.
+    #[tokio::test]
+    async fn test_unspecified_v4_only() -> eyre::Result<()> {
+        let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), TEST_ALPACA_PORT);
+        let mut server = DiscoveryServer::for_alpaca_server_at(server_addr);
+        server.listen_addr.set_port(0);
+
+        let bound_server = server.bind().await?;
+
+        let client = DiscoveryClient {
+            discovery_port: bound_server.listen_addr().port(),
+            ..Default::default()
+        };
+
+        tokio::select! {
+            never_returns = bound_server.start() => match never_returns {},
+
+            result = async {
+                let addrs = client
+                    .bind()
+                    .await?
+                    .discover_addrs()
+                    .collect::<Vec<_>>()
+                    .await;
+
+                let v4_addrs = addrs
+                    .iter()
+                    .filter(|addr| addr.port() == TEST_ALPACA_PORT && addr.is_ipv4())
+                    .map(SocketAddr::ip)
+                    .collect::<Vec<_>>();
+
+                eyre::ensure!(
+                    !v4_addrs.is_empty(),
+                    "expected at least one IPv4 discovered addr, got {addrs:?}"
+                );
+
+                Ok::<_, eyre::Error>(())
+            } => result,
+        }
+    }
+
+    /// IPv6-loopback-only discovery test suitable for CI environments
+    /// that lack a link-local IPv6 on the default interface.
+    ///
+    /// Exercises the IPv6 code paths: server bind to `::1` (goes through
+    /// `join_multicast_groups`' "specific address" branch), client sending
+    /// V6 unicast to the loopback `::1`, and V6 response handling.
+    #[tokio::test]
+    async fn test_loopback_v6_only() -> eyre::Result<()> {
+        let server_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), TEST_ALPACA_PORT);
+        let mut server = DiscoveryServer::for_alpaca_server_at(server_addr);
+        server.listen_addr.set_port(0);
+
+        let bound_server = server.bind().await?;
+
+        let client = DiscoveryClient {
+            discovery_port: bound_server.listen_addr().port(),
+            ..Default::default()
+        };
+
+        tokio::select! {
+            never_returns = bound_server.start() => match never_returns {},
+
+            result = async {
+                let addrs = client
+                    .bind()
+                    .await?
+                    .discover_addrs()
+                    .collect::<Vec<_>>()
+                    .await;
+
+                let has_v6_loopback = addrs.iter().any(|addr| {
+                    addr.port() == TEST_ALPACA_PORT
+                        && addr.ip() == IpAddr::V6(Ipv6Addr::LOCALHOST)
+                });
+
+                eyre::ensure!(
+                    has_v6_loopback,
+                    "expected ::1 discovered addr, got {addrs:?}"
+                );
+
+                Ok::<_, eyre::Error>(())
+            } => result,
+        }
+    }
 }
