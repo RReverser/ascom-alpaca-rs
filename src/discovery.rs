@@ -158,9 +158,13 @@ mod tests {
 
     /// Determine the default IPv4 address using the UDP socket trick:
     /// "connect" to a non-routable address and read back the source IP the OS chose.
+    ///
+    /// Uses a TEST-NET-1 address (RFC 5737). VPNs commonly push routes for
+    /// RFC1918 prefixes, which would make a `10.0.0.0/8` target resolve to
+    /// the VPN interface instead of the true default route.
     fn get_default_ipv4() -> Option<Ipv4Addr> {
         let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-        socket.connect("10.254.254.254:1").ok()?;
+        socket.connect("192.0.2.1:1").ok()?;
         match socket.local_addr().ok()?.ip() {
             IpAddr::V4(ip) => Some(ip),
             IpAddr::V6(_) => None,
