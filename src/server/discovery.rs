@@ -1,8 +1,8 @@
 use super::DEFAULT_DISCOVERY_PORT;
 use crate::discovery::{
-    AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG, bind_socket, get_active_interfaces,
+    AlpacaPort, DISCOVERY_ADDR_V6, DISCOVERY_MSG, GroupedInterface, bind_socket,
+    get_active_interfaces,
 };
-use netdev::Interface;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 use tokio::task::spawn_blocking;
@@ -16,31 +16,40 @@ pub struct Server {
     pub alpaca_port: u16,
 }
 
-#[tracing::instrument(level = "trace", skip_all, fields(intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
-fn join_multicast_group(socket: &UdpSocket, intf: &Interface) {
-    match socket.join_multicast_v6(&DISCOVERY_ADDR_V6, intf.index) {
+#[tracing::instrument(level = "trace", skip_all, fields(intf.name = %intf.name, ?intf.ipv4, ?intf.ipv6))]
+fn join_multicast_group(socket: &UdpSocket, intf: &GroupedInterface) {
+    let Some(index) = intf.ipv6_index else {
+        tracing::warn!("skipping multicast join: no IPv6 interface index");
+        return;
+    };
+    match socket.join_multicast_v6(&DISCOVERY_ADDR_V6, index) {
         Ok(()) => tracing::trace!("success"),
         Err(err) => tracing::warn!(%err),
     }
 }
 
-#[tracing::instrument(level = "debug", ret, skip(socket))]
-fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) {
+#[tracing::instrument(level = "debug", skip(socket))]
+fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) -> eyre::Result<()> {
+    let interfaces = get_active_interfaces()?;
+
     if listen_addr.is_unspecified() {
         // If it's [::], join multicast on every available interface with IPv6 support.
-        for intf in get_active_interfaces() {
+        for intf in &interfaces {
             if !intf.ipv6.is_empty() {
-                join_multicast_group(socket, &intf);
+                join_multicast_group(socket, intf);
             }
         }
     } else {
         // If it's a specific address, find corresponding interface and join multicast on it.
-        let intf = get_active_interfaces()
-            .find(|intf| intf.ipv6.iter().any(|net| net.addr() == listen_addr))
+        let intf = interfaces
+            .iter()
+            .find(|intf| intf.ipv6.contains(&listen_addr))
             .expect("internal error: couldn't find the interface of an already bound socket");
 
-        join_multicast_group(socket, &intf);
+        join_multicast_group(socket, intf);
     }
+
+    Ok(())
 }
 
 impl Server {
@@ -62,13 +71,13 @@ impl Server {
     pub async fn bind(self) -> eyre::Result<BoundServer> {
         let mut socket = bind_socket(self.listen_addr)?;
         if let IpAddr::V6(listen_addr) = self.listen_addr.ip() {
-            // Both netdev::get_interfaces and join_multicast_group can take a long time.
+            // Both if_addrs::get_if_addrs and join_multicast_group can take a long time.
             // Spawn them all off to the async runtime.
             socket = spawn_blocking(move || {
-                join_multicast_groups(&socket, listen_addr);
-                socket
+                join_multicast_groups(&socket, listen_addr)?;
+                Ok::<_, eyre::Report>(socket)
             })
-            .await?;
+            .await??;
         }
         Ok(BoundServer {
             socket,

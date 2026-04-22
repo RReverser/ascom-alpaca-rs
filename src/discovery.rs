@@ -4,10 +4,9 @@
 pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
 #[cfg(feature = "server")]
 pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
-use netdev::Interface;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
-use std::net::{Ipv6Addr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 #[cfg(windows)]
 use std::os::windows::prelude::AsRawSocket;
 use tokio::net::UdpSocket;
@@ -24,10 +23,70 @@ pub(crate) struct AlpacaPort {
     pub(crate) alpaca_port: u16,
 }
 
-pub(crate) fn get_active_interfaces() -> impl Iterator<Item = Interface> {
-    netdev::get_interfaces()
-        .into_iter()
-        .filter(Interface::is_running)
+/// IPv4 address information for a network interface.
+#[derive(Debug)]
+pub(crate) struct Ipv4Info {
+    pub(crate) addr: Ipv4Addr,
+    pub(crate) netmask: Ipv4Addr,
+}
+
+/// A network interface with all its IPv4 and IPv6 addresses grouped together.
+///
+/// `ipv6_index` is populated only from V6 entries: on Windows, the V4 and V6
+/// interface indices for the same adapter can differ (`IfIndex` vs
+/// `Ipv6IfIndex` in `IP_ADAPTER_ADDRESSES`), and the IPv6 multicast APIs
+/// (`IPV6_MULTICAST_IF`, `IPV6_JOIN_GROUP`) need the V6-specific one. We don't
+/// store a V4 index because IPv4 discovery uses subnet-directed broadcast,
+/// where the routing table picks the outbound interface by destination.
+#[derive(Debug)]
+pub(crate) struct GroupedInterface {
+    pub(crate) name: String,
+    pub(crate) ipv6_index: Option<u32>,
+    pub(crate) is_loopback: bool,
+    pub(crate) ipv4: Vec<Ipv4Info>,
+    pub(crate) ipv6: Vec<Ipv6Addr>,
+}
+
+pub(crate) fn get_active_interfaces() -> eyre::Result<Vec<GroupedInterface>> {
+    let mut interfaces: Vec<GroupedInterface> = Vec::new();
+
+    for iface in if_addrs::get_if_addrs()? {
+        if !iface.is_oper_up() {
+            continue;
+        }
+
+        let grouped = if let Some(existing) = interfaces.iter_mut().find(|g| g.name == iface.name)
+        {
+            existing.is_loopback |= iface.is_loopback();
+            existing
+        } else {
+            interfaces.push(GroupedInterface {
+                name: iface.name.clone(),
+                ipv6_index: None,
+                is_loopback: iface.is_loopback(),
+                ipv4: Vec::new(),
+                ipv6: Vec::new(),
+            });
+            interfaces
+                .last_mut()
+                .expect("internal error: just pushed an element")
+        };
+
+        match iface.addr {
+            if_addrs::IfAddr::V4(v4) => {
+                grouped.ipv4.push(Ipv4Info {
+                    addr: v4.ip,
+                    netmask: v4.netmask,
+                });
+            }
+            if_addrs::IfAddr::V6(v6) => {
+                grouped.ipv6_index = grouped.ipv6_index.or(iface.index);
+                grouped.ipv6.push(v6.ip);
+            }
+        }
+    }
+
+    Ok(interfaces)
 }
 
 #[tracing::instrument(level = "trace")]
@@ -98,24 +157,46 @@ mod tests {
         (ipv6.segments()[0] & 0xffc0) == 0xfe80
     }
 
+    /// Determine the default IPv4 address using the UDP socket trick:
+    /// "connect" to a non-routable address and read back the source IP the OS chose.
+    ///
+    /// Uses a TEST-NET-1 address (RFC 5737). VPNs commonly push routes for
+    /// RFC1918 prefixes, which would make a `10.0.0.0/8` target resolve to
+    /// the VPN interface instead of the true default route.
+    fn get_default_ipv4() -> Option<Ipv4Addr> {
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+        socket.connect("192.0.2.1:1").ok()?;
+        match socket.local_addr().ok()?.ip() {
+            IpAddr::V4(ip) => Some(ip),
+            IpAddr::V6(_) => None,
+        }
+    }
+
     static DEFAULT_ADDR: LazyLock<DefaultAddr> = LazyLock::new(|| {
-        let intf = netdev::get_default_interface().expect("coudn't get default interface");
+        // Use the UDP socket trick to find the default route's IPv4, matching
+        // the old netdev::get_default_interface() behaviour.
+        let default_ip = get_default_ipv4().expect("no default IPv4 route");
 
-        // Only extract private / link-local addresses, since binding to others might fail in tests.
+        // Find which interface owns that IP, then grab its link-local IPv6 too.
+        // This guarantees both addresses come from the same interface.
+        let addrs = if_addrs::get_if_addrs().expect("couldn't get network interfaces");
+        let default_intf_name = &addrs
+            .iter()
+            .find(|iface| iface.ip() == IpAddr::V4(default_ip))
+            .expect("default IP not found on any interface")
+            .name;
+
         DefaultAddr {
-            v4: intf
-                .ipv4
-                .into_iter()
-                .map(|net| net.addr())
-                .find(Ipv4Addr::is_private)
-                .expect("no private IPv4 address"),
-
-            v6: intf
-                .ipv6
-                .into_iter()
-                .map(|net| net.addr())
+            v4: default_ip,
+            v6: addrs
+                .iter()
+                .filter(|iface| &iface.name == default_intf_name)
+                .filter_map(|iface| match &iface.addr {
+                    if_addrs::IfAddr::V6(v6) => Some(v6.ip),
+                    if_addrs::IfAddr::V4(_) => None,
+                })
                 .find(is_unicast_link_local)
-                .expect("no unique local IPv6 address"),
+                .expect("no link-local IPv6 on default interface"),
         }
     });
 
@@ -195,5 +276,97 @@ mod tests {
         test_unspecified_v6 = Ipv6Addr::UNSPECIFIED => localhost_v4, localhost_v6, default_v4, default_v6;
         test_external_v4 = DEFAULT_ADDR.v4 => default_v4;
         test_external_v6 = DEFAULT_ADDR.v6 => default_v6;
+    }
+
+    /// IPv4-only discovery test suitable for CI environments that lack a
+    /// default route or link-local IPv6 on the default interface.
+    ///
+    /// Unlike the tests above, this does not touch `DEFAULT_ADDR`, so it
+    /// doesn't require interface enumeration to find a link-local IPv6. The
+    /// server binds to `0.0.0.0` so that loopback subnet broadcasts
+    /// (`127.255.255.255`) reach it regardless of OS-specific loopback
+    /// routing behavior, and the server skips all multicast joins because
+    /// the listen address is IPv4.
+    #[tokio::test]
+    async fn test_unspecified_v4_only() -> eyre::Result<()> {
+        let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), TEST_ALPACA_PORT);
+        let mut server = DiscoveryServer::for_alpaca_server_at(server_addr);
+        server.listen_addr.set_port(0);
+
+        let bound_server = server.bind().await?;
+
+        let client = DiscoveryClient {
+            discovery_port: bound_server.listen_addr().port(),
+            ..Default::default()
+        };
+
+        tokio::select! {
+            never_returns = bound_server.start() => match never_returns {},
+
+            result = async {
+                let addrs = client
+                    .bind()
+                    .await?
+                    .discover_addrs()
+                    .collect::<Vec<_>>()
+                    .await;
+
+                let has_v4 = addrs
+                    .iter()
+                    .any(|addr| addr.port() == TEST_ALPACA_PORT && addr.is_ipv4());
+
+                eyre::ensure!(
+                    has_v4,
+                    "expected at least one IPv4 discovered addr, got {addrs:?}"
+                );
+
+                Ok::<_, eyre::Error>(())
+            } => result,
+        }
+    }
+
+    /// IPv6-loopback-only discovery test suitable for CI environments
+    /// that lack a link-local IPv6 on the default interface.
+    ///
+    /// Exercises the IPv6 code paths: server bind to `::1` (goes through
+    /// `join_multicast_groups`' "specific address" branch), client sending
+    /// V6 unicast to the loopback `::1`, and V6 response handling.
+    #[tokio::test]
+    async fn test_loopback_v6_only() -> eyre::Result<()> {
+        let server_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), TEST_ALPACA_PORT);
+        let mut server = DiscoveryServer::for_alpaca_server_at(server_addr);
+        server.listen_addr.set_port(0);
+
+        let bound_server = server.bind().await?;
+
+        let client = DiscoveryClient {
+            discovery_port: bound_server.listen_addr().port(),
+            ..Default::default()
+        };
+
+        tokio::select! {
+            never_returns = bound_server.start() => match never_returns {},
+
+            result = async {
+                let addrs = client
+                    .bind()
+                    .await?
+                    .discover_addrs()
+                    .collect::<Vec<_>>()
+                    .await;
+
+                let has_v6_loopback = addrs.iter().any(|addr| {
+                    addr.port() == TEST_ALPACA_PORT
+                        && addr.ip() == IpAddr::V6(Ipv6Addr::LOCALHOST)
+                });
+
+                eyre::ensure!(
+                    has_v6_loopback,
+                    "expected ::1 discovered addr, got {addrs:?}"
+                );
+
+                Ok::<_, eyre::Error>(())
+            } => result,
+        }
     }
 }
