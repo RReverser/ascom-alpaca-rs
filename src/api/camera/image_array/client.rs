@@ -82,12 +82,23 @@ impl<'de> Deserialize<'de> for JsonImageArray {
     }
 }
 
-fn cast_raw_data<T: AsTransmissionElementType>(data: &[u8]) -> Result<Vec<i32>, PodCastError> {
-    Ok(bytemuck::try_cast_slice::<u8, T>(data)?
-        .iter()
-        .copied()
-        .map(T::into)
-        .collect())
+fn cast_raw_data<T: AsTransmissionElementType + bytemuck::NoUninit>(
+    data: &[u8],
+) -> Result<Vec<i32>, PodCastError> {
+    // `bytemuck::try_cast_slice::<u8, T>` requires the source pointer
+    // to be aligned to `align_of::<T>()`. The HTTP response body that
+    // backs `data` is a `bytes::Bytes` slice from reqwest's chunked
+    // read — its start pointer is not guaranteed to be 4-byte aligned
+    // (or 2-byte aligned for `i16` / `u16`). Copy through an aligned
+    // `Vec<T>` instead so callers don't see intermittent
+    // `TargetAlignmentGreaterAndInputNotAligned` failures dependent on
+    // the host allocator's runtime behaviour.
+    let elem_size = size_of::<T>();
+    if data.len() % elem_size != 0 {
+        return Err(PodCastError::OutputSliceWouldHaveSlop);
+    }
+    let aligned: Vec<T> = bytemuck::pod_collect_to_vec(data);
+    Ok(aligned.into_iter().map(T::into).collect())
 }
 
 impl Response for ASCOMResult<ImageArray> {
@@ -108,10 +119,16 @@ impl Response for ASCOMResult<ImageArray> {
                 },
             });
         }
-        let metadata = bytes
+        let metadata_bytes = bytes
             .get(..size_of::<ImageBytesMetadata>())
             .ok_or_else(|| eyre::eyre!("not enough bytes to read image metadata"))?;
-        let metadata = bytemuck::try_from_bytes::<ImageBytesMetadata>(metadata)?;
+        // `bytemuck::try_from_bytes::<ImageBytesMetadata>` requires
+        // the source slice to be aligned to `align_of::<i32>() == 4`.
+        // The body buffer's start pointer is not guaranteed to be
+        // 4-aligned (see `cast_raw_data` for the parallel issue);
+        // `pod_read_unaligned` reads via `ptr::read_unaligned` and
+        // is safe for any pointer.
+        let metadata: ImageBytesMetadata = bytemuck::pod_read_unaligned(metadata_bytes);
         eyre::ensure!(
             metadata.metadata_version == 1_i32,
             "unsupported metadata version {}",
@@ -166,5 +183,71 @@ impl Response for ASCOMResult<ImageArray> {
             transaction,
             response: ascom_result,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build an `application/imagebytes` payload at the given byte
+    /// offset within a `Vec<u8>`. The returned slice's start pointer
+    /// has the requested alignment-mod-4. Used to reproduce the
+    /// upstream-pre-fix `TargetAlignmentGreaterAndInputNotAligned`
+    /// path, which only fires when the buffer slice is not 4-byte
+    /// aligned.
+    fn imagebytes_payload_at_offset(
+        leading_pad: usize,
+        pixels: &[i32],
+    ) -> (Vec<u8>, std::ops::Range<usize>) {
+        let metadata = ImageBytesMetadata {
+            metadata_version: 1,
+            error_number: 0,
+            client_transaction_id: None,
+            server_transaction_id: None,
+            data_start: i32::try_from(size_of::<ImageBytesMetadata>()).unwrap(),
+            image_element_type: TransmissionElementType::I32 as i32,
+            transmission_element_type: TransmissionElementType::I32 as i32,
+            rank: ImageArrayRank::Rank2 as i32,
+            dimension_1: i32::try_from(pixels.len()).unwrap(),
+            dimension_2: 1,
+            dimension_3: 0,
+        };
+        let mut buf = vec![0u8; leading_pad];
+        let payload_start = buf.len();
+        buf.extend_from_slice(bytemuck::bytes_of(&metadata));
+        buf.extend_from_slice(bytemuck::cast_slice(pixels));
+        let payload_end = buf.len();
+        (buf, payload_start..payload_end)
+    }
+
+    /// Regression test for issue #18: parsing an `imagebytes` body
+    /// whose slice start is not 4-byte aligned must succeed.
+    /// Pre-fix this path failed with
+    /// `bytemuck::PodCastError::TargetAlignmentGreaterAndInputNotAligned`
+    /// because both the metadata `try_from_bytes` and the pixel
+    /// `try_cast_slice` require source alignment. After the fix —
+    /// using `pod_read_unaligned` and `pod_collect_to_vec` — the
+    /// parse is alignment-independent.
+    #[test]
+    fn from_reqwest_handles_unaligned_imagebytes_slice() {
+        let pixels: Vec<i32> = (0..16).collect();
+        // Try every offset 0..4 — at least one of 1, 2, 3 is
+        // guaranteed to put the body slice on a non-4-aligned start
+        // even if `Vec<u8>` happens to allocate at a 4-aligned base.
+        for leading_pad in 0..4 {
+            let (buf, range) = imagebytes_payload_at_offset(leading_pad, &pixels);
+            let slice = &buf[range];
+            let mime: Mime = IMAGE_BYTES_TYPE.parse().unwrap();
+            let parsed =
+                <ASCOMResult<ImageArray> as Response>::from_reqwest(mime, slice).unwrap_or_else(
+                    |e| panic!("from_reqwest failed at leading_pad={leading_pad}: {e:?}"),
+                );
+            let array = parsed.response.unwrap();
+            assert_eq!(array.shape(), &[pixels.len(), 1, 1]);
+            for (i, &p) in pixels.iter().enumerate() {
+                assert_eq!(array[[i, 0, 0]], p, "pixel {i} mismatch");
+            }
+        }
     }
 }
