@@ -64,22 +64,53 @@ pub(crate) enum ImageElementType {
 
 trait AsTransmissionElementType: 'static + Into<i32> + AnyBitPattern {
     const TYPE: TransmissionElementType;
+
+    /// Read a single little-endian `Self` from a
+    /// `size_of::<Self>()`-byte chunk and widen to `i32`. Used by
+    /// the unaligned-input slow path of `cast_raw_data` (see
+    /// `image_array/client.rs`) so the conversion can go from
+    /// response bytes straight into `Vec<i32>` in one pass without
+    /// staging through an intermediate aligned `Vec<Self>`.
+    /// Callers must feed exactly `size_of::<Self>()` bytes (e.g. via
+    /// `data.chunks_exact(size_of::<Self>())`).
+    fn widen_from_le_chunk(chunk: &[u8]) -> i32;
 }
 
 impl AsTransmissionElementType for i16 {
     const TYPE: TransmissionElementType = TransmissionElementType::I16;
+
+    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
+        i32::from(Self::from_le_bytes([chunk[0_usize], chunk[1_usize]]))
+    }
 }
 
 impl AsTransmissionElementType for i32 {
     const TYPE: TransmissionElementType = TransmissionElementType::I32;
+
+    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
+        Self::from_le_bytes([
+            chunk[0_usize],
+            chunk[1_usize],
+            chunk[2_usize],
+            chunk[3_usize],
+        ])
+    }
 }
 
 impl AsTransmissionElementType for u16 {
     const TYPE: TransmissionElementType = TransmissionElementType::U16;
+
+    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
+        i32::from(Self::from_le_bytes([chunk[0_usize], chunk[1_usize]]))
+    }
 }
 
 impl AsTransmissionElementType for u8 {
     const TYPE: TransmissionElementType = TransmissionElementType::U8;
+
+    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
+        i32::from(chunk[0_usize])
+    }
 }
 
 /// Image array.

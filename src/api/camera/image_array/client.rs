@@ -82,25 +82,35 @@ impl<'de> Deserialize<'de> for JsonImageArray {
     }
 }
 
-fn cast_raw_data<T: AsTransmissionElementType + bytemuck::NoUninit>(
-    data: &[u8],
-) -> Result<Vec<i32>, PodCastError> {
-    // Fast path: if `data` happens to be aligned to `align_of::<T>()`,
-    // `try_cast_slice` reinterprets in place and we just iterate.
+fn cast_raw_data<T: AsTransmissionElementType>(data: &[u8]) -> Result<Vec<i32>, PodCastError> {
+    // Fast path: if `data` is already aligned to `align_of::<T>()`,
+    // `try_cast_slice` reinterprets in place and we iterate-and-widen
+    // into the output `Vec<i32>`. This is the common case — most host
+    // allocators hand out 16-aligned buffers so the body slice that
+    // reqwest hands us satisfies a 4-byte alignment requirement.
     //
-    // Slow path: the HTTP response body that backs `data` is a
-    // `bytes::Bytes` slice from reqwest's chunked read, and its start
-    // pointer is not guaranteed to be `align_of::<T>()`-aligned (4
-    // bytes for `i32`, 2 for `i16`/`u16`). When the fast cast fails
-    // with `TargetAlignmentGreaterAndInputNotAligned`, copy through
-    // an aligned `Vec<T>` via `pod_collect_to_vec`. Length-mismatch /
-    // slop errors propagate verbatim — only the alignment failure
-    // gets the unaligned fallback.
+    // Slow path: the HTTP response body is a `bytes::Bytes` slice
+    // from reqwest's chunked read, and its start pointer is not
+    // *guaranteed* to be `align_of::<T>()`-aligned (4 bytes for
+    // `i32`, 2 for `i16` / `u16`). When the fast cast fails with
+    // `TargetAlignmentGreaterAndInputNotAligned`, decode each chunk
+    // via `T::widen_from_le_chunk` straight into the output
+    // `Vec<i32>` — one pass, no intermediate aligned `Vec<T>`.
+    // Memory ceiling on the slow path is `sizeof_output` rather
+    // than `data.len() + sizeof_output`. Length-mismatch / slop
+    // errors propagate verbatim — only the alignment failure gets
+    // the unaligned fallback.
     match bytemuck::try_cast_slice::<u8, T>(data) {
         Ok(aligned) => Ok(aligned.iter().copied().map(T::into).collect()),
         Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
-            let owned: Vec<T> = bytemuck::pod_collect_to_vec(data);
-            Ok(owned.into_iter().map(T::into).collect())
+            let elem_size = size_of::<T>();
+            if !data.len().is_multiple_of(elem_size) {
+                return Err(PodCastError::OutputSliceWouldHaveSlop);
+            }
+            Ok(data
+                .chunks_exact(elem_size)
+                .map(T::widen_from_le_chunk)
+                .collect())
         }
         Err(other) => Err(other),
     }
