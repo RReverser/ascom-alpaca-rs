@@ -85,20 +85,25 @@ impl<'de> Deserialize<'de> for JsonImageArray {
 fn cast_raw_data<T: AsTransmissionElementType + bytemuck::NoUninit>(
     data: &[u8],
 ) -> Result<Vec<i32>, PodCastError> {
-    // `bytemuck::try_cast_slice::<u8, T>` requires the source pointer
-    // to be aligned to `align_of::<T>()`. The HTTP response body that
-    // backs `data` is a `bytes::Bytes` slice from reqwest's chunked
-    // read — its start pointer is not guaranteed to be 4-byte aligned
-    // (or 2-byte aligned for `i16` / `u16`). Copy through an aligned
-    // `Vec<T>` instead so callers don't see intermittent
-    // `TargetAlignmentGreaterAndInputNotAligned` failures dependent on
-    // the host allocator's runtime behaviour.
-    let elem_size = size_of::<T>();
-    if data.len() % elem_size != 0 {
-        return Err(PodCastError::OutputSliceWouldHaveSlop);
+    // Fast path: if `data` happens to be aligned to `align_of::<T>()`,
+    // `try_cast_slice` reinterprets in place and we just iterate.
+    //
+    // Slow path: the HTTP response body that backs `data` is a
+    // `bytes::Bytes` slice from reqwest's chunked read, and its start
+    // pointer is not guaranteed to be `align_of::<T>()`-aligned (4
+    // bytes for `i32`, 2 for `i16`/`u16`). When the fast cast fails
+    // with `TargetAlignmentGreaterAndInputNotAligned`, copy through
+    // an aligned `Vec<T>` via `pod_collect_to_vec`. Length-mismatch /
+    // slop errors propagate verbatim — only the alignment failure
+    // gets the unaligned fallback.
+    match bytemuck::try_cast_slice::<u8, T>(data) {
+        Ok(aligned) => Ok(aligned.iter().copied().map(T::into).collect()),
+        Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
+            let owned: Vec<T> = bytemuck::pod_collect_to_vec(data);
+            Ok(owned.into_iter().map(T::into).collect())
+        }
+        Err(other) => Err(other),
     }
-    let aligned: Vec<T> = bytemuck::pod_collect_to_vec(data);
-    Ok(aligned.into_iter().map(T::into).collect())
 }
 
 impl Response for ASCOMResult<ImageArray> {
@@ -123,11 +128,12 @@ impl Response for ASCOMResult<ImageArray> {
             .get(..size_of::<ImageBytesMetadata>())
             .ok_or_else(|| eyre::eyre!("not enough bytes to read image metadata"))?;
         // `bytemuck::try_from_bytes::<ImageBytesMetadata>` requires
-        // the source slice to be aligned to `align_of::<i32>() == 4`.
-        // The body buffer's start pointer is not guaranteed to be
-        // 4-aligned (see `cast_raw_data` for the parallel issue);
+        // the source slice to be aligned to
+        // `align_of::<ImageBytesMetadata>()`. The body buffer's start
+        // pointer is not guaranteed to satisfy that (see
+        // `cast_raw_data` for the parallel issue);
         // `pod_read_unaligned` reads via `ptr::read_unaligned` and
-        // is safe for any pointer.
+        // works for any pointer.
         let metadata: ImageBytesMetadata = bytemuck::pod_read_unaligned(metadata_bytes);
         eyre::ensure!(
             metadata.metadata_version == 1_i32,
@@ -191,34 +197,36 @@ mod tests {
     use super::*;
 
     /// Build an `application/imagebytes` payload at the given byte
-    /// offset within a `Vec<u8>`. The returned slice's start pointer
-    /// has the requested alignment-mod-4. Used to reproduce the
-    /// upstream-pre-fix `TargetAlignmentGreaterAndInputNotAligned`
-    /// path, which only fires when the buffer slice is not 4-byte
-    /// aligned.
+    /// offset within a `Vec<u8>`. The `Vec`'s base allocation is
+    /// usually a high-alignment chunk from the system allocator, so
+    /// looping `leading_pad` over `0..align_of::<i32>()` is sufficient
+    /// to cover all four `mod 4` cases — at least three of those
+    /// rotations land the body slice on a non-4-aligned start, which
+    /// is what reproduces the upstream-pre-fix
+    /// `TargetAlignmentGreaterAndInputNotAligned` path.
     fn imagebytes_payload_at_offset(
         leading_pad: usize,
         pixels: &[i32],
-    ) -> (Vec<u8>, std::ops::Range<usize>) {
+    ) -> eyre::Result<(Vec<u8>, std::ops::Range<usize>)> {
         let metadata = ImageBytesMetadata {
-            metadata_version: 1,
-            error_number: 0,
+            metadata_version: 1_i32,
+            error_number: 0_i32,
             client_transaction_id: None,
             server_transaction_id: None,
-            data_start: i32::try_from(size_of::<ImageBytesMetadata>()).unwrap(),
-            image_element_type: TransmissionElementType::I32 as i32,
-            transmission_element_type: TransmissionElementType::I32 as i32,
-            rank: ImageArrayRank::Rank2 as i32,
-            dimension_1: i32::try_from(pixels.len()).unwrap(),
-            dimension_2: 1,
-            dimension_3: 0,
+            data_start: i32::try_from(size_of::<ImageBytesMetadata>())?,
+            image_element_type: i32::from(TransmissionElementType::I32),
+            transmission_element_type: i32::from(TransmissionElementType::I32),
+            rank: i32::from(ImageArrayRank::Rank2),
+            dimension_1: i32::try_from(pixels.len())?,
+            dimension_2: 1_i32,
+            dimension_3: 0_i32,
         };
         let mut buf = vec![0u8; leading_pad];
         let payload_start = buf.len();
         buf.extend_from_slice(bytemuck::bytes_of(&metadata));
         buf.extend_from_slice(bytemuck::cast_slice(pixels));
         let payload_end = buf.len();
-        (buf, payload_start..payload_end)
+        Ok((buf, payload_start..payload_end))
     }
 
     /// Regression test for issue #18: parsing an `imagebytes` body
@@ -229,25 +237,36 @@ mod tests {
     /// `try_cast_slice` require source alignment. After the fix —
     /// using `pod_read_unaligned` and `pod_collect_to_vec` — the
     /// parse is alignment-independent.
+    fn check_one_offset(leading_pad: usize, pixels: &[i32]) -> eyre::Result<()> {
+        let (buf, range) = imagebytes_payload_at_offset(leading_pad, pixels)?;
+        let slice = &buf[range];
+        let mime: Mime = IMAGE_BYTES_TYPE.parse()?;
+        let parsed = <ASCOMResult<ImageArray> as Response>::from_reqwest(mime, slice)?;
+        let array = parsed
+            .response
+            .map_err(|e| eyre::eyre!("ascom error: {e:?}"))?;
+        eyre::ensure!(
+            array.shape() == [pixels.len(), 1_usize, 1_usize],
+            "shape mismatch: {:?}",
+            array.shape()
+        );
+        for (i, &p) in pixels.iter().enumerate() {
+            let actual = array[[i, 0_usize, 0_usize]];
+            eyre::ensure!(actual == p, "pixel {i} mismatch: got {actual}, expected {p}");
+        }
+        Ok(())
+    }
+
     #[test]
     fn from_reqwest_handles_unaligned_imagebytes_slice() {
-        let pixels: Vec<i32> = (0..16).collect();
-        // Try every offset 0..4 — at least one of 1, 2, 3 is
-        // guaranteed to put the body slice on a non-4-aligned start
-        // even if `Vec<u8>` happens to allocate at a 4-aligned base.
-        for leading_pad in 0..4 {
-            let (buf, range) = imagebytes_payload_at_offset(leading_pad, &pixels);
-            let slice = &buf[range];
-            let mime: Mime = IMAGE_BYTES_TYPE.parse().unwrap();
-            let parsed =
-                <ASCOMResult<ImageArray> as Response>::from_reqwest(mime, slice).unwrap_or_else(
-                    |e| panic!("from_reqwest failed at leading_pad={leading_pad}: {e:?}"),
-                );
-            let array = parsed.response.unwrap();
-            assert_eq!(array.shape(), &[pixels.len(), 1, 1]);
-            for (i, &p) in pixels.iter().enumerate() {
-                assert_eq!(array[[i, 0, 0]], p, "pixel {i} mismatch");
-            }
+        let pixels: Vec<i32> = (0_i32..16_i32).collect();
+        // Try every offset 0..4 — at least three of these rotations
+        // land the body slice on a non-4-aligned start (regardless of
+        // the `Vec<u8>` base alignment), which is the case that fails
+        // pre-fix.
+        for leading_pad in 0_usize..4_usize {
+            check_one_offset(leading_pad, &pixels)
+                .unwrap_or_else(|e| panic!("leading_pad={leading_pad}: {e:?}"));
         }
     }
 }
