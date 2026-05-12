@@ -19,11 +19,23 @@ pub(crate) enum AlpacaParseError {
     /// Valid integer but out of range for target type -> ASCOM `INVALID_VALUE`
     #[error("value {value} is out of range for {target_type}")]
     OutOfRange { value: i64, target_type: &'static str },
+    /// Primitive parsed successfully but the target type rejected the value
+    /// (e.g. an integer that doesn't match any variant of a `serde_repr`
+    /// enum) -> ASCOM `INVALID_VALUE`.
+    #[error("{0}")]
+    InvalidValue(String),
 }
 
 impl serde::de::Error for AlpacaParseError {
     fn custom<T: fmt::Display>(msg: T) -> Self {
-        Self::BadFormat(msg.to_string())
+        // Reached only from external code: `serde_repr` rejecting an integer
+        // that matches no variant, user `Deserialize` impls calling
+        // `Error::custom`, or the default `invalid_value`/`invalid_type`
+        // trait fallbacks. In every case the wire bytes parsed fine but the
+        // value was semantically rejected — that's ASCOM `INVALID_VALUE`.
+        // Our own `deserialize_*` paths never reach this: format errors are
+        // produced as `BadFormat` directly, and range errors as `OutOfRange`.
+        Self::InvalidValue(msg.to_string())
     }
 }
 
@@ -414,5 +426,54 @@ mod tests {
     fn whitespace_trimming() {
         let val: u32 = parse("  42  ").expect("should parse with surrounding whitespace");
         assert_eq!(val, 42_u32);
+    }
+
+    // serde_repr emits `Error::custom("invalid value: N, expected one of: ...")`
+    // when an integer doesn't match any variant. Without the visitor-error
+    // promotion, that would surface as `BadFormat` -> HTTP 400; ConformU's
+    // `TrackingRate Write` test (which sends `5` and `-1` for DriveRate) flagged
+    // exactly this path. It must produce `InvalidValue` -> ASCOM `INVALID_VALUE`.
+    #[derive(serde_repr::Deserialize_repr, Debug)]
+    #[repr(i32)]
+    enum ReprEnum {
+        Zero = 0,
+        One = 1,
+        Two = 2,
+    }
+
+    #[test]
+    fn enum_repr_unknown_positive_variant() {
+        let err = parse::<ReprEnum>("5").expect_err("should fail for out-of-variant value");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::InvalidValue(_),
+                    ..
+                }
+            ),
+            "expected InvalidValue, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn enum_repr_unknown_negative_variant() {
+        let err = parse::<ReprEnum>("-1").expect_err("should fail for negative out-of-variant value");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::InvalidValue(_),
+                    ..
+                }
+            ),
+            "expected InvalidValue, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn enum_repr_known_variant_round_trips() {
+        let val: ReprEnum = parse("1").expect("should parse valid variant");
+        assert!(matches!(val, ReprEnum::One));
     }
 }
