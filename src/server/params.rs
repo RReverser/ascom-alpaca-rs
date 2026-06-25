@@ -467,4 +467,41 @@ mod tests {
         let val: ReprEnum = parse("1").expect("should parse valid variant");
         assert!(matches!(val, ReprEnum::One));
     }
+
+    // Forward-looking guard only: ASCOM Alpaca has no string-valued enum
+    // parameters today — every enum param (PierSide, DriveRate, TelescopeAxis,
+    // GuideDirection) is an integer-coded `serde_repr` enum that takes the integer
+    // path above, so `deserialize_enum` is currently unreached. These tests fix the
+    // behaviour should a plain `#[derive(Deserialize)]` string enum ever be added
+    // as a parameter: it must resolve a known variant by name and reject an unknown
+    // one as `InvalidValue`. They also pin why the body uses
+    // `visit_enum(StringDeserializer)` rather than a bare `visit_string` (which
+    // fails even on a valid name, since a derived enum's visitor implements only
+    // `visit_enum`). Safe to drop if we'd rather not cover an unreachable path.
+    #[derive(serde::Deserialize, Debug, PartialEq)]
+    enum StringEnum {
+        Alpha,
+        Beta,
+    }
+
+    #[test]
+    fn string_enum_known_variant() {
+        let val: StringEnum = parse("Beta").expect("should resolve a variant by name");
+        assert_eq!(val, StringEnum::Beta);
+    }
+
+    #[test]
+    fn string_enum_unknown_variant() {
+        let err = parse::<StringEnum>("Zeta").expect_err("unknown variant should fail");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::InvalidValue(_),
+                    ..
+                }
+            ),
+            "expected InvalidValue, got: {err:?}"
+        );
+    }
 }
