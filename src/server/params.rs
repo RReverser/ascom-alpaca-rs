@@ -130,14 +130,9 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
     }
 
     fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let mut chars = self.value.chars();
-        match (chars.next(), chars.next()) {
-            (Some(c), None) => visitor.visit_char(c),
-            _ => Err(AlpacaParseError::BadFormat(format!(
-                "expected single character: {}",
-                self.value
-            ))),
-        }
+        // serde's char visitor already validates that the string is exactly one
+        // character (rejecting empty/multi-char), so defer to it.
+        self.deserialize_str(visitor)
     }
 
     fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
