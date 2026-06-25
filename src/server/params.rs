@@ -10,55 +10,50 @@ use serde::de::{DeserializeOwned, Deserializer, Visitor};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 
-/// Error type for Alpaca parameter parsing that distinguishes parse errors from range errors.
+/// Error type for Alpaca parameter parsing that distinguishes malformed input
+/// (HTTP 400) from values that parse but are semantically rejected (`INVALID_VALUE`).
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum AlpacaParseError {
     /// Invalid format (not a valid integer/bool/etc) -> HTTP 400
     #[error("{0}")]
     BadFormat(String),
-    /// Valid integer but out of range for target type -> ASCOM `INVALID_VALUE`
-    #[error("value {value} is out of range for {target_type}")]
-    OutOfRange { value: i64, target_type: &'static str },
-    /// Primitive parsed successfully but the target type rejected the value
-    /// (e.g. an integer that doesn't match any variant of a `serde_repr`
-    /// enum) -> ASCOM `INVALID_VALUE`.
+    /// Primitive parsed successfully but the target type rejected the value:
+    /// an integer outside the target's range, or one that doesn't match any
+    /// variant of a `serde_repr` enum -> ASCOM `INVALID_VALUE`.
     #[error("{0}")]
     InvalidValue(String),
 }
 
 impl serde::de::Error for AlpacaParseError {
     fn custom<T: fmt::Display>(msg: T) -> Self {
-        // Reached only from external code: `serde_repr` rejecting an integer
-        // that matches no variant, user `Deserialize` impls calling
-        // `Error::custom`, or the default `invalid_value`/`invalid_type`
-        // trait fallbacks. In every case the wire bytes parsed fine but the
-        // value was semantically rejected — that's ASCOM `INVALID_VALUE`.
-        // Our own `deserialize_*` paths never reach this: format errors are
-        // produced as `BadFormat` directly, and range errors as `OutOfRange`.
+        // Reached when serde semantically rejects a value whose wire bytes
+        // parsed fine: an integer outside the target type's range (serde's
+        // checked `visit_i64` narrowing), a `serde_repr` enum discriminant
+        // matching no variant, or a user `Deserialize` impl calling
+        // `Error::custom`. All of these are ASCOM `INVALID_VALUE`. Our own
+        // format errors are produced as `BadFormat` directly and never reach here.
         Self::InvalidValue(msg.to_string())
     }
 }
 
 /// Custom serde Deserializer for Alpaca parameters.
 ///
-/// Integers are parsed as i64 first, then converted to the target type.
-/// This allows distinguishing parse errors (`BadParameter`) from range errors
-/// (`INVALID_VALUE`), and supports both i32 device parameters and uint32
-/// transaction/identity parameters (`ClientID`, `ClientTransactionID`).
+/// Integers are parsed once as `i64` and handed to the target type's visitor,
+/// which narrows them in a checked way (out-of-range -> `INVALID_VALUE`). This
+/// covers both i32 device parameters and uint32 transaction/identity parameters
+/// (`ClientID`, `ClientTransactionID`) without per-type dispatch.
 struct AlpacaDeserializer {
     value: String,
 }
 
 impl AlpacaDeserializer {
-    /// Parse an integer: parse as i64 first, then convert to the target type.
-    fn parse_integer<T: TryFrom<i64>>(&self) -> Result<T, AlpacaParseError> {
-        let i64_value: i64 = self.value.trim().parse().map_err(|_parse_err| {
+    /// Parse the value as `i64`. Every integer `deserialize_*` method forwards
+    /// here and hands the result to `visit_i64`; serde's built-in integer
+    /// `Deserialize` impls then narrow to the target type in a checked way,
+    /// mapping out-of-range values to `INVALID_VALUE` via `Error::custom`.
+    fn parse_i64(&self) -> Result<i64, AlpacaParseError> {
+        self.value.parse().map_err(|_parse_err| {
             AlpacaParseError::BadFormat(format!("invalid integer: {}", self.value))
-        })?;
-
-        T::try_from(i64_value).map_err(|_range_err| AlpacaParseError::OutOfRange {
-            value: i64_value,
-            target_type: std::any::type_name::<T>(),
         })
     }
 }
@@ -71,57 +66,64 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
     }
 
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        match self.value.trim().to_ascii_lowercase().as_str() {
-            "true" => visitor.visit_bool(true),
-            "false" => visitor.visit_bool(false),
-            _ => Err(AlpacaParseError::BadFormat(format!(
+        // Alpaca booleans may use any casing; compare in place rather than
+        // allocating a lowercased copy of the value we already own.
+        if self.value.eq_ignore_ascii_case("true") {
+            visitor.visit_bool(true)
+        } else if self.value.eq_ignore_ascii_case("false") {
+            visitor.visit_bool(false)
+        } else {
+            Err(AlpacaParseError::BadFormat(format!(
                 "invalid boolean: {}",
                 self.value
-            ))),
+            )))
         }
     }
 
+    // All integer widths funnel through `deserialize_i64`: parse once as i64
+    // and let serde's target-type visitor narrow it in a checked way (an
+    // out-of-range value becomes `INVALID_VALUE`, never a silent truncation).
     fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_i8(self.parse_integer()?)
+        self.deserialize_i64(visitor)
     }
 
     fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_i16(self.parse_integer()?)
+        self.deserialize_i64(visitor)
     }
 
     fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_i32(self.parse_integer()?)
+        self.deserialize_i64(visitor)
     }
 
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_i64(self.parse_integer()?)
+        visitor.visit_i64(self.parse_i64()?)
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_u8(self.parse_integer()?)
+        self.deserialize_i64(visitor)
     }
 
     fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_u16(self.parse_integer()?)
+        self.deserialize_i64(visitor)
     }
 
     fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_u32(self.parse_integer()?)
+        self.deserialize_i64(visitor)
     }
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_u64(self.parse_integer()?)
+        self.deserialize_i64(visitor)
     }
 
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let value: f32 = self.value.trim().parse().map_err(|_parse_err| {
+        let value: f32 = self.value.parse().map_err(|_parse_err| {
             AlpacaParseError::BadFormat(format!("invalid float: {}", self.value))
         })?;
         visitor.visit_f32(value)
     }
 
     fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let value: f64 = self.value.trim().parse().map_err(|_parse_err| {
+        let value: f64 = self.value.parse().map_err(|_parse_err| {
             AlpacaParseError::BadFormat(format!("invalid float: {}", self.value))
         })?;
         visitor.visit_f64(value)
@@ -369,11 +371,11 @@ mod tests {
             matches!(
                 err,
                 Error::BadParameter {
-                    err: AlpacaParseError::OutOfRange { .. },
+                    err: AlpacaParseError::InvalidValue(_),
                     ..
                 }
             ),
-            "expected OutOfRange, got: {err:?}"
+            "expected InvalidValue, got: {err:?}"
         );
     }
 
@@ -384,11 +386,11 @@ mod tests {
             matches!(
                 err,
                 Error::BadParameter {
-                    err: AlpacaParseError::OutOfRange { .. },
+                    err: AlpacaParseError::InvalidValue(_),
                     ..
                 }
             ),
-            "expected OutOfRange, got: {err:?}"
+            "expected InvalidValue, got: {err:?}"
         );
     }
 
@@ -399,11 +401,11 @@ mod tests {
             matches!(
                 err,
                 Error::BadParameter {
-                    err: AlpacaParseError::OutOfRange { .. },
+                    err: AlpacaParseError::InvalidValue(_),
                     ..
                 }
             ),
-            "expected OutOfRange, got: {err:?}"
+            "expected InvalidValue, got: {err:?}"
         );
     }
 
@@ -420,12 +422,6 @@ mod tests {
             ),
             "expected BadFormat, got: {err:?}"
         );
-    }
-
-    #[test]
-    fn whitespace_trimming() {
-        let val: u32 = parse("  42  ").expect("should parse with surrounding whitespace");
-        assert_eq!(val, 42_u32);
     }
 
     // serde_repr emits `Error::custom("invalid value: N, expected one of: ...")`

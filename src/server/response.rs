@@ -55,12 +55,6 @@ where
             Err(Error::Ascom(err)) => Ok(Err(err)),
             Err(Error::BadParameter {
                 name,
-                err: AlpacaParseError::OutOfRange { value, target_type },
-            }) => Ok(Err(ASCOMError::invalid_value(format!(
-                "Parameter {name:?} value {value} is out of range for {target_type}"
-            )))),
-            Err(Error::BadParameter {
-                name,
                 err: AlpacaParseError::InvalidValue(msg),
             }) => Ok(Err(ASCOMError::invalid_value(format!(
                 "Parameter {name:?}: {msg}"
