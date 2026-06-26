@@ -1,5 +1,6 @@
 use tracing_forest::tree::Tree;
 use tracing_forest::{Processor, Tag};
+use tracing_subscriber::prelude::*;
 
 // A helper that allows to skip spans without events.
 struct FilteredProcessor<P>(P);
