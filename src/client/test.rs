@@ -15,7 +15,7 @@ struct OmniSim {
 
 static OMNISIM: OnceCell<OmniSim> = OnceCell::const_new();
 
-#[dtor::dtor]
+#[dtor::dtor(unsafe)]
 fn kill_server() {
     if let Some(omnisim) = OMNISIM.get() {
         let mut server = omnisim.server.blocking_lock();
