@@ -457,7 +457,7 @@ fn to_stretched_color_img(
 }
 
 impl eframe::App for StateCtx {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ctx: &mut Ui, _frame: &mut eframe::Frame) {
         _ = CentralPanel::default().show(ctx, |ui| {
             if let Err(err) = self.try_update(ui) {
                 self.set_state(State::from(err));

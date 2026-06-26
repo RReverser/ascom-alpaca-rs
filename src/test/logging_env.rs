@@ -1,6 +1,5 @@
 use tracing_forest::tree::Tree;
 use tracing_forest::{Processor, Tag};
-use tracing_subscriber::prelude::*;
 
 // A helper that allows to skip spans without events.
 struct FilteredProcessor<P>(P);
@@ -48,7 +47,7 @@ fn target_tag(event: &tracing::Event<'_>) -> Option<Tag> {
     Some(builder.build())
 }
 
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn prepare_test_env() {
     use tracing::Level;
 
