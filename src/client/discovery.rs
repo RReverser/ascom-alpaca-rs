@@ -171,7 +171,7 @@ impl Client {
         // Required on Linux/macOS to permit sending to IPv4 subnet broadcast
         // addresses (e.g. 127.255.255.255). Without this, send_to returns
         // EACCES and IPv4 discovery silently fails.
-        SockRef::from(&socket).set_broadcast(true)?;
+        socket.set_broadcast(true)?;
         let interfaces = spawn_blocking(|| get_active_interfaces().collect()).await?;
         Ok(BoundClient {
             client: self,
