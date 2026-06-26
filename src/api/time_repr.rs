@@ -76,15 +76,20 @@ where
     }
 }
 
-/// A wrapper for serializing and deserializing `Duration` as `f64` milliseconds.
+/// A wrapper that serializes `Duration` as integer milliseconds and deserializes
+/// it from a (possibly fractional, for backwards compatibility) millisecond number.
 #[derive(derive_more::From, derive_more::Into)]
 pub(super) struct DurationInMs(Duration);
 
 #[cfg(feature = "client")]
 impl serde::Serialize for DurationInMs {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        // TODO: switch to as_millis_f64 when stabilized.
-        (self.0.as_secs_f64() * 1000.0).serialize(serializer)
+        // Alpaca defines PulseGuide `Duration` as Int32 milliseconds. Emitting a
+        // fractional value like `2000.0` makes spec-compliant devices (which bind
+        // the field to a 32-bit integer) reject the request with HTTP 400, so we
+        // serialize integer milliseconds. `as_millis()` returns `u128`, which
+        // serializes as a plain integer string (e.g. `2000`).
+        self.0.as_millis().serialize(serializer)
     }
 }
 
@@ -95,5 +100,31 @@ impl<'de> serde::Deserialize<'de> for DurationInMs {
         Ok(Self(
             Duration::try_from_secs_f64(ms / 1000.0).map_err(serde::de::Error::custom)?,
         ))
+    }
+}
+
+#[cfg(all(test, feature = "client"))]
+mod tests {
+    use super::DurationInMs;
+    use std::time::Duration;
+
+    // Alpaca PulseGuide `Duration` is Int32 milliseconds, so the wire value must be
+    // an integer string. A fractional form like `2000.0`/`1.0` is rejected (HTTP 400)
+    // by spec-compliant devices that bind the field to a 32-bit integer. serde_json
+    // is a faithful proxy here: the integer-vs-float choice lives in the `Serialize`
+    // impl, so it shows up identically in any serializer (including the urlencoded
+    // body the client actually sends).
+    #[test]
+    fn serializes_as_integer_milliseconds() {
+        // 2 s = 2000 ms, which previously serialized as `2000.0` and was rejected
+        // (HTTP 400) by strict Alpaca devices; it must now be the integer `2000`.
+        let two_seconds = serde_json::to_string(&DurationInMs::from(Duration::from_secs(2)))
+            .expect("duration serializes");
+        assert_eq!(two_seconds, "2000");
+
+        // 1 ms previously serialized as `1.0`, which the Omni Simulator rejected.
+        let one_milli = serde_json::to_string(&DurationInMs::from(Duration::from_millis(1)))
+            .expect("duration serializes");
+        assert_eq!(one_milli, "1");
     }
 }
