@@ -16,8 +16,8 @@ pub struct Server {
     pub alpaca_port: u16,
 }
 
-#[tracing::instrument(level = "trace", skip_all, fields(intf.name = %intf.name, ?intf.ipv4, ?intf.ipv6))]
-fn join_multicast_group(socket: &UdpSocket, intf: &GroupedInterface) {
+#[tracing::instrument(level = "trace", skip_all, fields(intf.name = %name, ?intf.ipv4, ?intf.ipv6))]
+fn join_multicast_group(socket: &UdpSocket, name: &str, intf: &GroupedInterface) {
     let Some(index) = intf.ipv6_index else {
         tracing::warn!("skipping multicast join: no IPv6 interface index");
         return;
@@ -34,19 +34,19 @@ fn join_multicast_groups(socket: &UdpSocket, listen_addr: Ipv6Addr) -> eyre::Res
 
     if listen_addr.is_unspecified() {
         // If it's [::], join multicast on every available interface with IPv6 support.
-        for intf in &interfaces {
+        for (name, intf) in &interfaces {
             if !intf.ipv6.is_empty() {
-                join_multicast_group(socket, intf);
+                join_multicast_group(socket, name, intf);
             }
         }
     } else {
         // If it's a specific address, find corresponding interface and join multicast on it.
-        let intf = interfaces
+        let (name, intf) = interfaces
             .iter()
-            .find(|intf| intf.ipv6.contains(&listen_addr))
+            .find(|(_, intf)| intf.ipv6.contains(&listen_addr))
             .expect("internal error: couldn't find the interface of an already bound socket");
 
-        join_multicast_group(socket, intf);
+        join_multicast_group(socket, name, intf);
     }
 
     Ok(())

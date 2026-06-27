@@ -5,6 +5,7 @@ use crate::discovery::{
 };
 use futures::StreamExt;
 use socket2::SockRef;
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 use tokio::task::spawn_blocking;
@@ -35,14 +36,14 @@ pub struct Client {
 pub struct BoundClient {
     client: Client,
     socket: UdpSocket,
-    interfaces: Vec<GroupedInterface>,
+    interfaces: HashMap<String, GroupedInterface>,
     buf: Vec<u8>,
     seen: Vec<SocketAddr>,
 }
 
 impl BoundClient {
-    #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.name = %intf.name, ?intf.ipv4, ?intf.ipv6))]
-    async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &GroupedInterface) {
+    #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.name = %name, ?intf.ipv4, ?intf.ipv6))]
+    async fn send_discovery_msg(&self, addr: Ipv6Addr, name: &str, intf: &GroupedInterface) {
         let send_op = async {
             if addr.is_multicast() {
                 let Some(index) = intf.ipv6_index else {
@@ -65,11 +66,11 @@ impl BoundClient {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn send_discovery_msgs(&self) {
-        for intf in &self.interfaces {
+        for (name, intf) in &self.interfaces {
             for v4 in &intf.ipv4 {
                 let broadcast = v4.addr | !v4.netmask;
 
-                self.send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
+                self.send_discovery_msg(broadcast.to_ipv6_mapped(), name, intf)
                     .await;
             }
 
@@ -82,6 +83,7 @@ impl BoundClient {
                     } else {
                         DISCOVERY_ADDR_V6
                     },
+                    name,
                     intf,
                 )
                 .await;

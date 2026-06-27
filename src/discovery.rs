@@ -6,6 +6,7 @@ pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
 pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
+use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 
@@ -36,39 +37,24 @@ pub(crate) struct Ipv4Info {
 /// (`IPV6_MULTICAST_IF`, `IPV6_JOIN_GROUP`) need the V6-specific one. We don't
 /// store a V4 index because IPv4 discovery uses subnet-directed broadcast,
 /// where the routing table picks the outbound interface by destination.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct GroupedInterface {
-    pub(crate) name: String,
     pub(crate) ipv6_index: Option<u32>,
     pub(crate) is_loopback: bool,
     pub(crate) ipv4: Vec<Ipv4Info>,
     pub(crate) ipv6: Vec<Ipv6Addr>,
 }
 
-pub(crate) fn get_active_interfaces() -> eyre::Result<Vec<GroupedInterface>> {
-    let mut interfaces: Vec<GroupedInterface> = Vec::new();
+pub(crate) fn get_active_interfaces() -> eyre::Result<HashMap<String, GroupedInterface>> {
+    let mut interfaces = HashMap::<String, GroupedInterface>::new();
 
     for iface in if_addrs::get_if_addrs()? {
         if !iface.is_oper_up() {
             continue;
         }
 
-        let grouped = if let Some(existing) = interfaces.iter_mut().find(|g| g.name == iface.name)
-        {
-            existing.is_loopback |= iface.is_loopback();
-            existing
-        } else {
-            interfaces.push(GroupedInterface {
-                name: iface.name.clone(),
-                ipv6_index: None,
-                is_loopback: iface.is_loopback(),
-                ipv4: Vec::new(),
-                ipv6: Vec::new(),
-            });
-            interfaces
-                .last_mut()
-                .expect("internal error: just pushed an element")
-        };
+        let grouped = interfaces.entry(iface.name.clone()).or_default();
+        grouped.is_loopback |= iface.is_loopback();
 
         match iface.addr {
             if_addrs::IfAddr::V4(v4) => {
