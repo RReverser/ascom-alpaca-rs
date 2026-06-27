@@ -8,8 +8,6 @@ use netdev::Interface;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{Ipv6Addr, SocketAddr};
-#[cfg(windows)]
-use std::os::windows::prelude::AsRawSocket;
 use tokio::net::UdpSocket;
 
 /// `ff12::a1:9aca` as per ASCOM Alpaca specification.
@@ -48,6 +46,7 @@ pub(crate) fn bind_socket(addr: SocketAddr) -> eyre::Result<UdpSocket> {
     #[cfg(windows)]
     {
         use eyre::Context;
+        use std::os::windows::io::AsRawSocket;
         use windows_sys::Win32::Networking::WinSock::{
             SIO_UDP_CONNRESET, WSAGetLastError, ioctlsocket,
         };
