@@ -139,9 +139,7 @@ where
         let fut = self.router.call(req);
         async move {
             let resp = fut.await?;
-            let (parts, body) = resp.into_parts();
-            let boxed = body.map_err(Into::into).boxed_unsync();
-            Ok(http::Response::from_parts(parts, boxed))
+            Ok(resp.map(|body| body.map_err(Into::into).boxed_unsync()))
         }
         .boxed()
     }
