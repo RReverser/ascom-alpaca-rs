@@ -47,7 +47,7 @@ derive_more = { workspace = true, features = [
 	"into",
 ] }
 dtor = { version = "1.0.5", optional = true }
-netdev = { version = "0.45.0" }
+if-addrs = "0.15.0"
 eyre = { workspace = true }
 futures = { workspace = true }
 http = { version = "1.4.0", optional = true }

@@ -4,10 +4,10 @@
 pub use crate::client::{BoundDiscoveryClient, DiscoveryClient};
 #[cfg(feature = "server")]
 pub use crate::server::{BoundDiscoveryServer, DiscoveryServer};
-use netdev::Interface;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
-use std::net::{Ipv6Addr, SocketAddr};
+use std::collections::HashMap;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 
 /// `ff12::a1:9aca` as per ASCOM Alpaca specification.
@@ -22,10 +22,55 @@ pub(crate) struct AlpacaPort {
     pub(crate) alpaca_port: u16,
 }
 
-pub(crate) fn get_active_interfaces() -> impl Iterator<Item = Interface> {
-    netdev::get_interfaces()
-        .into_iter()
-        .filter(Interface::is_running)
+/// IPv4 address information for a network interface.
+#[derive(Debug)]
+pub(crate) struct Ipv4Info {
+    pub(crate) addr: Ipv4Addr,
+    pub(crate) netmask: Ipv4Addr,
+}
+
+/// A network interface with all its IPv4 and IPv6 addresses grouped together.
+///
+/// `ipv6_index` is populated only from V6 entries: on Windows, the V4 and V6
+/// interface indices for the same adapter can differ (`IfIndex` vs
+/// `Ipv6IfIndex` in `IP_ADAPTER_ADDRESSES`), and the IPv6 multicast APIs
+/// (`IPV6_MULTICAST_IF`, `IPV6_JOIN_GROUP`) need the V6-specific one. We don't
+/// store a V4 index because IPv4 discovery uses subnet-directed broadcast,
+/// where the routing table picks the outbound interface by destination.
+#[derive(Debug, Default)]
+pub(crate) struct GroupedInterface {
+    pub(crate) ipv6_index: Option<u32>,
+    pub(crate) is_loopback: bool,
+    pub(crate) ipv4: Vec<Ipv4Info>,
+    pub(crate) ipv6: Vec<Ipv6Addr>,
+}
+
+pub(crate) fn get_active_interfaces() -> eyre::Result<HashMap<String, GroupedInterface>> {
+    let mut interfaces = HashMap::<String, GroupedInterface>::new();
+
+    for iface in if_addrs::get_if_addrs()? {
+        if !iface.is_oper_up() {
+            continue;
+        }
+
+        let grouped = interfaces.entry(iface.name.clone()).or_default();
+        grouped.is_loopback |= iface.is_loopback();
+
+        match iface.addr {
+            if_addrs::IfAddr::V4(v4) => {
+                grouped.ipv4.push(Ipv4Info {
+                    addr: v4.ip,
+                    netmask: v4.netmask,
+                });
+            }
+            if_addrs::IfAddr::V6(v6) => {
+                grouped.ipv6_index = grouped.ipv6_index.or(iface.index);
+                grouped.ipv6.push(v6.ip);
+            }
+        }
+    }
+
+    Ok(interfaces)
 }
 
 #[tracing::instrument(level = "trace")]
@@ -97,24 +142,46 @@ mod tests {
         (ipv6.segments()[0] & 0xffc0) == 0xfe80
     }
 
+    /// Determine the default IPv4 address using the UDP socket trick:
+    /// "connect" to a non-routable address and read back the source IP the OS chose.
+    ///
+    /// Uses a TEST-NET-1 address (RFC 5737). VPNs commonly push routes for
+    /// RFC1918 prefixes, which would make a `10.0.0.0/8` target resolve to
+    /// the VPN interface instead of the true default route.
+    fn get_default_ipv4() -> Option<Ipv4Addr> {
+        let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
+        socket.connect("192.0.2.1:0").ok()?;
+        match socket.local_addr().ok()?.ip() {
+            IpAddr::V4(ip) => Some(ip),
+            IpAddr::V6(_) => None,
+        }
+    }
+
     static DEFAULT_ADDR: LazyLock<DefaultAddr> = LazyLock::new(|| {
-        let intf = netdev::get_default_interface().expect("coudn't get default interface");
+        // Use the UDP socket trick to find the default route's IPv4, matching
+        // the old netdev::get_default_interface() behaviour.
+        let default_ip = get_default_ipv4().expect("no default IPv4 route");
 
-        // Only extract private / link-local addresses, since binding to others might fail in tests.
+        // Find which interface owns that IP, then grab its link-local IPv6 too.
+        // This guarantees both addresses come from the same interface.
+        let addrs = if_addrs::get_if_addrs().expect("couldn't get network interfaces");
+        let default_intf_name = &addrs
+            .iter()
+            .find(|iface| iface.ip() == IpAddr::V4(default_ip))
+            .expect("default IP not found on any interface")
+            .name;
+
         DefaultAddr {
-            v4: intf
-                .ipv4
-                .into_iter()
-                .map(|net| net.addr())
-                .find(Ipv4Addr::is_private)
-                .expect("no private IPv4 address"),
-
-            v6: intf
-                .ipv6
-                .into_iter()
-                .map(|net| net.addr())
+            v4: default_ip,
+            v6: addrs
+                .iter()
+                .filter(|iface| &iface.name == default_intf_name)
+                .filter_map(|iface| match &iface.addr {
+                    if_addrs::IfAddr::V6(v6) => Some(v6.ip),
+                    if_addrs::IfAddr::V4(_) => None,
+                })
                 .find(is_unicast_link_local)
-                .expect("no unique local IPv6 address"),
+                .expect("no link-local IPv6 on default interface"),
         }
     });
 

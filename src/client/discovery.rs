@@ -1,11 +1,11 @@
 use crate::api::TypedDevice;
 use crate::discovery::{
-    AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG, bind_socket,
-    get_active_interfaces,
+    AlpacaPort, DEFAULT_DISCOVERY_PORT, DISCOVERY_ADDR_V6, DISCOVERY_MSG, GroupedInterface,
+    bind_socket, get_active_interfaces,
 };
 use futures::StreamExt;
-use netdev::prelude::{Interface, InterfaceType};
 use socket2::SockRef;
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use tokio::net::UdpSocket;
 use tokio::task::spawn_blocking;
@@ -36,17 +36,21 @@ pub struct Client {
 pub struct BoundClient {
     client: Client,
     socket: UdpSocket,
-    interfaces: Vec<Interface>,
+    interfaces: HashMap<String, GroupedInterface>,
     buf: Vec<u8>,
     seen: Vec<SocketAddr>,
 }
 
 impl BoundClient {
-    #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.friendly_name = intf.friendly_name.as_ref(), intf.description = intf.description.as_ref(), ?intf.ipv4, ?intf.ipv6))]
-    async fn send_discovery_msg(&self, addr: Ipv6Addr, intf: &Interface) {
+    #[tracing::instrument(level = "trace", skip_all, fields(%addr, intf.name = %name, ?intf.ipv4, ?intf.ipv6))]
+    async fn send_discovery_msg(&self, addr: Ipv6Addr, name: &str, intf: &GroupedInterface) {
         let send_op = async {
             if addr.is_multicast() {
-                SockRef::from(&self.socket).set_multicast_if_v6(intf.index)?;
+                let Some(index) = intf.ipv6_index else {
+                    tracing::warn!("skipping multicast send: no IPv6 interface index");
+                    return Ok(());
+                };
+                SockRef::from(&self.socket).set_multicast_if_v6(index)?;
             }
             // UDP packets are sent as whole messages, no need to check length.
             self.socket
@@ -62,23 +66,24 @@ impl BoundClient {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn send_discovery_msgs(&self) {
-        for intf in &self.interfaces {
-            for net in &intf.ipv4 {
-                let broadcast = net.addr() | !net.netmask();
+        for (name, intf) in &self.interfaces {
+            for v4 in &intf.ipv4 {
+                let broadcast = v4.addr | !v4.netmask;
 
-                self.send_discovery_msg(broadcast.to_ipv6_mapped(), intf)
+                self.send_discovery_msg(broadcast.to_ipv6_mapped(), name, intf)
                     .await;
             }
 
             if !intf.ipv6.is_empty() {
                 self.send_discovery_msg(
-                    if intf.if_type == InterfaceType::Loopback {
+                    if intf.is_loopback {
                         // Loopback interface doesn't have a link-local address
                         // so it can't be used for multicast.
                         Ipv6Addr::LOCALHOST
                     } else {
                         DISCOVERY_ADDR_V6
                     },
+                    name,
                     intf,
                 )
                 .await;
@@ -172,7 +177,7 @@ impl Client {
         // addresses (e.g. 127.255.255.255). Without this, send_to returns
         // EACCES and IPv4 discovery silently fails.
         socket.set_broadcast(true)?;
-        let interfaces = spawn_blocking(|| get_active_interfaces().collect()).await?;
+        let interfaces = spawn_blocking(get_active_interfaces).await??;
         Ok(BoundClient {
             client: self,
             socket,
