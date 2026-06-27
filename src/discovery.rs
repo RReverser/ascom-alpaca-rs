@@ -163,8 +163,8 @@ mod tests {
     /// RFC1918 prefixes, which would make a `10.0.0.0/8` target resolve to
     /// the VPN interface instead of the true default route.
     fn get_default_ipv4() -> Option<Ipv4Addr> {
-        let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-        socket.connect("192.0.2.1:1").ok()?;
+        let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
+        socket.connect("192.0.2.1:0").ok()?;
         match socket.local_addr().ok()?.ip() {
             IpAddr::V4(ip) => Some(ip),
             IpAddr::V6(_) => None,
