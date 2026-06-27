@@ -64,52 +64,62 @@ pub(crate) enum ImageElementType {
 
 trait AsTransmissionElementType: 'static + Into<i32> + AnyBitPattern {
     const TYPE: TransmissionElementType;
+}
 
-    /// Read a single little-endian `Self` from a
-    /// `size_of::<Self>()`-byte chunk and widen to `i32`. Used by
-    /// the unaligned-input slow path of `cast_raw_data` (see
-    /// `image_array/client.rs`) so the conversion can go from
-    /// response bytes straight into `Vec<i32>` in one pass without
-    /// staging through an intermediate aligned `Vec<Self>`.
-    /// Callers must feed exactly `size_of::<Self>()` bytes (e.g. via
-    /// `data.chunks_exact(size_of::<Self>())`).
-    fn widen_from_le_chunk(chunk: &[u8]) -> i32;
+/// Decode one little-endian element from a fixed-size `&[u8; N]` chunk
+/// and widen it to `i32`. The const `N` ties the byte-chunk width to
+/// the element type at the type level (`i16` / `u16` => 2, `i32` => 4,
+/// `u8` => 1), so a chunk width that disagrees with the element is a
+/// compile error and the per-pixel conversions carry no bounds checks.
+/// Used by the unaligned-input slow path of `cast_raw_data` (see
+/// `image_array/client.rs`); the aligned fast path still reinterprets
+/// in place via `bytemuck::try_cast_slice`.
+#[cfg(feature = "client")]
+trait WidenLeChunk<const N: usize> {
+    fn widen_from_le_chunk(chunk: &[u8; N]) -> i32;
 }
 
 impl AsTransmissionElementType for i16 {
     const TYPE: TransmissionElementType = TransmissionElementType::I16;
+}
 
-    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
-        i32::from(Self::from_le_bytes([chunk[0_usize], chunk[1_usize]]))
+#[cfg(feature = "client")]
+impl WidenLeChunk<2> for i16 {
+    fn widen_from_le_chunk(chunk: &[u8; 2]) -> i32 {
+        i32::from(Self::from_le_bytes(*chunk))
     }
 }
 
 impl AsTransmissionElementType for i32 {
     const TYPE: TransmissionElementType = TransmissionElementType::I32;
+}
 
-    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
-        Self::from_le_bytes([
-            chunk[0_usize],
-            chunk[1_usize],
-            chunk[2_usize],
-            chunk[3_usize],
-        ])
+#[cfg(feature = "client")]
+impl WidenLeChunk<4> for i32 {
+    fn widen_from_le_chunk(chunk: &[u8; 4]) -> i32 {
+        Self::from_le_bytes(*chunk)
     }
 }
 
 impl AsTransmissionElementType for u16 {
     const TYPE: TransmissionElementType = TransmissionElementType::U16;
+}
 
-    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
-        i32::from(Self::from_le_bytes([chunk[0_usize], chunk[1_usize]]))
+#[cfg(feature = "client")]
+impl WidenLeChunk<2> for u16 {
+    fn widen_from_le_chunk(chunk: &[u8; 2]) -> i32 {
+        i32::from(Self::from_le_bytes(*chunk))
     }
 }
 
 impl AsTransmissionElementType for u8 {
     const TYPE: TransmissionElementType = TransmissionElementType::U8;
+}
 
-    fn widen_from_le_chunk(chunk: &[u8]) -> i32 {
-        i32::from(chunk[0_usize])
+#[cfg(feature = "client")]
+impl WidenLeChunk<1> for u8 {
+    fn widen_from_le_chunk(chunk: &[u8; 1]) -> i32 {
+        i32::from(Self::from_le_bytes(*chunk))
     }
 }
 

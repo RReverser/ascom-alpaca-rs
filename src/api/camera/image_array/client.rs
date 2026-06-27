@@ -1,6 +1,6 @@
 use super::{
     AsTransmissionElementType, ImageArray, ImageArrayRank, ImageBytesMetadata, ImageElementType,
-    TransmissionElementType, COLOUR_AXIS, IMAGE_BYTES_TYPE,
+    TransmissionElementType, WidenLeChunk, COLOUR_AXIS, IMAGE_BYTES_TYPE,
 };
 use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
@@ -82,7 +82,9 @@ impl<'de> Deserialize<'de> for JsonImageArray {
     }
 }
 
-fn cast_raw_data<T: AsTransmissionElementType>(data: &[u8]) -> Result<Vec<i32>, PodCastError> {
+fn cast_raw_data<const N: usize, T: AsTransmissionElementType + WidenLeChunk<N>>(
+    data: &[u8],
+) -> Result<Vec<i32>, PodCastError> {
     // Fast path: if `data` is already aligned to `align_of::<T>()`,
     // `try_cast_slice` reinterprets in place and we iterate-and-widen
     // into the output `Vec<i32>`. This is the common case — most host
@@ -93,24 +95,22 @@ fn cast_raw_data<T: AsTransmissionElementType>(data: &[u8]) -> Result<Vec<i32>, 
     // from reqwest's chunked read, and its start pointer is not
     // *guaranteed* to be `align_of::<T>()`-aligned (4 bytes for
     // `i32`, 2 for `i16` / `u16`). When the fast cast fails with
-    // `TargetAlignmentGreaterAndInputNotAligned`, decode each chunk
-    // via `T::widen_from_le_chunk` straight into the output
-    // `Vec<i32>` — one pass, no intermediate aligned `Vec<T>`.
-    // Memory ceiling on the slow path is `sizeof_output` rather
-    // than `data.len() + sizeof_output`. Length-mismatch / slop
-    // errors propagate verbatim — only the alignment failure gets
-    // the unaligned fallback.
+    // `TargetAlignmentGreaterAndInputNotAligned`, split `data` into
+    // fixed-size `&[u8; N]` chunks with `as_chunks` and decode each
+    // via `T::widen_from_le_chunk` (little-endian, no per-pixel bounds
+    // check) straight into the output `Vec<i32>` — one pass, no
+    // intermediate aligned `Vec<T>`. `as_chunks` hands back the
+    // `len % N` tail as a remainder; a non-empty remainder reproduces
+    // the `OutputSliceWouldHaveSlop` guarantee. Other cast errors
+    // propagate verbatim — only the alignment failure falls back.
     match bytemuck::try_cast_slice::<u8, T>(data) {
         Ok(aligned) => Ok(aligned.iter().copied().map(T::into).collect()),
         Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
-            let elem_size = size_of::<T>();
-            if !data.len().is_multiple_of(elem_size) {
+            let (chunks, remainder) = data.as_chunks::<N>();
+            if !remainder.is_empty() {
                 return Err(PodCastError::OutputSliceWouldHaveSlop);
             }
-            Ok(data
-                .chunks_exact(elem_size)
-                .map(T::widen_from_le_chunk)
-                .collect())
+            Ok(chunks.iter().map(T::widen_from_le_chunk).collect())
         }
         Err(other) => Err(other),
     }
@@ -168,10 +168,10 @@ impl Response for ASCOMResult<ImageArray> {
             let transmission_element_type =
                 TransmissionElementType::try_from_primitive(metadata.transmission_element_type)?;
             let data = match transmission_element_type {
-                TransmissionElementType::I16 => cast_raw_data::<i16>(raw_data),
-                TransmissionElementType::I32 => cast_raw_data::<i32>(raw_data),
-                TransmissionElementType::U8 => cast_raw_data::<u8>(raw_data),
-                TransmissionElementType::U16 => cast_raw_data::<u16>(raw_data),
+                TransmissionElementType::I16 => cast_raw_data::<2, i16>(raw_data),
+                TransmissionElementType::I32 => cast_raw_data::<4, i32>(raw_data),
+                TransmissionElementType::U8 => cast_raw_data::<1, u8>(raw_data),
+                TransmissionElementType::U16 => cast_raw_data::<2, u16>(raw_data),
             }?;
             let shape = ndarray::Ix3(
                 usize::try_from(metadata.dimension_1)?,
@@ -245,8 +245,9 @@ mod tests {
     /// `bytemuck::PodCastError::TargetAlignmentGreaterAndInputNotAligned`
     /// because both the metadata `try_from_bytes` and the pixel
     /// `try_cast_slice` require source alignment. After the fix —
-    /// using `pod_read_unaligned` and `pod_collect_to_vec` — the
-    /// parse is alignment-independent.
+    /// metadata via `pod_read_unaligned`, and pixels via an aligned
+    /// `try_cast_slice` fast path with an `as_chunks` + little-endian
+    /// `from_le_bytes` fallback — the parse is alignment-independent.
     fn check_one_offset(leading_pad: usize, pixels: &[i32]) -> eyre::Result<()> {
         let (buf, range) = imagebytes_payload_at_offset(leading_pad, pixels)?;
         let slice = &buf[range];
