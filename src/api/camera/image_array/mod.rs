@@ -62,82 +62,39 @@ pub(crate) enum ImageElementType {
     I32 = 2,
 }
 
-trait AsTransmissionElementType: 'static + Into<i32> + AnyBitPattern {
+trait AsTransmissionElementType: Into<i32> + AnyBitPattern {
     const TYPE: TransmissionElementType;
 
-    /// Decode an unaligned little-endian byte slice into widened `i32`
-    /// pixels. Used by the unaligned-input slow path of `cast_raw_data`
-    /// (see `image_array/client.rs`) when `bytemuck::try_cast_slice`
-    /// can't reinterpret in place. Each impl splits `data` with
-    /// `slice::as_chunks::<N>()`, hard-coding `N` to its own byte width
-    /// (`i16` / `u16` => 2, `i32` => 4, `u8` => 1) so the chunk size is
-    /// tied to the element type at compile time and the per-pixel
-    /// `from_le_bytes` conversions operate on `&[u8; N]` arrays with no
-    /// bounds checks. A non-empty `as_chunks` remainder reproduces the
-    /// `OutputSliceWouldHaveSlop` guarantee of the fast path.
+    /// Decode an unaligned response buffer into widened `i32` pixels.
+    /// Used by the unaligned-input slow path of `cast_raw_data` (see
+    /// `image_array/client.rs`) when `bytemuck::try_cast_slice` can't
+    /// reinterpret in place.
     #[cfg(feature = "client")]
-    fn widen_unaligned_le(data: &[u8]) -> Result<Vec<i32>, bytemuck::PodCastError>;
+    fn widen_unaligned(data: &[u8]) -> Result<Vec<i32>, bytemuck::PodCastError> {
+        let chunks = data.chunks_exact(size_of::<Self>());
+        if !chunks.remainder().is_empty() {
+            return Err(bytemuck::PodCastError::OutputSliceWouldHaveSlop);
+        }
+        Ok(chunks
+            .map(|c| bytemuck::pod_read_unaligned::<Self>(c).into())
+            .collect())
+    }
 }
 
 impl AsTransmissionElementType for i16 {
     const TYPE: TransmissionElementType = TransmissionElementType::I16;
-
-    #[cfg(feature = "client")]
-    fn widen_unaligned_le(data: &[u8]) -> Result<Vec<i32>, bytemuck::PodCastError> {
-        let (chunks, remainder) = data.as_chunks::<2>();
-        if !remainder.is_empty() {
-            return Err(bytemuck::PodCastError::OutputSliceWouldHaveSlop);
-        }
-        Ok(chunks
-            .iter()
-            .map(|c| i32::from(Self::from_le_bytes(*c)))
-            .collect())
-    }
 }
 
 impl AsTransmissionElementType for i32 {
     const TYPE: TransmissionElementType = TransmissionElementType::I32;
-
-    #[cfg(feature = "client")]
-    fn widen_unaligned_le(data: &[u8]) -> Result<Vec<i32>, bytemuck::PodCastError> {
-        let (chunks, remainder) = data.as_chunks::<4>();
-        if !remainder.is_empty() {
-            return Err(bytemuck::PodCastError::OutputSliceWouldHaveSlop);
-        }
-        Ok(chunks.iter().map(|c| Self::from_le_bytes(*c)).collect())
-    }
 }
 
 impl AsTransmissionElementType for u16 {
     const TYPE: TransmissionElementType = TransmissionElementType::U16;
-
-    #[cfg(feature = "client")]
-    fn widen_unaligned_le(data: &[u8]) -> Result<Vec<i32>, bytemuck::PodCastError> {
-        let (chunks, remainder) = data.as_chunks::<2>();
-        if !remainder.is_empty() {
-            return Err(bytemuck::PodCastError::OutputSliceWouldHaveSlop);
-        }
-        Ok(chunks
-            .iter()
-            .map(|c| i32::from(Self::from_le_bytes(*c)))
-            .collect())
-    }
 }
 
 impl AsTransmissionElementType for u8 {
     const TYPE: TransmissionElementType = TransmissionElementType::U8;
-
-    #[cfg(feature = "client")]
-    fn widen_unaligned_le(data: &[u8]) -> Result<Vec<i32>, bytemuck::PodCastError> {
-        let (chunks, remainder) = data.as_chunks::<1>();
-        if !remainder.is_empty() {
-            return Err(bytemuck::PodCastError::OutputSliceWouldHaveSlop);
-        }
-        Ok(chunks
-            .iter()
-            .map(|c| i32::from(Self::from_le_bytes(*c)))
-            .collect())
-    }
 }
 
 /// Image array.

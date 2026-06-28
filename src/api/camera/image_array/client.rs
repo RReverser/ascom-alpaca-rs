@@ -94,16 +94,16 @@ fn cast_raw_data<T: AsTransmissionElementType>(data: &[u8]) -> Result<Vec<i32>, 
     // *guaranteed* to be `align_of::<T>()`-aligned (4 bytes for
     // `i32`, 2 for `i16` / `u16`). When the fast cast fails with
     // `TargetAlignmentGreaterAndInputNotAligned`, hand the bytes to
-    // `T::widen_unaligned_le`, which splits `data` into fixed-size
-    // `&[u8; N]` chunks with `as_chunks` and decodes each
-    // little-endian (no per-pixel bounds check) straight into the
-    // output `Vec<i32>` — one pass, no intermediate aligned `Vec<T>`.
-    // A non-empty `as_chunks` remainder reproduces the
+    // `T::widen_unaligned`, which splits `data` into
+    // `size_of::<T>()`-wide chunks and reads each one with
+    // `bytemuck::pod_read_unaligned` straight into the output
+    // `Vec<i32>` — one pass, no intermediate aligned `Vec<T>`. A
+    // non-empty `chunks_exact` remainder reproduces the
     // `OutputSliceWouldHaveSlop` guarantee. Other cast errors
     // propagate verbatim — only the alignment failure falls back.
     match bytemuck::try_cast_slice::<u8, T>(data) {
         Ok(aligned) => Ok(aligned.iter().copied().map(T::into).collect()),
-        Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => T::widen_unaligned_le(data),
+        Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => T::widen_unaligned(data),
         Err(other) => Err(other),
     }
 }
@@ -238,8 +238,8 @@ mod tests {
     /// because both the metadata `try_from_bytes` and the pixel
     /// `try_cast_slice` require source alignment. After the fix —
     /// metadata via `pod_read_unaligned`, and pixels via an aligned
-    /// `try_cast_slice` fast path with an `as_chunks` + little-endian
-    /// `from_le_bytes` fallback — the parse is alignment-independent.
+    /// `try_cast_slice` fast path with a `pod_read_unaligned`
+    /// fallback — the parse is alignment-independent.
     fn check_one_offset(leading_pad: usize, pixels: &[i32]) -> eyre::Result<()> {
         let (buf, range) = imagebytes_payload_at_offset(leading_pad, pixels)?;
         let slice = &buf[range];
@@ -271,5 +271,34 @@ mod tests {
             check_one_offset(leading_pad, &pixels)
                 .unwrap_or_else(|e| panic!("leading_pad={leading_pad}: {e:?}"));
         }
+    }
+
+    /// The shared `widen_unaligned` default method must widen each
+    /// element type the way the aligned fast path does: sign-extend
+    /// signed types, zero-extend unsigned ones, pass `i32` through. The
+    /// `#18` regression test above only drives the `i32` width, so this
+    /// locks in the `size_of::<Self>()` dispatch and the sign/zero
+    /// extension for the remaining widths.
+    #[test]
+    fn widen_unaligned_widens_each_element_type() {
+        assert_eq!(
+            i16::widen_unaligned(&[0x00_u8, 0x80, 0xff, 0x7f]).expect("even length"),
+            vec![i32::from(i16::MIN), i32::from(i16::MAX)],
+        );
+        assert_eq!(
+            u16::widen_unaligned(&[0x00_u8, 0x80, 0xff, 0xff]).expect("even length"),
+            vec![0x8000_i32, 0xffff_i32],
+        );
+        assert_eq!(
+            u8::widen_unaligned(&[0x00_u8, 0x80, 0xff]).expect("any length"),
+            vec![0_i32, 128_i32, 255_i32],
+        );
+        assert_eq!(
+            i32::widen_unaligned(&[0xff_u8, 0xff, 0xff, 0xff]).expect("multiple of four"),
+            vec![-1_i32],
+        );
+        // A trailing partial element reproduces the fast path's
+        // `OutputSliceWouldHaveSlop` rejection.
+        assert!(i16::widen_unaligned(&[0x00_u8, 0x80, 0x01]).is_err());
     }
 }
