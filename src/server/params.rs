@@ -47,10 +47,6 @@ struct AlpacaDeserializer {
 }
 
 impl AlpacaDeserializer {
-    /// Parse the value as `i64`. Every integer `deserialize_*` method forwards
-    /// here and hands the result to `visit_i64`; serde's built-in integer
-    /// `Deserialize` impls then narrow to the target type in a checked way,
-    /// mapping out-of-range values to `INVALID_VALUE` via `Error::custom`.
     fn parse_i64(&self) -> Result<i64, AlpacaParseError> {
         self.value.parse().map_err(|_parse_err| {
             AlpacaParseError::BadFormat(format!("invalid integer: {}", self.value))
@@ -80,9 +76,6 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         }
     }
 
-    // All integer widths funnel through `deserialize_i64`: parse once as i64
-    // and let serde's target-type visitor narrow it in a checked way (an
-    // out-of-range value becomes `INVALID_VALUE`, never a silent truncation).
     fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         self.deserialize_i64(visitor)
     }
@@ -130,8 +123,6 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
     }
 
     fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        // serde's char visitor already validates that the string is exactly one
-        // character (rejecting empty/multi-char), so defer to it.
         self.deserialize_str(visitor)
     }
 
@@ -165,7 +156,10 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        visitor.visit_enum(serde::de::value::StringDeserializer::new(self.value))
+        let index = u32::try_from(self.parse_i64()?).map_err(|_overflow| {
+            AlpacaParseError::InvalidValue(format!("no enum variant with index {}", self.value))
+        })?;
+        visitor.visit_enum(serde::de::value::U32Deserializer::new(index))
     }
 
     fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
@@ -272,10 +266,7 @@ where
             .transpose()
     }
 
-    pub(crate) fn extract<T: DeserializeOwned>(
-        &mut self,
-        name: &'static str,
-    ) -> super::Result<T> {
+    pub(crate) fn extract<T: DeserializeOwned>(&mut self, name: &'static str) -> super::Result<T> {
         self.maybe_extract(name)?
             .ok_or(Error::MissingParameter { name })
     }
@@ -449,7 +440,8 @@ mod tests {
 
     #[test]
     fn enum_repr_unknown_negative_variant() {
-        let err = parse::<ReprEnum>("-1").expect_err("should fail for negative out-of-variant value");
+        let err =
+            parse::<ReprEnum>("-1").expect_err("should fail for negative out-of-variant value");
         assert!(
             matches!(
                 err,
@@ -468,31 +460,59 @@ mod tests {
         assert!(matches!(val, ReprEnum::One));
     }
 
-    // Forward-looking guard only: ASCOM Alpaca has no string-valued enum
-    // parameters today — every enum param (PierSide, DriveRate, TelescopeAxis,
-    // GuideDirection) is an integer-coded `serde_repr` enum that takes the integer
-    // path above, so `deserialize_enum` is currently unreached. These tests fix the
-    // behaviour should a plain `#[derive(Deserialize)]` string enum ever be added
-    // as a parameter: it must resolve a known variant by name and reject an unknown
-    // one as `InvalidValue`. They also pin why the body uses
-    // `visit_enum(StringDeserializer)` rather than a bare `visit_string` (which
-    // fails even on a valid name, since a derived enum's visitor implements only
-    // `visit_enum`). Safe to drop if we'd rather not cover an unreachable path.
     #[derive(serde::Deserialize, Debug, PartialEq)]
-    enum StringEnum {
+    enum PlainEnum {
         Alpha,
         Beta,
     }
 
     #[test]
-    fn string_enum_known_variant() {
-        let val: StringEnum = parse("Beta").expect("should resolve a variant by name");
-        assert_eq!(val, StringEnum::Beta);
+    fn plain_enum_index_selects_variant() {
+        let val: PlainEnum = parse("1").expect("integer should select the variant by index");
+        assert_eq!(val, PlainEnum::Beta);
     }
 
     #[test]
-    fn string_enum_unknown_variant() {
-        let err = parse::<StringEnum>("Zeta").expect_err("unknown variant should fail");
+    fn plain_enum_index_zero() {
+        let val: PlainEnum = parse("0").expect("integer should select the variant by index");
+        assert_eq!(val, PlainEnum::Alpha);
+    }
+
+    #[test]
+    fn plain_enum_variant_name_rejected() {
+        // Enums decode as integers, so a string variant name is a format error
+        // (HTTP 400) — the same way a `serde_repr` enum rejects a non-integer.
+        let err = parse::<PlainEnum>("Beta").expect_err("variant name should not be accepted");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::BadFormat(_),
+                    ..
+                }
+            ),
+            "expected BadFormat, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn plain_enum_index_out_of_range() {
+        let err = parse::<PlainEnum>("5").expect_err("index past the last variant should fail");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::InvalidValue(_),
+                    ..
+                }
+            ),
+            "expected InvalidValue, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn plain_enum_negative_index() {
+        let err = parse::<PlainEnum>("-1").expect_err("negative index should fail");
         assert!(
             matches!(
                 err,
