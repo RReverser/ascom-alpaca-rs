@@ -62,24 +62,30 @@ pub(crate) enum ImageElementType {
     I32 = 2,
 }
 
-trait AsTransmissionElementType: 'static + Into<i32> + AnyBitPattern {
+trait AsTransmissionElementType: Into<i32> + AnyBitPattern {
     const TYPE: TransmissionElementType;
+    type Bytes: Pod;
 }
 
 impl AsTransmissionElementType for i16 {
     const TYPE: TransmissionElementType = TransmissionElementType::I16;
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 impl AsTransmissionElementType for i32 {
     const TYPE: TransmissionElementType = TransmissionElementType::I32;
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 impl AsTransmissionElementType for u16 {
     const TYPE: TransmissionElementType = TransmissionElementType::U16;
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 impl AsTransmissionElementType for u8 {
     const TYPE: TransmissionElementType = TransmissionElementType::U8;
+    #[expect(clippy::use_self)]
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 /// Image array.
