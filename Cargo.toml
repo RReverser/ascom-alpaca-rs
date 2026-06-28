@@ -36,6 +36,7 @@ axum = { version = "0.8.8", optional = true }
 bytemuck = { version = "1.24.0", features = [
 	"derive",
 	"extern_crate_std",
+	"must_cast",
 ], optional = true }
 criterion = { version = "0.8.1", optional = true }
 derive_more = { workspace = true, features = [

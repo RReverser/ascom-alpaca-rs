@@ -64,37 +64,28 @@ pub(crate) enum ImageElementType {
 
 trait AsTransmissionElementType: Into<i32> + AnyBitPattern {
     const TYPE: TransmissionElementType;
-
-    /// Decode an unaligned response buffer into widened `i32` pixels.
-    /// Used by the unaligned-input slow path of `cast_raw_data` (see
-    /// `image_array/client.rs`) when `bytemuck::try_cast_slice` can't
-    /// reinterpret in place.
-    #[cfg(feature = "client")]
-    fn widen_unaligned(data: &[u8]) -> Result<Vec<i32>, bytemuck::PodCastError> {
-        let chunks = data.chunks_exact(size_of::<Self>());
-        if !chunks.remainder().is_empty() {
-            return Err(bytemuck::PodCastError::OutputSliceWouldHaveSlop);
-        }
-        Ok(chunks
-            .map(|c| bytemuck::pod_read_unaligned::<Self>(c).into())
-            .collect())
-    }
+    type Bytes: Pod;
 }
 
 impl AsTransmissionElementType for i16 {
     const TYPE: TransmissionElementType = TransmissionElementType::I16;
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 impl AsTransmissionElementType for i32 {
     const TYPE: TransmissionElementType = TransmissionElementType::I32;
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 impl AsTransmissionElementType for u16 {
     const TYPE: TransmissionElementType = TransmissionElementType::U16;
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 impl AsTransmissionElementType for u8 {
     const TYPE: TransmissionElementType = TransmissionElementType::U8;
+    #[expect(clippy::use_self)]
+    type Bytes = [u8; size_of::<Self>()];
 }
 
 /// Image array.

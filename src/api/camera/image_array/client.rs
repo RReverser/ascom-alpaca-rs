@@ -1,6 +1,6 @@
 use super::{
-    AsTransmissionElementType, ImageArray, ImageArrayRank, ImageBytesMetadata, ImageElementType,
-    TransmissionElementType, COLOUR_AXIS, IMAGE_BYTES_TYPE,
+    AsTransmissionElementType, COLOUR_AXIS, IMAGE_BYTES_TYPE, ImageArray, ImageArrayRank,
+    ImageBytesMetadata, ImageElementType, TransmissionElementType,
 };
 use crate::client::{Response, ResponseTransaction, ResponseWithTransaction};
 use crate::{ASCOMError, ASCOMErrorCode, ASCOMResult};
@@ -8,8 +8,8 @@ use bytemuck::PodCastError;
 use mime::Mime;
 use ndarray::{Array2, Array3};
 use num_enum::TryFromPrimitive;
-use serde::de::{DeserializeOwned, IgnoredAny, MapAccess, Visitor};
 use serde::Deserialize;
+use serde::de::{DeserializeOwned, IgnoredAny, MapAccess, Visitor};
 use serde_ndim::de::MakeNDim;
 use std::fmt::{self, Formatter};
 
@@ -103,7 +103,17 @@ fn cast_raw_data<T: AsTransmissionElementType>(data: &[u8]) -> Result<Vec<i32>, 
     // propagate verbatim — only the alignment failure falls back.
     match bytemuck::try_cast_slice::<u8, T>(data) {
         Ok(aligned) => Ok(aligned.iter().copied().map(T::into).collect()),
-        Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => T::widen_unaligned(data),
+        Err(PodCastError::TargetAlignmentGreaterAndInputNotAligned) => {
+            // Read as unaligned byte blobs of the same size as `T`.
+            Ok(bytemuck::try_cast_slice::<u8, T::Bytes>(data)?
+                .iter()
+                .copied()
+                // Then reinterpret each byte blob as `T`.
+                .map(bytemuck::must_cast)
+                // And convert to the target `i32`.
+                .map(T::into)
+                .collect())
+        }
         Err(other) => Err(other),
     }
 }
@@ -255,7 +265,10 @@ mod tests {
         );
         for (i, &p) in pixels.iter().enumerate() {
             let actual = array[[i, 0_usize, 0_usize]];
-            eyre::ensure!(actual == p, "pixel {i} mismatch: got {actual}, expected {p}");
+            eyre::ensure!(
+                actual == p,
+                "pixel {i} mismatch: got {actual}, expected {p}"
+            );
         }
         Ok(())
     }
@@ -271,34 +284,5 @@ mod tests {
             check_one_offset(leading_pad, &pixels)
                 .unwrap_or_else(|e| panic!("leading_pad={leading_pad}: {e:?}"));
         }
-    }
-
-    /// The shared `widen_unaligned` default method must widen each
-    /// element type the way the aligned fast path does: sign-extend
-    /// signed types, zero-extend unsigned ones, pass `i32` through. The
-    /// `#18` regression test above only drives the `i32` width, so this
-    /// locks in the `size_of::<Self>()` dispatch and the sign/zero
-    /// extension for the remaining widths.
-    #[test]
-    fn widen_unaligned_widens_each_element_type() {
-        assert_eq!(
-            i16::widen_unaligned(&[0x00_u8, 0x80, 0xff, 0x7f]).expect("even length"),
-            vec![i32::from(i16::MIN), i32::from(i16::MAX)],
-        );
-        assert_eq!(
-            u16::widen_unaligned(&[0x00_u8, 0x80, 0xff, 0xff]).expect("even length"),
-            vec![0x8000_i32, 0xffff_i32],
-        );
-        assert_eq!(
-            u8::widen_unaligned(&[0x00_u8, 0x80, 0xff]).expect("any length"),
-            vec![0_i32, 128_i32, 255_i32],
-        );
-        assert_eq!(
-            i32::widen_unaligned(&[0xff_u8, 0xff, 0xff, 0xff]).expect("multiple of four"),
-            vec![-1_i32],
-        );
-        // A trailing partial element reproduces the fast path's
-        // `OutputSliceWouldHaveSlop` rejection.
-        assert!(i16::widen_unaligned(&[0x00_u8, 0x80, 0x01]).is_err());
     }
 }
