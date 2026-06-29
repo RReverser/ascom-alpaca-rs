@@ -192,9 +192,9 @@ impl Response for ASCOMResult<ImageArray> {
             );
             Ok(ndarray::Array::from_shape_vec(shape, data)?.into())
         } else {
-            Err(ASCOMError::new(
-                ASCOMErrorCode::try_from(u16::try_from(metadata.error_number)?)?,
-                std::str::from_utf8(raw_data)?.to_owned(),
+            Err(ASCOMError::new_with_unbounded_code(
+                metadata.error_number,
+                &String::from_utf8_lossy(raw_data),
             ))
         };
         Ok(ResponseWithTransaction {
@@ -207,6 +207,7 @@ impl Response for ASCOMResult<ImageArray> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::assert_matches;
 
     /// Build an `application/imagebytes` payload at the given byte
     /// offset within a `Vec<u8>`. The `Vec`'s base allocation is
@@ -284,5 +285,29 @@ mod tests {
             check_one_offset(leading_pad, &pixels)
                 .unwrap_or_else(|e| panic!("leading_pad={leading_pad}: {e:?}"));
         }
+    }
+
+    /// Regression test for issue #22: an `imagebytes` body carrying an HRESULT-style
+    /// `error_number` outside Alpaca's valid range must parse into an `UNSPECIFIED`
+    /// error (preserving the message) rather than failing the whole response.
+    #[test]
+    fn from_reqwest_maps_out_of_range_error_number_to_unspecified() -> eyre::Result<()> {
+        let metadata = ImageBytesMetadata {
+            metadata_version: 1_i32,
+            error_number: -2_147_024_882_i32,
+            data_start: i32::try_from(size_of::<ImageBytesMetadata>())?,
+            ..bytemuck::Zeroable::zeroed()
+        };
+        let mut buf = bytemuck::bytes_of(&metadata).to_vec();
+        buf.extend_from_slice(b"Not enough storage");
+
+        let mime: Mime = IMAGE_BYTES_TYPE.parse()?;
+        let parsed = <ASCOMResult<ImageArray> as Response>::from_reqwest(mime, &buf)?;
+        assert_matches!(parsed.response, Err(ASCOMError {
+            code: ASCOMErrorCode::UNSPECIFIED,
+            message,
+        }) if message.contains("Not enough storage"));
+
+        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter, UpperHex};
 use std::ops::RangeInclusive;
 use thiserror::Error;
 
@@ -11,24 +11,44 @@ const DRIVER_BASE: u16 = 0x500;
 /// The maximum value for error numbers.
 const MAX: u16 = 0xFFF;
 
+/// The valid range of error numbers.
+const RANGE: RangeInclusive<u16> = BASE..=MAX;
+
+fn invalid_error_code(raw: impl UpperHex) -> eyre::Error {
+    eyre::eyre!("Error code {raw:#X} is out of valid range ({RANGE:#X?})")
+}
+
 /// Alpaca representation of an ASCOM error code.
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
 #[display("{self:?}")]
 #[serde(transparent)]
 pub struct ASCOMErrorCode(u16);
 
+impl TryFrom<i32> for ASCOMErrorCode {
+    type Error = eyre::Error;
+
+    /// Convert a raw error code into an `ASCOMErrorCode` if it's in the valid range.
+    fn try_from(raw: i32) -> eyre::Result<Self> {
+        if let Ok(raw) = u16::try_from(raw)
+            && RANGE.contains(&raw)
+        {
+            Ok(Self(raw))
+        } else {
+            Err(invalid_error_code(raw))
+        }
+    }
+}
+
 impl TryFrom<u16> for ASCOMErrorCode {
     type Error = eyre::Error;
 
     /// Convert a raw error code into an `ASCOMErrorCode` if it's in the valid range.
     fn try_from(raw: u16) -> eyre::Result<Self> {
-        const RANGE: RangeInclusive<u16> = BASE..=MAX;
-
-        eyre::ensure!(
-            RANGE.contains(&raw),
-            "Error code {raw:#X} is out of valid range ({RANGE:#X?})"
-        );
-        Ok(Self(raw))
+        if RANGE.contains(&raw) {
+            Ok(Self(raw))
+        } else {
+            Err(invalid_error_code(raw))
+        }
     }
 }
 
@@ -95,7 +115,7 @@ impl ASCOMErrorCode {
 }
 
 /// ASCOM error.
-#[derive(Debug, Clone, Serialize, Deserialize, Error)]
+#[derive(Debug, Clone, Serialize, Error)]
 #[error("ASCOM error {code}: {message}")]
 pub struct ASCOMError {
     /// Error number.
@@ -106,12 +126,56 @@ pub struct ASCOMError {
     pub message: Cow<'static, str>,
 }
 
+impl<'de> Deserialize<'de> for ASCOMError {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct Repr {
+            error_number: i32,
+            error_message: Cow<'static, str>,
+        }
+
+        let Repr {
+            error_number,
+            error_message,
+        } = Repr::deserialize(deserializer)?;
+
+        // A zero error number is success; anything else goes through the shared out-of-range
+        // handling so the JSON and `imagebytes` paths agree (issue #22).
+        Ok(if error_number == 0 {
+            Self {
+                code: ASCOMErrorCode::OK,
+                message: error_message,
+            }
+        } else {
+            Self::new_with_unbounded_code(error_number, &error_message)
+        })
+    }
+}
+
 impl ASCOMError {
     /// Create a new `ASCOMError` from given error code and a message.
     pub fn new(code: ASCOMErrorCode, message: impl Display) -> Self {
         Self {
             code,
             message: format!("{message:#}").into(),
+        }
+    }
+
+    /// Create an `ASCOMError` from a raw, non-zero error number that may fall outside Alpaca's
+    /// valid range.
+    ///
+    /// Drivers occasionally report HRESULT-style codes (e.g. `-2147024882`) that don't fit.
+    ///
+    /// Instead of failing hard, which would lose the original error message (see issue #22),
+    /// we surface those as `UNSPECIFIED` with the range error prepended to the main one.
+    pub(crate) fn new_with_unbounded_code(raw_code: i32, message: &str) -> Self {
+        match ASCOMErrorCode::try_from(raw_code) {
+            Ok(code) => Self::new(code, message),
+            Err(err) => Self::new(
+                ASCOMErrorCode::UNSPECIFIED,
+                format_args!("{err}: {message}"),
+            ),
         }
     }
 }
@@ -186,7 +250,7 @@ ascom_error_codes! {
     // Extra codes for internal use only.
 
     /// Reserved 'catch-all' error code (0x4FF) used when nothing else was specified.
-    UNSPECIFIED = 0x4FF,
+    pub(crate) UNSPECIFIED = 0x4FF,
 }
 
 impl ASCOMError {
@@ -204,5 +268,49 @@ impl ASCOMError {
     #[cfg(feature = "client")]
     pub(crate) fn unspecified(message: impl Display) -> Self {
         Self::new(ASCOMErrorCode::UNSPECIFIED, message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ASCOMError, ASCOMErrorCode};
+    use std::assert_matches;
+
+    // Devices sometimes return HRESULT-style error numbers that don't fit `u16`. These must
+    // deserialize as `UNSPECIFIED` (keeping the message) rather than failing the response (#22).
+    #[test]
+    fn deserializes_out_of_range_error_number_as_unspecified() -> eyre::Result<()> {
+        assert_matches!(
+            serde_json::from_str(r#"{"ErrorNumber": -2147024882, "ErrorMessage": "Not enough storage"}"#)?,
+            ASCOMError {
+                code: ASCOMErrorCode::UNSPECIFIED,
+                message,
+            } if message.contains("out of valid range") && message.contains("Not enough storage")
+        );
+
+        Ok(())
+    }
+
+    // In-range codes (including success `0`, which is outside the `0x400..=0xFFF` range but is a
+    // valid `u16`) must round-trip unchanged so the client can still detect `OK` responses.
+    #[test]
+    fn deserializes_in_range_error_numbers_unchanged() -> eyre::Result<()> {
+        assert_matches!(
+            serde_json::from_str(r#"{"ErrorNumber": 0, "ErrorMessage": ""}"#)?,
+            ASCOMError {
+                code: ASCOMErrorCode::OK,
+                ..
+            }
+        );
+
+        assert_matches!(
+            serde_json::from_str(r#"{"ErrorNumber": 1025, "ErrorMessage": "bad"}"#)?,
+            ASCOMError {
+                code: ASCOMErrorCode::INVALID_VALUE,
+                ..
+            }
+        );
+
+        Ok(())
     }
 }
