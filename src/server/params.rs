@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 use http::{Method, StatusCode};
 use indexmap::IndexMap;
 use serde::Deserialize;
-use serde::de::{DeserializeOwned, Deserializer, Visitor};
+use serde::de::{DeserializeOwned, Deserializer, Expected, Unexpected, Visitor};
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 
@@ -17,42 +17,39 @@ pub(crate) enum AlpacaParseError {
     /// Invalid format (not a valid integer/bool/etc) -> HTTP 400
     #[error("{0}")]
     BadFormat(String),
-    /// Primitive parsed successfully but the target type rejected the value:
-    /// an integer outside the target's range, or one that doesn't match any
-    /// variant of a `serde_repr` enum -> ASCOM `INVALID_VALUE`.
+    /// A value that parsed but the target rejected: an out-of-range integer or
+    /// an unknown `serde_repr` variant -> ASCOM `INVALID_VALUE`.
     #[error("{0}")]
     InvalidValue(String),
 }
 
 impl serde::de::Error for AlpacaParseError {
     fn custom<T: fmt::Display>(msg: T) -> Self {
-        // Reached when serde semantically rejects a value whose wire bytes
-        // parsed fine: an integer outside the target type's range (serde's
-        // checked `visit_i64` narrowing), a `serde_repr` enum discriminant
-        // matching no variant, or a user `Deserialize` impl calling
-        // `Error::custom`. All of these are ASCOM `INVALID_VALUE`. Our own
-        // format errors are produced as `BadFormat` directly and never reach here.
+        // serde calls this when a value parsed but the target rejected it: an
+        // out-of-range integer, an unknown `serde_repr` variant, or a
+        // `Deserialize` impl calling `Error::custom`. All map to `INVALID_VALUE`.
         Self::InvalidValue(msg.to_string())
+    }
+
+    fn invalid_type(unexp: Unexpected<'_>, exp: &dyn Expected) -> Self {
+        // The value is the wrong *kind* for the target (non-boolean string for a
+        // `bool`, non-integer for an integer, an unsupported shape): a malformed
+        // request -> HTTP 400, unlike `invalid_value`/`custom` (-> `INVALID_VALUE`).
+        Self::BadFormat(format!("invalid type: {unexp}, expected {exp}"))
     }
 }
 
 /// Custom serde Deserializer for Alpaca parameters.
 ///
 /// Integers are parsed once as `i64` and handed to the target type's visitor,
-/// which narrows them in a checked way (out-of-range -> `INVALID_VALUE`). This
-/// covers both i32 device parameters and uint32 transaction/identity parameters
-/// (`ClientID`, `ClientTransactionID`) without per-type dispatch.
+/// which narrows them in a checked way. This covers both i32 device parameters
+/// and uint32 transaction/identity parameters (`ClientID`, `ClientTransactionID`)
+/// without per-type dispatch.
 struct AlpacaDeserializer {
     value: String,
 }
 
-impl AlpacaDeserializer {
-    fn parse_i64(&self) -> Result<i64, AlpacaParseError> {
-        self.value.parse().map_err(|_parse_err| {
-            AlpacaParseError::BadFormat(format!("invalid integer: {}", self.value))
-        })
-    }
-}
+const ALPACA_PARAM: &dyn Expected = &"an ASCOM Alpaca-compliant parameter";
 
 impl<'de> Deserializer<'de> for AlpacaDeserializer {
     type Error = AlpacaParseError;
@@ -69,10 +66,10 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         } else if self.value.eq_ignore_ascii_case("false") {
             visitor.visit_bool(false)
         } else {
-            Err(AlpacaParseError::BadFormat(format!(
-                "invalid boolean: {}",
-                self.value
-            )))
+            Err(serde::de::Error::invalid_type(
+                Unexpected::Str(&self.value),
+                &"a boolean",
+            ))
         }
     }
 
@@ -89,7 +86,10 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
     }
 
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_i64(self.parse_i64()?)
+        let value: i64 = self.value.parse().map_err(|_parse_err| {
+            serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"an integer")
+        })?;
+        visitor.visit_i64(value)
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
@@ -110,14 +110,14 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
 
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         let value: f32 = self.value.parse().map_err(|_parse_err| {
-            AlpacaParseError::BadFormat(format!("invalid float: {}", self.value))
+            serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"a float")
         })?;
         visitor.visit_f32(value)
     }
 
     fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         let value: f64 = self.value.parse().map_err(|_parse_err| {
-            AlpacaParseError::BadFormat(format!("invalid float: {}", self.value))
+            serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"a float")
         })?;
         visitor.visit_f64(value)
     }
@@ -156,8 +156,16 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        let index = u32::try_from(self.parse_i64()?).map_err(|_overflow| {
-            AlpacaParseError::InvalidValue(format!("no enum variant with index {}", self.value))
+        // Parse via i64 so a negative discriminant like -1 is rejected as
+        // INVALID_VALUE (see `plain_enum_negative_index`).
+        let discriminant: i64 = self.value.parse().map_err(|_parse_err| {
+            serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"an integer")
+        })?;
+        let index = u32::try_from(discriminant).map_err(|_overflow| {
+            serde::de::Error::invalid_value(
+                Unexpected::Signed(discriminant),
+                &"a valid enum value (u32)",
+            )
         })?;
         visitor.visit_enum(serde::de::value::U32Deserializer::new(index))
     }
@@ -171,14 +179,16 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
     }
 
     fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "Option types are not supported as Alpaca parameters".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Option,
+            ALPACA_PARAM,
         ))
     }
 
     fn deserialize_unit<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "unit type is not supported as Alpaca parameter".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Unit,
+            ALPACA_PARAM,
         ))
     }
 
@@ -187,14 +197,16 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _name: &'static str,
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "unit struct is not supported as Alpaca parameter".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Unit,
+            ALPACA_PARAM,
         ))
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "sequences are not supported as Alpaca parameters".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Seq,
+            ALPACA_PARAM,
         ))
     }
 
@@ -203,8 +215,9 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _len: usize,
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "tuples are not supported as Alpaca parameters".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Seq,
+            ALPACA_PARAM,
         ))
     }
 
@@ -214,14 +227,16 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _len: usize,
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "tuple structs are not supported as Alpaca parameters".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Seq,
+            ALPACA_PARAM,
         ))
     }
 
     fn deserialize_map<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "maps are not supported as Alpaca parameters".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Map,
+            ALPACA_PARAM,
         ))
     }
 
@@ -231,8 +246,9 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _fields: &'static [&'static str],
         _visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        Err(AlpacaParseError::BadFormat(
-            "structs are not supported as Alpaca parameters".to_owned(),
+        Err(serde::de::Error::invalid_type(
+            Unexpected::Map,
+            ALPACA_PARAM,
         ))
     }
 }
@@ -410,6 +426,62 @@ mod tests {
         );
     }
 
+    #[test]
+    fn bad_format_non_boolean() {
+        // A string that isn't a boolean is the wrong *kind* of input -> HTTP 400,
+        // routed through serde's `invalid_type` like a non-numeric integer.
+        let err = parse::<bool>("maybe").expect_err("should fail for non-boolean input");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::BadFormat(_),
+                    ..
+                }
+            ),
+            "expected BadFormat, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn bool_is_case_insensitive() {
+        assert!(parse::<bool>("True").expect("mixed-case true"));
+        assert!(!parse::<bool>("FALSE").expect("upper-case false"));
+    }
+
+    #[test]
+    fn bad_format_non_float() {
+        let err = parse::<f64>("abc").expect_err("should fail for non-float input");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::BadFormat(_),
+                    ..
+                }
+            ),
+            "expected BadFormat, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn unsupported_composite_type_is_bad_format() {
+        // Composite Rust types have no scalar Alpaca wire representation, so a
+        // parameter typed as one is rejected as malformed -> HTTP 400.
+        let err = parse::<Vec<u32>>("5").expect_err("sequences aren't valid Alpaca parameters");
+        let Error::BadParameter {
+            err: AlpacaParseError::BadFormat(msg),
+            ..
+        } = &err
+        else {
+            panic!("expected BadFormat, got: {err:?}");
+        };
+        assert_eq!(
+            msg.as_str(),
+            "invalid type: sequence, expected an ASCOM Alpaca-compliant parameter"
+        );
+    }
+
     // serde_repr emits `Error::custom("invalid value: N, expected one of: ...")`
     // when an integer doesn't match any variant. Without the visitor-error
     // promotion, that would surface as `BadFormat` -> HTTP 400; ConformU's
@@ -417,15 +489,17 @@ mod tests {
     // exactly this path. It must produce `InvalidValue` -> ASCOM `INVALID_VALUE`.
     #[derive(serde_repr::Deserialize_repr, Debug)]
     #[repr(i32)]
-    enum ReprEnum {
-        Zero = 0,
-        One = 1,
-        Two = 2,
+    enum DriveRateTestEnum {
+        Sidereal = 0,
+        Lunar = 1,
+        Solar = 2,
+        King = 3,
     }
 
     #[test]
     fn enum_repr_unknown_positive_variant() {
-        let err = parse::<ReprEnum>("5").expect_err("should fail for out-of-variant value");
+        let err =
+            parse::<DriveRateTestEnum>("5").expect_err("should fail for out-of-variant value");
         assert!(
             matches!(
                 err,
@@ -440,8 +514,8 @@ mod tests {
 
     #[test]
     fn enum_repr_unknown_negative_variant() {
-        let err =
-            parse::<ReprEnum>("-1").expect_err("should fail for negative out-of-variant value");
+        let err = parse::<DriveRateTestEnum>("-1")
+            .expect_err("should fail for negative out-of-variant value");
         assert!(
             matches!(
                 err,
@@ -456,8 +530,8 @@ mod tests {
 
     #[test]
     fn enum_repr_known_variant_round_trips() {
-        let val: ReprEnum = parse("1").expect("should parse valid variant");
-        assert!(matches!(val, ReprEnum::One));
+        let val: DriveRateTestEnum = parse("1").expect("should parse valid variant");
+        assert!(matches!(val, DriveRateTestEnum::Lunar));
     }
 
     #[derive(serde::Deserialize, Debug, PartialEq)]
