@@ -28,9 +28,11 @@ impl ConformU {
     async fn test(self, device_url: &Url, settings_file: Option<&Path>) -> eyre::Result<()> {
         let mut conformu = cmd!(r"C:\Program Files\ASCOM\ConformU", "conformu")
             .arg(self.as_arg())
-            .args(settings_file.into_iter().flat_map(|path| {
-                [std::ffi::OsStr::new("--settingsfile"), path.as_os_str()]
-            }))
+            .args(
+                settings_file
+                    .into_iter()
+                    .flat_map(|path| [std::ffi::OsStr::new("--settingsfile"), path.as_os_str()]),
+            )
             .arg(device_url.as_str())
             .stdout(Stdio::piped())
             .spawn()?;

@@ -128,10 +128,7 @@ where
     type Error = Infallible;
     type Future = BoxFuture<'static, std::result::Result<Self::Response, Infallible>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Infallible>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<std::result::Result<(), Infallible>> {
         Poll::Ready(Ok(()))
     }
 
@@ -321,7 +318,9 @@ impl Server {
     ///
     /// See [`AlpacaService`] for the returned type.
     pub fn into_service(self) -> AlpacaService {
-        AlpacaService { router: self.into_router_inner() }
+        AlpacaService {
+            router: self.into_router_inner(),
+        }
     }
 
     #[expect(clippy::too_many_lines)]
