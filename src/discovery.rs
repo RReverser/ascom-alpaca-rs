@@ -23,6 +23,9 @@ pub(crate) struct AlpacaPort {
 }
 
 /// IPv4 address information for a network interface.
+///
+/// Only used by the client to determine broadcast targets.
+#[cfg_attr(not(feature = "client"), expect(dead_code))]
 #[derive(Debug)]
 pub(crate) struct Ipv4Info {
     pub(crate) addr: Ipv4Addr,
