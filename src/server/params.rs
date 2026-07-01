@@ -49,8 +49,6 @@ struct AlpacaDeserializer {
     value: String,
 }
 
-const ALPACA_PARAM: &dyn Expected = &"an ASCOM Alpaca-compliant parameter";
-
 impl<'de> Deserializer<'de> for AlpacaDeserializer {
     type Error = AlpacaParseError;
 
@@ -66,10 +64,7 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         } else if self.value.eq_ignore_ascii_case("false") {
             visitor.visit_bool(false)
         } else {
-            Err(serde::de::Error::invalid_type(
-                Unexpected::Str(&self.value),
-                &"a boolean",
-            ))
+            visitor.visit_string(self.value)
         }
     }
 
@@ -86,10 +81,10 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
     }
 
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let value: i64 = self.value.parse().map_err(|_parse_err| {
-            serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"an integer")
-        })?;
-        visitor.visit_i64(value)
+        match self.value.parse::<i64>() {
+            Ok(value) => visitor.visit_i64(value),
+            Err(_) => visitor.visit_string(self.value),
+        }
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
@@ -109,37 +104,17 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
     }
 
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let value: f32 = self.value.parse().map_err(|_parse_err| {
-            serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"a float")
-        })?;
-        visitor.visit_f32(value)
+        match self.value.parse::<f32>() {
+            Ok(value) => visitor.visit_f32(value),
+            Err(_) => visitor.visit_string(self.value),
+        }
     }
 
     fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        let value: f64 = self.value.parse().map_err(|_parse_err| {
-            serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"a float")
-        })?;
-        visitor.visit_f64(value)
-    }
-
-    fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_str(visitor)
-    }
-
-    fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_bytes(self.value.as_bytes())
-    }
-
-    fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_byte_buf(self.value.into_bytes())
-    }
-
-    fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_string(self.value)
-    }
-
-    fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_string(self.value)
+        match self.value.parse::<f64>() {
+            Ok(value) => visitor.visit_f64(value),
+            Err(_) => visitor.visit_string(self.value),
+        }
     }
 
     fn deserialize_newtype_struct<V: Visitor<'de>>(
@@ -156,8 +131,9 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        // Parse via i64 so a negative discriminant like -1 is rejected as
-        // INVALID_VALUE (see `plain_enum_negative_index`).
+        // Alpaca enums are integers. Parse as i64 so a negative value is rejected
+        // as INVALID_VALUE, not a malformed 400; non-negative indices defer to the
+        // derive's visitor, which emits invalid_value for out-of-range variants.
         let discriminant: i64 = self.value.parse().map_err(|_parse_err| {
             serde::de::Error::invalid_type(Unexpected::Str(&self.value), &"an integer")
         })?;
@@ -170,86 +146,12 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         visitor.visit_enum(serde::de::value::U32Deserializer::new(index))
     }
 
-    fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_string(self.value)
-    }
-
-    fn deserialize_ignored_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_string(self.value)
-    }
-
-    fn deserialize_option<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Option,
-            ALPACA_PARAM,
-        ))
-    }
-
-    fn deserialize_unit<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Unit,
-            ALPACA_PARAM,
-        ))
-    }
-
-    fn deserialize_unit_struct<V: Visitor<'de>>(
-        self,
-        _name: &'static str,
-        _visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Unit,
-            ALPACA_PARAM,
-        ))
-    }
-
-    fn deserialize_seq<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Seq,
-            ALPACA_PARAM,
-        ))
-    }
-
-    fn deserialize_tuple<V: Visitor<'de>>(
-        self,
-        _len: usize,
-        _visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Seq,
-            ALPACA_PARAM,
-        ))
-    }
-
-    fn deserialize_tuple_struct<V: Visitor<'de>>(
-        self,
-        _name: &'static str,
-        _len: usize,
-        _visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Seq,
-            ALPACA_PARAM,
-        ))
-    }
-
-    fn deserialize_map<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Map,
-            ALPACA_PARAM,
-        ))
-    }
-
-    fn deserialize_struct<V: Visitor<'de>>(
-        self,
-        _name: &'static str,
-        _fields: &'static [&'static str],
-        _visitor: V,
-    ) -> Result<V::Value, Self::Error> {
-        Err(serde::de::Error::invalid_type(
-            Unexpected::Map,
-            ALPACA_PARAM,
-        ))
+    // Every remaining shape has no scalar Alpaca wire representation. Forward
+    // them to `deserialize_any`, which offers the raw string to the target
+    // visitor; that visitor rejects it as `invalid_type` (-> BadFormat -> 400).
+    serde::forward_to_deserialize_any! {
+        char str string bytes byte_buf identifier ignored_any
+        option unit unit_struct seq tuple tuple_struct map struct
     }
 }
 
@@ -428,18 +330,20 @@ mod tests {
 
     #[test]
     fn bad_format_non_boolean() {
-        // A string that isn't a boolean is the wrong *kind* of input -> HTTP 400,
-        // routed through serde's `invalid_type` like a non-numeric integer.
+        // A string that isn't a boolean is the wrong *kind* of input -> HTTP 400.
+        // Handing the raw value to the `bool` visitor yields serde's own
+        // `invalid_type` error, identical to a hand-built one.
         let err = parse::<bool>("maybe").expect_err("should fail for non-boolean input");
-        assert!(
-            matches!(
-                err,
-                Error::BadParameter {
-                    err: AlpacaParseError::BadFormat(_),
-                    ..
-                }
-            ),
-            "expected BadFormat, got: {err:?}"
+        let Error::BadParameter {
+            err: AlpacaParseError::BadFormat(msg),
+            ..
+        } = &err
+        else {
+            panic!("expected BadFormat, got: {err:?}");
+        };
+        assert_eq!(
+            msg.as_str(),
+            "invalid type: string \"maybe\", expected a boolean"
         );
     }
 
@@ -478,7 +382,7 @@ mod tests {
         };
         assert_eq!(
             msg.as_str(),
-            "invalid type: sequence, expected an ASCOM Alpaca-compliant parameter"
+            "invalid type: string \"5\", expected a sequence"
         );
     }
 
@@ -553,49 +457,50 @@ mod tests {
     }
 
     #[test]
-    fn plain_enum_variant_name_rejected() {
-        // Enums decode as integers, so a string variant name is a format error
-        // (HTTP 400) — the same way a `serde_repr` enum rejects a non-integer.
-        let err = parse::<PlainEnum>("Beta").expect_err("variant name should not be accepted");
+    fn plain_enum_out_of_range_maps_to_invalid_value_via_both_arms() {
+        // Both out-of-range indices become INVALID_VALUE (1025), but through two
+        // different arms — which is exactly why `deserialize_enum` parses i64
+        // first. A non-negative index is handed to `U32Deserializer`, so the
+        // derive's own `visit_u64` rejects it; a negative value can't be a u32, so
+        // our `try_from` arm rejects it before it could ever reach the derive.
+        let positive = parse::<PlainEnum>("5").expect_err("index past the last variant");
+        let Error::BadParameter {
+            err: AlpacaParseError::InvalidValue(msg),
+            ..
+        } = &positive
+        else {
+            panic!("expected InvalidValue for 5, got: {positive:?}");
+        };
+        assert!(
+            msg.contains("variant index"),
+            "5 should be rejected by the derive's visit_u64 arm, got: {msg}"
+        );
+
+        let negative = parse::<PlainEnum>("-1").expect_err("negative index");
+        let Error::BadParameter {
+            err: AlpacaParseError::InvalidValue(msg),
+            ..
+        } = &negative
+        else {
+            panic!("expected InvalidValue for -1, got: {negative:?}");
+        };
+        assert!(
+            msg.contains("a valid enum value (u32)"),
+            "-1 should be rejected by our try_from arm, got: {msg}"
+        );
+
+        // A non-integer is a different class entirely: BadFormat -> 400. A direct
+        // u32 parse would wrongly collapse `-1` into this same bucket.
+        let non_integer = parse::<PlainEnum>("Beta").expect_err("variant name is not an integer");
         assert!(
             matches!(
-                err,
+                non_integer,
                 Error::BadParameter {
                     err: AlpacaParseError::BadFormat(_),
                     ..
                 }
             ),
-            "expected BadFormat, got: {err:?}"
-        );
-    }
-
-    #[test]
-    fn plain_enum_index_out_of_range() {
-        let err = parse::<PlainEnum>("5").expect_err("index past the last variant should fail");
-        assert!(
-            matches!(
-                err,
-                Error::BadParameter {
-                    err: AlpacaParseError::InvalidValue(_),
-                    ..
-                }
-            ),
-            "expected InvalidValue, got: {err:?}"
-        );
-    }
-
-    #[test]
-    fn plain_enum_negative_index() {
-        let err = parse::<PlainEnum>("-1").expect_err("negative index should fail");
-        assert!(
-            matches!(
-                err,
-                Error::BadParameter {
-                    err: AlpacaParseError::InvalidValue(_),
-                    ..
-                }
-            ),
-            "expected InvalidValue, got: {err:?}"
+            "expected BadFormat for Beta, got: {non_integer:?}"
         );
     }
 }
