@@ -49,6 +49,19 @@ struct AlpacaDeserializer {
     value: String,
 }
 
+// The fixed-width integer methods are all required but identical — parse once as
+// `i64` and let the target visitor narrow it — so forward them to `deserialize_i64`
+// via a macro to save the boilerplate of seven near-identical copies.
+macro_rules! forward_int_to_i64 {
+    ($($method:ident)*) => {
+        $(
+            fn $method<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+                self.deserialize_i64(visitor)
+            }
+        )*
+    };
+}
+
 impl<'de> Deserializer<'de> for AlpacaDeserializer {
     type Error = AlpacaParseError;
 
@@ -68,18 +81,6 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         }
     }
 
-    fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_i64(visitor)
-    }
-
     fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.value.parse::<i64>() {
             Ok(value) => visitor.visit_i64(value),
@@ -87,20 +88,9 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         }
     }
 
-    fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_u16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_u32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        self.deserialize_i64(visitor)
+    forward_int_to_i64! {
+        deserialize_i8 deserialize_i16 deserialize_i32
+        deserialize_u8 deserialize_u16 deserialize_u32 deserialize_u64
     }
 
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
