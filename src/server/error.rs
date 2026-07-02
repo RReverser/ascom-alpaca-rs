@@ -1,3 +1,4 @@
+use super::params::AlpacaParseError;
 use crate::ASCOMError;
 use crate::api::DeviceType;
 use axum::http::StatusCode;
@@ -22,7 +23,7 @@ pub(crate) enum Error {
     BadParameter {
         name: &'static str,
         #[source]
-        err: serde_plain::Error,
+        err: AlpacaParseError,
     },
     #[error(transparent)]
     Ascom(#[from] ASCOMError),
