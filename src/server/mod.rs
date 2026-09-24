@@ -32,7 +32,7 @@ use axum::extract::{FromRequest, Path, Request};
 use axum::response::{Html, IntoResponse, Response};
 use axum::{Router, routing};
 use bytes::Bytes;
-use fnv::FnvHashSet;
+use fnv::FnvHashMap;
 use futures::future::{BoxFuture, FutureExt};
 use http::StatusCode;
 use http_body::Body as HttpBody;
@@ -41,6 +41,7 @@ use http_body_util::combinators::UnsyncBoxBody;
 use serde::Deserialize;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::collections::BTreeMap;
+use std::collections::hash_map::Entry;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, RwLock};
@@ -328,7 +329,7 @@ impl Server {
     fn into_router_inner(self) -> Router {
         let devices = Arc::new(self.devices);
         let server_info = Arc::new(self.info);
-        let connecting_devices = Arc::new(RwLock::new(FnvHashSet::default()));
+        let connecting_devices = Arc::new(RwLock::new(FnvHashMap::default()));
 
         Router::new()
             .route(
@@ -442,15 +443,26 @@ impl Server {
                         if action == "connect" || action == "disconnect" {
                             return server_handler.exec(async move |_params| {
                                 let device = devices.get_device_for_server(device_type, device_number)?;
+                                // Count the operations in flight rather than recording the device's
+                                // presence. A client may have several `connect` / `disconnect` requests
+                                // outstanding against one device at a time, and `connecting` has to stay
+                                // `true` until the last of them finishes. Held as a set, the first one to
+                                // complete clears the entry on behalf of all the others, and the client is
+                                // told the operation is over while the rest are still running.
                                 if let Ok(mut connecting_devices) = connecting_devices.write() {
-                                    _ = connecting_devices.insert(Arc::clone(&device));
+                                    *connecting_devices.entry(Arc::clone(&device)).or_insert(0_usize) += 1;
                                 }
                                 _ = tokio::spawn(async move {
                                     if let Err(err) = device.set_connected(action == "connect").await {
                                         tracing::error!(%err, "Error changing device connection state");
                                     }
-                                    if let Ok(mut connecting_devices) = connecting_devices.write() {
-                                        _ = connecting_devices.remove(&device);
+                                    if let Ok(mut connecting_devices) = connecting_devices.write()
+                                        && let Entry::Occupied(mut in_flight) = connecting_devices.entry(device)
+                                    {
+                                        *in_flight.get_mut() -= 1;
+                                        if *in_flight.get() == 0 {
+                                            _ = in_flight.remove();
+                                        }
                                     }
                                 }.in_current_span());
                                 Result::Ok(())
@@ -459,7 +471,7 @@ impl Server {
                         if action == "connecting" {
                             return server_handler.exec(async move |_params| {
                                 let device = devices.get_device_for_server(device_type, device_number)?;
-                                Result::Ok(connecting_devices.read().is_ok_and(|connecting_devices| connecting_devices.contains(&device)))
+                                Result::Ok(connecting_devices.read().is_ok_and(|connecting_devices| connecting_devices.contains_key(&device)))
                             }).await;
                         }
 
