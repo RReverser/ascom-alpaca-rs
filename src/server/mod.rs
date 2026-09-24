@@ -481,3 +481,183 @@ impl Server {
             )
     }
 }
+
+#[cfg(all(test, feature = "safety_monitor"))]
+mod tests {
+    use super::*;
+    use crate::ASCOMResult;
+    use crate::api::Device;
+    use crate::api::{SafetyMonitor, ServerInfo};
+    use axum::body::Body;
+    use http::Request;
+    use http_body_util::BodyExt;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use tokio::sync::Semaphore;
+
+    /// A device whose `set_connected` parks until the test lets it through, so
+    /// that several connect / disconnect operations can be in flight at once
+    /// without the test depending on timing.
+    #[derive(Debug)]
+    struct ParkedDevice {
+        connected: AtomicBool,
+        /// Gains a permit as each `set_connected` is entered.
+        entered: Arc<Semaphore>,
+        /// Each `set_connected` takes a permit before it returns.
+        release: Arc<Semaphore>,
+        /// How many `set_connected` calls have returned.
+        returned: Arc<AtomicUsize>,
+    }
+
+    #[async_trait::async_trait]
+    impl Device for ParkedDevice {
+        fn static_name(&self) -> &'static str {
+            "Parked"
+        }
+
+        fn unique_id(&self) -> &'static str {
+            "parked-device"
+        }
+
+        async fn connected(&self) -> ASCOMResult<bool> {
+            Ok(self.connected.load(Ordering::SeqCst))
+        }
+
+        async fn set_connected(&self, connected: bool) -> ASCOMResult<()> {
+            self.entered.add_permits(1);
+            self.release
+                .acquire()
+                .await
+                .expect("the release semaphore is never closed")
+                .forget();
+            self.connected.store(connected, Ordering::SeqCst);
+            _ = self.returned.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn description(&self) -> ASCOMResult<String> {
+            Ok("Parked device".to_owned())
+        }
+
+        async fn driver_info(&self) -> ASCOMResult<String> {
+            Ok("Parked device".to_owned())
+        }
+
+        async fn driver_version(&self) -> ASCOMResult<String> {
+            Ok("1.0".to_owned())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl SafetyMonitor for ParkedDevice {
+        async fn is_safe(&self) -> ASCOMResult<bool> {
+            Ok(true)
+        }
+    }
+
+    /// One request through the router, as a JSON body.
+    async fn request(router: &Router, method: &str, action: &str) -> serde_json::Value {
+        let mut service = router.clone();
+        futures::future::poll_fn(|cx| {
+            <Router as Service<Request<Body>>>::poll_ready(&mut service, cx)
+        })
+        .await
+        .expect("the router is always ready");
+        let response = service
+            .call(
+                Request::builder()
+                    .method(method)
+                    .uri(format!("/api/v1/safetymonitor/0/{action}"))
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .body(Body::empty())
+                    .expect("the request is well-formed"),
+            )
+            .await
+            .expect("the router is infallible");
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("the response body is readable")
+            .to_bytes();
+        serde_json::from_slice(&body).expect("the response body is JSON")
+    }
+
+    async fn connecting(router: &Router) -> bool {
+        request(router, "GET", "connecting").await["Value"]
+            .as_bool()
+            .expect("Connecting answers with a boolean")
+    }
+
+    /// Let every task the router has spawned reach its next await point.
+    async fn settle() {
+        for _ in 0_u8..100 {
+            tokio::task::yield_now().await;
+        }
+    }
+
+    /// Two `Connect` requests against one device, and the first to finish must
+    /// not answer `Connecting` on behalf of the second.
+    #[tokio::test]
+    async fn connecting_stays_true_until_the_last_operation_finishes() {
+        let entered = Arc::new(Semaphore::new(0));
+        let release = Arc::new(Semaphore::new(0));
+        let returned = Arc::new(AtomicUsize::new(0));
+
+        let mut server = Server::new(ServerInfo {
+            server_name: "test".into(),
+            manufacturer: "test".into(),
+            manufacturer_version: "test".into(),
+            location: "test".into(),
+        });
+        server.devices.register(ParkedDevice {
+            connected: AtomicBool::new(false),
+            entered: Arc::clone(&entered),
+            release: Arc::clone(&release),
+            returned: Arc::clone(&returned),
+        });
+        let router = server.into_router_inner();
+
+        assert!(
+            !connecting(&router).await,
+            "nothing has been asked of the device yet"
+        );
+
+        // Both requests return as soon as the operation is accepted, so the two
+        // operations they started are running while we look at `Connecting`.
+        _ = request(&router, "PUT", "connect").await;
+        _ = request(&router, "PUT", "connect").await;
+        _ = entered
+            .acquire_many(2)
+            .await
+            .expect("the entered semaphore is never closed");
+
+        assert!(
+            connecting(&router).await,
+            "two operations are in flight against the device"
+        );
+
+        // Release exactly one. The other is still parked, so the device is still
+        // undertaking an operation and `Connecting` has to say so.
+        release.add_permits(1);
+        while returned.load(Ordering::SeqCst) < 1 {
+            tokio::task::yield_now().await;
+        }
+        settle().await;
+
+        assert!(
+            connecting(&router).await,
+            "one operation finished, but the other is still running"
+        );
+
+        release.add_permits(1);
+        while returned.load(Ordering::SeqCst) < 2 {
+            tokio::task::yield_now().await;
+        }
+        settle().await;
+
+        assert!(
+            !connecting(&router).await,
+            "both operations have finished, so the device is no longer connecting"
+        );
+    }
+}
