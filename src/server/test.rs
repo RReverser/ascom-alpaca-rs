@@ -162,11 +162,10 @@ fn split_with_whitespace<'line>(line: &mut &'line str, len: usize) -> Option<&'l
 /// # Example
 ///
 /// ```ignore
-/// // Run with default settings
+/// // Run with ConformU's own per-user settings
 /// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?.run().await?;
 ///
-/// // Run with custom settings file for faster CI
-/// // Note: ConformU requires a COMPLETE settings file - see settings_file() docs
+/// // Run with a custom settings file, e.g. shorter Switch delays for faster CI
 /// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?
 ///     .settings_file("test-fixtures/conformu-settings.json")
 ///     .run()
@@ -198,46 +197,46 @@ impl ConformUTestBuilder {
         })
     }
 
-    /// Set a custom ConformU settings file.
+    /// Set a custom ConformU settings file, passed to both runs as `--settingsfile`.
     ///
-    /// # Important: Complete Settings File Required
+    /// The file must exist and hold the integer `"SettingsCompatibilityVersion": 1`
+    /// at its root. ConformU finds it by looking for the literal text
+    /// `"SettingsCompatibilityVersion":` (exact case, nothing between the closing
+    /// quote and the colon); without that text it silently renames the file to
+    /// `<file>.prereleaseversion` and writes a file of defaults in its place, and
+    /// any other integer version is moved aside as `<file>.unknownversion` the
+    /// same way. A file it cannot parse (a comment, a trailing comma, a wrongly
+    /// typed value) is ignored for the run, with only an `ERROR` line in its
+    /// output.
     ///
-    /// ConformU requires a **complete** settings file with all properties.
-    /// Partial files containing only a few settings will be silently ignored
-    /// and overwritten with defaults.
+    /// List only the settings you change: every property the file omits keeps
+    /// ConformU's default, though a dictionary such as `DomeTests` is replaced
+    /// whole. For example, to shorten the pauses ConformU makes after each
+    /// `GetSwitch` / `GetSwitchValue` read (default 500 ms) and each `SetSwitch` /
+    /// `SetSwitchValue` write (default 3000 ms):
     ///
-    /// ## Generating a Default Settings Template
-    ///
-    /// To generate a complete settings file with all default values, run ConformU
-    /// with an empty JSON object file. ConformU will populate it with all defaults:
-    ///
-    /// ```bash
-    /// echo "{}" > conformu-settings.json
-    /// conformu conformance --settingsfile conformu-settings.json http://localhost:9999/api/v1/switch/0
-    /// # The command will fail (no server), but conformu-settings.json now has all defaults
+    /// ```json
+    /// { "SettingsCompatibilityVersion": 1, "SwitchReadDelay": 50, "SwitchWriteDelay": 100 }
     /// ```
     ///
-    /// You can then edit the generated file to customize specific values
-    /// (e.g., reduce `SwitchReadDelay` and `SwitchWriteDelay` for faster CI).
+    /// [`run`](Self::run) uses `alpacaprotocol <url>` and `conformance <url>`, which
+    /// call ConformU's `SetFullTest()` after loading the file. That resets every
+    /// `[MandatoryInFullTest]` setting and the `TelescopeTests` selection to their
+    /// full-test values, so the file cannot turn off switch writes, the opening
+    /// of a dome's shutter, or the side-of-pier tests (whether they run still
+    /// depends on the device). Delays, timeouts and tolerances are honoured, and
+    /// a loosened tolerance raises no alert. Of what the file can still change,
+    /// only a `false` entry in `DomeTests` or turning off
+    /// `AlpacaConfiguration.StrictCasing` raises a configuration alert, which
+    /// makes `run` fail.
     ///
-    /// ## Switch Testing Performance
-    ///
-    /// For Switch device tests, the default delays are:
-    /// - `SwitchReadDelay`: 500ms
-    /// - `SwitchWriteDelay`: 3000ms
-    ///
-    /// For CI environments, reducing these (e.g., to 50ms and 100ms) can cut test
-    /// time from ~8 minutes to ~35 seconds.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Use a pre-configured settings file with reduced delays
-    /// ConformUTestBuilder::new::<dyn Switch>(server_url, 0)?
-    ///     .settings_file("test-fixtures/conformu-settings.json")
-    ///     .run()
-    ///     .await?;
-    /// ```
+    /// Without a settings file, ConformU uses its per-user settings
+    /// (`<LocalApplicationData>/conform/conform.settings`, shared with its GUI), so
+    /// the run is not hermetic: on 64-bit Windows, for example, a saved *Run as
+    /// 32-bit* setting makes ConformU start a detached 32-bit copy of itself and
+    /// exit 0 at once, so `run` passes without seeing any result while that copy
+    /// tests the device unobserved. Pass a file holding just
+    /// `{"SettingsCompatibilityVersion": 1}` to start from ConformU's defaults.
     #[must_use]
     pub fn settings_file(mut self, path: impl AsRef<Path>) -> Self {
         self.settings_file = Some(path.as_ref().to_path_buf());
