@@ -59,7 +59,6 @@ macro_rules! rpc_trait {
         }
     };
     (@extras $trait_name:ident client) => {
-        #[expect(single_use_lifetimes)] // we need compat with #[async_trait]
         fn device_state<'this: 'async_trait, 'async_trait>(&'this self) -> crate::api::ASCOMResultFuture<'async_trait, crate::api::TimestampedDeviceState<DeviceState>> {
             Box::pin(async move {
                 match self.exec_action(Action::DeviceState).await.map(crate::api::device_state::de::TimestampedDeviceStateRepr::into_inner) {
@@ -80,9 +79,9 @@ macro_rules! rpc_trait {
 
         #[cfg(feature = "server")]
         impl dyn Device {
-            async fn device_state(&self) -> ASCOMResult<crate::api::TimestampedDeviceState<DeviceState>> {
+            fn device_state(&self) -> impl Future<Output = ASCOMResult<crate::api::TimestampedDeviceState<DeviceState>>> {
                 // we don't expose Device::device_state, but we do need to handle it on the server
-                Ok(crate::api::TimestampedDeviceState::new(DeviceState))
+                futures::future::ok(crate::api::TimestampedDeviceState::new(DeviceState))
             }
         }
     };
@@ -237,7 +236,6 @@ macro_rules! rpc_trait {
 
         $(# $attr)*
         #[allow(unused_variables)]
-        #[expect(single_use_lifetimes)]
         $pub trait $trait_name: $trait_parents {
             $(rpc_trait!(@body $default_body
                 /// ```rust,no_run

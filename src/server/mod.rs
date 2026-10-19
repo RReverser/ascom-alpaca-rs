@@ -158,6 +158,7 @@ impl<S: Send + Sync> FromRequest<S> for ServerHandler {
 }
 
 impl ServerHandler {
+    #[expect(clippy::result_large_err)] // Ok is an equally large Response, so boxing wouldn't help
     async fn exec<Output>(
         mut self,
         make_response: impl AsyncFnOnce(ActionParams) -> Output,
