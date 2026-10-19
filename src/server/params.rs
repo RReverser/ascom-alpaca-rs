@@ -17,8 +17,8 @@ pub(crate) enum AlpacaParseError {
     /// Invalid format (not a valid integer/bool/etc) -> HTTP 400
     #[error("{0}")]
     BadFormat(String),
-    /// A value that parsed but the target rejected: an out-of-range integer or
-    /// an unknown `serde_repr` variant -> ASCOM `INVALID_VALUE`.
+    /// A value that parsed but the target rejected: an out-of-range integer, a
+    /// non-finite float or an unknown `serde_repr` variant -> ASCOM `INVALID_VALUE`.
     #[error("{0}")]
     InvalidValue(String),
 }
@@ -93,16 +93,26 @@ impl<'de> Deserializer<'de> for AlpacaDeserializer {
         deserialize_u8 deserialize_u16 deserialize_u32 deserialize_u64
     }
 
+    // `from_str` accepts `NaN` and `inf`, and overflows `1e400` to `inf`, but no
+    // Alpaca method takes a non-finite argument, so reject them as INVALID_VALUE.
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.value.parse::<f32>() {
-            Ok(value) => visitor.visit_f32(value),
+            Ok(value) if value.is_finite() => visitor.visit_f32(value),
+            Ok(value) => Err(serde::de::Error::invalid_value(
+                Unexpected::Float(value.into()),
+                &"a finite number",
+            )),
             Err(_) => visitor.visit_string(self.value),
         }
     }
 
     fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.value.parse::<f64>() {
-            Ok(value) => visitor.visit_f64(value),
+            Ok(value) if value.is_finite() => visitor.visit_f64(value),
+            Ok(value) => Err(serde::de::Error::invalid_value(
+                Unexpected::Float(value),
+                &"a finite number",
+            )),
             Err(_) => visitor.visit_string(self.value),
         }
     }
@@ -355,6 +365,46 @@ mod tests {
                 }
             ),
             "expected BadFormat, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn finite_float_round_trips() {
+        let val: f64 = parse("-12.5").expect("should parse a finite float");
+        assert_eq!(val.to_bits(), (-12.5_f64).to_bits());
+    }
+
+    #[test]
+    fn non_finite_float_is_invalid_value() {
+        // `1e400` is an ordinary-looking decimal that overflows to `inf`.
+        for value in ["NaN", "inf", "-inf", "1e400"] {
+            let err = parse::<f64>(value).expect_err("non-finite f64 should be rejected");
+            assert!(
+                matches!(
+                    err,
+                    Error::BadParameter {
+                        err: AlpacaParseError::InvalidValue(_),
+                        ..
+                    }
+                ),
+                "expected InvalidValue for {value}, got: {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn f32_overflow_is_invalid_value() {
+        // Finite as an f64, but `inf` as an f32.
+        let err = parse::<f32>("1e39").expect_err("f32 overflow should be rejected");
+        assert!(
+            matches!(
+                err,
+                Error::BadParameter {
+                    err: AlpacaParseError::InvalidValue(_),
+                    ..
+                }
+            ),
+            "expected InvalidValue, got: {err:?}"
         );
     }
 
